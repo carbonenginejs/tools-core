@@ -34,7 +34,11 @@ import {
   CjsSdeRepository,
 } from "@carbonenginejs/tools-core/sde";
 import { CjsToolTargetRegistry } from "@carbonenginejs/tools-core/target";
-import { CjsShaderTargetRegistry } from "@carbonenginejs/tools-core/shader";
+import {
+  CjsShaderTargetRegistry,
+  CjsToolWebglBuilder,
+  CjsToolWebgpuBuilder,
+} from "@carbonenginejs/tools-core/shader";
 import { CjsToolHttpProxy } from "@carbonenginejs/tools-core/proxy";
 import { normalizeExactBuild } from "@carbonenginejs/tools-core/utils";
 ```
@@ -59,7 +63,8 @@ import { normalizeExactBuild } from "@carbonenginejs/tools-core/utils";
   compiler, normalizer, and serializer expose focused stateless operations as
   static methods.
 - `shader` catalogs exact provider/build-scoped source and compiled profile
-  paths; format packages remain responsible for conversion.
+  paths and provides independent WebGL/WebGPU Node builders. The format
+  packages remain responsible for browser-safe whole-effect conversion.
 - `proxy` is a small optional Node HTTP adapter over the core API.
 - the root facade composes SDE identity resolution with `runtime-sof`'s
   device-free graph output. Plain model values (`BuildSofValues`) are the
@@ -77,10 +82,11 @@ output is advertised for that target.
 
 Shader builders must additionally declare their output profile. Profile
 directories keep compiled effects disjoint: the current legacy runtime rewrites
-`effect/**/*.fx` to `effect.gles2/**/*.sm_<quality>`. New builders should prefer
-the descriptive `effect.webgl2` and `effect.webgpu` profile names. CEWG is a
-package format, not a public resource profile. tools-core catalogs the exact
-paths a builder emits; it does not infer or convert shader profiles.
+`effect/**/*.fx` to `effect.gles2/**/*.sm_<quality>`. The shader builders use
+the descriptive `effect.webgl2` and `effect.webgpu` profile names. CEWG and
+CEWGPU are package formats, not public resource profiles. tools-core catalogs
+the exact paths a builder emits and delegates conversion to the corresponding
+format package.
 
 At present, audio is enabled for `eve` and `frontier`; character is enabled
 only for `eve`. `netease` library builders and Frontier character builds remain
@@ -116,12 +122,46 @@ opened resource index should use `CreateCatalogFromResolutions` instead; it
 rejects mixed targets, games, providers, and builds before any output is
 cataloged.
 
+EVE additionally exposes `eve-webgl2` for `.sm_hi` and `.sm_depth` DX11
+sources, and the incremental `eve-webgpu` target for qualified `.sm_hi` DX11
+SM5.0 sources. WebGPU does not automatically substitute DX12 SM5.1 input. The
+EVE WebGPU target records native comparison as pending audit. No Frontier
+WebGPU target is registered yet; when its corpus is audited, its target policy
+must require `native-hlslcc` qualification.
+
 An offline resfileindex can be turned into the same deterministic source
 inventory without fetching or converting payloads:
 
 ```powershell
 npm run catalog:shader -- --index <resfileindex.txt> --shader-target frontier-webgl2 --build <exact-build> --out <catalog.json>
 ```
+
+### Shader builds
+
+The WebGL and WebGPU builders resolve `latest` once to an exact build, verify
+the indexed size and MD5 of every `.sm_*` source, call the latest installed
+format package's `buildEffect`/`inspect` APIs, stage an immutable report, and
+optionally install a persistent resource overlay.
+
+```powershell
+npm run build:shader:webgl -- --shader-target eve-webgl2 --build latest --out <output>
+npm run build:shader:webgpu -- --shader-target eve-webgpu --build latest --out <output>
+```
+
+Both commands accept repeated `--source` and `--quality` selections, a JSON
+`--source-manifest` or `--conversion-policy`, bounded `--concurrency`,
+`--qualification package|structural|native-hlslcc`,
+`--dry-run`/`--catalog-only`, and `--diagnostic`. A command may strengthen but
+not weaken its target's minimum qualification policy. For native qualification,
+tools-core coordinates a format-owned qualifier and requires explicit HLSLcc
+comparison evidence in the report; executable discovery and comparison logic
+remain outside tools-core.
+
+Outputs and overlays are immutable by default. An identical report is reused
+safely. Agents may pass `--overwrite` or `--force` to transactionally replace
+an unrelated output directory, `--replace-overlay` to transactionally replace
+an existing named overlay, and `--no-reuse` to reject even an identical prior
+output. These flags never authorize replacement of source `.sm_*` files.
 
 ## Cache layout
 
@@ -176,8 +216,9 @@ resource artifact model needed here:
 - `hash-safe` official and remote artifacts retain indexed checksums and may
   download validated payloads through the disposable shared cache.
 
-There are no converter recipes, inspection metadata, queues, or derived
-artifact states in tools-core yet.
+Shader conversion remains an explicit CLI/library operation. tools-core does
+not expose request-triggered conversion queues or derived-artifact state in the
+HTTP service.
 
 Resolution checks generated/override overlays first, then the official index,
 then fallback overlays. An explicit `indexName` still selects one official or

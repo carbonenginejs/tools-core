@@ -167,6 +167,45 @@ test("rejects replacement imports and ignores overlays for incompatible builds",
     })).length, 1);
 });
 
+test("transactionally replaces an overlay only when explicitly requested", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
+    const sourceDirectory = path.join(directory, "source");
+    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const options = {
+        target: "eve",
+        game: "Eve",
+        provider: "test",
+        name: "replaceable",
+        mode: "override",
+        builds: [ "77" ],
+        sourceDirectory,
+        entries: [ { logicalPath: "res:/replace.bin", location: "aa/replace" } ],
+    };
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+
+    await writePayload(sourceDirectory, "aa/replace", "first");
+    await store.Import(options);
+    await writePayload(sourceDirectory, "aa/replace", "second");
+    const replacement = await store.Replace(options);
+    const overlays = await store.OpenTarget("eve", "77", {
+        game: "Eve",
+        provider: "test",
+    });
+    const payload = await overlays[0].Read(overlays[0].Resolve("res:/replace.bin").record);
+
+    assert.equal(replacement.replaced, true);
+    assert.equal(overlays.length, 1);
+    assert.equal(Buffer.from(payload.bytes).toString(), "second");
+    assert.equal(
+        (await fs.readdir(path.dirname(replacement.directory)))
+            .filter((name) => name.includes("replace-"))
+            .length,
+        0,
+    );
+});
+
 test("fetches remote fallback overlays through the disposable shared cache", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));

@@ -4,7 +4,7 @@ export const DefaultTargetData = Object.freeze([
         game: "Eve",
         provider: "ccp",
         client: null,
-        libraries: Object.freeze([ "audio", "character" ]),
+        libraries: Object.freeze([ "audio", "character", "shader" ]),
         topics: Object.freeze([ "app", "res", "sde" ]),
     }),
     Object.freeze({

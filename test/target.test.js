@@ -15,7 +15,7 @@ test("maps short public targets to internal source identities", () =>
         game: "Eve",
         provider: "ccp",
         client: null,
-        libraries: [ "audio", "character" ],
+        libraries: [ "audio", "character", "shader" ],
         topics: [ "app", "res", "sde" ],
     });
     assert.equal(frontier.game, "Frontier");
@@ -35,12 +35,9 @@ test("keeps unaudited library targets disabled", () =>
     assert.equal(targets.RequireLibrary("eve", "audio").id, "eve");
     assert.equal(targets.RequireLibrary("frontier", "audio").id, "frontier");
     assert.equal(targets.RequireLibrary("frontier", "shader").id, "frontier");
+    assert.equal(targets.RequireLibrary("eve", "shader").id, "eve");
     assert.equal(targets.RequireLibrary("eve", "character").id, "eve");
     assert.equal(targets.RequireTopic("eve", "sde").id, "eve");
-    assert.throws(
-        () => targets.RequireLibrary("eve", "shader"),
-        /does not support target eve/,
-    );
     assert.throws(
         () => targets.RequireLibrary("frontier", "character"),
         /does not support target frontier/,

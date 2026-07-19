@@ -22,11 +22,25 @@ export class CjsShaderTarget
         this.sourceProfile = normalizeProfile(data.sourceProfile);
         this.outputProfile = normalizeProfile(data.outputProfile);
         this.qualityTiers = Object.freeze(normalizeQualityTiers(data.qualityTiers));
+        this.sourceFamilies = Object.freeze(normalizeSourceFamilies(data.sourceFamilies));
+        this.selectionPolicy = utils.freezeData(normalizeSelectionPolicy(data.selectionPolicy));
+        this.qualificationPolicy = utils.freezeData(
+            normalizeQualificationPolicy(data.qualificationPolicy),
+        );
         this.overlay = normalizeTargetId(data.overlay ?? this.outputProfile);
 
         if (this.sourceProfile === this.outputProfile)
         {
             throw new TypeError("Shader target source and output profiles must differ");
+        }
+
+        if (this.target === "frontier" && this.format === "CEWGPU"
+            && (this.qualificationPolicy.level !== "native-hlslcc"
+                || this.qualificationPolicy.nativeComparison !== "required"))
+        {
+            throw new TypeError(
+                "Frontier WebGPU targets must require native HLSLcc comparison",
+            );
         }
 
         Object.freeze(this);
@@ -114,6 +128,9 @@ export class CjsShaderTarget
             format: this.format,
             sourceProfile: this.sourceProfile,
             outputProfile: this.outputProfile,
+            sourceFamilies: this.sourceFamilies,
+            selectionPolicy: this.selectionPolicy,
+            qualificationPolicy: this.qualificationPolicy,
             overlay: `${this.overlay}-${exactBuild}`,
             entries: Object.freeze(entries),
         });
@@ -174,6 +191,9 @@ export class CjsShaderTarget
             sourceProfile: this.sourceProfile,
             outputProfile: this.outputProfile,
             qualityTiers: this.qualityTiers,
+            sourceFamilies: this.sourceFamilies,
+            selectionPolicy: this.selectionPolicy,
+            qualificationPolicy: this.qualificationPolicy,
             overlay: this.overlay,
         };
     }
@@ -189,12 +209,89 @@ function normalizeFormat(value)
 {
     const format = String(value ?? "").trim().toUpperCase();
 
-    if (format !== "CEWG")
+    if (![ "CEWG", "CEWGPU" ].includes(format))
     {
         throw new TypeError(`Unsupported shader target format: ${value}`);
     }
 
     return format;
+}
+
+function normalizeSourceFamilies(value)
+{
+    if (!Array.isArray(value) || !value.length)
+    {
+        throw new TypeError("Shader target sourceFamilies must be a non-empty array");
+    }
+
+    return [ ...new Set(value.map((family) =>
+    {
+        const normalized = String(family ?? "").trim().toLowerCase();
+
+        if (!/^[a-z0-9][a-z0-9._-]*$/u.test(normalized))
+        {
+            throw new TypeError(`Invalid shader source family: ${family}`);
+        }
+
+        return normalized;
+    })) ].sort();
+}
+
+function normalizeSelectionPolicy(value)
+{
+    if (!value || typeof value !== "object" || Array.isArray(value))
+    {
+        throw new TypeError("Shader target selectionPolicy must be an object");
+    }
+
+    const permutationMode = String(value.permutationMode ?? "all").trim().toLowerCase();
+    const sourceFamily = String(value.sourceFamily ?? "").trim().toLowerCase();
+
+    if (![ "all", "selected" ].includes(permutationMode))
+    {
+        throw new TypeError(`Invalid shader permutation mode: ${value.permutationMode}`);
+    }
+
+    if (!sourceFamily)
+    {
+        throw new TypeError("Shader target selectionPolicy requires sourceFamily");
+    }
+
+    return {
+        ...value,
+        permutationMode,
+        sourceFamily,
+    };
+}
+
+function normalizeQualificationPolicy(value)
+{
+    if (!value || typeof value !== "object" || Array.isArray(value))
+    {
+        throw new TypeError("Shader target qualificationPolicy must be an object");
+    }
+
+    const level = String(value.level ?? "").trim().toLowerCase();
+    const nativeComparison = String(value.nativeComparison ?? "").trim().toLowerCase();
+
+    if (![ "package", "structural", "native-hlslcc" ].includes(level))
+    {
+        throw new TypeError(`Invalid shader qualification level: ${value.level}`);
+    }
+
+    if (![ "not-applicable", "pending-audit", "required" ].includes(nativeComparison))
+    {
+        throw new TypeError(
+            `Invalid shader native comparison policy: ${value.nativeComparison}`,
+        );
+    }
+
+    if (level === "native-hlslcc" && nativeComparison !== "required")
+    {
+        throw new TypeError("Native HLSLcc qualification must require native comparison");
+    }
+
+    return { level, nativeComparison };
 }
 
 function normalizeProfile(value)

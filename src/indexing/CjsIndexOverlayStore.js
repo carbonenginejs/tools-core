@@ -193,6 +193,75 @@ export class CjsIndexOverlayStore
         }
     }
 
+    /** Transactionally replaces one explicitly named persistent overlay. */
+    async Replace(options)
+    {
+        const target = normalizeTargetId(options?.target);
+        const name = normalizeOverlayName(options?.name);
+        const overlayDirectory = this.GetOverlayDirectory(target, name);
+
+        if (!await exists(overlayDirectory))
+        {
+            return this.Import(options);
+        }
+
+        const suffix = crypto.randomUUID().toLowerCase();
+        const temporaryName = `${name}-replace-${suffix}`;
+        const replacement = await this.Import({
+            ...options,
+            name: temporaryName,
+        });
+        const replacementDirectory = replacement.directory;
+        const backupDirectory = safeJoin(
+            path.dirname(overlayDirectory),
+            `.${name}.backup-${suffix}`,
+        );
+
+        try
+        {
+            const manifestPath = safeJoin(replacementDirectory, "overlay.json");
+            const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+
+            manifest.name = name;
+            await fs.writeFile(
+                manifestPath,
+                `${JSON.stringify(manifest, null, 2)}\n`,
+                "utf8",
+            );
+            await fs.rename(overlayDirectory, backupDirectory);
+
+            try
+            {
+                await fs.rename(replacementDirectory, overlayDirectory);
+            }
+            catch (error)
+            {
+                await fs.rename(backupDirectory, overlayDirectory);
+                throw error;
+            }
+
+            await fs.rm(backupDirectory, { recursive: true, force: true });
+
+            return utils.freezeData({
+                ...replacement,
+                directory: overlayDirectory,
+                name,
+                replaced: true,
+            });
+        }
+        catch (error)
+        {
+            await fs.rm(replacementDirectory, { recursive: true, force: true });
+
+            if (await exists(backupDirectory) && !await exists(overlayDirectory))
+            {
+                await fs.rename(backupDirectory, overlayDirectory);
+            }
+
+            throw error;
+        }
+    }
+
     /** Registers a remote resfileindex-style fallback without copying payloads. */
     async ImportRemote(options)
     {
