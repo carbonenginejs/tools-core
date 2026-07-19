@@ -163,6 +163,14 @@ an unrelated output directory, `--replace-overlay` to transactionally replace
 an existing named overlay, and `--no-reuse` to reject even an identical prior
 output. These flags never authorize replacement of source `.sm_*` files.
 
+Each shader CLI writes a complete JSONL event stream under `<out>/logs` by
+default and prints lifecycle events plus periodic progress to stderr. Use
+`--log <file>` to select the durable log, `--log-interval <count>` to control
+console progress, and `--error-report <file>` to select the structured failure
+report. Per-source failures include the logical paths, status, duration, and
+normalized error; a failed run retains its deterministic build report inside
+the error report even though staging is rolled back.
+
 ## Cache layout
 
 Exact-build indexes include game and provider identity:

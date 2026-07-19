@@ -73,12 +73,21 @@ export class CjsToolShaderBuilder
      */
     async Build(options = {})
     {
+        const startedAt = Date.now();
+        const progress = normalizeProgress(options.onProgress);
         const shaderTarget = this.#shaderTargets.Get(options.shaderTarget);
         const expectedFormat = this.#backend === "webgl" ? "CEWG" : "CEWGPU";
         const qualificationLevel = normalizeQualificationLevel(
             options.qualificationLevel,
             shaderTarget.qualificationPolicy.level,
         );
+
+        await progress({
+            event: "build-start",
+            backend: this.#backend,
+            shaderTarget: shaderTarget.id,
+            requestedBuild: String(options.build ?? "latest"),
+        });
 
         if (shaderTarget.format !== expectedFormat)
         {
@@ -93,6 +102,14 @@ export class CjsToolShaderBuilder
             options.build ?? "latest",
             options.source ?? null,
         );
+
+        await progress({
+            event: "source-opened",
+            shaderTarget: shaderTarget.id,
+            build: exactBuild,
+            elapsedMs: Date.now() - startedAt,
+        });
+
         const resolutions = this.#ResolveSources(source, shaderTarget, options);
         const catalog = shaderTarget.CreateCatalogFromResolutions(resolutions, {
             targets: this.#targets,
@@ -103,9 +120,17 @@ export class CjsToolShaderBuilder
             throw new Error(`Shader catalog build mismatch: ${catalog.build} and ${exactBuild}`);
         }
 
+        await progress({
+            event: "catalog-ready",
+            shaderTarget: shaderTarget.id,
+            build: exactBuild,
+            sourceCount: catalog.entries.length,
+            elapsedMs: Date.now() - startedAt,
+        });
+
         if (options.dryRun === true || options.catalogOnly === true)
         {
-            return utils.freezeData({
+            const result = utils.freezeData({
                 status: "catalog",
                 catalog,
                 report: this.#CreateCatalogReport(
@@ -116,6 +141,16 @@ export class CjsToolShaderBuilder
                 directory: null,
                 overlay: null,
             });
+
+            await progress({
+                event: "build-complete",
+                status: result.status,
+                shaderTarget: shaderTarget.id,
+                build: exactBuild,
+                elapsedMs: Date.now() - startedAt,
+            });
+
+            return result;
         }
 
         const format = await this.#LoadFormat();
@@ -130,12 +165,32 @@ export class CjsToolShaderBuilder
 
         await fs.mkdir(stageDirectory, { recursive: true });
 
+        await progress({
+            event: "staging-start",
+            shaderTarget: shaderTarget.id,
+            build: exactBuild,
+            sourceCount: catalog.entries.length,
+            concurrency: normalizeConcurrency(options.concurrency ?? 4),
+            directory: stageDirectory,
+            elapsedMs: Date.now() - startedAt,
+        });
+
         try
         {
             await runConcurrent(catalog.entries, options.concurrency ?? 4, async (entry, index) =>
             {
+                const entryStartedAt = Date.now();
                 const resolution = resolutions.find((item) =>
                     item.logicalPath === entry.sourcePath);
+
+                await progress({
+                    event: "entry-start",
+                    index,
+                    total: catalog.entries.length,
+                    sourcePath: entry.sourcePath,
+                    outputPath: entry.outputPath,
+                    elapsedMs: Date.now() - startedAt,
+                });
 
                 entries[index] = await this.#BuildEntry({
                     source,
@@ -149,6 +204,18 @@ export class CjsToolShaderBuilder
                     qualificationLevel,
                     stageDirectory,
                     staged,
+                });
+
+                await progress({
+                    event: "entry-complete",
+                    index,
+                    total: catalog.entries.length,
+                    sourcePath: entry.sourcePath,
+                    outputPath: entry.outputPath,
+                    status: entries[index].status,
+                    error: entries[index].error,
+                    durationMs: Date.now() - entryStartedAt,
+                    elapsedMs: Date.now() - startedAt,
                 });
             });
 
@@ -172,6 +239,16 @@ export class CjsToolShaderBuilder
             const qualified = reportWithIdentity.counts.failed === 0
                 && reportWithIdentity.counts.unsupported === 0
                 && reportWithIdentity.counts.unqualified === 0;
+
+            await progress({
+                event: "report-ready",
+                shaderTarget: shaderTarget.id,
+                build: exactBuild,
+                counts: reportWithIdentity.counts,
+                qualified,
+                reportSha256,
+                elapsedMs: Date.now() - startedAt,
+            });
 
             await fs.writeFile(
                 path.join(stageDirectory, "build-report.json"),
@@ -198,6 +275,13 @@ export class CjsToolShaderBuilder
                 reuse: options.reuseExisting !== false,
                 reportSha256,
             });
+
+            await progress({
+                event: "publication-complete",
+                directory,
+                elapsedMs: Date.now() - startedAt,
+            });
+
             const overlay = qualified
                 ? await this.#InstallOverlay({
                     shaderTarget,
@@ -211,16 +295,47 @@ export class CjsToolShaderBuilder
                 })
                 : null;
 
-            return utils.freezeData({
+            if (overlay)
+            {
+                await progress({
+                    event: "overlay-complete",
+                    name: overlay.name,
+                    directory: overlay.directory,
+                    reused: overlay.reused === true,
+                    replaced: overlay.replaced === true,
+                    elapsedMs: Date.now() - startedAt,
+                });
+            }
+
+            const result = utils.freezeData({
                 status: qualified ? "qualified" : "diagnostic",
                 catalog,
                 report: reportWithIdentity,
                 directory,
                 overlay,
             });
+
+            await progress({
+                event: "build-complete",
+                status: result.status,
+                shaderTarget: shaderTarget.id,
+                build: exactBuild,
+                counts: reportWithIdentity.counts,
+                directory,
+                elapsedMs: Date.now() - startedAt,
+            });
+
+            return result;
         }
         catch (error)
         {
+            await progress({
+                event: "build-error",
+                shaderTarget: shaderTarget.id,
+                build: exactBuild,
+                error: serializeProgressError(error),
+                elapsedMs: Date.now() - startedAt,
+            });
             await fs.rm(stageDirectory, { recursive: true, force: true });
             throw error;
         }
@@ -611,6 +726,29 @@ export class CjsToolShaderBuilder
 
 }
 
+function normalizeProgress(value)
+{
+    if (value === undefined || value === null)
+    {
+        return async () => {};
+    }
+
+    if (typeof value !== "function")
+    {
+        throw new TypeError("Shader builder onProgress must be a function or null");
+    }
+
+    return async (event) => value(utils.freezeData(event));
+}
+
+function serializeProgressError(error)
+{
+    return {
+        name: error?.name ?? "Error",
+        message: error?.message ?? String(error),
+    };
+}
+
 function normalizeQualificationLevel(value, minimum)
 {
     const levels = [ "package", "structural", "native-hlslcc" ];
@@ -730,12 +868,7 @@ function normalizeRequestedTiers(value)
 
 async function runConcurrent(values, concurrencyValue, worker)
 {
-    const concurrency = Number(concurrencyValue);
-
-    if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 64)
-    {
-        throw new TypeError(`Invalid shader build concurrency: ${concurrencyValue}`);
-    }
+    const concurrency = normalizeConcurrency(concurrencyValue);
 
     let cursor = 0;
     const workers = Array.from({ length: Math.min(concurrency, values.length) }, async () =>
@@ -749,6 +882,18 @@ async function runConcurrent(values, concurrencyValue, worker)
     });
 
     await Promise.all(workers);
+}
+
+function normalizeConcurrency(value)
+{
+    const concurrency = Number(value);
+
+    if (!Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 64)
+    {
+        throw new TypeError(`Invalid shader build concurrency: ${value}`);
+    }
+
+    return concurrency;
 }
 
 async function publishDirectory(stageDirectory, finalDirectory, options)

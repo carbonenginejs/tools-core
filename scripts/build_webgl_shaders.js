@@ -1,8 +1,11 @@
 import { CjsToolWebglBuilder } from "../src/shader/index.js";
-import { RunShaderBuilder } from "./build_shader_helpers.js";
+import {
+    ReportShaderBuilderFatal,
+    RunShaderBuilder,
+} from "./build_shader_helpers.js";
 
 RunShaderBuilder(CjsToolWebglBuilder, "webgl").catch((error) =>
 {
-    console.error(error.stack || error.message);
+    ReportShaderBuilderFatal(error, "webgl");
     process.exitCode = 1;
 });

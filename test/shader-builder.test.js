@@ -26,6 +26,7 @@ test("WebGL builder verifies sources and emits deterministic qualified reports",
         bytes: "compiled-webgl-source",
     });
     const builder = new CjsToolWebglBuilder({ source, format: QualifiedFormat });
+    const progress = [];
 
     context.after(async () => fs.rm(directory, { recursive: true, force: true }));
 
@@ -35,6 +36,7 @@ test("WebGL builder verifies sources and emits deterministic qualified reports",
         source,
         sourcePaths: [ WebglPath ],
         outputDirectory: directory,
+        onProgress: (event) => progress.push(event),
     });
     const second = await builder.Build({
         shaderTarget: "frontier-webgl2",
@@ -54,6 +56,18 @@ test("WebGL builder verifies sources and emits deterministic qualified reports",
     assert.deepEqual(first.report, second.report);
     assert.equal(first.directory, second.directory);
     assert.equal((await fs.readdir(directory)).length, 1);
+    assert.deepEqual(progress.map((event) => event.event), [
+        "build-start",
+        "source-opened",
+        "catalog-ready",
+        "staging-start",
+        "entry-start",
+        "entry-complete",
+        "report-ready",
+        "publication-complete",
+        "build-complete",
+    ]);
+    assert.equal(progress.find((event) => event.event === "entry-complete").status, "qualified");
 });
 
 test("WebGPU builder remains independently importable and uses CEWGPU targets", async context =>
@@ -143,6 +157,7 @@ test("failed shader runs roll back staging and do not publish output", async con
         bytes: "compiled-source",
     });
     const builder = new CjsToolWebglBuilder({ format: FailingFormat });
+    const progress = [];
 
     context.after(async () => fs.rm(directory, { recursive: true, force: true }));
 
@@ -153,10 +168,13 @@ test("failed shader runs roll back staging and do not publish output", async con
             source,
             sourcePaths: [ WebglPath ],
             outputDirectory: directory,
+            onProgress: (event) => progress.push(event),
         }),
         /did not qualify/u,
     );
     assert.deepEqual(await fs.readdir(directory), []);
+    assert.equal(progress.at(-1).event, "build-error");
+    assert.match(progress.at(-1).error.message, /did not qualify/u);
 });
 
 test("force transactionally replaces a conflicting immutable output", async context =>
