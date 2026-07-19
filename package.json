@@ -7,10 +7,12 @@
     "exports": {
         ".": "./src/index.js",
         "./audio": "./src/audio/index.js",
+        "./black": "./src/black/index.js",
         "./cache": "./src/cache/index.js",
         "./character": "./src/character/index.js",
         "./index": "./src/indexing/index.js",
         "./proxy": "./src/proxy/index.js",
+        "./schema": "./src/schema/index.js",
         "./sde": "./src/sde/index.js",
         "./shader": "./src/shader/index.js",
         "./target": "./src/target/index.js",
@@ -22,8 +24,13 @@
         "cjs-tools-index": "bin/cjs-tool-index.js",
         "cjs-tools-service": "bin/cjs-tools-service.js",
         "cjs-sde-prepare": "bin/cjs-sde-prepare.js",
-        "cjs-character-library": "bin/character-library-json.js",
-        "character-library-json": "bin/character-library-json.js"
+        "cjs-character-library": "bin/cjs-character-json.js",
+        "character-library-json": "bin/cjs-character-json.js",
+        "cjs-character-json": "bin/cjs-character-json.js",
+        "carbon-class": "bin/cjs-carbon-class.js",
+        "cjs-carbon-class": "bin/cjs-carbon-class.js",
+        "carbon-schema": "bin/cjs-carbon-schema.js",
+        "cjs-carbon-schema": "bin/cjs-carbon-schema.js"
     },
     "files": [
         "bin/",
@@ -46,9 +53,11 @@
         "catalog:shader": "node scripts/catalog_shader_targets.js",
         "build:shader:webgl": "node scripts/build_webgl_shaders.js",
         "build:shader:webgpu": "node scripts/build_webgpu_shaders.js",
-        "export:character": "node bin/character-library-json.js",
+        "export:character": "node bin/cjs-character-json.js",
         "scan": "node scripts/carbon-blue/convert.cjs",
         "scan:trinity": "node scripts/carbon-blue/convert.cjs --config scripts/carbon-blue/config/trinity-root.json",
+        "schema:build": "node scripts/build_carbon_schema.js scripts/carbon-blue/reports/latest.json scripts/carbon-blue/reports/trinity-root-latest.json --clean",
+        "schema:generate": "npm run scan && npm run scan:trinity && npm run schema:build",
         "lint": "node lint_package.js",
         "test": "node --test",
         "check": "npm run lint && npm test"

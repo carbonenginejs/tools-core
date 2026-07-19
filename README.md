@@ -15,6 +15,7 @@ import {
   CjsToolAudio,
   CjsToolAudioBuilder,
 } from "@carbonenginejs/tools-core/audio";
+import { CjsToolBlack } from "@carbonenginejs/tools-core/black";
 import { CjsToolCache } from "@carbonenginejs/tools-core/cache";
 import {
   CjsToolCharacter,
@@ -54,6 +55,17 @@ import { normalizeExactBuild } from "@carbonenginejs/tools-core/utils";
   pagination, and search access without requiring one class per table. The
   existing in-memory identity view still joins type, graphic, skin, and
   material-set records into SOF DNA.
+- `black` reads `.black` resources (fetched through an `index` source) into
+  public payload JSON via `@carbonenginejs/runtime-resource`'s `CjsBlackFormat`.
+  It reads against **one checked-in schema snapshot**
+  (`runtime-resource/src/formats/black/core/black-schema-v1-*.json`, generated
+  from a `scripts/carbon-blue/convert.cjs --emit-schema` scan of a Carbon
+  source tree) — there is no per-EVE-build schema selection. Requests against
+  resources from a materially older or newer client build than the snapshot's
+  source tree can fail to parse or silently misread fields if the binary
+  layout drifted. Carbon-authored per-build schema versioning is possible
+  (the scanner already emits build-scoped output) but intentionally not built;
+  keep the snapshot reasonably current by re-running the scan instead.
 - `audio` builds deterministic audio-library JSON from SoundbanksInfo,
   resfileindex records, and an optional plain-JSON metadata overlay.
   `CjsToolAudio` is the target-aware front door; `CjsToolAudioBuilder` exposes
@@ -297,8 +309,15 @@ GET /eve/<sde-build>/sde/resolve?typeID=587&skinID=<skin-id>
 
 An `app` or `res` topic without a path resolves the build and returns its exact
 resource URL template. With a path it returns the validated indexed bytes.
-The expanded `/games/{game}/providers/{provider}/builds/{build}` build route is
-retained as a compatibility alias.
+Appending `?format=json` to a `.black` resource path (e.g.
+`GET /eve/<exact-build>/res/dx9/model/spaceobjectfactory/hulls/<hull>.black?format=json`)
+returns the resource already converted to public payload JSON via the `black`
+module instead of raw bytes; any other extension with `format=json` returns
+`415`. This shares the `black` module's single-schema-snapshot caveat above —
+converting a resource from a build far from the snapshot's source tree can
+fail or silently misread fields. The expanded
+`/games/{game}/providers/{provider}/builds/{build}` build route is retained as
+a compatibility alias.
 
 The billboard, nebula, and cube routes return sorted arrays of complete
 `res:/` paths from the composed exact-build resource view. The SOF respath

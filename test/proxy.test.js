@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -9,6 +10,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { CjsToolHttpProxy } from "../src/index.js";
+
+const FixtureDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 test("serves health, SOF values, and compatibility document requests without a framework", async context =>
 {
@@ -555,4 +558,84 @@ test("service launcher emits an authenticated loopback bootstrap record", async 
 
     child.kill("SIGTERM");
     await exit;
+});
+
+test("serves a Black resource as parsed JSON through ?format=json", async context =>
+{
+    const hullBytes = await fs.readFile(path.join(FixtureDirectory, "fixtures", "ab1_t1.black"));
+    const hullPath = "res:/dx9/model/spaceobjectfactory/hulls/ab1_t1.black";
+    const otherPath = "res:/dx9/model/spaceobjectfactory/hulls/ab1_t1.red";
+    const proxy = new CjsToolHttpProxy({
+        indexes: {
+            async Open()
+            {
+                throw new Error("Open was not expected");
+            },
+            async ResolveTargetBuild()
+            {
+                throw new Error("ResolveTargetBuild was not expected");
+            },
+            async OpenTarget(target, build)
+            {
+                assert.equal(target, "eve");
+                assert.equal(build, "3435006");
+
+                return {
+                    async Fetch(logicalPath)
+                    {
+                        assert.ok([ hullPath, otherPath ].includes(logicalPath));
+
+                        return {
+                            resolution: {
+                                target: "eve",
+                                game: "Eve",
+                                provider: "ccp",
+                                build: "3435006",
+                                logicalPath,
+                            },
+                            bytes: logicalPath === hullPath ? hullBytes : new TextEncoder().encode("red-bytes"),
+                        };
+                    },
+                };
+            },
+        },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const root = `http://127.0.0.1:${server.address().port}`;
+
+    const json = await fetch(`${root}/eve/3435006/res/dx9/model/spaceobjectfactory/hulls/ab1_t1.black?format=json`);
+
+    assert.equal(json.status, 200);
+    assert.equal(json.headers.get("content-type"), "application/json; charset=utf-8");
+
+    const payload = await json.json();
+
+    assert.equal(payload.object._type, "EveSOFDataHull");
+    assert.ok(payload.object.locatorSets.some(set => set.name === "damage"));
+
+    const bytes = await fetch(`${root}/eve/3435006/res/dx9/model/spaceobjectfactory/hulls/ab1_t1.black`);
+
+    assert.equal(bytes.status, 200);
+    assert.equal(bytes.headers.get("content-type"), "application/octet-stream");
+    assert.equal(Number(bytes.headers.get("content-length")), hullBytes.byteLength);
+
+    const unsupportedFormat = await fetch(
+        `${root}/eve/3435006/res/dx9/model/spaceobjectfactory/hulls/ab1_t1.black?format=xml`,
+    );
+
+    assert.equal(unsupportedFormat.status, 400);
+
+    const unsupportedResource = await fetch(
+        `${root}/eve/3435006/res/dx9/model/spaceobjectfactory/hulls/ab1_t1.red?format=json`,
+    );
+
+    assert.equal(unsupportedResource.status, 415);
 });

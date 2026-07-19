@@ -1,4 +1,5 @@
 export * from "./audio/index.js";
+export * from "./black/index.js";
 export * from "./cache/index.js";
 export * from "./character/index.js";
 export * from "./indexing/index.js";

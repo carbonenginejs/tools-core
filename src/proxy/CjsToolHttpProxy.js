@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import http from "node:http";
 
+import { CjsToolBlack } from "../black/CjsToolBlack.js";
 import { CjsIndexAnswerCatalog } from "../indexing/CjsIndexAnswerCatalog.js";
 import * as utils from "../utils.js";
 
@@ -232,8 +233,7 @@ export class CjsToolHttpProxy
                     indexName: url.searchParams.get("index") ?? undefined,
                     refresh: url.searchParams.get("refresh") === "true",
                 });
-
-                WriteBytes(response, 200, file.bytes, {
+                const headers = {
                     "x-carbon-target": targetRoute.target,
                     "x-carbon-game": file.resolution.game,
                     "x-carbon-provider": file.resolution.provider,
@@ -246,7 +246,24 @@ export class CjsToolHttpProxy
                         "x-carbon-overlay": file.resolution.overlay,
                         "x-carbon-storage-kind": file.resolution.storageKind,
                     } : {}),
-                });
+                };
+                const format = url.searchParams.get("format");
+
+                if (format === "json")
+                {
+                    WriteJson(response, 200, ReadFormatJson(targetRoute.path, file.bytes), headers);
+
+                    return;
+                }
+
+                if (format !== null)
+                {
+                    WriteJson(response, 400, { error: `Unsupported format: ${format}` });
+
+                    return;
+                }
+
+                WriteBytes(response, 200, file.bytes, headers);
 
                 return;
             }
@@ -758,6 +775,19 @@ function CreateAnswerHeaders(catalog, answer, values = {})
         ...(values.hull ? { "x-carbon-sof-hull": values.hull } : {}),
         ...(values.insert ? { "x-carbon-respath-insert": values.insert } : {}),
     };
+}
+
+function ReadFormatJson(path, bytes)
+{
+    if (!CjsToolBlack.isBlackPath(path))
+    {
+        const error = new Error(`format=json is not supported for this resource: ${path}`);
+
+        error.statusCode = 415;
+        throw error;
+    }
+
+    return CjsToolBlack.readJson(bytes);
 }
 
 function normalizeRouteSegment(value)

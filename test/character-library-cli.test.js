@@ -9,7 +9,7 @@ import { CjsCharacterLibraryData } from "../../runtime-character/npm/dist/index.
 import { CjsToolCharacterCompiler } from "../src/index.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const cli = path.join(root, "bin", "character-library-json.js");
+const cli = path.join(root, "bin", "cjs-character-json.js");
 
 function Run(args)
 {
