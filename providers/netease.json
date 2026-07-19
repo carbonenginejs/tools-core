@@ -1,0 +1,22 @@
+{
+    "game": "Eve",
+    "id": "netease",
+    "label": "NetEase EVE China resources",
+    "defaultBuildRef": "latest",
+    "remote": {
+        "metadataBaseUrl": "https://eve-china-version-files.oss-cn-hangzhou.aliyuncs.com",
+        "indexBaseUrl": "https://eve-china-version-files.oss-cn-hangzhou.aliyuncs.com",
+        "appBaseUrl": "https://ma79.gdl.netease.com/eve/binaries",
+        "resBaseUrl": "https://ma79.gdl.netease.com/eve/resources"
+    },
+    "clients": {
+        "serenity": {
+            "metadataToken": "SERENITY",
+            "aliases": []
+        },
+        "infinity": {
+            "metadataToken": "INFINITY",
+            "aliases": []
+        }
+    }
+}

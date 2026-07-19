@@ -1,0 +1,11 @@
+{
+  "reportPath": "scripts/carbon-blue/reports/trinity-root-latest.json",
+  "markdownReportPath": "scripts/carbon-blue/reports/trinity-root-latest.md",
+  "families": [
+    {
+      "name": "trinityCore",
+      "root": "trinity/trinity",
+      "enabled": true
+    }
+  ]
+}

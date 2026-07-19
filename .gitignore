@@ -1,0 +1,52 @@
+# Dependencies and package staging
+/node_modules/
+/.npm/
+/npm/
+
+# Tool caches and persistent acquired game data
+/.cache/
+/cache/
+/caches/
+/.tmp/
+/tmp/
+/data.local/
+/downloads/
+/indexes/
+/files/
+/ResFiles/
+/custom/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Generated working data and reports (compact libraries remain opt-in files)
+/data/
+coverage/
+/scripts/carbon-blue/reports/
+*.log
+*.tgz
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+/.scratch/
+carbonenginejs.md
+
+# Agent and tool state
+/AGENTS.md
+.agent/
+.agents/
+agents/
+.claude/
+.codex/
+.skill/
+.skills/
+review/
+_review/

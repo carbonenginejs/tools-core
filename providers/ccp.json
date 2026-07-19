@@ -1,0 +1,30 @@
+{
+    "game": "Eve",
+    "id": "ccp",
+    "label": "CCP EVE Online resources",
+    "defaultBuildRef": "latest",
+    "remote": {
+        "metadataBaseUrl": "https://binaries.eveonline.com",
+        "indexBaseUrl": "https://binaries.eveonline.com",
+        "appBaseUrl": "https://binaries.eveonline.com",
+        "resBaseUrl": "https://resources.eveonline.com"
+    },
+    "clients": {
+        "tranquility": {
+            "metadataToken": "TQ",
+            "aliases": ["tq"]
+        },
+        "singularity": {
+            "metadataToken": "SISI",
+            "aliases": ["sisi"]
+        },
+        "thunderdome": {
+            "metadataToken": "THUNDERDOME",
+            "aliases": []
+        },
+        "chaos": {
+            "metadataToken": "CHAOS",
+            "aliases": []
+        }
+    }
+}

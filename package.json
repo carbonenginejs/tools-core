@@ -1,0 +1,87 @@
+{
+    "name": "@carbonenginejs/tools-core",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Node toolchain for CarbonEngineJS acquisition, SDE joins, character libraries, caches, graph output, and optional HTTP access.",
+    "type": "module",
+    "main": "src/index.js",
+    "exports": {
+        ".": "./src/index.js",
+        "./audio": "./src/audio/index.js",
+        "./cache": "./src/cache/index.js",
+        "./character": "./src/character/index.js",
+        "./index": "./src/indexing/index.js",
+        "./proxy": "./src/proxy/index.js",
+        "./sde": "./src/sde/index.js",
+        "./shader": "./src/shader/index.js",
+        "./target": "./src/target/index.js",
+        "./utils": "./src/utils.js"
+    },
+    "bin": {
+        "cjs-index": "bin/cjs-tool-index.js",
+        "cjs-tool-index": "bin/cjs-tool-index.js",
+        "cjs-tools-index": "bin/cjs-tool-index.js",
+        "cjs-tools-service": "bin/cjs-tools-service.js",
+        "cjs-sde-prepare": "bin/cjs-sde-prepare.js",
+        "cjs-character-library": "bin/character-library-json.js",
+        "character-library-json": "bin/character-library-json.js"
+    },
+    "files": [
+        "bin/",
+        "providers/",
+        "scripts/",
+        "src/",
+        "README.md",
+        "LICENSE",
+        "NOTICE"
+    ],
+    "engines": {
+        "node": ">=18"
+    },
+    "scripts": {
+        "start": "node bin/cjs-tool-index.js",
+        "service": "node bin/cjs-tools-service.js",
+        "prepare:sde": "node bin/cjs-sde-prepare.js",
+        "build:audio": "node scripts/build_audio_library.js",
+        "build:character": "node scripts/build_character_library.js",
+        "catalog:shader": "node scripts/catalog_shader_targets.js",
+        "export:character": "node bin/character-library-json.js",
+        "scan": "node scripts/carbon-blue/convert.cjs",
+        "scan:trinity": "node scripts/carbon-blue/convert.cjs --config scripts/carbon-blue/config/trinity-root.json",
+        "lint": "node lint_package.js",
+        "test": "node --test",
+        "check": "npm run lint && npm test"
+    },
+    "dependencies": {
+        "@carbonenginejs/core-types": "file:../core-types",
+        "@carbonenginejs/runtime-audio": "file:../runtime-audio/npm",
+        "@carbonenginejs/runtime-resource": "file:../runtime-resource/npm",
+        "@carbonenginejs/runtime-sof": "file:../runtime-sof/npm",
+        "@carbonenginejs/runtime-trinity": "file:../runtime-trinity/npm",
+        "better-sqlite3": "^11.10.0",
+        "unzipper": "^0.12.5"
+    },
+    "devDependencies": {
+        "@carbonenginejs/runtime-character": "file:../runtime-character/npm"
+    },
+    "sideEffects": false,
+    "keywords": [
+        "carbonenginejs",
+        "tools-core",
+        "eve-online",
+        "appfileindex",
+        "resfileindex",
+        "sde",
+        "character",
+        "sof"
+    ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/carbonenginejs/tools-core.git"
+    },
+    "homepage": "https://github.com/carbonenginejs/tools-core#readme",
+    "bugs": {
+        "url": "https://github.com/carbonenginejs/tools-core/issues"
+    }
+}

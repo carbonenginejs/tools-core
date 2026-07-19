@@ -1,0 +1,18 @@
+{
+    "game": "Frontier",
+    "id": "ccp",
+    "label": "CCP EVE Frontier resources",
+    "defaultBuildRef": "latest",
+    "remote": {
+        "metadataBaseUrl": "https://binaries.shared.reitnorf.com",
+        "indexBaseUrl": "https://binaries.shared.reitnorf.com",
+        "appBaseUrl": "https://binaries.shared.reitnorf.com",
+        "resBaseUrl": "https://resources.shared.reitnorf.com"
+    },
+    "clients": {
+        "stillness": {
+            "metadataToken": "STILLNESS",
+            "aliases": []
+        }
+    }
+}

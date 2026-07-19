@@ -1,0 +1,15 @@
+carbonenginejs/tools-core
+========================
+
+Copyright (c) 2026 CarbonEngineJS contributors.
+
+This package contains CarbonEngineJS original code for CCP-compatible index
+interoperability, prepared SDE joins, character-library generation, caching,
+tool orchestration, and optional HTTP access. Its runtime-sof integration uses
+the public CarbonEngineJS runtime boundary. It contains no copied CCP or
+CarbonEngine source code.
+
+Fenris Creations (CCP Games) source material, tools, assets, and EVE-related
+data remain copyright their original holders. These names are used for
+interoperability and provenance context. This project is not affiliated with
+or endorsed by Fenris Creations or CCP Games.

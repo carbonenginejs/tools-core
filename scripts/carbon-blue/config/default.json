@@ -1,0 +1,165 @@
+{
+  "reportPath": "scripts/carbon-blue/reports/latest.json",
+  "markdownReportPath": "scripts/carbon-blue/reports/latest.md",
+  "outputRoot": "scripts/carbon-blue/generated",
+  "schemaOutputRoot": "scripts/carbon-blue/generated/schema",
+  "classOutputRoot": "scripts/carbon-blue/generated/classes",
+  "classReportPath": "scripts/carbon-blue/reports/classes-latest.json",
+  "classSuffix": "_ccp",
+  "stubImport": "../Blue",
+  "blackTypeOverrides": [
+    {
+      "cppType": "Tr2Lod",
+      "beType": "LONG",
+      "wireType": "enum",
+      "signed": true
+    }
+  ],
+  "families": [
+    {
+      "name": "audio",
+      "root": "audio/src",
+      "enabled": true
+    },
+    {
+      "name": "carbonResources",
+      "root": "resources",
+      "enabled": true
+    },
+    {
+      "name": "controllers",
+      "root": "trinity/trinity/Controllers",
+      "enabled": true
+    },
+    {
+      "name": "curves",
+      "root": "trinity/trinity/Curves",
+      "enabled": true
+    },
+    {
+      "name": "d3dinfo",
+      "root": "d3dinfo",
+      "enabled": true
+    },
+    {
+      "name": "eve",
+      "root": "trinity/trinity/Eve",
+      "enabled": true
+    },
+    {
+      "name": "font",
+      "root": "trinity/trinity/Font",
+      "enabled": true
+    },
+    {
+      "name": "geo2",
+      "root": "geo2",
+      "enabled": true
+    },
+    {
+      "name": "imageio",
+      "root": "imageio",
+      "enabled": true
+    },
+    {
+      "name": "imagetools",
+      "root": "imagetools",
+      "enabled": true
+    },
+    {
+      "name": "include",
+      "root": "trinity/trinity/Include",
+      "enabled": true
+    },
+    {
+      "name": "interior",
+      "root": "trinity/trinity/Interior",
+      "enabled": true
+    },
+    {
+      "name": "lights",
+      "root": "trinity/trinity/Lights",
+      "enabled": true
+    },
+    {
+      "name": "mesh",
+      "root": "mesh",
+      "enabled": true
+    },
+    {
+      "name": "particle",
+      "root": "trinity/trinity/Particle",
+      "enabled": true
+    },
+    {
+      "name": "postProcess",
+      "root": "trinity/trinity/PostProcess",
+      "enabled": true
+    },
+    {
+      "name": "raytracing",
+      "root": "trinity/trinity/Raytracing",
+      "enabled": true
+    },
+    {
+      "name": "redToBlackConverter",
+      "root": "red-to-black-converter",
+      "enabled": true
+    },
+    {
+      "name": "renderJob",
+      "root": "trinity/trinity/RenderJob",
+      "enabled": true
+    },
+    {
+      "name": "resources",
+      "root": "trinity/trinity/Resources",
+      "enabled": true
+    },
+    {
+      "name": "shader",
+      "root": "trinity/trinity/Shader",
+      "enabled": true
+    },
+    {
+      "name": "spatialAudioClustering",
+      "root": "spatial-audio-clustering",
+      "enabled": true
+    },
+    {
+      "name": "sprite2d",
+      "root": "trinity/trinity/Sprite2d",
+      "enabled": true
+    },
+    {
+      "name": "trinityAudio",
+      "root": "trinity/trinity/Audio",
+      "enabled": true
+    },
+    {
+      "name": "trinityAudioApi",
+      "root": "trinityaudioapi",
+      "enabled": true
+    },
+    {
+      "name": "ui",
+      "root": "trinity/trinity/UI",
+      "enabled": true
+    },
+    {
+      "name": "utilities",
+      "root": "trinity/trinity/Utilities",
+      "enabled": true
+    },
+    {
+      "name": "videoPlayer",
+      "root": "videoplayer",
+      "enabled": true
+    },
+    {
+      "name": "wod",
+      "root": "trinity/trinity/Wod",
+      "enabled": true
+    }
+  ]
+}
