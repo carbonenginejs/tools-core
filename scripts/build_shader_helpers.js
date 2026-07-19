@@ -266,6 +266,7 @@ async function CreateRunLogger(options, backend, shaderTarget)
         ?? path.join(path.dirname(logFile), `${runName}.error.json`));
     const logInterval = options.logInterval ?? 25;
     let completed = 0;
+    const progressCounts = {};
     let pending = Promise.resolve();
 
     await fs.mkdir(path.dirname(logFile), { recursive: true });
@@ -279,6 +280,7 @@ async function CreateRunLogger(options, backend, shaderTarget)
         if (event.event === "entry-complete")
         {
             completed++;
+            progressCounts[event.status] = (progressCounts[event.status] ?? 0) + 1;
         }
 
         const record = {
@@ -289,13 +291,14 @@ async function CreateRunLogger(options, backend, shaderTarget)
             backend,
             shaderTarget: shaderTarget.id,
             ...event,
-            ...(event.event === "entry-complete" ? { completed } : {}),
+            ...(event.event === "entry-complete" ? {
+                completed,
+                progressCounts: { ...progressCounts },
+            } : {}),
         };
         const line = `${JSON.stringify(record)}\n`;
         const print = event.event !== "entry-start"
             && (event.event !== "entry-complete"
-                || event.status === "failed"
-                || event.status === "unsupported"
                 || completed % logInterval === 0
                 || completed === event.total);
 
