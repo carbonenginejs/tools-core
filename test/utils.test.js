@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+    getEveLatestBuildCacheTTL,
     isExactBuild,
     normalizeExactBuild,
     normalizeExactBuildNumber,
@@ -35,4 +36,20 @@ test("shares object and optional-string normalization contracts", () =>
     assert.equal(optionalString(undefined), null);
     assert.equal(optionalString(""), null);
     assert.equal(optionalString(12), "12");
+});
+
+test("polls latest-build metadata only during the daily deployment window", () =>
+{
+    assert.equal(
+        getEveLatestBuildCacheTTL(Date.parse("2026-07-20T10:00:00Z")),
+        5 * 60 * 1000,
+    );
+    assert.equal(
+        getEveLatestBuildCacheTTL(Date.parse("2026-07-20T12:00:00Z")),
+        21 * 60 * 60 * 1000,
+    );
+    assert.equal(
+        getEveLatestBuildCacheTTL(Date.parse("2026-07-20T08:59:00Z")),
+        60 * 1000,
+    );
 });

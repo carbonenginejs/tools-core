@@ -191,12 +191,11 @@ export class CjsSde
     Resolve(selection = {})
     {
         const normalized = ExpandNameSelection(selection, this);
-        const skinID = NormalizeOptionalId(normalized.skinID ?? normalized.skinId);
+        const skinID = NormalizeOptionalId(normalized.skinID);
         let type = ResolveType(normalized, this);
         let typeID = type ? RecordId(type) : null;
         let graphicID = NormalizeOptionalId(
             normalized.graphicID
-            ?? normalized.graphicId
             ?? GetFirst(type, "graphicID", "graphicId")
         );
 
@@ -325,11 +324,8 @@ function ExpandNameSelection(selection, sde)
 
     const hasIdentity = [
         selection.typeID,
-        selection.typeId,
         selection.graphicID,
-        selection.graphicId,
-        selection.skinID,
-        selection.skinId
+        selection.skinID
     ].some(value => NormalizeOptionalId(value));
 
     if (hasIdentity)
@@ -418,7 +414,7 @@ function ResolveNameCandidates(candidates, name)
 
 function ResolveType(selection, sde)
 {
-    const typeID = NormalizeOptionalId(selection.typeID ?? selection.typeId);
+    const typeID = NormalizeOptionalId(selection.typeID);
 
     if (typeID)
     {

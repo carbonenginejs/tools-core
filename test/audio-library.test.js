@@ -5,6 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { gunzipSync as GunzipSync } from "node:zlib";
 import {
   CjsToolAudio,
   CjsToolAudioBuilder,
@@ -104,6 +105,10 @@ test("audio CLI reads and validates logical inputs from the shared ResFiles cach
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(fs.readFileSync(outputPath, "utf8")).sourceTarget, "eve");
+  assert.deepEqual(
+    GunzipSync(fs.readFileSync(`${outputPath}.gz`)),
+    fs.readFileSync(outputPath),
+  );
 
   fs.writeFileSync(cachePath, "{}");
 

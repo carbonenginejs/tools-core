@@ -21,13 +21,16 @@ import {
   CjsToolCharacter,
   CjsToolCharacterAssembler,
   CjsToolCharacterCompiler,
+  CjsToolCharacterLibrary,
   CjsToolCharacterNormalizer,
+  CjsToolCharacterRepository,
   CjsToolCharacterSerializer,
 } from "@carbonenginejs/tools-core/character";
 import {
   CjsIndexOverlayStore,
   CjsToolIndex,
 } from "@carbonenginejs/tools-core/index";
+import { CjsToolLibraryArtifact } from "@carbonenginejs/tools-core/library";
 import {
   CjsSde,
   CjsSdeArchive,
@@ -40,6 +43,15 @@ import {
   CjsToolWebglBuilder,
   CjsToolWebgpuBuilder,
 } from "@carbonenginejs/tools-core/shader";
+import {
+  CjsToolSkin,
+  CjsToolSkinBuilder,
+  CjsToolSkinrBuilder,
+} from "@carbonenginejs/tools-core/skin";
+import {
+  CjsToolWeapon,
+  CjsToolWeaponBuilder,
+} from "@carbonenginejs/tools-core/weapon";
 import { CjsToolHttpProxy } from "@carbonenginejs/tools-core/proxy";
 import { normalizeExactBuild } from "@carbonenginejs/tools-core/utils";
 ```
@@ -48,6 +60,10 @@ import { normalizeExactBuild } from "@carbonenginejs/tools-core/utils";
   game classifications, composes target-specific resource overlays, and
   retrieves validated bytes.
 - `cache` owns the shared index, payload, and generated-output layout.
+- `library` writes one canonical JSON byte sequence and a deterministic
+  `.json.gz` distribution sibling. Cache-backed builders use
+  `CjsToolCache.WriteCustomLibrary(...)`; arbitrary output paths use
+  `CjsToolLibraryArtifact.write(...)`.
 - `utils` owns shared low-level build, object, URL, response, byte-validation,
   freezing, and buffer operations used across the tool modules.
 - `sde` acquires exact-build official JSONL archives and stores every table in
@@ -73,10 +89,53 @@ import { normalizeExactBuild } from "@carbonenginejs/tools-core/utils";
 - `character` builds deterministic character-library JSON from prepared source
   files. `CjsToolCharacter` is its target-aware front door; the assembler,
   compiler, normalizer, and serializer expose focused stateless operations as
-  static methods.
+  static methods. `CjsToolCharacterCompiler.createLodBundles(...)` emits the
+  same atomic configuration/geometry record shape hydrated by
+  `CjsCharacterLodBundle` in `runtime-character`. `CjsToolCharacterLibrary`
+  mirrors the runtime part, type-identity, name-candidate, category, and LOD
+  query methods. `CjsToolCharacterRepository` opens exact prepared libraries
+  from the shared cache for the optional HTTP service. Compact libraries also
+  carry `recipeLinks`, one entry-index-aligned table per preset. Each row is
+  explicitly resolved, ambiguous, or unresolved and may target a selectable
+  `partID`, morph name, metadata rule node, or material. The compiler never
+  picks one candidate from an ambiguous authored selection.
+
+Optional identity enrichment uses a source-neutral prepared document. A local
+composition adapter may join approved research records to the official type
+identity view, then pass only this public shape to the compiler or
+`--identities <file>` character-builder option:
+
+```js
+const enriched = CjsToolCharacterCompiler.applyPartIdentities(expanded, {
+  schema: "carbonenginejs.characterPartIdentities",
+  schemaVersion: 1,
+  sourceTarget: "eve",
+  sourceBuild: "3435006",
+  parts: {
+    "female/hair/hair_long_01/types/hair_long_01": {
+      typeID: "9001",
+      name: "Long Hair",
+    },
+  },
+});
+```
+
+The keys remain CarbonEngineJS-owned part IDs. `typeID` is preserved as an
+exact positive string and is never synthesized; a missing external identity
+stays `null`. The prepared document is build-checked and does not expose the
+shape or provenance of any optional local reader.
 - `shader` catalogs exact provider/build-scoped source and compiled profile
   paths and provides independent WebGL/WebGPU Node builders. The format
   packages remain responsible for browser-safe whole-effect conversion.
+- `skin` builds separate exact-source JSON libraries for developer-authored
+  SKINs and player-authored SKINR catalogs. Their ID-addressable sections are
+  also the HTTP response bodies, so offline and service-backed consumers use
+  the same records without a translation layer.
+- `weapon` builds the exact SDE joins needed by renderers: weapon TypeID to
+  `graphicID`/authored `.red`/runtime `.black`, dogma charge groups and sizes
+  to compatible ammunition TypeIDs, and the official launcher projectile
+  graphic catalog. It does not infer an ammunition-to-projectile TypeID join
+  from filenames because CCP does not publish that relationship explicitly.
 - `proxy` is a small optional Node HTTP adapter over the core API.
 - the root facade composes SDE identity resolution with `runtime-sof`'s
   device-free graph output. Plain model values (`BuildSofValues`) are the
@@ -100,9 +159,9 @@ CEWGPU are package formats, not public resource profiles. tools-core catalogs
 the exact paths a builder emits and delegates conversion to the corresponding
 format package.
 
-At present, audio is enabled for `eve` and `frontier`; character is enabled
-only for `eve`. `netease` library builders and Frontier character builds remain
-disabled until each input contract has been audited.
+At present, audio is enabled for `eve` and `frontier`; character, SKIN, SKINR,
+and weapons are enabled only for `eve`. `netease` library builders and corresponding
+Frontier builds remain disabled until each input contract has been audited.
 
 The official downloadable SDE topic is enabled only for `eve`. Frontier has
 client static-data resources and separate public data interfaces, but it is not
@@ -207,6 +266,8 @@ identity remains in cached index metadata. Generated outputs and databases use:
 
 For example:
 `custom/games/eve/providers/ccp/builds/3435006/character_v1.json`.
+The skin catalogs are `skin_v1.json` and `skinr_v1.json`, and the weapon
+catalog is `weapons_v1.json`, in the same exact-build directory.
 The full EVE database is
 `custom/games/eve/providers/ccp/builds/3435006/sde_v1.sqlite`.
 
@@ -263,11 +324,16 @@ format and never appears as the public resource profile.
 
 ## Local service
 
-`cjs-tools-service` starts a loopback-only, bearer-authenticated HTTP service
-for desktop clients such as Blender. It selects an available port by default
-and writes one JSON bootstrap record to stdout containing the port, token,
-protocol version, cache directory, persistent data directory, and enabled
-capabilities.
+`cjs-tools-service` starts a loopback-only HTTP service for local clients such
+as ccpwgl and Blender. It selects an available port by default and writes one
+JSON bootstrap record to stdout containing the port, protocol version, cache
+directory, persistent data directory, and enabled capabilities.
+
+Browser clients receive CORS headers on JSON and resource-byte responses. The
+service answers `OPTIONS` preflight requests, including private-network access.
+The current query/resource APIs do not require authentication; a future
+write-capable service must define its own authentication boundary before it
+accepts or persists caller data.
 
 The service exposes versioned health, exact resource resolution, validated
 resource fetch-to-cache endpoints, and generic EVE SDE reads. SOF composition
@@ -292,7 +358,12 @@ GET /eve/latest/build
 GET /frontier/latest/build
 GET /frontier/latest/res
 GET /eve/<exact-build>/res/<path>
+GET /eve/<build>/res/resfiles
+GET /eve/<build>/resfiles
 GET /netease/<exact-build>/app/<path>
+GET /ccp/<build>/<topic>[/<path>]
+GET /ccp/<build>/resources[/<path>]
+GET /eve/<build>/resource[/<path>]
 GET /eve/<build>/billboards
 GET /eve/<build>/nebulas
 GET /eve/<build>/cubes
@@ -305,6 +376,32 @@ GET /eve/<sde-build>/sde/<table>?query=<text>
 GET /eve/<sde-build>/sde/<table>?field=groupID&value=25
 GET /eve/<sde-build>/sde/skins?field=types&contains=587
 GET /eve/<sde-build>/sde/resolve?typeID=587&skinID=<skin-id>
+GET /eve/<build>/character
+GET /eve/<build>/character/types/<typeID>?lod=<lod>
+GET /eve/<build>/character/parts/<partID>?lod=<lod>
+GET /eve/<build>/character/lookup?name=<name>
+GET /eve/<build>/character/search?name=<name>
+GET /eve/<build>/character/resolve?name=<name>&lod=<lod>
+GET /eve/<build>/character/<category>?lod=<lod>
+GET /eve/<build>/character/lod/<lod>/types/<typeID>
+GET /eve/<build>/character/lod/<lod>/parts/<partID>
+GET /eve/<build>/character/lod/<lod>/resolve?name=<name>
+GET /eve/<build>/character/lod/<lod>/<category>
+GET /eve/<sde-build>/skin
+GET /eve/<sde-build>/skin/<section>
+GET /eve/<sde-build>/skin/<section>/<id>
+GET /eve/<sde-build>/skinr
+GET /eve/<sde-build>/skinr/<section>
+GET /eve/<sde-build>/skinr/<section>/<id>
+GET /eve/<sde-build>/weapons
+GET /eve/<sde-build>/weapons/lookup?name=<name>
+GET /eve/<sde-build>/weapons/search?name=<name>
+GET /eve/<sde-build>/weapons/types/<weapon-typeID>
+GET /eve/<sde-build>/weapons/types/<weapon-typeID>/ammunition
+GET /eve/<sde-build>/weapons/types/<weapon-typeID>/ammunition/<ammunition-typeID>
+GET /eve/<sde-build>/weapons/ammunition/<ammunition-typeID>
+GET /eve/<sde-build>/weapons/projectiles[/<graphicID>]
+GET /eve/<sde-build>/weapons/groups[/<groupID>]
 ```
 
 An `app` or `res` topic without a path resolves the build and returns its exact
@@ -319,8 +416,41 @@ fail or silently misread fields. The expanded
 `/games/{game}/providers/{provider}/builds/{build}` build route is retained as
 a compatibility alias.
 
-The billboard, nebula, and cube routes return sorted arrays of complete
-`res:/` paths from the composed exact-build resource view. The SOF respath
+The character root returns the prepared runtime-shaped library. A
+`types/<typeID>` lookup is deterministic. `lookup?name=<name>` and
+`search?name=<name>` mirror the skin identity endpoints and return candidate
+lists containing `typeID` and the Carbon-owned `partID`; the latter folds
+punctuation and spacing. `resolve?name=<name>` is the unambiguous convenience
+lookup. The JavaScript library API exposes the corresponding `LookupName()`,
+`SearchName()`, and `ResolveName()` methods. Category paths include descendant
+categories. Lookup candidates are unranked exact identities; `typeID` is
+optional and `partID` is always present. Use `parts/<partID>` to select a
+candidate that has no `typeID` or whose name is ambiguous. Character part
+responses include an atomic `lodBundle` when
+either `?lod=<lod>` or the leading
+`lod/<lod>/...` form is used; specifying both with different values is invalid.
+The root library additionally includes prepared `recipeLinks`; graph hydration
+and strict/diagnostic recipe resolution remain owned by `runtime-character`.
+
+Carbon-owned character fields retain the established camelCase vocabulary,
+including capitalized identity suffixes such as `typeID`. Embedded third-party
+records and authored map keys are preserved rather than recursively re-keyed.
+Any ESI-shaped representation belongs in an explicit adapter.
+
+The `ccp/<build>` route is the preferred compact EVE CCP API root. Browser
+clients may map `api:/` to `/ccp/<build>/` and `res:/` to
+`/ccp/<build>/resources/`. Its `resources`
+subtree is the EVE `res:/` HTTP root: files return
+their validated bytes and directories return their JSON description with
+immediate children. The target-oriented `eve/<build>/resource` route exposes
+the same directory-description operation. Directories include
+their immediate file and directory children, so callers can browse a narrow
+part of the composed exact-build resource view without downloading its full
+index. For example, `/ccp/<build>/resources/texture/sprite/banners` lists the
+authored horizontal-banner directory. The billboard, nebula, and cube routes
+return sorted arrays of complete `res:/` paths. The cube catalog
+contains the base, blur, and reflection variants used by nebula declarations.
+The SOF respath
 insert GET route returns names proven by matching base and inserted hull
 material maps; faction `_fn` hulls also inherit the corresponding `_t1`
 answers. The resolve POST accepts `{ "paths": [...] }` and returns a positional
@@ -331,6 +461,14 @@ it exists in the composed index, and otherwise returns the original path.
 `effect` and `effects` folders are intentionally left unchanged. Response
 headers expose the exact resolved build even when the request used `latest`.
 
+`/res/resfiles` (also `/resfiles`) temporarily returns the complete sorted
+`res:/` path list for legacy clients. It is a migration endpoint, not the
+preferred long-term SOF API. Current ccpwgl no longer requests it. New
+consumers should use the resource-directory, billboard/cube, and
+hull-respath-insert answers instead. The raw CCP resource index remains
+available through the ordinary app-resource route as
+`/app/resfileindex.txt`; no second resfileindex representation is defined.
+
 The built-in Frontier profile uses the `stillness` client. Its public build
 metadata and exact app manifest use the same resolver interface as EVE. When
 CCP marks app-side index payloads as protected, full `ReadIndexes`/`Open`
@@ -340,6 +478,30 @@ An SDE `latest` reference resolves independently against CCP's SDE channel, so
 it may differ from the latest app/res build. By default the service only opens
 prepared databases. Pass `--sde-auto-prepare` to download and build a missing
 database on its first request.
+
+The `skin` and `skinr` routes use that same exact SDE source. A full-library
+response has the same structure as the generated file; for example,
+`/eve/<build>/skin/skins/5` returns the same value as
+`skinLibrary.skins[5]`, and `/eve/<build>/skinr/components/53` returns
+`skinrLibrary.components[53]`. Unknown sections or IDs return `404`.
+
+The `weapons` root likewise matches `weapons_v1.json`. `types/<typeID>` returns
+the exact `library.types[typeID]` record. Each weapon carries the CCP-authored
+`graphicFile` and a lowercase `resPath` with the obsolete `.red` extension
+changed to the indexed `.black` resource. Its `chargeGroupIDs`, optional
+`chargeSize`, and `ammunitionTypeIDs` come from dogma rather than market-name
+guessing. The nested ammunition routes return only records compatible with
+that weapon. Ammunition graphics are labelled by role; missile ammunition
+normally resolves to an impact graph. `projectiles` is therefore a separate
+catalog of official launcher `EveMissile` graphics and is deliberately not
+silently joined to ammunition TypeIDs by filename convention. Name lookup is
+weapon-discovery-only: exact weapon names return their TypeID candidate, while
+authored inventory-group and market-group names expand to every descendant
+weapon TypeID option. It is not a general TypeID/name service; ammunition names
+and unrelated inventory names belong behind ESI. All subsequent resolution
+remains ID-based. Weapon records retain `marketGroupID` as an external join key,
+but the weapon library does not republish market-group records; the ESI-facing
+facade owns that API.
 
 ```powershell
 npm run service -- --cache <cache> --data <persistent-data>
@@ -358,6 +520,29 @@ For a pinned build, pass `--build <exact-build>`. The command writes
 JSONL table in that archive plus exact source provenance and row counts. The
 import is transactional: an invalid replacement leaves the prior database
 intact.
+
+Build both offline skin catalogs from the prepared database:
+
+```powershell
+npm run build:skins -- --cache <cache> --build <exact-build>
+```
+
+Build the offline weapon catalog from the same prepared database:
+
+```powershell
+npm run build:weapons -- --cache <cache> --build <exact-build>
+```
+
+`--build latest` is supported and resolves once to the exact SDE build. Add
+`--auto-prepare` when the command may download and prepare a missing database.
+Each command output has both `.json` and `.json.gz` forms, and the gzip form
+decodes byte-for-byte to the JSON artifact. The SKIN file exposes `skins`, `skinMaterials`, `skinMaterialSets`,
+`skinLicenses`, `typesToSkins`, `skinMaterialsToTypes`, and
+`skinsToLicenses`. The SKINR file exposes component, slot, and ship-tree maps,
+plus the SKINR-owned `typesToSlotConfigurations` relation, normalized point
+values, tier thresholds, texture address modes, and component-license joins.
+It does not copy full ESI type records. Official `.red` and texture paths are
+preserved as authored.
 
 Library callers can keep latest-build policy separate from exact acquisition:
 
@@ -440,6 +625,8 @@ npm run service -- --cache <cache> --sde-auto-prepare
 npm run prepare:sde -- --cache <cache> [--build <exact-build>]
 npm run build:audio -- --index <resfileindex.txt> --cache <cache> --soundbanksinfo <file-or-res-path> --out <library.json> --target <eve|frontier> --build <build> [--enrichment <audio-metadata.json>]
 npm run build:character -- --index <resfileindex.txt> --cache <cache> --out <library.json> --target eve --build <build>
+npm run build:skins -- --cache <cache> --build <build|latest> [--auto-prepare]
+npm run build:weapons -- --cache <cache> --build <build|latest> [--auto-prepare]
 npm run catalog:shader -- --index <resfileindex.txt> --shader-target frontier-webgl2 --build <build> --out <catalog.json>
 npm run export:character -- <catalogs.json> --out <library.json>
 npm run check

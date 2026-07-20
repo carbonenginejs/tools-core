@@ -14,6 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { CjsToolAudio, CjsToolAudioBuilder } from "../src/audio/index.js";
 import { CjsToolCache } from "../src/cache/index.js";
+import { CjsToolLibraryArtifact } from "../src/library/index.js";
 import * as utils from "../src/utils.js";
 // Bank format reader: inspection (typed HIRC fields) + the event-graph walk
 // grouped under the wwise static. No resource lifecycle pulled in.
@@ -207,10 +208,14 @@ async function Main(argv)
     }
 
     const outPath = path.resolve(options.out);
-    fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, `${JSON.stringify(library, null, options.compact ? 0 : 2)}\n`, "utf8");
+    const artifacts = await CjsToolLibraryArtifact.write(outPath, library, {
+        compact: options.compact,
+    });
     console.log(JSON.stringify({
-        out: outPath,
+        out: artifacts.jsonPath,
+        gzip: artifacts.gzipPath,
+        jsonBytes: artifacts.jsonBytes,
+        gzipBytes: artifacts.gzipBytes,
         target: library.sourceTarget,
         game: library.sourceGame,
         provider: library.sourceProvider,

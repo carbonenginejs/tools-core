@@ -38,10 +38,12 @@ test("resolves latest once and prepares exact-build CjsSde tables", async () =>
         }
     });
     const latest = await source.ResolveLatest();
+    const cachedLatest = await source.ResolveLatest();
     const prepared = await source.Prepare(latest);
     const sde = new CjsSde(prepared);
 
     assert.equal(latest.build, 3435006);
+    assert.equal(cachedLatest, latest);
     assert.equal(prepared.schema, "carbon.sde.prepared");
     assert.equal(prepared.version, 1);
     assert.equal(prepared.build, 3435006);

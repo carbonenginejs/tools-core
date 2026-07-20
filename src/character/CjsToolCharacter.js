@@ -55,7 +55,11 @@ export class CjsToolCharacter
     /** Compiles an expanded library into its canonical compact JSON shape. */
     Compile(data, options = {})
     {
-        return CjsToolCharacterCompiler.compile(data, options);
+        const prepared = options.partIdentities
+            ? CjsToolCharacterCompiler.applyPartIdentities(data, options.partIdentities)
+            : data;
+
+        return CjsToolCharacterCompiler.compile(prepared, options);
     }
 
     /** Removes source records and source IDs from one freshly assembled library. */
@@ -76,6 +80,7 @@ export class CjsToolCharacter
 
         return this.Compile(expanded, {
             partSourceResources: options.partSourceResources,
+            partIdentities: options.partIdentities,
         });
     }
 

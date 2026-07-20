@@ -3,9 +3,9 @@ export const DefaultTargetData = Object.freeze([
         id: "eve",
         game: "Eve",
         provider: "ccp",
-        client: null,
-        libraries: Object.freeze([ "audio", "character", "shader" ]),
-        topics: Object.freeze([ "app", "res", "sde" ]),
+        client: "tranquility",
+        libraries: Object.freeze([ "audio", "character", "shader", "skin", "skinr", "weapons" ]),
+        topics: Object.freeze([ "app", "res", "sde", "skin", "skinr", "weapons" ]),
     }),
     Object.freeze({
         id: "frontier",

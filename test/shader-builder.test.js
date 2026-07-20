@@ -76,7 +76,7 @@ test("WebGPU builder remains independently importable and uses CEWGPU targets", 
     const source = createSource({
         target: "eve",
         game: "Eve",
-        client: null,
+        client: "tranquility",
         logicalPath: WebgpuPath,
         bytes: "compiled-webgpu-source",
     });
@@ -104,7 +104,7 @@ test("tools-core coordinates but does not implement native HLSLcc qualification"
     const source = createSource({
         target: "eve",
         game: "Eve",
-        client: null,
+        client: "tranquility",
         logicalPath: WebgpuPath,
         bytes: "compiled-source",
     });

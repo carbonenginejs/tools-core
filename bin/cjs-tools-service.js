@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import crypto from "node:crypto";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import {
     CjsIndexCache,
     CjsIndexOverlayStore,
+    CjsToolCharacterRepository,
     CjsToolIndex,
     CjsSdeRepository,
     CjsToolCache,
@@ -39,20 +39,21 @@ async function main()
 
     const host = normalizeHost(args.host ?? "127.0.0.1");
     const port = normalizePort(args.port ?? 0);
-    const token = normalizeToken(args.token ?? crypto.randomBytes(32).toString("hex"));
     const cacheDirectory = path.resolve(String(args.cache ?? path.join(".cache", "tool-core")));
     const dataDirectory = path.resolve(String(
         args.data ?? path.join(packageDirectory, "data.local"),
     ));
+    const toolCache = new CjsToolCache(cacheDirectory);
     const indexes = new CjsToolIndex({
         cache: new CjsIndexCache({ directory: cacheDirectory }),
         overlays: new CjsIndexOverlayStore(dataDirectory),
     });
     const sde = new CjsSdeRepository({
-        cache: new CjsToolCache(cacheDirectory),
+        cache: toolCache,
         autoPrepare: args.sdeAutoPrepare === true,
     });
-    const proxy = new CjsToolHttpProxy({ indexes, sde, token });
+    const characters = new CjsToolCharacterRepository({ cache: toolCache, indexes });
+    const proxy = new CjsToolHttpProxy({ indexes, sde, characters });
     const server = proxy.CreateServer();
 
     await new Promise((resolve, reject) =>
@@ -74,7 +75,6 @@ async function main()
         protocolVersion: TOOLS_SERVICE_PROTOCOL_VERSION,
         host,
         port: address.port,
-        token,
         pid: process.pid,
         cacheDirectory,
         dataDirectory,
@@ -118,18 +118,6 @@ function normalizePort(value)
     return port;
 }
 
-function normalizeToken(value)
-{
-    const token = String(value ?? "").trim();
-
-    if (token.length < 16)
-    {
-        throw new Error("Tools service token must contain at least 16 characters");
-    }
-
-    return token;
-}
-
 function printHelp()
 {
     process.stdout.write(`CarbonEngineJS tools-core service
@@ -142,10 +130,10 @@ Options:
   --port <number>    Loopback port; zero selects an available port
   --cache <path>     Shared tools cache root
   --data <path>      Persistent local overlay root; never removed by cache cleanup
-  --token <value>    Optional bearer token with at least 16 characters
   --sde-auto-prepare Download a missing EVE SDE database on its first request
   --help             Show this help
 
-The first stdout line is a JSON bootstrap record for the Blender client.
+The first stdout line is a JSON bootstrap record for local clients, including
+ccpwgl and Blender.
 `);
 }

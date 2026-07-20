@@ -9,17 +9,28 @@ export class CjsIndexBuildResolver
 
     #fetch;
 
+    #latest;
+
+    #now;
+
     /**
      * Creates a resolver with an injectable Fetch-compatible function.
      */
-    constructor({ fetch = globalThis.fetch } = {})
+    constructor({ fetch = globalThis.fetch, now = Date.now } = {})
     {
         if (typeof fetch !== "function")
         {
             throw new TypeError("CjsIndexBuildResolver requires fetch");
         }
 
+        if (typeof now !== "function")
+        {
+            throw new TypeError("CjsIndexBuildResolver now must be a function");
+        }
+
         this.#fetch = fetch;
+        this.#latest = new Map();
+        this.#now = now;
         Object.freeze(this);
     }
 
@@ -36,14 +47,17 @@ export class CjsIndexBuildResolver
 
         if (buildRef === "latest")
         {
-            if (clientRef)
+            return this.#ResolveCached(provider, clientRef, () =>
             {
-                const client = resolveClient(provider, clientRef);
+                if (clientRef)
+                {
+                    const client = resolveClient(provider, clientRef);
 
-                return this.#ResolveClient(provider, client, buildRef);
-            }
+                    return this.#ResolveClient(provider, client, buildRef);
+                }
 
-            return this.#ResolveLatest(provider, buildRef);
+                return this.#ResolveLatest(provider, buildRef);
+            });
         }
 
         if (utils.isExactBuild(buildRef))
@@ -71,6 +85,41 @@ export class CjsIndexBuildResolver
         const client = resolveClient(provider, buildRef);
 
         return this.#ResolveClient(provider, client, buildRef);
+    }
+
+    #ResolveCached(provider, clientRef, resolver)
+    {
+        const now = Number(this.#now());
+
+        if (!Number.isFinite(now))
+        {
+            throw new TypeError("CjsIndexBuildResolver now returned an invalid time");
+        }
+
+        const key = `${provider.game}\0${provider.id}\0${clientRef ?? "*"}`;
+        const cached = this.#latest.get(key);
+
+        if (cached && cached.expiresAt > now)
+        {
+            return cached.value;
+        }
+
+        const ttl = provider.game.toLowerCase() === "eve" && provider.id === "ccp"
+            ? utils.getEveLatestBuildCacheTTL(now)
+            : 5 * 60 * 1000;
+        const value = Promise.resolve().then(resolver);
+        const entry = Object.freeze({ expiresAt: now + ttl, value });
+
+        this.#latest.set(key, entry);
+        value.catch(() =>
+        {
+            if (this.#latest.get(key) === entry)
+            {
+                this.#latest.delete(key);
+            }
+        });
+
+        return value;
     }
 
     /**

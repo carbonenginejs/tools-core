@@ -106,3 +106,76 @@ export function toArrayBuffer(bytes)
 
     return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
 }
+
+/**
+ * Returns the cache lifetime for EVE latest-build metadata.
+ * CCP's normal deployment window is approximately 09:00-12:00 UTC
+ * (22:00-01:00 NZDT), so polling is frequent only inside that window.
+ */
+export function getEveLatestBuildCacheTTL(value = Date.now())
+{
+    const now = Number(value);
+
+    if (!Number.isFinite(now))
+    {
+        throw new TypeError(`Invalid latest-build cache time: ${value}`);
+    }
+
+    const date = new Date(now);
+    const hour = date.getUTCHours();
+
+    if (hour >= 9 && hour < 12)
+    {
+        return 5 * 60 * 1000;
+    }
+
+    let nextWindow = Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        9,
+    );
+
+    if (nextWindow <= now)
+    {
+        nextWindow += 24 * 60 * 60 * 1000;
+    }
+
+    return nextWindow - now;
+}
+
+/** Converts a plain generated JSON tree to upstream-style snake_case keys. */
+export function toSnakeCaseValue(value)
+{
+    if (Array.isArray(value))
+    {
+        return value.map(toSnakeCaseValue);
+    }
+
+    if (!value || typeof value !== "object")
+    {
+        return value;
+    }
+
+    const output = {};
+
+    for (const [ key, item ] of Object.entries(value))
+    {
+        const normalized = String(key)
+            .replace(/IDs\b/gu, "Ids")
+            .replace(/([A-Z]+)([A-Z][a-z])/gu, "$1_$2")
+            .replace(/([a-z0-9])([A-Z])/gu, "$1_$2")
+            .replace(/([A-Za-z])(\d+)/gu, "$1_$2")
+            .replace(/(\d+)([A-Za-z])/gu, "$1_$2")
+            .toLowerCase();
+
+        if (Object.hasOwn(output, normalized))
+        {
+            throw new Error(`Generated API key collision: ${key} -> ${normalized}`);
+        }
+
+        output[normalized] = toSnakeCaseValue(item);
+    }
+
+    return output;
+}

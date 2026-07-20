@@ -40,6 +40,10 @@ export class CjsSdeArchive
 
     #timeoutMs;
 
+    #latest;
+
+    #now;
+
     /** Creates an archive reader with injectable network access for offline tests. */
     constructor(options = {})
     {
@@ -49,10 +53,17 @@ export class CjsSdeArchive
             options.archiveUrlTemplate ?? DEFAULT_ARCHIVE_URL_TEMPLATE
         );
         this.#timeoutMs = NormalizeTimeout(options.timeoutMs ?? 5 * 60 * 1000);
+        this.#latest = null;
+        this.#now = options.now ?? Date.now;
 
         if (typeof this.#fetch !== "function")
         {
             throw new TypeError("CjsSdeArchive requires a fetch implementation");
+        }
+
+        if (typeof this.#now !== "function")
+        {
+            throw new TypeError("CjsSdeArchive now must be a function");
         }
 
         if (!this.#archiveUrlTemplate.includes("{build}"))
@@ -63,6 +74,39 @@ export class CjsSdeArchive
 
     /** Resolves CCP's latest metadata to one exact numeric SDE build. */
     async ResolveLatest()
+    {
+        const now = Number(this.#now());
+
+        if (!Number.isFinite(now))
+        {
+            throw new TypeError("CjsSdeArchive now returned an invalid time");
+        }
+
+        if (this.#latest && this.#latest.expiresAt > now)
+        {
+            return this.#latest.value;
+        }
+
+        const value = this.#ResolveLatest();
+        const entry = Object.freeze({
+            expiresAt: now + utils.getEveLatestBuildCacheTTL(now),
+            value,
+        });
+
+        this.#latest = entry;
+
+        try
+        {
+            return await value;
+        }
+        catch (error)
+        {
+            if (this.#latest === entry) this.#latest = null;
+            throw error;
+        }
+    }
+
+    async #ResolveLatest()
     {
         const response = await this.#Fetch(this.#latestUrl);
         const text = await response.text();

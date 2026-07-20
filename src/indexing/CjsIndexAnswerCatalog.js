@@ -41,10 +41,73 @@ export class CjsIndexAnswerCatalog
         return this.#pathSet.has(normalizeLogicalPath(logicalPath));
     }
 
+    /** Lists the complete composed res:/ view for transitional clients. */
+    ListResFiles()
+    {
+        return this.#paths;
+    }
+
     /** Lists indexed billboard resources as complete res:/ paths. */
     ListBillboards()
     {
         return this.#Select(path => path.startsWith("res:/video/billboards/"));
+    }
+
+    /** Describes one indexed resource path and its immediate children. */
+    DescribeResourcePath(value = "")
+    {
+        const path = NormalizeResourcePath(value);
+
+        if (this.#pathSet.has(path))
+        {
+            return Object.freeze({
+                name: path.slice(path.lastIndexOf("/") + 1),
+                path,
+                type: "file",
+            });
+        }
+
+        const prefix = path === "res:/" ? path : `${path}/`;
+        const childrenByName = new Map();
+
+        for (const candidate of this.#paths)
+        {
+            if (!candidate.startsWith(prefix))
+            {
+                continue;
+            }
+
+            const relative = candidate.slice(prefix.length);
+            const separator = relative.indexOf("/");
+            const name = separator < 0 ? relative : relative.slice(0, separator);
+            const type = separator < 0 ? "file" : "directory";
+            const existing = childrenByName.get(name);
+
+            if (!existing || type === "directory")
+            {
+                childrenByName.set(name, Object.freeze({
+                    name,
+                    path: `${prefix}${name}`,
+                    type,
+                }));
+            }
+        }
+
+        if (childrenByName.size === 0)
+        {
+            const error = new Error(`Resource path not found: ${path}`);
+
+            error.statusCode = 404;
+            throw error;
+        }
+
+        return Object.freeze({
+            name: path === "res:/" ? "res" : path.slice(path.lastIndexOf("/") + 1),
+            path,
+            type: "directory",
+            children: Object.freeze([...childrenByName.values()]
+                .sort((left, right) => left.name.localeCompare(right.name))),
+        });
     }
 
     /** Lists indexed nebula declarations that reference cube environments. */
@@ -53,10 +116,10 @@ export class CjsIndexAnswerCatalog
         return this.#Select(path => path.includes("_cube") && path.endsWith(".black"));
     }
 
-    /** Lists indexed cube resources used by nebula declarations. */
+    /** Lists indexed base, blur, and reflection cubes used by nebula declarations. */
     ListCubes()
     {
-        return this.#Select(path => path.endsWith("_cube.cube"));
+        return this.#Select(path => /_cube(?:_blur|_refl)?[.](?:dds|png)$/u.test(path));
     }
 
     /** Lists inserted resource profiles proven to exist for one SOF hull. */
@@ -121,10 +184,10 @@ export class CjsIndexAnswerCatalog
         return result;
     }
 
-    /** Resolves caller-supplied SOF paths against one proven insert profile. */
+    /** Resolves caller-supplied SOF paths against one selected insert. */
     ResolveHullResPathInserts(hull, insert, paths)
     {
-        const hullName = normalizeName(hull, "SOF hull");
+        normalizeName(hull, "SOF hull");
         const insertName = normalizeName(insert, "resource path insert");
 
         if (!Array.isArray(paths))
@@ -137,17 +200,6 @@ export class CjsIndexAnswerCatalog
             throw new TypeError(
                 `Resource path insert request cannot exceed ${MAX_RES_PATH_INSERT_PATHS} paths`,
             );
-        }
-
-        if (![ "base", "none" ].includes(insertName)
-            && !this.ListHullResPathInserts(hullName).includes(insertName))
-        {
-            const error = new Error(
-                `Resource path insert is not available for ${hullName}: ${insertName}`,
-            );
-
-            error.statusCode = 404;
-            throw error;
         }
 
         return Object.freeze(paths.map((path, index) =>
@@ -201,6 +253,25 @@ function normalizeName(value, label)
     }
 
     return name;
+}
+
+function NormalizeResourcePath(value)
+{
+    const path = String(value ?? "").trim().replaceAll("\\", "/");
+
+    if (!path || path === "/" || path.toLowerCase() === "res:/")
+    {
+        return "res:/";
+    }
+
+    const logicalPath = normalizeLogicalPath(path);
+
+    if (!logicalPath.startsWith("res:/"))
+    {
+        throw new TypeError("Resource directory path must use the res:/ root");
+    }
+
+    return logicalPath;
 }
 
 function HasIgnoredEffectFolder(logicalPath)

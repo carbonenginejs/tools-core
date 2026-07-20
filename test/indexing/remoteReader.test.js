@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+    CjsIndexBuildResolver,
     CjsIndexProvider,
     CjsIndexProviderRegistry,
     CjsToolIndex,
@@ -93,6 +94,28 @@ test("resolves latest inside the requested client only", async () =>
         "https://metadata.test/eveclient_LIVE.json",
         "https://indexes.test/eveonline_42.txt",
     ]);
+});
+
+test("caches latest metadata and refreshes it after the deployment-window TTL", async () =>
+{
+    const requests = [];
+    let now = Date.parse("2026-07-20T10:00:00Z");
+    const provider = new CjsIndexProvider({ ...Provider, id: "ccp" });
+    const resolver = new CjsIndexBuildResolver({
+        now: () => now,
+        fetch: createFetch({
+            "https://metadata.test/eveclient_LIVE.json": jsonResponse({ build: 42 }),
+            "https://metadata.test/eveclient_PREVIEW.json": jsonResponse({ build: 43 }),
+        }, requests),
+    });
+
+    assert.equal((await resolver.Resolve(provider, "latest")).build, "43");
+    assert.equal((await resolver.Resolve(provider, "latest")).build, "43");
+    assert.equal(requests.length, 2);
+
+    now += 5 * 60 * 1000;
+    assert.equal((await resolver.Resolve(provider, "latest")).build, "43");
+    assert.equal(requests.length, 4);
 });
 
 test("uses exact builds without fetching channel metadata", async () =>

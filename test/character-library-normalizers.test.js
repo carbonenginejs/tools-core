@@ -6,6 +6,7 @@ import {
     CjsCharacterFaceSetup,
     CjsCharacterLibrary,
     CjsCharacterLibraryData,
+    CjsCharacterLodBundle,
     CjsCharacterMaterial,
     CjsCharacterModifierNames,
     CjsCharacterPartDefinition,
@@ -21,6 +22,7 @@ import {
     CjsToolCharacterAssembler,
     CjsToolCharacter,
     CjsToolCharacterCompiler,
+    CjsToolCharacterLibrary,
     CjsToolCharacterNormalizer,
     CjsToolCharacterSerializer,
 } from "../src/index.js";
@@ -31,6 +33,7 @@ test("exports the character tool class family through tools-core/character", () 
     assert.equal(publicCharacterLibraryTools.CjsToolCharacter, CjsToolCharacter);
     assert.equal(publicCharacterLibraryTools.CjsToolCharacterAssembler, CjsToolCharacterAssembler);
     assert.equal(publicCharacterLibraryTools.CjsToolCharacterCompiler, CjsToolCharacterCompiler);
+    assert.equal(publicCharacterLibraryTools.CjsToolCharacterLibrary, CjsToolCharacterLibrary);
     assert.equal(publicCharacterLibraryTools.CjsToolCharacterNormalizer, CjsToolCharacterNormalizer);
     assert.equal(publicCharacterLibraryTools.CjsToolCharacterSerializer, CjsToolCharacterSerializer);
     assert.equal(Object.isFrozen(CjsToolCharacterAssembler.dataCatalogs), true);
@@ -325,6 +328,342 @@ test("compiles shared part sources and expands selectable types losslessly", () 
     assert.deepEqual(library.GetPartMetadata("female/outer/jacket01").occludesModifiers, [ "topmiddle" ]);
 });
 
+test("builds runtime-shaped LOD bundles and resolves them through the library API", () =>
+{
+    const partID = "female/hair/hair_long_01/types/hair_long_01";
+    const configPaths = [
+        "res:/graphics/character/female/paperdoll/hair/hair_long_01/hair_long_01.black",
+        "res:/graphics/character/female/paperdoll/hair/hair_long_01/hair_long_01_nosim.black",
+        "res:/graphics/character/female/paperdoll_lod/hair/hair_long_01/hair_long_01_lod1.black"
+    ];
+    const geometryPaths = [
+        "res:/graphics/character/female/paperdoll/hair/hair_long_01/hair_long_01.gr2",
+        "res:/graphics/character/female/paperdoll/hair/hair_long_01/hair_long_01_lod1.gr2",
+        "res:/graphics/character/female/paperdoll_lod/hair/hair_long_01/hair_long_01_lod1.gr2"
+    ];
+    const bundles = CjsToolCharacterCompiler.createLodBundles(configPaths, geometryPaths);
+
+    assert.equal(bundles.length, 3);
+    assert.deepEqual(Object.keys(bundles[0]), [
+        "requestedLod",
+        "resolvedLod",
+        "configurationPath",
+        "geometryPath",
+        "modelFamily",
+        "fallbackReason"
+    ]);
+    assert.equal(bundles[1].configurationPath.endsWith("_nosim.black"), true);
+    assert.equal(bundles[1].geometryPath.endsWith("hair_long_01.gr2"), true);
+    assert.equal(bundles[2].resolvedLod, 1);
+    assert.match(bundles[2].geometryPath, /paperdoll_lod/);
+
+    const compiled = CjsToolCharacterCompiler.compile({
+        schemaVersion: 1,
+        parts: [ {
+            id: partID,
+            typeID: "9001",
+            name: "Long Hair",
+            sex: "female",
+            category: "hair",
+            path: "hair/hair_long_01",
+            resourcePaths: [ ...configPaths, ...geometryPaths ],
+            lodBundles: bundles
+        } ]
+    });
+    const compactBundles = compiled.partSources["female/hair/hair_long_01"]
+        .versions.default.resources.lodBundles;
+    const compactType = compiled.partSources["female/hair/hair_long_01"]
+        .versions.default.types[partID];
+
+    assert.deepEqual(compactBundles, bundles);
+    assert.equal(compactType.typeID, "9001");
+    assert.equal(compactType.name, "Long Hair");
+
+    const toolLibrary = new CjsToolCharacterLibrary(compiled);
+
+    assert.deepEqual(toolLibrary.LookupName("long hair"), [ {
+        kind: "character",
+        typeID: "9001",
+        partID
+    } ]);
+    assert.deepEqual(toolLibrary.SearchName("long-hair"), [ {
+        kind: "character",
+        typeID: "9001",
+        partID
+    } ]);
+    assert.deepEqual(toolLibrary.ResolveName("Long Hair"), {
+        kind: "character",
+        typeID: "9001",
+        partID
+    });
+    assert.equal(toolLibrary.GetPartByTypeID(9001).id, partID);
+    assert.equal(toolLibrary.ResolvePartLodBundle({ typeID: "9001" }, 1).resolvedLod, 1);
+
+    const library = new CjsCharacterLibrary(CjsToolCharacterCompiler.expand(compiled));
+    const available = library.GetPartLodBundles(partID);
+    const resolved = library.ResolvePartLodBundle(partID, 1);
+
+    assert.equal(available.length, 3);
+    assert.ok(available.every(value => value instanceof CjsCharacterLodBundle));
+    assert.ok(resolved instanceof CjsCharacterLodBundle);
+    assert.equal(resolved.requestedLod, 1);
+    assert.equal(resolved.resolvedLod, 1);
+    assert.match(resolved.configurationPath, /_lod1\.black$/);
+    assert.match(resolved.geometryPath, /_lod1\.gr2$/);
+});
+
+test("prepares index-aligned recipe links without guessing ambiguous selections", () =>
+{
+    const redID = "female/hair/example/types/example_red";
+    const blueID = "female/hair/example/types/example_blue";
+    const compiled = CjsToolCharacterCompiler.compile({
+        schema: "carbonenginejs.characterLibrary",
+        schemaVersion: 1,
+        parts: [
+            {
+                id: redID,
+                name: "Example Red",
+                sex: "female",
+                category: "hair",
+                path: "hair/example",
+                colorVariant: "red",
+                resourcePaths: []
+            },
+            {
+                id: blueID,
+                name: "Example Blue",
+                sex: "female",
+                category: "hair",
+                path: "hair/example",
+                colorVariant: "blue",
+                resourcePaths: []
+            }
+        ],
+        partMetadata: [ {
+            id: "female/head/head_generic",
+            dependentModifiers: [ "utilityshapes/base" ]
+        } ],
+        presets: [
+            {
+                id: "complete",
+                name: "Complete",
+                sex: "female",
+                entries: [
+                    { category: "facemodifiers", path: "facemodifiers/smile", weight: 0.75 },
+                    { category: "hair", path: "hair/example", colorVariation: "blue", weight: 1 },
+                    { category: "head", path: "head/head_generic", weight: 1 }
+                ]
+            },
+            {
+                id: "diagnostic",
+                name: "Diagnostic",
+                sex: "female",
+                entries: [
+                    { category: "hair", path: "hair/example", weight: 1 },
+                    { category: "feet", path: "feet/missing", weight: 1 }
+                ]
+            }
+        ]
+    });
+
+    assert.deepEqual(compiled.recipeLinks.complete.entries, [
+        {
+            entryIndex: 0,
+            kind: "morph",
+            status: "resolved",
+            morphName: "smile"
+        },
+        {
+            entryIndex: 1,
+            kind: "part",
+            status: "resolved",
+            sourceID: "female/hair/example",
+            partID: blueID
+        },
+        {
+            entryIndex: 2,
+            kind: "rule",
+            status: "resolved",
+            sourceID: "female/head/head_generic",
+            metadataID: "female/head/head_generic"
+        }
+    ]);
+    assert.equal(compiled.recipeLinks.diagnostic.entries[0].status, "ambiguous");
+    assert.deepEqual(compiled.recipeLinks.diagnostic.entries[0].candidatePartIDs, [ blueID, redID ]);
+    assert.equal(compiled.recipeLinks.diagnostic.entries[1].issueCode, "source-not-found");
+
+    const library = new CjsCharacterLibrary(compiled);
+    const complete = library.ResolveRecipe("complete");
+    assert.equal(complete.complete, true);
+    assert.equal(complete.parts[0].partID, blueID);
+    assert.equal(complete.parts[0].recipeEntryIndex, 1);
+    assert.equal(complete.rules[0].metadata.id, "female/head/head_generic");
+    assert.equal(complete.morphs.get("smile"), 0.75);
+
+    const graph = library.BuildGraphFromRecipe("complete");
+    assert.equal(graph.complete, true);
+    assert.equal(graph.parts.length, 1);
+    assert.equal(graph.rules.length, 1);
+    assert.equal(graph.morphs.get("smile"), 0.75);
+
+    const diagnostic = library.ResolveRecipe("diagnostic");
+    assert.equal(diagnostic.complete, false);
+    assert.deepEqual(diagnostic.issues.map(issue => issue.code), [
+        "missing-type-discriminator",
+        "source-not-found"
+    ]);
+    assert.throws(() => library.BuildGraphFromResolution(diagnostic), /2 blocking issue/);
+    const partial = library.BuildGraphFromResolution(diagnostic, { strict: false });
+    assert.equal(partial.complete, false);
+    assert.equal(partial.resolutionIssues.length, 2);
+});
+
+test("preserves internal part identities when typeID and unique names are unavailable", () =>
+{
+    const leftID = "female/accessories/brow/ring_left";
+    const rightID = "female/accessories/brow/ring_right";
+    const library = new CjsToolCharacterLibrary({
+        schema: "carbonenginejs.characterLibrary",
+        schemaVersion: 1,
+        parts: [
+            {
+                id: leftID,
+                name: "Brow Ring",
+                sex: "female",
+                category: "accessories/brow",
+                path: "accessories/brow/ring_left"
+            },
+            {
+                id: rightID,
+                name: "Brow Ring",
+                sex: "female",
+                category: "accessories/brow",
+                path: "accessories/brow/ring_right"
+            }
+        ]
+    });
+
+    assert.deepEqual(library.LookupName("brow ring"), [
+        { kind: "character", typeID: null, partID: leftID },
+        { kind: "character", typeID: null, partID: rightID }
+    ]);
+    assert.equal(library.GetPart(leftID).typeID, null);
+    assert.throws(() => library.ResolveName("Brow Ring"), /ambiguous \(2 identities\)/);
+});
+
+test("normalizes expanded character identities and LOD bundles to the runtime contract", () =>
+{
+    const partID = "female/hair/hair_long_01/types/hair_long_01";
+    const library = new CjsToolCharacterLibrary({
+        schema: "carbonenginejs.characterLibrary",
+        schemaVersion: 1,
+        parts: [ {
+            id: partID,
+            typeID: 9001,
+            name: "Long Hair",
+            lodBundles: [ {
+                requestedLod: null,
+                resolvedLod: "2",
+                configurationPath: "res:/character/head_lod2.black",
+                geometryPath: "res:/character/head_lod2.gr2",
+                modelFamily: "head",
+                fallbackReason: ""
+            } ]
+        } ]
+    });
+
+    assert.equal(library.GetPart(partID).typeID, "9001");
+    assert.equal(library.GetPart(partID).lodBundles[0].resolvedLod, 2);
+    assert.deepEqual(library.ResolvePartLodBundle(partID, 2), {
+        requestedLod: 2,
+        resolvedLod: 2,
+        configurationPath: "res:/character/head_lod2.black",
+        geometryPath: "res:/character/head_lod2.gr2",
+        modelFamily: "head",
+        fallbackReason: ""
+    });
+
+    assert.throws(() => new CjsToolCharacterLibrary({
+        schema: "carbonenginejs.characterLibrary",
+        schemaVersion: 1,
+        parts: [ { id: partID, lodBundles: [ { resolvedLod: "high" } ] } ]
+    }), /resolvedLod must be a non-negative integer or null/u);
+});
+
+test("prefers lower detail for an equally distant character LOD fallback", () =>
+{
+    const resolved = CjsToolCharacterCompiler.resolveLodBundle([
+        {
+            resolvedLod: 0,
+            configurationPath: "res:/character/head_lod0.black",
+            geometryPath: "res:/character/head_lod0.gr2",
+            modelFamily: "head"
+        },
+        {
+            resolvedLod: 2,
+            configurationPath: "res:/character/head_lod2.black",
+            geometryPath: "res:/character/head_lod2.gr2",
+            modelFamily: "head"
+        }
+    ], 1);
+
+    assert.equal(resolved.requestedLod, 1);
+    assert.equal(resolved.resolvedLod, 2);
+    assert.match(resolved.configurationPath, /_lod2\.black$/u);
+    assert.match(resolved.geometryPath, /_lod2\.gr2$/u);
+});
+
+test("applies prepared part identities without exposing an enrichment source shape", () =>
+{
+    const partID = "female/hair/hair_long_01/types/hair_long_01";
+    const expanded = {
+        schema: "carbonenginejs.characterLibrary",
+        schemaVersion: 1,
+        sourceTarget: "eve",
+        sourceBuild: "3435006",
+        parts: [ {
+            id: partID,
+            name: "hair_long_01",
+            sex: "female",
+            category: "hair",
+            path: "hair/hair_long_01",
+        } ],
+    };
+    const identities = {
+        schema: "carbonenginejs.characterPartIdentities",
+        schemaVersion: 1,
+        sourceTarget: "eve",
+        sourceBuild: "3435006",
+        parts: {
+            [partID]: { typeID: 9001, name: "Long Hair" },
+        },
+    };
+    const enriched = CjsToolCharacterCompiler.applyPartIdentities(expanded, identities);
+    const compact = CjsToolCharacterCompiler.compile(enriched);
+    const type = compact.partSources["female/hair/hair_long_01"]
+        .versions.default.types[partID];
+
+    assert.equal(Object.hasOwn(expanded.parts[0], "typeID"), false);
+    assert.equal(enriched.parts[0].typeID, "9001");
+    assert.equal(enriched.parts[0].name, "Long Hair");
+    assert.equal(type.typeID, "9001");
+    assert.equal(type.name, "Long Hair");
+    assert.throws(
+        () => CjsToolCharacterCompiler.applyPartIdentities(expanded, {
+            ...identities,
+            parts: { [partID]: { typeID: -1 } },
+        }),
+        /positive integer/u,
+    );
+    assert.throws(
+        () => CjsToolCharacterCompiler.applyPartIdentities(expanded, {
+            ...identities,
+            sourceBuild: "3435007",
+        }),
+        /sourceBuild mismatch/u,
+    );
+});
+
 test("resolves implicit, physical-folder, and shared-palette materials", () =>
 {
     const materialIds = new Set([
@@ -404,6 +743,18 @@ test("normalizes recipe tuple strings without evaluating source code", () =>
         } ], { id: "unsafe" }),
         /unsupported non-numeric tuple syntax/
     );
+});
+
+test("infers recipe sex from its identity when tuple slot zero is a header object", () =>
+{
+    const recipe = CjsToolCharacterNormalizer.normalizeRecipeProfile([
+        { metadata: "header" },
+        { category: "head", path: "head/head_generic" }
+    ], { id: "female/paperdoll/default", name: "default" });
+
+    assert.equal(recipe.sex, "female");
+    assert.equal(recipe.entries.length, 1);
+    assert.equal(recipe.entries[0].path, "head/head_generic");
 });
 
 test("normalizes flattened patterned recipe colors", () =>

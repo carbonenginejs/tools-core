@@ -23,6 +23,7 @@ Options:
   --build <id>           Source build identifier.
   --target <name>        Audited library target; defaults to eve.
   --generated-at <time>  Optional reproducible generation timestamp.
+  --identities <file>    Prepared character part identities keyed by internal part ID.
   --include-sources      Include sourceRefs and source metadata in the library.
   --compact              Emit compact library JSON.
   --help, -h             Show this help.
@@ -91,12 +92,16 @@ async function Main(argv)
         sourceBuild,
         generatedAt: options.generatedAt
     });
+    const partIdentities = options.identities
+        ? ReadJsonObject(path.resolve(options.identities), "Character part identities")
+        : null;
     if (!options.includeSources)
     {
         character.OmitSourceProvenance(expanded);
     }
     const data = character.Compile(expanded, {
         partSourceResources: built.partSourceResources,
+        partIdentities,
     });
 
     built.report.catalogs = Object.fromEntries([
@@ -269,6 +274,23 @@ function ReadProfileYaml(text, entry, report)
         report.relaxedDuplicateKeyFiles.push(entry.logicalPath);
         return CjsYamlFormat.readRaw(text, { ...options, uniqueKeys: false });
     }
+}
+
+function ReadJsonObject(filePath, label)
+{
+    if (!fs.existsSync(filePath))
+    {
+        throw new Error(`${label} file not found: ${filePath}`);
+    }
+
+    const value = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+    if (!value || typeof value !== "object" || Array.isArray(value))
+    {
+        throw new TypeError(`${label} file must contain a JSON object`);
+    }
+
+    return value;
 }
 
 function AddProfile(catalogs, metadata, partContexts, profile, value, entry)
@@ -665,6 +687,7 @@ function ParseArgs(argv)
             "--game",
             "--provider",
             "--generated-at",
+            "--identities",
         ].includes(argument))
         {
             const value = argv[++index];

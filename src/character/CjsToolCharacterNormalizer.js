@@ -126,7 +126,10 @@ export class CjsToolCharacterNormalizer
             throw new TypeError("Character recipe profile must be a non-empty array");
         }
 
-        const sex = String(value[0] || context.sex || "");
+        const authoredSex = typeof value[0] === "string" ? value[0] : "";
+        const inferredSex = String(context.id || "").split("/")[0];
+        const sex = String(authoredSex || context.sex
+            || ([ "female", "male" ].includes(inferredSex.toLowerCase()) ? inferredSex : ""));
         if (!sex) throw new Error("Character recipe profile is missing sex");
 
         return {

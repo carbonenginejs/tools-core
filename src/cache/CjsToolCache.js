@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { CjsToolLibraryArtifact } from "../library/CjsToolLibraryArtifact.js";
 import * as utils from "../utils.js";
 
 /** Shared game-compatible cache for every CarbonEngineJS Node tool. */
@@ -161,6 +162,12 @@ export class CjsToolCache
         await WriteReplace(filePath, new TextEncoder().encode(json));
 
         return filePath;
+    }
+
+    /** Writes canonical JSON plus a deterministic .json.gz distribution sibling. */
+    async WriteCustomLibrary(identity, value, options = {})
+    {
+        return CjsToolLibraryArtifact.write(this.GetCustomPath(identity), value, options);
     }
 
 }

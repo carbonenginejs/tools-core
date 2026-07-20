@@ -12,6 +12,7 @@ test("character builder reads and validates profiles from the shared ResFiles ca
     const cacheDirectory = path.join(directory, "cache");
     const inputPath = path.join(directory, "resfileindex.txt");
     const outputPath = path.join(directory, "character-library.json");
+    const identitiesPath = path.join(directory, "character-identities.json");
     const logicalPath = "res:/graphics/character/global/paperdolllibrary/"
         + "backgrounds/air_station.yaml";
     const storagePath = "aa/air_station.yaml";
@@ -23,14 +24,36 @@ test("character builder reads and validates profiles from the shared ResFiles ca
     }));
     const checksum = crypto.createHash("md5").update(bytes).digest("hex");
     const cachePath = path.join(cacheDirectory, "ResFiles", "aa", "air_station.yaml");
+    const typeLogicalPath = "res:/graphics/character/female/paperdoll/"
+        + "hair/hair_long_01/types/hair_long_01.type";
+    const typeStoragePath = "bb/hair_long_01.type";
+    const typeBytes = Buffer.from(JSON.stringify([ "hair/hair_long_01", "", "" ]));
+    const typeChecksum = crypto.createHash("md5").update(typeBytes).digest("hex");
+    const typeCachePath = path.join(cacheDirectory, "ResFiles", "bb", "hair_long_01.type");
+    const partID = "female/hair/hair_long_01/types/hair_long_01";
 
     context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
     fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.mkdirSync(path.dirname(typeCachePath), { recursive: true });
     fs.writeFileSync(cachePath, bytes);
+    fs.writeFileSync(typeCachePath, typeBytes);
     fs.writeFileSync(
         inputPath,
-        `${logicalPath},${storagePath},${checksum},${bytes.byteLength},${bytes.byteLength}\n`,
+        [
+            `${logicalPath},${storagePath},${checksum},${bytes.byteLength},${bytes.byteLength}`,
+            `${typeLogicalPath},${typeStoragePath},${typeChecksum},${typeBytes.byteLength},${typeBytes.byteLength}`,
+            "",
+        ].join("\n"),
     );
+    fs.writeFileSync(identitiesPath, JSON.stringify({
+        schema: "carbonenginejs.characterPartIdentities",
+        schemaVersion: 1,
+        sourceTarget: "eve",
+        sourceBuild: "3435006",
+        parts: {
+            [partID]: { typeID: "9001", name: "Long Hair" },
+        },
+    }));
 
     const args = [
         "scripts/build_character_library.js",
@@ -40,6 +63,7 @@ test("character builder reads and validates profiles from the shared ResFiles ca
         "--target", "eve",
         "--build", "3435006",
         "--generated-at", "2026-07-19T00:00:00.000Z",
+        "--identities", identitiesPath,
     ];
     const result = spawnSync(process.execPath, args, { encoding: "utf8" });
 
@@ -50,6 +74,10 @@ test("character builder reads and validates profiles from the shared ResFiles ca
     assert.equal(library.sourceTarget, "eve");
     assert.equal(library.sourceBuild, "3435006");
     assert.equal(library.presentation.backgrounds.air_station.scale, 1);
+    assert.deepEqual(
+        library.partSources["female/hair/hair_long_01"].versions.default.types[partID],
+        { typeID: "9001", name: "Long Hair" },
+    );
 
     fs.writeFileSync(cachePath, "{}");
 

@@ -28,6 +28,7 @@ export class CjsToolCharacterCompiler
             sourceBuild: data.sourceBuild ?? null,
             generatedAt: data.generatedAt ?? null,
             partSources: sources,
+            recipeLinks: BuildRecipeLinks(data.presets || [], sources, materials),
             materials,
             modifierNames: CloneValue(data.modifierNames || {}),
             faceSetup: CloneValue(data.faceSetup || {}),
@@ -73,21 +74,23 @@ export class CjsToolCharacterCompiler
                     ...(resources.texturePaths || [])
                 ];
 
-                for (const [ typeId, type ] of Object.entries(version.types || {}))
+                for (const [ partID, type ] of Object.entries(version.types || {}))
                 {
                     const colorVariant = type.colorVariant ?? null;
                     const derivedColorId = colorVariant ? `${sourceId}/${colorVariant}`.toLowerCase() : null;
                     const colorId = type.materialId || derivedColorId;
                     parts.push({
-                        id: typeId,
-                        name: PosixBasename(typeId),
+                        id: partID,
+                        typeID: type.typeID ?? null,
+                        name: type.name || PosixBasename(partID),
                         sex,
-                        category: TypeCategory(typeId),
+                        category: TypeCategory(partID),
                         path: partPath,
                         resourceVersion,
                         colorVariant,
                         metadataId: versionMetadataId || baseMetadataId,
                         resourcePaths,
+                        lodBundles: CloneValue(resources.lodBundles),
                         colorIds: colorId && catalogs.materials.some(value => value.id === colorId) ? [ colorId ] : [],
                         projectionId: source.projectionId ?? null
                     });
@@ -107,12 +110,31 @@ export class CjsToolCharacterCompiler
             ...(data.sources ? { sources: data.sources.map(value => ({ ...value })) } : {}),
             modifierNames: CloneValue(data.modifierNames || {}),
             faceSetup: CloneValue(data.faceSetup || {}),
+            recipeLinks: CloneValue(data.recipeLinks || {}),
             partAuthoring,
             presentation: CloneValue(data.presentation || {}),
             partMetadata: partMetadata.sort(CompareId),
             parts: parts.sort(CompareId),
             ...catalogs
         };
+    }
+
+    /** Applies prepared external identities to expanded part records. */
+    static applyPartIdentities(data, identities)
+    {
+        return ApplyPartIdentities(this.expand(data), identities);
+    }
+
+    /** Builds the compact records used by runtime CjsCharacterLodBundle values. */
+    static createLodBundles(configPaths = [], geometryPaths = [])
+    {
+        return BuildLodBundles(configPaths, geometryPaths);
+    }
+
+    /** Resolves a requested LOD while retaining one complete resource bundle. */
+    static resolveLodBundle(values, requestedLod)
+    {
+        return ResolveLodBundle(values, requestedLod);
     }
 
     static resolvePartMaterialLink(part, materialIds, options = {})
@@ -166,6 +188,169 @@ export class CjsToolCharacterCompiler
 
 }
 
+const MORPH_CATEGORIES = new Set([ "bodyshapes", "facemodifiers", "utilityshapes" ]);
+
+function BuildRecipeLinks(presets, sources, materials)
+{
+    const sourceByID = new Map(Object.entries(sources)
+        .map(([ sourceID, source ]) => [ sourceID.toLowerCase(), [ sourceID, source ] ]));
+    const materialIDs = new Set(Object.keys(materials));
+    const result = {};
+
+    for (const preset of [ ...presets ].sort(CompareId))
+    {
+        const presetID = String(preset.id || "");
+        const sex = String(preset.sex || "").toLowerCase();
+        result[presetID] = {
+            presetID,
+            sex,
+            entries: (preset.entries || []).map((entry, entryIndex) =>
+                BuildRecipeLink(entry, entryIndex, sex, sourceByID, materialIDs))
+        };
+    }
+
+    return result;
+}
+
+function BuildRecipeLink(entry, entryIndex, sex, sourceByID, materialIDs)
+{
+    const category = String(entry.category || "").toLowerCase();
+    const partPath = String(entry.path || "").replace(/^\/+|\/+$/gu, "");
+
+    if (MORPH_CATEGORIES.has(category))
+    {
+        return {
+            entryIndex,
+            kind: "morph",
+            status: "resolved",
+            morphName: PosixBasename(partPath)
+        };
+    }
+
+    if (sex !== "female" && sex !== "male")
+    {
+        return UnresolvedRecipeLink(entryIndex, "invalid-recipe-sex");
+    }
+
+    const material = CjsToolCharacterCompiler.resolvePartMaterialLink({
+        sex,
+        path: partPath,
+        colorVariant: entry.colorVariation
+    }, materialIDs);
+    const sourceMatch = sourceByID.get(`${sex}/${partPath}`.toLowerCase());
+    if (!sourceMatch)
+    {
+        if (material)
+        {
+            return ResolvedRecipeLink(entryIndex, "material", null, {
+                materialID: material.id
+            });
+        }
+        return UnresolvedRecipeLink(entryIndex, "source-not-found");
+    }
+
+    const [ sourceID, source ] = sourceMatch;
+    const candidates = CollectRecipePartCandidates(source);
+    if (candidates.length === 1)
+    {
+        return ResolvedRecipeLink(entryIndex, "part", sourceID, {
+            partID: candidates[0].partID
+        });
+    }
+
+    if (candidates.length > 1)
+    {
+        const requestedColor = NormalizeOptionalToken(entry.colorVariation);
+        const colorMatches = requestedColor
+            ? candidates.filter(candidate => NormalizeOptionalToken(candidate.colorVariant) === requestedColor)
+            : [];
+
+        if (colorMatches.length === 1)
+        {
+            return ResolvedRecipeLink(entryIndex, "part", sourceID, {
+                partID: colorMatches[0].partID
+            });
+        }
+
+        const candidatePartIDs = (colorMatches.length ? colorMatches : candidates)
+            .map(candidate => candidate.partID);
+        return {
+            entryIndex,
+            kind: "part",
+            status: "ambiguous",
+            sourceID,
+            candidatePartIDs,
+            issueCode: colorMatches.length > 1
+                ? "duplicate-color-variation"
+                : "missing-type-discriminator"
+        };
+    }
+
+    const metadataID = ResolveRecipeMetadataID(sourceID, source);
+    if (metadataID)
+    {
+        return ResolvedRecipeLink(entryIndex, "rule", sourceID, { metadataID });
+    }
+
+    if (material)
+    {
+        return ResolvedRecipeLink(entryIndex, "material", sourceID, {
+            materialID: material.id
+        });
+    }
+
+    return {
+        ...UnresolvedRecipeLink(entryIndex, "no-selectable-content"),
+        sourceID
+    };
+}
+
+function CollectRecipePartCandidates(source)
+{
+    const values = [];
+    for (const version of Object.values(source.versions || {}))
+    {
+        for (const [ partID, type ] of Object.entries(version.types || {}))
+        {
+            values.push({ partID, colorVariant: type.colorVariant ?? null });
+        }
+    }
+    return values.sort((left, right) => Compare(left.partID, right.partID));
+}
+
+function ResolveRecipeMetadataID(sourceID, source)
+{
+    if (source.metadata)
+    {
+        return sourceID;
+    }
+
+    const versions = Object.entries(source.versions || {})
+        .filter(([, version ]) => version.metadata);
+    return versions.length === 1 ? `${sourceID}/${versions[0][0]}` : null;
+}
+
+function ResolvedRecipeLink(entryIndex, kind, sourceID, values)
+{
+    return { entryIndex, kind, status: "resolved", sourceID, ...values };
+}
+
+function UnresolvedRecipeLink(entryIndex, issueCode)
+{
+    return {
+        entryIndex,
+        kind: "unresolved",
+        status: "unresolved",
+        issueCode
+    };
+}
+
+function NormalizeOptionalToken(value)
+{
+    const token = String(value ?? "").trim().toLowerCase();
+    return token && token !== "none" ? token : null;
+}
+
 function CloneValue(value)
 {
     if (Array.isArray(value)) return value.map(CloneValue);
@@ -174,6 +359,134 @@ function CloneValue(value)
         return Object.fromEntries(Object.entries(value).map(([ key, item ]) => [ key, CloneValue(item) ]));
     }
     return value;
+}
+
+function ApplyPartIdentities(data, identities)
+{
+    if (!data || typeof data !== "object" || Array.isArray(data) || !Array.isArray(data.parts))
+    {
+        throw new TypeError("Character part identities require an expanded character library");
+    }
+
+    if (!identities || typeof identities !== "object" || Array.isArray(identities))
+    {
+        throw new TypeError("Character part identities must be an object");
+    }
+
+    if (identities.schema !== "carbonenginejs.characterPartIdentities"
+        || Number(identities.schemaVersion) !== 1)
+    {
+        throw new TypeError("Unsupported character part-identities schema");
+    }
+
+    ValidateIdentitySource(data, identities, "sourceTarget", "sourceTarget");
+    ValidateIdentitySource(data, identities, "sourceBuild", "sourceBuild");
+
+    const values = identities.parts;
+
+    if (!values || typeof values !== "object" || Array.isArray(values))
+    {
+        throw new TypeError("Character part identities.parts must be an object");
+    }
+
+    const partsByID = new Map(data.parts.map(part => [ String(part.id), part ]));
+    const normalized = new Map();
+
+    for (const [ id, value ] of Object.entries(values))
+    {
+        if (!partsByID.has(id))
+        {
+            throw new Error(`Character part identity references unknown part "${id}"`);
+        }
+
+        if (!value || typeof value !== "object" || Array.isArray(value))
+        {
+            throw new TypeError(`Character part identity "${id}" must be an object`);
+        }
+
+        const typeID = NormalizeExternalTypeID(value.typeID, id);
+        const name = NormalizeIdentityName(value.name, id);
+
+        if (typeID === null && name === null)
+        {
+            throw new Error(`Character part identity "${id}" has no typeID or name`);
+        }
+
+        normalized.set(id, { typeID, name });
+    }
+
+    return {
+        ...data,
+        parts: data.parts.map(part =>
+        {
+            const identity = normalized.get(String(part.id));
+
+            return identity ? {
+                ...part,
+                ...(identity.typeID === null ? {} : { typeID: identity.typeID }),
+                ...(identity.name === null ? {} : { name: identity.name }),
+            } : { ...part };
+        })
+    };
+}
+
+function ValidateIdentitySource(data, identities, dataField, identityField)
+{
+    if (identities[identityField] === undefined || identities[identityField] === null
+        || data[dataField] === undefined || data[dataField] === null)
+    {
+        return;
+    }
+
+    if (String(identities[identityField]).toLowerCase()
+        !== String(data[dataField]).toLowerCase())
+    {
+        throw new Error(
+            `Character part identities ${identityField} mismatch: `
+            + `${identities[identityField]} != ${data[dataField]}`
+        );
+    }
+}
+
+function NormalizeExternalTypeID(value, partID)
+{
+    if (value === undefined || value === null || value === "")
+    {
+        return null;
+    }
+
+    if (typeof value === "number" && !Number.isSafeInteger(value))
+    {
+        throw new TypeError(`Character part identity "${partID}" typeID is not an exact integer`);
+    }
+
+    const typeID = String(value).trim();
+
+    if (!/^[1-9]\d*$/u.test(typeID))
+    {
+        throw new TypeError(
+            `Character part identity "${partID}" typeID must be a positive integer`
+        );
+    }
+
+    return typeID;
+}
+
+function NormalizeIdentityName(value, partID)
+{
+    if (value === undefined || value === null)
+    {
+        return null;
+    }
+
+    const name = String(value).trim();
+
+    if (!name)
+    {
+        throw new TypeError(`Character part identity "${partID}" name must be non-empty`);
+    }
+
+    return name;
 }
 
 function BuildPartSources(parts, metadata, projectionByFolder, partSourceResources, partAuthoring)
@@ -190,7 +503,7 @@ function BuildPartSources(parts, metadata, projectionByFolder, partSourceResourc
         if (projectionByFolder.has(sourceId)) source.projectionId = projectionByFolder.get(sourceId);
 
         const versionId = part.resourceVersion || "default";
-        const resources = ResourceOverrides(SplitResources(part.resourcePaths), source.resources || {});
+        const resources = ResourceOverrides(SplitResources(part.resourcePaths, part.lodBundles), source.resources || {});
         const version = source.versions[versionId] ||= { resources, types: {} };
         if (JSON.stringify(version.resources) !== JSON.stringify(resources))
         {
@@ -199,6 +512,8 @@ function BuildPartSources(parts, metadata, projectionByFolder, partSourceResourc
         const derivedMaterialId = part.colorVariant ? `${sourceId}/${part.colorVariant}`.toLowerCase() : null;
         const materialId = part.colorIds?.[0] || null;
         version.types[part.id] = CompactRecord({
+            typeID: part.typeID,
+            name: part.name && part.name !== PosixBasename(part.id) ? part.name : null,
             colorVariant: part.colorVariant,
             materialId: materialId !== derivedMaterialId ? materialId : null
         });
@@ -241,10 +556,20 @@ function ResourceOverrides(resources, inherited)
 
 function ResolveResources(inherited, overrides)
 {
-    return Object.fromEntries([ "configPaths", "geometryPaths", "texturePaths" ].map(key => [
+    const result = Object.fromEntries([ "configPaths", "geometryPaths", "texturePaths" ].map(key => [
         key,
         Object.hasOwn(overrides, key) ? overrides[key] : inherited[key] || []
     ]));
+    const modelsOverridden = Object.hasOwn(overrides, "configPaths")
+        || Object.hasOwn(overrides, "geometryPaths");
+
+    result.lodBundles = Object.hasOwn(overrides, "lodBundles")
+        ? CloneValue(overrides.lodBundles)
+        : !modelsOverridden && Object.hasOwn(inherited, "lodBundles")
+            ? CloneValue(inherited.lodBundles)
+            : BuildLodBundles(result.configPaths, result.geometryPaths);
+
+    return result;
 }
 
 function GetSource(sources, id)
@@ -253,7 +578,7 @@ function GetSource(sources, id)
     return sources.get(id);
 }
 
-function SplitResources(values = [])
+function SplitResources(values = [], lodBundles = null)
 {
     const result = { configPaths: [], geometryPaths: [], texturePaths: [] };
     for (const value of values)
@@ -263,7 +588,161 @@ function SplitResources(values = [])
         else if (extension === ".gr2") result.geometryPaths.push(value);
         else result.texturePaths.push(value);
     }
+    result.lodBundles = Array.isArray(lodBundles) && lodBundles.length
+        ? NormalizeLodBundles(lodBundles)
+        : BuildLodBundles(result.configPaths, result.geometryPaths);
     return CompactRecord(result, false);
+}
+
+function BuildLodBundles(configPaths, geometryPaths)
+{
+    const geometries = NormalizeResourcePaths(geometryPaths).map(ParseModelPath);
+    const bundles = [];
+
+    for (const configurationPath of NormalizeResourcePaths(configPaths))
+    {
+        const configuration = ParseModelPath(configurationPath);
+        const candidates = geometries
+            .filter(value => value.modelFamily === configuration.modelFamily
+                && value.lod === configuration.lod)
+            .sort((a, b) => CompareGeometryCandidates(configuration, a, b));
+        const geometry = candidates[0];
+
+        if (!geometry) continue;
+
+        bundles.push({
+            requestedLod: null,
+            resolvedLod: configuration.lod,
+            configurationPath: configuration.path,
+            geometryPath: geometry.path,
+            modelFamily: configuration.modelFamily,
+            fallbackReason: ""
+        });
+    }
+
+    return bundles.sort(CompareLodBundles);
+}
+
+function NormalizeLodBundles(values)
+{
+    return values.map(value => ({
+        requestedLod: value.requestedLod ?? null,
+        resolvedLod: value.resolvedLod ?? null,
+        configurationPath: String(value.configurationPath || ""),
+        geometryPath: String(value.geometryPath || ""),
+        modelFamily: String(value.modelFamily || ""),
+        fallbackReason: String(value.fallbackReason || "")
+    })).filter(value => value.configurationPath && value.geometryPath)
+        .sort(CompareLodBundles);
+}
+
+function NormalizeResourcePaths(values)
+{
+    if (!Array.isArray(values))
+    {
+        throw new TypeError("Character LOD resource paths must be arrays");
+    }
+
+    return [ ...new Set(values.map(value => String(value || "")).filter(Boolean)) ]
+        .sort(Compare);
+}
+
+function ParseModelPath(value)
+{
+    const path = String(value || "");
+    const separator = path.lastIndexOf("/");
+    const dot = path.lastIndexOf(".");
+    const stem = path.slice(separator + 1, dot > separator ? dot : undefined).toLowerCase();
+    const match = stem.match(/_lod(\d+)/u);
+    const family = stem
+        .replace(/_lod\d+.*$/u, "")
+        .replace(/_(?:nosim|wopockets)$/u, "")
+        .replace(/[^a-z0-9]/gu, "");
+
+    return {
+        path,
+        directory: path.slice(0, Math.max(separator, 0)).toLowerCase(),
+        stem,
+        modelFamily: family,
+        lod: match ? Number(match[1]) : null
+    };
+}
+
+function CompareGeometryCandidates(configuration, a, b)
+{
+    const directoryA = a.directory === configuration.directory ? 0 : 1;
+    const directoryB = b.directory === configuration.directory ? 0 : 1;
+
+    if (directoryA !== directoryB) return directoryA - directoryB;
+
+    const stemA = a.stem === configuration.stem ? 0 : 1;
+    const stemB = b.stem === configuration.stem ? 0 : 1;
+
+    return stemA - stemB || Compare(a.path, b.path);
+}
+
+function CompareLodBundles(a, b)
+{
+    const lodA = a.resolvedLod === null ? -1 : a.resolvedLod;
+    const lodB = b.resolvedLod === null ? -1 : b.resolvedLod;
+
+    return lodA - lodB
+        || Compare(a.modelFamily, b.modelFamily)
+        || Compare(a.configurationPath, b.configurationPath)
+        || Compare(a.geometryPath, b.geometryPath);
+}
+
+function ResolveLodBundle(values, requestedLod)
+{
+    const lod = NormalizeRequestedLod(requestedLod);
+    const bundles = NormalizeLodBundles(values || []);
+
+    if (!bundles.length) return null;
+
+    const exact = lod === null
+        ? null
+        : bundles.find(value => value.resolvedLod === lod);
+    const base = bundles.find(value => value.resolvedLod === null);
+    const selected = exact || base || SelectNearestLodBundle(bundles, lod);
+
+    return {
+        ...selected,
+        requestedLod: lod,
+        fallbackReason: exact || (lod === null && selected === base)
+            ? ""
+            : selected === base ? "base" : "nearest"
+    };
+}
+
+function SelectNearestLodBundle(bundles, requestedLod)
+{
+    if (requestedLod === null) return bundles[0];
+
+    return bundles.slice().sort((a, b) =>
+    {
+        const distanceA = Math.abs(a.resolvedLod - requestedLod);
+        const distanceB = Math.abs(b.resolvedLod - requestedLod);
+
+        // Match the native medium fallback: low detail precedes high detail
+        // when both are equally distant from the requested LOD.
+        return distanceA - distanceB
+            || b.resolvedLod - a.resolvedLod
+            || CompareLodBundles(a, b);
+    })[0];
+}
+
+function NormalizeRequestedLod(value)
+{
+    if (value === null || value === undefined) return null;
+
+    const lod = Number(value);
+
+    if (!Number.isInteger(lod) || lod < 0)
+    {
+        throw new TypeError(`Character LOD must be a non-negative integer or null, received ${value}`);
+    }
+
+    return lod;
 }
 
 function KeyCatalog(records)
@@ -353,9 +832,9 @@ function IndexProjectionsByFolder(projectionIds)
     return new Map(Array.from(grouped).filter(([_folder, ids]) => ids.length === 1).map(([ folder, ids ]) => [ folder, ids[0] ]));
 }
 
-function TypeCategory(typeId)
+function TypeCategory(partID)
 {
-    const relative = typeId.split("/").slice(1);
+    const relative = partID.split("/").slice(1);
     return relative.slice(0, -2).join("/");
 }
 

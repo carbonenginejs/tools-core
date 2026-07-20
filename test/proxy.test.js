@@ -9,7 +9,7 @@ import readline from "node:readline";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { CjsToolHttpProxy } from "../src/index.js";
+import { CjsToolCharacterLibrary, CjsToolHttpProxy } from "../src/index.js";
 
 const FixtureDirectory = path.dirname(fileURLToPath(import.meta.url));
 
@@ -53,6 +53,7 @@ test("serves health, SOF values, and compatibility document requests without a f
     const health = await fetch(`${root}/v1/health`);
 
     assert.equal(health.status, 200);
+    assert.equal(health.headers.get("access-control-allow-origin"), "*");
     assert.deepEqual(await health.json(), {
         ok: true,
         service: "@carbonenginejs/tools-core",
@@ -60,7 +61,11 @@ test("serves health, SOF values, and compatibility document requests without a f
         protocolVersion: 1,
         capabilities: {
             resources: false,
+            character: false,
             sde: false,
+            skin: false,
+            skinr: false,
+            weapons: false,
             sofValues: true,
             sofDocument: true,
         },
@@ -89,6 +94,42 @@ test("serves health, SOF values, and compatibility document requests without a f
         schema: "carbon.document",
         dna: "rifter:minmatar:minmatar"
     });
+});
+
+test("answers browser CORS preflight without an authentication contract", async context =>
+{
+    const proxy = new CjsToolHttpProxy({
+        indexes: { Open() {} },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const address = server.address();
+    const root = `http://127.0.0.1:${address.port}`;
+    const preflight = await fetch(`${root}/eve/latest/skin`, {
+        method: "OPTIONS",
+        headers: {
+            origin: "http://127.0.0.1:8080",
+            "access-control-request-method": "GET",
+            "access-control-request-headers": "content-type",
+        },
+    });
+
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get("access-control-allow-origin"), "*");
+    assert.equal(preflight.headers.get("access-control-allow-headers"), "Content-Type");
+    assert.equal(preflight.headers.get("access-control-allow-private-network"), "true");
+    assert.equal(await preflight.text(), "");
+
+    const health = await fetch(`${root}/v1/health`);
+    assert.equal(health.status, 200);
+    assert.equal(health.headers.get("access-control-allow-origin"), "*");
 });
 
 test("serves exact EVE SDE catalogs, generic tables, and records", async context =>
@@ -190,7 +231,11 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
 
     assert.deepEqual((await health.json()).capabilities, {
         resources: false,
+        character: false,
         sde: true,
+        skin: true,
+        skinr: true,
+        weapons: true,
         sofValues: false,
         sofDocument: false,
     });
@@ -242,16 +287,239 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
     assert.equal((await resolved.json()).dna, "rifter:minmatar:minmatar");
 });
 
-test("authenticates resource resolution and validated fetch-to-cache requests", async context =>
+test("resolves character names and type identities with atomic LOD bundles", async context =>
 {
-    const token = "0123456789abcdef0123456789abcdef";
+    const partID = "female/hair/hair_long_01/types/hair_long_01";
+    const anonymousPartID = "female/hair/hair_plain/types/hair_plain";
+    const library = new CjsToolCharacterLibrary({
+        schema: "carbonenginejs.characterLibrary",
+        schemaVersion: 2,
+        sourceTarget: "eve",
+        sourceGame: "Eve",
+        sourceProvider: "ccp",
+        sourceBuild: "3435006",
+        partSources: {
+            "female/hair/hair_long_01": {
+                resources: {
+                    configPaths: [
+                        "res:/character/hair_long_01_lod0.black",
+                        "res:/character/hair_long_01_lod1.black",
+                    ],
+                    geometryPaths: [
+                        "res:/character/hair_long_01_lod0.gr2",
+                        "res:/character/hair_long_01_lod1.gr2",
+                    ],
+                    lodBundles: [
+                        {
+                            requestedLod: null,
+                            resolvedLod: 0,
+                            configurationPath: "res:/character/hair_long_01_lod0.black",
+                            geometryPath: "res:/character/hair_long_01_lod0.gr2",
+                            modelFamily: "hairlong01",
+                            fallbackReason: "",
+                        },
+                        {
+                            requestedLod: null,
+                            resolvedLod: 1,
+                            configurationPath: "res:/character/hair_long_01_lod1.black",
+                            geometryPath: "res:/character/hair_long_01_lod1.gr2",
+                            modelFamily: "hairlong01",
+                            fallbackReason: "",
+                        },
+                    ],
+                },
+                versions: {
+                    default: {
+                        types: {
+                            [partID]: {
+                                typeID: "9001",
+                                name: "Long Hair",
+                            },
+                        },
+                    },
+                },
+            },
+            "female/hair/hair_plain": {
+                versions: {
+                    default: {
+                        resources: {
+                            configPaths: [
+                                "res:/character/hair_plain_lod0.black",
+                                "res:/character/hair_plain_lod1.black",
+                            ],
+                            geometryPaths: [
+                                "res:/character/hair_plain_lod0.gr2",
+                                "res:/character/hair_plain_lod1.gr2",
+                            ],
+                            lodBundles: [
+                                {
+                                    requestedLod: null,
+                                    resolvedLod: 0,
+                                    configurationPath: "res:/character/hair_plain_lod0.black",
+                                    geometryPath: "res:/character/hair_plain_lod0.gr2",
+                                    modelFamily: "hairplain",
+                                    fallbackReason: "",
+                                },
+                                {
+                                    requestedLod: null,
+                                    resolvedLod: 1,
+                                    configurationPath: "res:/character/hair_plain_lod1.black",
+                                    geometryPath: "res:/character/hair_plain_lod1.gr2",
+                                    modelFamily: "hairplain",
+                                    fallbackReason: "",
+                                },
+                            ],
+                        },
+                        types: {
+                            [anonymousPartID]: {
+                                name: "Unidentified Hair",
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    });
+    const proxy = new CjsToolHttpProxy({
+        characters: {
+            async OpenTarget(target, build)
+            {
+                assert.equal(target, "eve");
+                assert.equal(build, "3435006");
+
+                return library;
+            },
+        },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const address = server.address();
+    const root = `http://127.0.0.1:${address.port}/eve/3435006/character`;
+    const health = await fetch(`http://127.0.0.1:${address.port}/v1/health`);
+
+    assert.deepEqual((await health.json()).capabilities, {
+        resources: false,
+        character: true,
+        sde: false,
+        skin: false,
+        skinr: false,
+        weapons: false,
+        sofValues: false,
+        sofDocument: false,
+    });
+
+    const wholeLibrary = await (await fetch(root)).json();
+
+    assert.equal(wholeLibrary.schemaVersion, 2);
+    assert.equal(wholeLibrary.sourceTarget, "eve");
+    assert.equal(wholeLibrary.partSources["female/hair/hair_long_01"]
+        .versions.default.types[partID].typeID, "9001");
+    assert.deepEqual(library.GetSourceIdentity(), {
+        sourceTarget: "eve",
+        sourceGame: "Eve",
+        sourceProvider: "ccp",
+        sourceBuild: "3435006",
+    });
+
+    const nameOptions = await (await fetch(
+        `${root}/lookup?name=${encodeURIComponent("Long Hair")}`
+    )).json();
+    const searchedOptions = await (await fetch(
+        `${root}/search?name=${encodeURIComponent("long-hair")}`
+    )).json();
+
+    assert.deepEqual(nameOptions, [ {
+        kind: "character",
+        typeID: "9001",
+        partID,
+    } ]);
+    assert.deepEqual(searchedOptions, nameOptions);
+
+    const anonymousOptions = await (await fetch(
+        `${root}/lookup?name=${encodeURIComponent("Unidentified Hair")}`
+    )).json();
+
+    assert.deepEqual(anonymousOptions, [ {
+        kind: "character",
+        typeID: null,
+        partID: anonymousPartID,
+    } ]);
+
+    const anonymous = await fetch(`${root}/parts/${anonymousPartID}?lod=0`);
+    const anonymousPart = await anonymous.json();
+
+    assert.equal(anonymous.status, 200);
+    assert.equal(anonymousPart.id, anonymousPartID);
+    assert.equal(anonymousPart.typeID, null);
+    assert.equal(anonymousPart.lodBundle.resolvedLod, 0);
+
+    const anonymousPathLod = await fetch(`${root}/lod/1/parts/${anonymousPartID}`);
+    assert.equal(anonymousPathLod.status, 200);
+    assert.equal((await anonymousPathLod.json()).lodBundle.resolvedLod, 1);
+
+    const named = await fetch(`${root}/resolve?name=Long%20Hair&lod=0`);
+    const namedPart = await named.json();
+
+    assert.equal(named.status, 200);
+    assert.equal(namedPart.id, partID);
+    assert.equal(namedPart.typeID, "9001");
+    assert.equal(namedPart.lodBundle.requestedLod, 0);
+    assert.equal(namedPart.lodBundle.resolvedLod, 0);
+    assert.match(namedPart.lodBundle.configurationPath, /_lod0\.black$/u);
+    assert.match(namedPart.lodBundle.geometryPath, /_lod0\.gr2$/u);
+
+    const typed = await fetch(`${root}/lod/1/types/9001`);
+    const typedPart = await typed.json();
+
+    assert.equal(typed.status, 200);
+    assert.equal(typedPart.id, partID);
+    assert.equal(typedPart.lodBundle.requestedLod, 1);
+    assert.equal(typedPart.lodBundle.resolvedLod, 1);
+
+    const category = await fetch(`${root}/hair?lod=0`);
+    const categoryBody = await category.json();
+
+    assert.equal(category.status, 200);
+    assert.equal(categoryBody.category, "hair");
+    assert.equal(categoryBody.requestedLod, 0);
+    assert.equal(categoryBody.items[0].typeID, "9001");
+    assert.equal(categoryBody.items[0].lodBundle.resolvedLod, 0);
+
+    const pathNamed = await fetch(`${root}/lod/1/resolve?name=Long%20Hair`);
+    const pathNamedPart = await pathNamed.json();
+
+    assert.equal(pathNamed.status, 200);
+    assert.equal(pathNamedPart.typeID, "9001");
+    assert.equal(pathNamedPart.lodBundle.resolvedLod, 1);
+
+    const missing = await fetch(`${root}/resolve?name=Missing`);
+
+    assert.equal(missing.status, 404);
+    assert.equal((await fetch(`${root}/parts/female/hair/missing`)).status, 404);
+
+    const disagreement = await fetch(`${root}/lod/1/types/9001?lod=0`);
+
+    assert.equal(disagreement.status, 400);
+    assert.match((await disagreement.json()).error, /disagree/u);
+    assert.equal((await fetch(`${root}/lookup?name=Long%20Hair&lod=0`)).status, 400);
+});
+
+test("serves resource resolution and validated fetch-to-cache requests", async context =>
+{
     const resolution = Object.freeze({
         provider: "ccp",
         build: "3435006",
         logicalPath: "res:/dx9/model/ship/test.gr2",
     });
+    let openTargetCount = 0;
     const proxy = new CjsToolHttpProxy({
-        token,
         indexes: {
             ListTargets()
             {
@@ -277,22 +545,24 @@ test("authenticates resource resolution and validated fetch-to-cache requests", 
             async ResolveTargetBuild(target, build)
             {
                 assert.equal(target, "eve");
-                assert.equal(build, "latest");
+                assert.ok([ "latest", "3435006" ].includes(build));
 
                 return {
                     target: "eve",
                     game: "Eve",
                     provider: "ccp",
-                    buildRef: "latest",
+                    buildRef: build,
                     build: "3435006",
                     client: "tranquility",
-                    source: "latest-remote-metadata",
+                    source: build === "latest" ? "latest-remote-metadata" : "exact",
                 };
             },
-            async OpenTarget(target, build)
+            async OpenTarget(target, build, options)
             {
                 assert.equal(target, "eve");
                 assert.equal(build, "3435006");
+                assert.deepEqual(options, { client: "tranquility" });
+                openTargetCount++;
 
                 return {
                     async Fetch(logicalPath, options)
@@ -307,6 +577,9 @@ test("authenticates resource resolution and validated fetch-to-cache requests", 
                                 provider: "ccp",
                                 build: "3435006",
                                 logicalPath,
+                                record: {
+                                    checksum: "0123456789abcdef0123456789abcdef",
+                                },
                             },
                             bytes: new TextEncoder().encode("short-resource"),
                         };
@@ -370,13 +643,7 @@ test("authenticates resource resolution and validated fetch-to-cache requests", 
 
     const address = server.address();
     const root = `http://127.0.0.1:${address.port}`;
-    const unauthorized = await fetch(`${root}/v1/health`);
-
-    assert.equal(unauthorized.status, 401);
-    assert.equal(unauthorized.headers.get("www-authenticate"), "Bearer");
-
     const headers = {
-        authorization: `Bearer ${token}`,
         "content-type": "application/json",
     };
     const health = await fetch(`${root}/v1/health`, { headers });
@@ -385,7 +652,11 @@ test("authenticates resource resolution and validated fetch-to-cache requests", 
     assert.equal(health.status, 200);
     assert.deepEqual(healthBody.capabilities, {
         resources: true,
+        character: false,
         sde: false,
+        skin: false,
+        skinr: false,
+        weapons: false,
         sofValues: false,
         sofDocument: false,
     });
@@ -464,6 +735,20 @@ test("authenticates resource resolution and validated fetch-to-cache requests", 
     assert.equal(await shortResource.text(), "short-resource");
     assert.equal(shortResource.headers.get("x-carbon-target"), "eve");
     assert.equal(shortResource.headers.get("x-carbon-logical-path"), "res:/dx9/model/ship/short.gr2");
+    assert.equal(
+        shortResource.headers.get("cache-control"),
+        "public, max-age=31536000, immutable",
+    );
+    assert.equal(shortResource.headers.get("etag"), '"0123456789abcdef0123456789abcdef"');
+
+    const repeatedResource = await fetch(
+        `${root}/eve/3435006/res/dx9/model/ship/short.gr2`,
+        { headers },
+    );
+
+    assert.equal(repeatedResource.status, 200);
+    assert.equal(await repeatedResource.text(), "short-resource");
+    assert.equal(openTargetCount, 1);
 
     const source = { provider: "ccp", build: "3435006" };
     const resolved = await fetch(`${root}/v1/resources/resolve`, {
@@ -506,7 +791,7 @@ test("authenticates resource resolution and validated fetch-to-cache requests", 
     });
 });
 
-test("service launcher emits an authenticated loopback bootstrap record", async context =>
+test("service launcher emits an unauthenticated loopback bootstrap record", async context =>
 {
     const executable = fileURLToPath(new URL("../bin/cjs-tools-service.js", import.meta.url));
     const cacheDirectory = path.join(os.tmpdir(), "cjs-tools-service-test");
@@ -539,18 +824,21 @@ test("service launcher emits an authenticated loopback bootstrap record", async 
     assert.equal(bootstrap.protocol, "carbon.tools");
     assert.equal(bootstrap.protocolVersion, 1);
     assert.equal(bootstrap.host, "127.0.0.1");
+    assert.equal(Object.hasOwn(bootstrap, "token"), false);
     assert.equal(bootstrap.cacheDirectory, path.resolve(cacheDirectory));
     assert.equal(bootstrap.dataDirectory, path.resolve(dataDirectory));
     assert.deepEqual(bootstrap.capabilities, {
         resources: true,
+        character: true,
         sde: true,
+        skin: true,
+        skinr: true,
+        weapons: true,
         sofValues: false,
         sofDocument: false,
     });
 
-    const health = await fetch(`http://${bootstrap.host}:${bootstrap.port}/v1/health`, {
-        headers: { authorization: `Bearer ${bootstrap.token}` },
-    });
+    const health = await fetch(`http://${bootstrap.host}:${bootstrap.port}/v1/health`);
 
     assert.equal(health.status, 200);
 
@@ -560,25 +848,129 @@ test("service launcher emits an authenticated loopback bootstrap record", async 
     await exit;
 });
 
+test("retains an exact resource source until the latest build changes", async context =>
+{
+    let currentBuild = "77";
+    const openedBuilds = [];
+    const proxy = new CjsToolHttpProxy({
+        indexes: {
+            Open() {},
+            async ResolveTargetBuild(target, build)
+            {
+                assert.equal(target, "eve");
+                assert.equal(build, "latest");
+
+                return {
+                    target,
+                    game: "Eve",
+                    provider: "ccp",
+                    buildRef: "latest",
+                    build: currentBuild,
+                    client: "tranquility",
+                    source: "latest-remote-metadata",
+                };
+            },
+            async OpenTarget(target, build, options)
+            {
+                assert.equal(target, "eve");
+                assert.deepEqual(options, { client: "tranquility" });
+                openedBuilds.push(build);
+
+                return {
+                    target,
+                    game: "Eve",
+                    provider: "ccp",
+                    build,
+                    async Fetch(logicalPath)
+                    {
+                        return {
+                            resolution: {
+                                target,
+                                game: "Eve",
+                                provider: "ccp",
+                                build,
+                                logicalPath,
+                                record: {
+                                    checksum: build.padStart(32, "0"),
+                                },
+                            },
+                            bytes: new TextEncoder().encode(build),
+                        };
+                    },
+                };
+            },
+        },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const root = `http://127.0.0.1:${server.address().port}/eve/latest/res/test.bin`;
+
+    const first = await fetch(root);
+    const firstEtag = first.headers.get("etag");
+
+    assert.equal(await first.text(), "77");
+    assert.equal(first.headers.get("cache-control"), "public, max-age=300, must-revalidate");
+    assert.equal(firstEtag, '"00000000000000000000000000000077"');
+
+    const unchanged = await fetch(root, {
+        headers: { "if-none-match": firstEtag },
+    });
+
+    assert.equal(unchanged.status, 304);
+    assert.deepEqual(openedBuilds, [ "77" ]);
+
+    currentBuild = "78";
+
+    const changed = await fetch(root, {
+        headers: { "if-none-match": firstEtag },
+    });
+
+    assert.equal(changed.status, 200);
+    assert.equal(await changed.text(), "78");
+    assert.equal(changed.headers.get("etag"), '"00000000000000000000000000000078"');
+    assert.deepEqual(openedBuilds, [ "77", "78" ]);
+});
+
 test("serves a Black resource as parsed JSON through ?format=json", async context =>
 {
     const hullBytes = await fs.readFile(path.join(FixtureDirectory, "fixtures", "ab1_t1.black"));
     const hullPath = "res:/dx9/model/spaceobjectfactory/hulls/ab1_t1.black";
     const otherPath = "res:/dx9/model/spaceobjectfactory/hulls/ab1_t1.red";
+    let openTargetCount = 0;
     const proxy = new CjsToolHttpProxy({
         indexes: {
             async Open()
             {
                 throw new Error("Open was not expected");
             },
-            async ResolveTargetBuild()
-            {
-                throw new Error("ResolveTargetBuild was not expected");
-            },
-            async OpenTarget(target, build)
+            async ResolveTargetBuild(target, build)
             {
                 assert.equal(target, "eve");
                 assert.equal(build, "3435006");
+
+                return {
+                    target: "eve",
+                    game: "Eve",
+                    provider: "ccp",
+                    buildRef: "3435006",
+                    build: "3435006",
+                    client: null,
+                    source: "exact",
+                };
+            },
+            async OpenTarget(target, build, options)
+            {
+                assert.equal(target, "eve");
+                assert.equal(build, "3435006");
+                assert.deepEqual(options, { client: undefined });
+                openTargetCount++;
 
                 return {
                     async Fetch(logicalPath)
@@ -626,6 +1018,7 @@ test("serves a Black resource as parsed JSON through ?format=json", async contex
     assert.equal(bytes.status, 200);
     assert.equal(bytes.headers.get("content-type"), "application/octet-stream");
     assert.equal(Number(bytes.headers.get("content-length")), hullBytes.byteLength);
+    assert.equal(openTargetCount, 1);
 
     const unsupportedFormat = await fetch(
         `${root}/eve/3435006/res/dx9/model/spaceobjectfactory/hulls/ab1_t1.black?format=xml`,
