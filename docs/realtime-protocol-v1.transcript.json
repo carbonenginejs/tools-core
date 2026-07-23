@@ -1,0 +1,372 @@
+{
+    "schema": "carbon.tools.realtime.conformance",
+    "version": 1,
+    "note": "All capabilities in this file are public, non-secret test fixtures.",
+    "protocol": {
+        "name": "carbon.tools.realtime",
+        "version": 1,
+        "subprotocol": "carbon.tools.realtime.v1",
+        "route": "/v1/realtime"
+    },
+    "clock": "2026-07-23T00:00:00.000Z",
+    "transcripts": [
+        {
+            "id": "browser-exact-origin",
+            "transport": {
+                "origin": "https://viewer.example",
+                "allowedOrigins": [
+                    "https://viewer.example"
+                ],
+                "allowMissingOrigin": false
+            },
+            "grant": {
+                "capability": "fixture-browser-capability-000000001",
+                "actor": {
+                    "id": "fixture-browser",
+                    "kind": "browser"
+                },
+                "allowedOrigins": [
+                    "https://viewer.example"
+                ],
+                "allowMissingOrigin": false,
+                "scopes": {
+                    "discover": true,
+                    "services": {
+                        "synthetic-main": {
+                            "topics": [
+                                "synthetic.audit.received"
+                            ],
+                            "commands": [
+                                "inspect"
+                            ],
+                            "snapshots": true,
+                            "content": false
+                        }
+                    }
+                }
+            },
+            "steps": [
+                {
+                    "id": "hello",
+                    "client": {
+                        "type": "hello",
+                        "protocolVersion": 1,
+                        "capability": "fixture-browser-capability-000000001",
+                        "client": {
+                            "id": "fixture-browser-client",
+                            "kind": "test"
+                        }
+                    },
+                    "server": [
+                        {
+                            "type": "hello",
+                            "protocol": "carbon.tools.realtime",
+                            "protocolVersion": 1,
+                            "connectionId": "connection-2",
+                            "actor": {
+                                "id": "fixture-browser",
+                                "kind": "browser"
+                            },
+                            "scopes": {
+                                "discover": true,
+                                "services": {
+                                    "synthetic-main": {
+                                        "topics": [
+                                            "synthetic.audit.received"
+                                        ],
+                                        "commands": [
+                                            "inspect"
+                                        ],
+                                        "snapshots": true,
+                                        "content": false
+                                    }
+                                }
+                            },
+                            "discoveryRef": "/v1/realtime",
+                            "limits": {
+                                "maxMessageBytes": 65536,
+                                "maxSubscriptions": 32,
+                                "maxRequestIds": 4096,
+                                "maxRequestsPerWindow": 600,
+                                "requestWindowMs": 60000,
+                                "maxInboundMessages": 64,
+                                "maxInboundBytes": 1048576
+                            },
+                            "heartbeat": {
+                                "intervalMs": 15000,
+                                "idleTimeoutMs": 45000
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "subscribe",
+                    "client": {
+                        "type": "subscribe",
+                        "requestId": "subscribe-1",
+                        "serviceId": "synthetic-main",
+                        "topics": [
+                            "synthetic.audit.received"
+                        ]
+                    },
+                    "server": [
+                        {
+                            "type": "result",
+                            "requestId": "subscribe-1",
+                            "status": "completed",
+                            "data": {
+                                "subscriptionId": "subscription-3",
+                                "service": {
+                                    "family": "synthetic.state",
+                                    "familyVersion": 1,
+                                    "kind": "synthetic.memory",
+                                    "id": "synthetic-main"
+                                },
+                                "cursor": {
+                                    "streamId": "stream-1",
+                                    "sequence": 0,
+                                    "topicSequences": {
+                                        "synthetic.state.changed": 0,
+                                        "synthetic.audit.received": 0
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "publish",
+                    "hostPublish": {
+                        "topic": "synthetic.audit.received",
+                        "data": {
+                            "room": "#carbon",
+                            "message": "hello"
+                        }
+                    },
+                    "server": [
+                        {
+                            "type": "event",
+                            "eventId": "event-4",
+                            "service": {
+                                "family": "synthetic.state",
+                                "familyVersion": 1,
+                                "kind": "synthetic.memory",
+                                "id": "synthetic-main"
+                            },
+                            "streamId": "stream-1",
+                            "sequence": 1,
+                            "topic": "synthetic.audit.received",
+                            "topicSequence": 1,
+                            "occurredAt": "2026-07-23T00:00:00.000Z",
+                            "publishedAt": "2026-07-23T00:00:00.000Z",
+                            "actor": {
+                                "id": "synthetic-main",
+                                "kind": "service"
+                            },
+                            "payload": {
+                                "schema": "synthetic.state.event",
+                                "version": 1,
+                                "data": {
+                                    "room": "#carbon",
+                                    "message": "hello"
+                                }
+                            },
+                            "subscriptionId": "subscription-3"
+                        }
+                    ]
+                },
+                {
+                    "id": "command",
+                    "client": {
+                        "type": "command",
+                        "requestId": "inspect-1",
+                        "serviceId": "synthetic-main",
+                        "action": "inspect",
+                        "data": null
+                    },
+                    "server": [
+                        {
+                            "type": "result",
+                            "requestId": "inspect-1",
+                            "status": "completed",
+                            "data": {
+                                "value": 0
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "duplicate-request",
+                    "client": {
+                        "type": "command",
+                        "requestId": "inspect-1",
+                        "serviceId": "synthetic-main",
+                        "action": "inspect",
+                        "data": null
+                    },
+                    "server": [
+                        {
+                            "type": "error",
+                            "code": "duplicate_request_id",
+                            "message": "requestId was already used on this connection",
+                            "retryable": false,
+                            "connectionUsable": true,
+                            "requestId": "inspect-1"
+                        }
+                    ]
+                },
+                {
+                    "id": "unsubscribe",
+                    "client": {
+                        "type": "unsubscribe",
+                        "requestId": "unsubscribe-1",
+                        "subscriptionId": "subscription-3"
+                    },
+                    "server": [
+                        {
+                            "type": "result",
+                            "requestId": "unsubscribe-1",
+                            "status": "completed",
+                            "data": {
+                                "subscriptionId": "subscription-3"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "agent-missing-origin",
+            "transport": {
+                "origin": null,
+                "allowedOrigins": [],
+                "allowMissingOrigin": true
+            },
+            "grant": {
+                "capability": "fixture-agent-capability-00000000001",
+                "actor": {
+                    "id": "fixture-agent",
+                    "kind": "agent"
+                },
+                "allowedOrigins": [],
+                "allowMissingOrigin": true,
+                "scopes": {
+                    "discover": false,
+                    "services": {
+                        "synthetic-main": {
+                            "topics": [
+                                "synthetic.audit.received"
+                            ],
+                            "commands": [],
+                            "snapshots": false,
+                            "content": false
+                        }
+                    }
+                }
+            },
+            "steps": [
+                {
+                    "id": "hello",
+                    "client": {
+                        "type": "hello",
+                        "protocolVersion": 1,
+                        "capability": "fixture-agent-capability-00000000001",
+                        "client": {
+                            "id": "fixture-agent-client",
+                            "kind": "agent"
+                        }
+                    },
+                    "server": [
+                        {
+                            "type": "hello",
+                            "protocol": "carbon.tools.realtime",
+                            "protocolVersion": 1,
+                            "connectionId": "connection-2",
+                            "actor": {
+                                "id": "fixture-agent",
+                                "kind": "agent"
+                            },
+                            "scopes": {
+                                "discover": false,
+                                "services": {
+                                    "synthetic-main": {
+                                        "topics": [
+                                            "synthetic.audit.received"
+                                        ],
+                                        "commands": [],
+                                        "snapshots": false,
+                                        "content": false
+                                    }
+                                }
+                            },
+                            "discoveryRef": "/v1/realtime",
+                            "limits": {
+                                "maxMessageBytes": 65536,
+                                "maxSubscriptions": 32,
+                                "maxRequestIds": 4096,
+                                "maxRequestsPerWindow": 600,
+                                "requestWindowMs": 60000,
+                                "maxInboundMessages": 64,
+                                "maxInboundBytes": 1048576
+                            },
+                            "heartbeat": {
+                                "intervalMs": 15000,
+                                "idleTimeoutMs": 45000
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "authenticationRejections": [
+        {
+            "id": "browser-missing-origin",
+            "grant": "browser-exact-origin",
+            "origin": null,
+            "code": "unauthorized",
+            "closeCode": 1008
+        },
+        {
+            "id": "browser-wrong-origin",
+            "grant": "browser-exact-origin",
+            "origin": "https://other.example",
+            "code": "unauthorized",
+            "closeCode": 1008
+        },
+        {
+            "id": "agent-presented-browser-origin",
+            "grant": "agent-missing-origin",
+            "origin": "https://viewer.example",
+            "code": "unauthorized",
+            "closeCode": 1008
+        }
+    ],
+    "authenticationGateCases": [
+        {
+            "id": "gateway-rejects-agent-missing-origin",
+            "grant": "agent-missing-origin",
+            "transport": {
+                "origin": null,
+                "allowedOrigins": [],
+                "allowMissingOrigin": false
+            },
+            "phase": "upgrade",
+            "statusCode": 403
+        },
+        {
+            "id": "grant-rejects-browser-missing-origin",
+            "grant": "browser-exact-origin",
+            "transport": {
+                "origin": null,
+                "allowedOrigins": [
+                    "https://viewer.example"
+                ],
+                "allowMissingOrigin": true
+            },
+            "phase": "hello",
+            "closeCode": 1008,
+            "reason": "unauthorized"
+        }
+    ]
+}

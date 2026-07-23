@@ -58,7 +58,11 @@ import { normalizeExactBuild } from "@carbonenginejs/tools-core/utils";
 
 - `index` reads CCP-compatible app/res indexes for the `Eve` and `Frontier`
   game classifications, composes target-specific resource overlays, and
-  retrieves validated bytes.
+  retrieves validated bytes. Remote metadata, index, and payload requests have
+  configurable hard deadlines. Fetch response bodies are streamed through
+  content-length preflight and byte ceilings before checksum/cache handling;
+  `CjsToolIndex` defaults to 30 seconds, 64 KiB of metadata, 64 MiB per index,
+  and 256 MiB per payload.
 - `cache` owns the shared index, payload, and generated-output layout.
 - `library` writes one canonical JSON byte sequence and a deterministic
   `.json.gz` distribution sibling. Cache-backed builders use
@@ -82,10 +86,34 @@ import { normalizeExactBuild } from "@carbonenginejs/tools-core/utils";
   layout drifted. Carbon-authored per-build schema versioning is possible
   (the scanner already emits build-scoped output) but intentionally not built;
   keep the snapshot reasonably current by re-running the scan instead.
-- `audio` builds deterministic audio-library JSON from SoundbanksInfo,
+- `audio` builds deterministic audio-library values from SoundbanksInfo,
   resfileindex records, and an optional plain-JSON metadata overlay.
-  `CjsToolAudio` is the target-aware front door; `CjsToolAudioBuilder` exposes
-  its stateless build, index parsing, and event-media table operations.
+  `new CjsToolAudio().Build()` (or static `CjsToolAudio.build()`) is the
+  target-aware JavaScript API and returns the canonical
+  `carbonenginejs.audioLibrary` plain object;
+  `CjsToolAudioBuilder` exposes its stateless build, index parsing, and
+  event-media table operations. Use `CjsToolAudio` for distributable builds:
+  the low-level builder deliberately permits unscoped test/intermediate values,
+  while the front door requires an exact supported target/build.
+  `CjsToolLibraryArtifact` serializes that same value as JSON and deterministic
+  gzip; these are transports for one schema, not separate API/file formats.
+
+  The base schema-v1 result always contains `metadata`, loose-WEM `media`, and
+  basename-keyed `banks`. `eventMedia` and `embeddedMedia` are optional and are
+  produced by the CLI only with `--event-media`; without them, the document is
+  a metadata/source catalog rather than a complete event-to-playable-media
+  index. Runtime-audio may normalize the tables into an audio-file-index view;
+  no second generated document is required.
+
+  Current audio follow-up is intentionally localized: retain bank ID/language
+  identity, represent prepared delivery variants, classify embedded WEM/MIDI/
+  plugin entries, fold music and GameParameter descriptors into the tools-core
+  build before artifact writing, and move the evolved contract to an explicit
+  schema version. The current runtime-audio music post-step mutates JSON after
+  the gzip sibling was written and must not remain the final pipeline. The
+  CLI's default wall-clock `generatedAt` also makes otherwise identical
+  invocations byte-different; reproducible builds must supply a fixed value,
+  omit it from canonical bytes, or move build time to external provenance.
 - `character` builds deterministic character-library JSON from prepared source
   files. `CjsToolCharacter` is its target-aware front door; the assembler,
   compiler, normalizer, and serializer expose focused stateless operations as
@@ -159,9 +187,11 @@ CEWGPU are package formats, not public resource profiles. tools-core catalogs
 the exact paths a builder emits and delegates conversion to the corresponding
 format package.
 
-At present, audio is enabled for `eve` and `frontier`; character, SKIN, SKINR,
-and weapons are enabled only for `eve`. `netease` library builders and corresponding
-Frontier builds remain disabled until each input contract has been audited.
+At present, the audio builder is enabled for `eve` and `frontier`; character,
+SKIN, SKINR, and weapons are enabled only for `eve`. This target support does
+not imply that every library has an HTTP repository/route. `netease` library
+builders and corresponding Frontier builds remain disabled until each input
+contract has been audited.
 
 The official downloadable SDE topic is enabled only for `eve`. Frontier has
 client static-data resources and separate public data interfaces, but it is not
@@ -268,6 +298,11 @@ For example:
 `custom/games/eve/providers/ccp/builds/3435006/character_v1.json`.
 The skin catalogs are `skin_v1.json` and `skinr_v1.json`, and the weapon
 catalog is `weapons_v1.json`, in the same exact-build directory.
+The corresponding canonical audio cache name is `audio_v1.json`, but the
+current audio CLI requires an explicit `--out` path and does not install that
+cache entry automatically. Programmatic callers can use
+`CjsToolCache.WriteCustomLibrary(...)` when they want the canonical cache
+location.
 The full EVE database is
 `custom/games/eve/providers/ccp/builds/3435006/sde_v1.sqlite`.
 
@@ -343,6 +378,552 @@ returns plain model values, and `/v1/sof/document` (capability `sofDocument`,
 compatibility/diagnostic) returns the explicit `carbon.document`. The
 standalone launcher does not claim SOF capabilities until that exact-build
 runtime bootstrap is configured.
+
+The JavaScript audio build API exists, but the checked-in service does not yet
+configure an audio repository, advertise an `audio` capability, or implement
+`GET /{target}/{build}/audio`. Generic `res`/`resources` routes can serve a
+known indexed `res:/audio/...` file; they do not serve the generated audio
+library or expose embedded bank members by media ID. A future audio route must
+return the same canonical records as the JavaScript API and JSON/gzip
+artifact, not an independently shaped HTTP library.
+
+### Realtime service host
+
+The independently importable realtime library provides a general authenticated
+service host. It is not enabled by the standalone launcher yet and does not
+change the existing unauthenticated query/resource routes.
+
+The normative v1 messages, authentication boundary, ordering rules, and close
+outcomes are in
+[`docs/realtime-protocol-v1.md`](docs/realtime-protocol-v1.md); its adjacent
+JSON transcript is replayed by package tests through the real hub and gateway.
+
+```js
+import {
+    CjsRealtimeProtocol,
+    REALTIME_SUBPROTOCOL,
+} from "@carbonenginejs/tools-core/realtime";
+import {
+    CjsRealtimeHttpRouter,
+    CjsRealtimeHub,
+    CjsRealtimeSessionAuthority,
+} from "@carbonenginejs/tools-core/realtime/server";
+import {
+    CjsRealtimeWebSocketGateway,
+} from "@carbonenginejs/tools-core/realtime/websocket";
+import { CjsToolServiceHost } from "@carbonenginejs/tools-core/service";
+```
+
+Registered services provide `Describe()`, idempotent `Start(context)` and
+`Stop()`, plus optional `GetSnapshot(request)`, `OpenResource(path, request)`,
+and `HandleCommand(command, context)`. The hub owns service stream IDs, global
+and per-topic sequences, subscriptions, snapshot cursors, actor attribution,
+and operation deduplication. A service owns only its family semantics and never
+receives raw sockets.
+
+The transport uses `carbon.tools.realtime.v1` and shares one route between HTTP
+and WebSocket upgrades:
+
+```text
+GET     /v1/realtime
+UPGRADE /v1/realtime
+GET     /v1/realtime/services/<service-id>/snapshot
+GET     /v1/realtime/services/<service-id>/content/<path>?revision=<revision>
+HEAD    /v1/realtime/services/<service-id>/content/<path>?revision=<revision>
+```
+
+The trusted launcher or embedding application injects random capability grants
+into `CjsRealtimeSessionAuthority`. Each grant maps to a server-owned actor,
+exact origins, expiry, and explicit service/topic/action scopes. HTTP uses a
+Bearer capability; WebSocket clients present the same capability in their first
+`hello` text message. Capabilities never belong in URLs, discovery values,
+logs, preferences, or the standalone stdout bootstrap record.
+
+```js
+const capability = CjsRealtimeSessionAuthority.createCapability();
+const authority = new CjsRealtimeSessionAuthority({
+    grants: [ {
+        capability,
+        actor: { id: "local-client", kind: "application" },
+        allowedOrigins: [ "http://127.0.0.1:8080" ],
+        scopes: {
+            discover: true,
+            services: {
+                "example-service": {
+                    topics: [ "example.changed" ],
+                    commands: [ "update" ],
+                    snapshots: true,
+                    content: false,
+                },
+            },
+        },
+    } ],
+});
+const hub = new CjsRealtimeHub({ authority });
+
+hub.Register(exampleService);
+const realtimeRouter = new CjsRealtimeHttpRouter({
+    hub,
+    allowedOrigins: [ "http://127.0.0.1:8080" ],
+});
+const realtimeGateway = new CjsRealtimeWebSocketGateway({
+    hub,
+    allowedOrigins: [ "http://127.0.0.1:8080" ],
+});
+const host = new CjsToolServiceHost({
+    hub,
+    realtimeRouter,
+    realtimeGateway,
+    fallback: existingHttpProxy,
+});
+
+await host.Start();
+const server = host.CreateServer();
+server.listen(8080, "127.0.0.1");
+```
+
+`CreateServer()` deliberately does not listen. The embedding application owns
+the listener and must stop admitting HTTP work before it calls `host.Stop()`;
+the lower-level host remains suitable for composition with an existing server.
+For a separate realtime listener, `CjsRealtimeServer` owns that lifecycle and
+leaves the legacy `cjs-tools-service` launcher unchanged:
+
+```js
+import { CjsRealtimeServer } from "@carbonenginejs/tools-core/service";
+
+const realtime = new CjsRealtimeServer({
+    services: [ aggregateChat, exampleChannel ],
+    grants,
+    allowedOrigins: [ "http://127.0.0.1:8080" ],
+});
+const address = await realtime.Listen({ host: "127.0.0.1", port: 0 });
+
+// address contains only host/port/family; capability grants are never returned.
+await realtime.Stop();
+```
+
+`Listen()` starts every registered service before accepting traffic. `Stop()`
+first closes HTTP admission, then drains WebSockets and services, then waits for
+the listener to close. The default network policy accepts only explicit
+loopback addresses. This class does not acquire Twitch credentials or generate
+client capabilities; the trusted embedding application supplies both.
+
+Capability expiry, replacement, or revocation invalidates established sessions.
+Requests and event delivery revalidate immediately, while the WebSocket
+heartbeat removes an otherwise idle invalid session. Only public `id` and
+`kind` actor fields are retained and exposed.
+
+Subscriptions are future-only. Stateful clients subscribe first, fetch the
+cursor-stamped HTTP snapshot, buffer newer events, then apply only matching
+`streamId` events above the snapshot cursor. The server never silently drops an
+authoritative event: a slow consumer is closed with `resync_required` and must
+reconnect and repeat snapshot reconciliation. Family-specific execution rules,
+such as one or many character facades, remain registered-service policy rather
+than WebSocket hub behavior.
+
+Stateful external sources must mutate their materialized state and publish its
+event inside `context.Commit(callback)`. Snapshot capture runs on the same
+per-service lane. A command may call `context.Publish()` directly only while
+its handler is active; accepted asynchronous work retains `context.Commit()`
+for later canonical updates. Contexts are bound to one service stream and are
+rejected after stop/restart rather than publishing into a new generation.
+
+Mutating command operations are deduplicated in memory by actor kind, actor ID,
+service ID, action, and operation ID. The default completed-operation retention
+is 15 minutes. A duplicate joins or returns the original result; different data
+under the same key returns `operation_conflict`. Retryable failures are removed
+so the same operation may be attempted again. Tombstones survive an in-process
+service restart for their retention window but are not durable across process
+restarts.
+
+Default limits include 64 KiB inbound messages, bounded inbound/outbound message
+and byte queues, 32 subscriptions, 64 connections, a 600-request/minute window,
+and a 3-second unauthenticated `hello` deadline. Servers reject binary v1
+messages and disable WebSocket compression. Close codes `4408` and `4409` are
+reserved by this protocol for `hello_timeout` and `resync_required`; standard
+codes cover malformed protocol (`1002`), binary messages (`1003`), policy or
+authorization (`1008`), oversized messages (`1009`), internal failure (`1011`),
+and normal server shutdown (`1001`).
+
+### Webhook-to-client streams
+
+The independently importable webhook library turns authenticated provider HTTP
+deliveries into ordinary realtime service streams. `CjsWebhookHttpRouter` owns
+bounded raw ingress under `/v1/webhooks/<endpoint-id>`, while
+`CjsWebhookStreamService` wraps a provider handler behind the same structural
+`Describe()` / `Start(context)` / `Stop()` lifecycle used by other realtime
+services:
+
+```js
+import {
+    CjsWebhookHttpRouter,
+    CjsWebhookIngressSource,
+    CjsWebhookProjectionService,
+    CjsWebhookStreamService,
+} from "@carbonenginejs/tools-core/webhook";
+
+const activity = new CjsWebhookStreamService({
+    id: "provider-main",
+    family: "livestream.activity",
+    familyVersion: 1,
+    kind: "provider.webhook",
+    topics: [ "livestream.activity.subscription.received" ],
+    handler: providerWebhookHandler,
+});
+
+hub.Register(activity);
+const webhookRouter = new CjsWebhookHttpRouter({
+    endpoints: [ activity ],
+    maxBodyBytes: 256 * 1024,
+    maxConcurrentRequests: 64,
+    // Explicit remote opt-in; keep the default for local relay processes.
+    loopbackOnly: false,
+});
+const host = new CjsToolServiceHost({
+    hub,
+    realtimeRouter,
+    realtimeGateway,
+    httpRouters: [ webhookRouter ],
+    fallback: existingHttpProxy,
+});
+```
+
+The injected handler must implement two explicit phases. Its
+`AuthenticateWebhook(request)` receives the exact body bytes, lower-case request
+headers, request target, receive time, peer address, and service abort signal;
+it verifies the provider against the raw body before anything is trusted.
+`HandleWebhook(request)` receives that result as `request.authentication` and
+must remain side-effect-free while returning only canonical client events:
+
+```js
+{
+    deliveryId: "provider-delivery-id",
+    events: [ {
+        topic: "livestream.activity.subscription.received",
+        occurredAt: "2026-07-22T04:00:00.000Z",
+        data: normalizedActivity,
+    } ],
+    response: {
+        statusCode: 202,
+        body: { accepted: true },
+    },
+}
+```
+
+Topic declarations and payloads are validated before publication. A bounded
+current-run delivery-ID cache acknowledges exact provider retries without
+publishing twice and rejects reuse of one ID with different canonical content.
+Concurrent verification and request bytes are bounded; lifecycle or service
+queue pressure returns a retryable HTTP error. The provider acknowledgement is
+written only after the publications have entered the service lane.
+
+Provider adapters validate canonical livestream payloads through the exact
+`@carbonenginejs/tools-core/realtime/livestream` subpath. The normative topic,
+activity, state-patch, snapshot, null, and extension semantics are documented
+in `docs/realtime-livestream-v1.md`; its adjacent Twitch/Kick fixtures are
+executable package tests.
+
+`CjsWebhookStreamService` remains the compact one-endpoint/one-family wrapper.
+Providers with one callback spanning several families use one
+`CjsWebhookIngressSource` plus statically registered services. Authentication,
+mapping, retry identity, and raw bytes run once; each canonical topic is routed
+to exactly one owning service. Multi-family retries remember completed
+publication steps, so a later-family failure does not republish earlier-family
+events when the provider retries.
+
+Webhook endpoints do not use local realtime client capabilities and do not
+enable browser CORS. The router is loopback-only by default. A public deployment
+must explicitly disable that guard behind HTTPS, request deadlines, admission
+and source rate limits; its provider handler must verify the documented
+signature, timestamp, and replay identity. Raw provider bodies, authentication
+headers, and secrets are never forwarded automatically. Clients continue to
+authenticate and subscribe over `/v1/realtime`; several facades may receive the
+same live event, and a newly connected facade receives no webhook backlog.
+
+### Realtime resource watch
+
+The independently importable resource-watch service is the first concrete
+realtime family:
+
+```js
+import {
+    CjsRealtimeResourceWatchService,
+} from "@carbonenginejs/tools-core/realtime/resource-watch";
+
+const resources = new CjsRealtimeResourceWatchService({
+    id: "project-resources",
+    root: "E:\\project\\res",
+    logicalRoot: "res:/",
+    settleMs: 75,
+    maxEntries: 10000,
+    maxPendingPaths: 4096,
+});
+
+hub.Register(resources);
+```
+
+The embedding application grants only the required family scopes:
+
+```js
+{
+    topics: [
+        "resource.watch.entry.changed",
+        "resource.watch.status.changed",
+    ],
+    commands: [],
+    snapshots: true,
+    content: true,
+}
+```
+
+The service observes before its initial scan, queues changes that race the
+scan, and publishes no artificial add backlog for the initial tree. Snapshot
+entries are sorted relative logical file paths and include `type`, `byteSize`,
+`modifiedAt`, opaque `revision`, and an authenticated relative `contentRef`.
+Physical roots, native watcher operations, Node `Stats`, and provider errors
+are never part of public payloads.
+
+`resource.watch.entry.changed` carries `add`, `update`, or `remove`, the
+relative `path`, the current `entry` (`null` for removal), and
+`previousRevision`. `resource.watch.status.changed` reports sanitized `ready`
+or `degraded` source status. Both recover through the materialized snapshot and
+its host-stamped cursor; reconnecting does not receive an event backlog.
+
+Watcher notifications are hints. The service re-reads authoritative file
+state, settles repeated hints per path, and derives the canonical operation by
+comparing its catalog. Pending paths are bounded; overflow collapses to one
+complete root reconciliation instead of silently dropping changes. Observation
+is injectable through an `observe({ root, signal, onChange, onError })`
+function that returns a function, `Close()` object, or Node-style `close()`
+object. The default uses recursive Node `fs.watch` support.
+
+Content paths are already decoded and are validated again by the service. It
+rejects absolute, drive, UNC, backslash, colon, NUL, empty, dot, dot-dot, and
+encoded traversal/separator aliases. Scans do not follow symlink/reparse
+entries, and resolved files must remain inside the canonical root. HTTP bytes
+stream from an opened file handle with content length, modification time, ETag,
+`GET`/`HEAD`, and conditional `304` support.
+
+The v1 `size-mtime-v1` revision is a current-at-open precondition, not a
+retained immutable artifact. If a referenced file has changed or disappeared,
+the old `contentRef` returns retryable `revision_mismatch` and the consumer
+reconciles from a fresh snapshot/event. Content hashing, historical revision
+retention, and leased immutable artifacts remain future work for a consumer
+that requires exact old bytes.
+
+### Realtime Twitch integration
+
+The independently importable Twitch slice supplies two implementations of the
+provider-neutral `chat` family:
+
+- `twitch.irc` is a small receive-only adapter around an injected
+  tmi.js-compatible client; and
+- `twitch.eventsub` uses Twitch OAuth, Helix, and EventSub WebSockets.
+
+The integration subpath exports vendor-led `Twitch*` classes. Its `Cjs*`
+backing classes are internal implementation details and are not package
+exports. Another integration can use its own provider prefix and satisfy the
+structural `Start`/`Stop` contract without inheriting a Carbon or Twitch class.
+
+OAuth is the broader integration foundation rather than a chat-specific mode.
+`TwitchOAuthTokenProvider` validates an externally acquired user access
+token, checks the exact identity/scopes requested by each integration, caches
+validation for at most one hour, and optionally serializes an injected refresh
+callback. `TwitchHelixClient` applies the same identity and reactive `401`
+refresh policy to arbitrary Helix routes. EventSub chat and livestream activity
+share that foundation without joining their normalized family semantics.
+
+```js
+import {
+    TwitchActivityService,
+    TwitchActivitySource,
+    TwitchChatService,
+    TwitchChatSource,
+    TwitchEventSubActivityProvider,
+    TwitchEventSubChatProvider,
+    TwitchEventSubSession,
+    TwitchEventSubSource,
+    TwitchEventSubStateProvider,
+    TwitchHelixClient,
+    TwitchOAuthTokenProvider,
+    TwitchStateService,
+    TwitchStateSource,
+} from "@carbonenginejs/tools-core/integrations/twitch";
+import {
+    LIVESTREAM_ACTIVITY_TOPICS,
+} from "@carbonenginejs/tools-core/realtime/livestream";
+
+const oauth = new TwitchOAuthTokenProvider({
+    clientId: twitchClientId,
+    getAccessToken: () => tokenStore.ReadAccessToken(),
+    refreshAccessToken: () => tokenStore.RefreshAccessToken(),
+});
+const helix = new TwitchHelixClient({ oauth });
+const eventSub = new TwitchEventSubSource({ oauth, helix });
+const provider = new TwitchEventSubChatProvider({
+    source: eventSub,
+    registrationId: "chat",
+    rooms: [ { id: "123456", login: "example_channel" } ],
+});
+const activityProvider = new TwitchEventSubActivityProvider({
+    source: eventSub,
+    registrationId: "activity",
+    rooms: [ { id: "123456" } ],
+    topics: [
+        LIVESTREAM_ACTIVITY_TOPICS.SUBSCRIPTION_RECEIVED,
+        LIVESTREAM_ACTIVITY_TOPICS.FOLLOW_RECEIVED,
+    ],
+});
+const stateProvider = new TwitchEventSubStateProvider({
+    source: eventSub,
+    helix,
+    registrationId: "state",
+    rooms: [ { id: "123456", login: "example_channel" } ],
+});
+const source = new TwitchChatSource({ provider });
+const activitySource = new TwitchActivitySource({ provider: activityProvider });
+const stateSource = new TwitchStateSource({ provider: stateProvider });
+const aggregateChat = new TwitchChatService({
+    id: "primary-chat",
+    source,
+});
+const exampleChannel = new TwitchChatService({
+    id: "twitch-chat-example-channel",
+    source,
+    room: { id: "123456", login: "example_channel" },
+});
+const exampleChannelActivity = new TwitchActivityService({
+    id: "twitch-activity-example-channel",
+    source: activitySource,
+    room: { id: "123456" },
+});
+const exampleChannelState = new TwitchStateService({
+    id: "twitch-state-example-channel",
+    source: stateSource,
+    room: { id: "123456" },
+});
+
+hub.Register(aggregateChat);
+hub.Register(exampleChannel);
+hub.Register(exampleChannelActivity);
+hub.Register(exampleChannelState);
+```
+
+One `TwitchChatSource` owns the upstream IRC or EventSub transport. Any number
+of pre-registered `TwitchChatService` instances may share it without opening a
+provider connection per service. A service with no `room` is an aggregate feed
+whose messages retain their room identity; this suits CPPC-style consumers that
+route many channels locally. A service with one exact `room` is the logical
+emitter for that room and suits a character facade or overlay that should not
+receive unrelated chat. Give narrow clients grants only for their exact room
+service. The aggregate service is optional and should have a separate grant.
+
+Room services are registered before hub startup because the realtime registry
+is sealed once running. The set of logical room services is not itself capped
+by the browser transport, although one client defaults to 32 simultaneous
+service subscriptions. Provider connections still obey upstream room,
+subscription, connection, and rate quotas; scale those with explicit provider
+sessions rather than one transport per logical emitter.
+
+The embedding application owns an Authorization Code or Device Code flow and
+token persistence; tools-core does not open a browser, store a client secret,
+or place credentials in public realtime messages. EventSub chat requests
+`user:read:chat`. Receive-only IRC requests `chat:read`; add a write scope only
+when an explicit sending integration is implemented.
+
+`TwitchEventSubActivityProvider` registers only its selected canonical topics.
+The shared EventSub source unions the corresponding Twitch scopes and
+subscriptions before startup. Its normalizer covers subscriptions and renewals,
+gift batches, follows, incoming raids, cheers, and reward redemptions. One
+`TwitchActivitySource` can back an aggregate service plus exact-room services;
+all remain future-only and suppress bounded current-run duplicates.
+
+`TwitchEventSubStateProvider` registers `stream.online`, `stream.offline`, and
+`channel.update` over that same EventSub source. `TwitchStateSource` opens the
+event path before reading bounded initial Helix stream/channel state, queues
+notifications that race that seed, and then materializes them in order. Its
+aggregate and exact-room `TwitchStateService` projections publish atomic
+`livestream.state.changed` patches and expose cursor-consistent snapshots.
+
+Both transports publish `chat.message.received` with stable message, room, and
+author identities, plain text, roles, reply/fragments, `deliveryMode: "live"`,
+and provider details under `extensions.twitch`. They also publish sanitized
+`chat.status.changed` health transitions. The service has no snapshot, history,
+or provider backlog: a new WebSocket subscriber begins at its returned cursor
+and receives only later messages. A bounded per-room stable-ID set suppresses
+duplicate upstream delivery during the current service run.
+
+Do not run IRC and EventSub against the same room as parallel active sources
+during cutover: Twitch does not promise cross-interface message-ID equality.
+EventSub is the preferred extensible path; IRC remains useful where a very
+small chat-only compatibility adapter is sufficient. Neither provider is
+enabled by the standalone launcher yet.
+
+EventSub frames are serialized per socket. Notifications received while the
+welcome handler is creating subscriptions wait behind setup instead of being
+misclassified, and both welcome and subscription setup have configurable
+8-second default deadlines. OAuth acquisition and Helix requests have
+configurable 10-second hard deadlines, and OAuth validation responses are
+streamed through a 64 KiB default ceiling.
+
+`TwitchEventSubSession` owns the family-neutral socket lifecycle: bounded
+raw frames, welcome/setup ordering, keepalives, Twitch-directed migration,
+unexpected-gap backoff, and authorization suspension/resume. The chat provider
+adds only its OAuth scope, Helix subscription declarations, room rules, and
+normalizer. `TwitchEventSubSource` is the one lifecycle owner and static family
+registry: providers register before first attachment, the source seals that
+set, unions OAuth scopes, deduplicates identical Helix subscription bodies,
+and routes isolated raw notifications by subscription type/version. The final
+family detach stops the physical session. Do not make family adapters call
+`Start()`/`Stop()` directly on the underlying session.
+
+### Kick webhooks
+
+The exact `@carbonenginejs/tools-core/integrations/kick` subpath provides
+`KickWebhookHandler`, `KickActivityService`, and `KickStateService`.
+`KickWebhookHandler` verifies the official RSA-SHA256 signature over the exact
+message ID, timestamp, and raw body; validates the signed event headers and a
+bounded freshness window; and maps subscriptions, gift batches, follows,
+reward updates, KICK contributions, and livestream status/metadata into the
+same canonical livestream contract as Twitch.
+
+```js
+import {
+    KickActivityService,
+    KickStateService,
+    KickWebhookHandler,
+} from "@carbonenginejs/tools-core/integrations/kick";
+import {
+    CjsWebhookIngressSource,
+} from "@carbonenginejs/tools-core/webhook";
+
+const kickIngress = new CjsWebhookIngressSource({
+    id: "kick-main",
+    handler: new KickWebhookHandler(),
+});
+const kickActivity = new KickActivityService({
+    id: "kick-activity",
+    source: kickIngress,
+});
+const kickState = new KickStateService({
+    id: "kick-state",
+    source: kickIngress,
+    // The embedding OAuth/API integration supplies complete initial state.
+    readSnapshot: ({ signal }) => kickApi.ReadLivestreamSnapshot({ signal }),
+});
+
+hub.Register(kickActivity);
+hub.Register(kickState);
+const webhookRouter = new CjsWebhookHttpRouter({
+    endpoints: [ kickIngress ],
+});
+```
+
+The checked-in public key is the documented Kick key at package release time;
+applications may inject a refreshed trusted public key. Event-subscription
+creation and initial Kick API state acquisition remain embedding OAuth duties.
+Keep the endpoint loopback-only behind a trusted relay during development, or
+explicitly deploy it behind HTTPS and durable delivery-ID replay protection.
 
 The canonical public route shape is:
 
@@ -623,7 +1204,7 @@ npm run service -- --cache <cache>
 npm run service -- --cache <cache> --data <persistent-data>
 npm run service -- --cache <cache> --sde-auto-prepare
 npm run prepare:sde -- --cache <cache> [--build <exact-build>]
-npm run build:audio -- --index <resfileindex.txt> --cache <cache> --soundbanksinfo <file-or-res-path> --out <library.json> --target <eve|frontier> --build <build> [--enrichment <audio-metadata.json>]
+npm run build:audio -- --index <resfileindex.txt> --cache <cache> --soundbanksinfo <file-or-res-path> --out <library.json> --target <eve|frontier> --build <build> [--enrichment <audio-metadata.json>] [--event-media]
 npm run build:character -- --index <resfileindex.txt> --cache <cache> --out <library.json> --target eve --build <build>
 npm run build:skins -- --cache <cache> --build <build|latest> [--auto-prepare]
 npm run build:weapons -- --cache <cache> --build <build|latest> [--auto-prepare]

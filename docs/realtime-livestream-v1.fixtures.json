@@ -1,0 +1,250 @@
+{
+    "contractVersion": 1,
+    "activity": [
+        {
+            "case": "twitch-new-subscription",
+            "topic": "livestream.activity.subscription.received",
+            "data": {
+                "id": "twitch-notification-sub-one",
+                "occurredAt": "2026-07-23T04:00:00.000Z",
+                "deliveryMode": "live",
+                "source": {
+                    "provider": "twitch",
+                    "channelId": "100",
+                    "channelLogin": "carbon_actor",
+                    "channelDisplayName": "Carbon Actor"
+                },
+                "actor": {
+                    "id": "200",
+                    "login": "new_viewer",
+                    "displayName": "New Viewer"
+                },
+                "subscription": {
+                    "kind": "new",
+                    "giftedBy": null
+                },
+                "extensions": {
+                    "twitch": {
+                        "eventSubType": "channel.subscribe",
+                        "eventSubVersion": "1",
+                        "notificationId": "twitch-notification-sub-one",
+                        "subscriptionId": "twitch-eventsub-subscription-one",
+                        "tier": "1000"
+                    }
+                }
+            }
+        },
+        {
+            "case": "kick-new-subscription",
+            "topic": "livestream.activity.subscription.received",
+            "data": {
+                "id": "kick-message-sub-one",
+                "occurredAt": "2026-07-23T04:00:00.000Z",
+                "deliveryMode": "live",
+                "source": {
+                    "provider": "kick",
+                    "channelId": "300",
+                    "channelLogin": "carbon_actor",
+                    "channelDisplayName": "Carbon Actor"
+                },
+                "actor": {
+                    "id": "400",
+                    "login": "new_viewer",
+                    "displayName": "new_viewer"
+                },
+                "subscription": {
+                    "kind": "new",
+                    "giftedBy": null
+                },
+                "extensions": {
+                    "kick": {
+                        "eventType": "channel.subscription.new",
+                        "eventVersion": "1",
+                        "messageId": "kick-message-sub-one",
+                        "duration": 1,
+                        "expiresAt": "2026-08-23T04:00:00.000Z"
+                    }
+                }
+            }
+        },
+        {
+            "case": "twitch-follow",
+            "topic": "livestream.activity.follow.received",
+            "data": {
+                "id": "twitch-notification-follow-one",
+                "occurredAt": "2026-07-23T04:01:00.000Z",
+                "deliveryMode": "live",
+                "source": {
+                    "provider": "twitch",
+                    "channelId": "100",
+                    "channelLogin": "carbon_actor",
+                    "channelDisplayName": "Carbon Actor"
+                },
+                "actor": {
+                    "id": "201",
+                    "login": "follower",
+                    "displayName": "Follower"
+                },
+                "extensions": {
+                    "twitch": {
+                        "eventSubType": "channel.follow",
+                        "eventSubVersion": "2",
+                        "notificationId": "twitch-notification-follow-one",
+                        "subscriptionId": "twitch-eventsub-follow-one"
+                    }
+                }
+            }
+        },
+        {
+            "case": "kick-follow-with-receive-time",
+            "topic": "livestream.activity.follow.received",
+            "data": {
+                "id": "kick-message-follow-one",
+                "occurredAt": "2026-07-23T04:01:00.000Z",
+                "deliveryMode": "live",
+                "source": {
+                    "provider": "kick",
+                    "channelId": "300",
+                    "channelLogin": "carbon_actor",
+                    "channelDisplayName": "Carbon Actor"
+                },
+                "actor": {
+                    "id": "401",
+                    "login": "follower",
+                    "displayName": "follower"
+                },
+                "extensions": {
+                    "kick": {
+                        "eventType": "channel.followed",
+                        "eventVersion": "1",
+                        "messageId": "kick-message-follow-one",
+                        "timeSource": "received"
+                    }
+                }
+            }
+        }
+    ],
+    "stateChanges": [
+        {
+            "case": "twitch-stream-online",
+            "topic": "livestream.state.changed",
+            "data": {
+                "id": "twitch-notification-online-one",
+                "occurredAt": "2026-07-23T05:00:00.000Z",
+                "deliveryMode": "live",
+                "source": {
+                    "provider": "twitch",
+                    "channelId": "100",
+                    "channelLogin": "carbon_actor",
+                    "channelDisplayName": "Carbon Actor"
+                },
+                "changes": {
+                    "online": true,
+                    "streamId": "twitch-stream-one",
+                    "startedAt": "2026-07-23T05:00:00.000Z"
+                },
+                "extensions": {
+                    "twitch": {
+                        "eventSubType": "stream.online",
+                        "eventSubVersion": "1",
+                        "notificationId": "twitch-notification-online-one",
+                        "subscriptionId": "twitch-eventsub-online-one"
+                    }
+                }
+            }
+        },
+        {
+            "case": "kick-stream-online",
+            "topic": "livestream.state.changed",
+            "data": {
+                "id": "kick-message-online-one",
+                "occurredAt": "2026-07-23T05:00:00.000Z",
+                "deliveryMode": "live",
+                "source": {
+                    "provider": "kick",
+                    "channelId": "300",
+                    "channelLogin": "carbon_actor",
+                    "channelDisplayName": "Carbon Actor"
+                },
+                "changes": {
+                    "online": true,
+                    "streamId": null,
+                    "startedAt": "2026-07-23T05:00:00.000Z",
+                    "endedAt": null,
+                    "title": "Contract proving stream"
+                },
+                "extensions": {
+                    "kick": {
+                        "eventType": "livestream.status.updated",
+                        "eventVersion": "1",
+                        "messageId": "kick-message-online-one"
+                    }
+                }
+            }
+        }
+    ],
+    "stateSnapshots": [
+        {
+            "case": "two-provider-materialized-state",
+            "data": {
+                "observedAt": "2026-07-23T05:01:00.000Z",
+                "states": [
+                    {
+                        "source": {
+                            "provider": "twitch",
+                            "channelId": "100",
+                            "channelLogin": "carbon_actor",
+                            "channelDisplayName": "Carbon Actor"
+                        },
+                        "stream": {
+                            "online": true,
+                            "streamId": "twitch-stream-one",
+                            "startedAt": "2026-07-23T05:00:00.000Z",
+                            "endedAt": null,
+                            "title": "Contract proving stream",
+                            "language": "en",
+                            "mature": false,
+                            "category": {
+                                "id": "509658",
+                                "name": "Just Chatting"
+                            },
+                            "viewers": 42
+                        },
+                        "extensions": {
+                            "twitch": {
+                                "materializedFrom": "helix"
+                            }
+                        }
+                    },
+                    {
+                        "source": {
+                            "provider": "kick",
+                            "channelId": "300",
+                            "channelLogin": "carbon_actor",
+                            "channelDisplayName": "Carbon Actor"
+                        },
+                        "stream": {
+                            "online": true,
+                            "streamId": null,
+                            "startedAt": "2026-07-23T05:00:00.000Z",
+                            "endedAt": null,
+                            "title": "Contract proving stream",
+                            "language": "en",
+                            "mature": false,
+                            "category": {
+                                "id": "15",
+                                "name": "Just Chatting"
+                            },
+                            "viewers": 42
+                        },
+                        "extensions": {
+                            "kick": {
+                                "materializedFrom": "api-and-webhook"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ]
+}

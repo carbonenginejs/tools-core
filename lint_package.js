@@ -96,11 +96,20 @@ async function LintJavaScript(file, lintErrors)
         lintErrors.push(`${relativeFile}: contains trailing whitespace`);
     }
 
+    const integration = relativeFile.match(
+        /^src\/integrations\/([a-z][a-z0-9-]*)\/index\.js$/u,
+    );
+    const boundaryPrefix = integration
+        ? integration[1].split("-")
+            .map(part => part[0].toUpperCase() + part.slice(1))
+            .join("")
+        : "Cjs";
+
     for (const match of source.matchAll(/export\s+class\s+([A-Za-z0-9_$]+)/gu))
     {
-        if (!match[1].startsWith("Cjs"))
+        if (!match[1].startsWith(boundaryPrefix))
         {
-            lintErrors.push(`${relativeFile}: exported boundary class must use the Cjs prefix: ${match[1]}`);
+            lintErrors.push(`${relativeFile}: exported boundary class must use the ${boundaryPrefix} prefix: ${match[1]}`);
         }
     }
 

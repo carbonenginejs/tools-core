@@ -1,7 +1,7 @@
 {
     "name": "@carbonenginejs/tools-core",
     "version": "0.2.0",
-    "description": "Node toolchain for CarbonEngineJS acquisition, shader builds, SDE joins, character, skin, and weapon libraries, caches, graph output, and optional HTTP access.",
+    "description": "Node toolchain for CarbonEngineJS acquisition, generated libraries, caches, graph output, and optional HTTP and realtime service hosting.",
     "type": "module",
     "main": "src/index.js",
     "exports": {
@@ -11,13 +11,22 @@
         "./cache": "./src/cache/index.js",
         "./character": "./src/character/index.js",
         "./index": "./src/indexing/index.js",
+        "./integrations/kick": "./src/integrations/kick/index.js",
+        "./integrations/twitch": "./src/integrations/twitch/index.js",
         "./library": "./src/library/index.js",
         "./proxy": "./src/proxy/index.js",
+        "./realtime": "./src/realtime/index.js",
+        "./realtime/livestream": "./src/realtime/livestream/index.js",
+        "./realtime/resource-watch": "./src/realtime/resource-watch/index.js",
+        "./realtime/server": "./src/realtime/server/index.js",
+        "./realtime/websocket": "./src/realtime/websocket/index.js",
         "./schema": "./src/schema/index.js",
+        "./service": "./src/service/index.js",
         "./sde": "./src/sde/index.js",
         "./shader": "./src/shader/index.js",
         "./skin": "./src/skin/index.js",
         "./target": "./src/target/index.js",
+        "./webhook": "./src/webhook/index.js",
         "./weapon": "./src/weapon/index.js",
         "./utils": "./src/utils.js"
     },
@@ -37,6 +46,7 @@
     },
     "files": [
         "bin/",
+        "docs/",
         "providers/",
         "scripts/",
         "src/",
@@ -76,7 +86,8 @@
         "@carbonenginejs/runtime-sof": "^0.2.0",
         "@carbonenginejs/runtime-trinity": "^0.4.0",
         "better-sqlite3": "^11.10.0",
-        "unzipper": "^0.12.5"
+        "unzipper": "^0.12.5",
+        "ws": "^8.21.1"
     },
     "sideEffects": false,
     "keywords": [
@@ -90,6 +101,12 @@
         "skinr",
         "weapons",
         "character",
+        "realtime",
+        "filesystem-watch",
+        "kick",
+        "twitch",
+        "webhook",
+        "websocket",
         "sof",
         "shader",
         "webgl",
