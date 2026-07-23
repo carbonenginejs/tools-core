@@ -790,7 +790,13 @@ function renderClassSchema(classInfo, classMap, version, enumNames, carbonRoot =
             isExposed: !!classInfo.blue?.isExposed,
             defines: (classInfo.blue?.defines || []).map(toBlueDefineSchema),
             exposures: (classInfo.blue?.exposures || []).map(toBlueExposureSchema),
-            interfaces: (classInfo.blue?.interfaces || []).map(toBlueInterfaceSchema)
+            interfaces: (classInfo.blue?.interfaces || []).map(toBlueInterfaceSchema),
+            // The Blue persistence parent (EXPOSURE_CHAINTO). Preserved as a
+            // tri-state: name = chained, null = EXPOSURE_END, absent key =
+            // legacy scan without chain capture.
+            ...(classInfo.blue && Object.prototype.hasOwnProperty.call(classInfo.blue, "chainTo")
+                ? { chainTo: classInfo.blue.chainTo ?? null }
+                : {})
         },
         black: toBlackClassSchema(classInfo, attributes, version),
         fields: (classInfo.fields || []).map(field => toFieldSchema(classInfo, field)),
@@ -1234,6 +1240,7 @@ function toAttributeSchema(classInfo, attr, reviewNotes, classMap, sourceRefs, e
         blueNameSource: attr.nameSource && attr.nameSource !== "literal" ? attr.nameSource : null,
         blueNameChooser: attr.nameChooser || null,
         member: attr.member,
+        embedded: toEmbeddedProvenance(classInfo, attr, classMap),
         cppType: field ? getFieldCppType(field) : null,
         declaredOn: fieldInfo && classInfoName(fieldInfo.owner) !== classInfoName(classInfo) ? classInfoName(fieldInfo.owner) : null,
         flags: attr.flags || [],
@@ -1254,6 +1261,26 @@ function toAttributeSchema(classInfo, attr, reviewNotes, classMap, sourceRefs, e
     }
 
     return schema;
+}
+
+/**
+ * Provenance for attributes mapped THROUGH an embedded struct
+ * (`MAP_ATTRIBUTE("name", m_struct.m_member, ...)`): records the root member
+ * and, when resolvable, the struct's type so consumers do not have to
+ * re-derive the through-path from the dotted member expression.
+ */
+function toEmbeddedProvenance(classInfo, attr, classMap)
+{
+    const memberPath = getMemberPath(attr.member);
+    if (!memberPath || !memberPath.includes(".")) return null;
+
+    const rootName = memberPath.split(".")[0];
+    const rootInfo = findFieldInfo(classInfo, rootName, classMap);
+    const rootType = rootInfo ? cleanNamedType(getFieldCppType(rootInfo.field)) : null;
+    return compactObject({
+        root: rootName,
+        rootType: rootType || null
+    });
 }
 
 function toBlackClassSchema(classInfo, attributes, version)
@@ -2505,11 +2532,9 @@ function projectBlackFields(type, classMap, enumNames, seen = new Set())
     if (className) branch.add(className);
 
     const fields = {};
-    for (const base of type.bases || [])
+    for (const base of resolveBlackInheritanceParents(type, classMap))
     {
-        const baseType = classMap?.get(cleanBaseName(base));
-        if (!baseType) continue;
-        Object.assign(fields, projectBlackFields(baseType, classMap, enumNames, branch));
+        Object.assign(fields, projectBlackFields(base, classMap, enumNames, branch));
     }
 
     for (const field of type.black?.fields || type.blackFields || [])
@@ -2520,6 +2545,50 @@ function projectBlackFields(type, classMap, enumNames, seen = new Set())
     }
 
     return fields;
+}
+
+/**
+ * Resolves the parents whose persisted fields this class inherits.
+ *
+ * Carbon Blue persistence inheritance is declared by EXPOSURE_CHAINTO, not by
+ * the C++ base list: an exposure ending with EXPOSURE_END inherits NO
+ * persisted surface even when the C++ class has Blue bases
+ * (BlueExposureMacros.h:130-138). Merging every C++ base overexposed fields
+ * on the classes whose chain is narrower than their inheritance (textured
+ * point lights gaining lightColor, extension buckets gaining the placement
+ * surface, EveRootTransform gaining EveTransform-only fields).
+ *
+ * Tri-state on the scanned data:
+ * - chain captured with a name: project ONLY through that chain parent
+ *   (falling back to the legacy merge if the named parent cannot be resolved,
+ *   so an incomplete class map narrows nothing silently);
+ * - chain captured as null (EXPOSURE_END): no inherited persisted fields;
+ * - legacy schema docs without chain capture: the historical merge of every
+ *   C++ base, so pre-chainTo schema builds keep decoding identically.
+ */
+function resolveBlackInheritanceParents(type, classMap)
+{
+    const blue = type.blue;
+    const chainCaptured = Boolean(blue)
+        && Object.prototype.hasOwnProperty.call(blue, "chainTo")
+        && Array.isArray(blue.exposures)
+        && blue.exposures.length > 0;
+
+    if (chainCaptured)
+    {
+        const chainName = blue.chainTo?.name ?? blue.chainTo ?? null;
+        if (chainName === null) return [];
+        const chainParent = classMap?.get(cleanBaseName(chainName));
+        if (chainParent) return [ chainParent ];
+    }
+
+    const parents = [];
+    for (const base of type.bases || [])
+    {
+        const baseType = classMap?.get(cleanBaseName(base));
+        if (baseType) parents.push(baseType);
+    }
+    return parents;
 }
 
 function hasConcreteBlueDefinition(type)

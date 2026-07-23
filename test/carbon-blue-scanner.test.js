@@ -120,3 +120,29 @@ test("named nested structs do not leak their members into the containing class",
     assert.ok(classInfo);
     assert.deepEqual(classInfo.fields.map(field => field.name), ["m_position"]);
 });
+
+test("EXPOSURE_CHAINTO records the Blue persistence parent per class", () =>
+{
+    const scanner = require(scannerPath);
+    const parsed = scanner.__test.parseBlueFile(`
+        EXPOSURE_BEGIN( Tr2Controller, "" )
+            MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
+        EXPOSURE_CHAINTO( EveThrottleable )
+
+        EXPOSURE_BEGIN( EveThrottleable, "" )
+            MAP_ATTRIBUTE( "throttle", m_throttle, "", Be::READWRITE | Be::PERSIST )
+        EXPOSURE_END()
+    `, "trinity/trinity/Controllers/Tr2Controller_Blue.cpp");
+
+    const chained = parsed.classes.find(item => item.name === "Tr2Controller");
+    assert.ok(chained);
+    assert.equal(chained.chainTo.name, "EveThrottleable");
+    assert.equal(chained.chainTo.source, "trinity/trinity/Controllers/Tr2Controller_Blue.cpp");
+    assert.equal(typeof chained.chainTo.line, "number");
+
+    // EXPOSURE_END means no Blue persistence parent; the capture stays
+    // absent/null rather than inheriting the previous class's chain.
+    const ended = parsed.classes.find(item => item.name === "EveThrottleable");
+    assert.ok(ended);
+    assert.equal(ended.chainTo ?? null, null);
+});

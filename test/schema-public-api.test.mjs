@@ -1563,6 +1563,11 @@ test("read resolves embedded-struct members across families from scan reports", 
     const blackByName = new Map(light.black.fields.map(field => [ nameForRole(field, "name"), field ]));
 
     assert.equal(attrByName.get("brightness").cppType, "float");
+    assert.deepEqual(
+        attrByName.get("brightness").embedded,
+        { root: "m_lightGroupData", rootType: "LightData" },
+        "through-struct attributes record their embedded root provenance"
+    );
     assert.equal(blackByName.get("brightness").beType, "FLOAT");
     assert.equal(blackByName.get("brightness").wireType, "float32");
     assert.equal(attrByName.get("flags").cppType, "uint16_t");
@@ -1977,4 +1982,100 @@ test("toJSON converts class instances to plain values", () =>
     value.name = "schema";
 
     assert.deepEqual(CjsFormatCarbon.toJSON(value), { name: "schema" });
+});
+
+test("Black definitions inherit persisted fields only through the EXPOSURE_CHAINTO chain", () =>
+{
+    // Carbon Blue persistence inheritance is EXPOSURE_CHAINTO, not the C++
+    // base list (BlueExposureMacros.h:130-138). Chain-captured classes
+    // project only through their chain; EXPOSURE_END classes inherit
+    // nothing; legacy docs without capture keep the historical merge.
+    const makeClass = (name, options = {}) => ({
+        name,
+        family: "chains",
+        headerFiles: [ `trinity/${name}.h` ],
+        cppFiles: [],
+        bases: options.bases || [],
+        fields: options.fields || [],
+        methods: [],
+        blue: {
+            isExposed: true,
+            files: [ `trinity/${name}_Blue.cpp` ],
+            defines: [ { macro: "BLUE_DEFINE", name } ],
+            exposures: [ { macro: "EXPOSURE_BEGIN", name } ],
+            attributes: options.attributes || [],
+            properties: [],
+            methods: [],
+            interfaces: [],
+            ...(options.chain === undefined ? {} : { chainTo: options.chain })
+        },
+        reviewNotes: []
+    });
+    const persisted = (name, member, line) => ({
+        macro: "MAP_ATTRIBUTE",
+        name,
+        nameSource: "literal",
+        member,
+        flags: [ "READWRITE", "PERSIST" ],
+        source: "trinity/chains_Blue.cpp",
+        line
+    });
+    const report = {
+        carbonRoot: "E:/carbonengine",
+        generatedAt: "2026-07-24T00:00:00.000Z",
+        enums: [],
+        families: [ {
+            name: "chains",
+            root: "trinity",
+            classes: [
+                makeClass("WideBase", {
+                    chain: null,
+                    fields: [ { name: "m_lightColor", type: "int" }, { name: "m_radius", type: "float" } ],
+                    attributes: [ persisted("lightColor", "m_lightColor", 10), persisted("radius", "m_radius", 11) ]
+                }),
+                makeClass("OtherBase", {
+                    chain: null,
+                    fields: [ { name: "m_extra", type: "float" } ],
+                    attributes: [ persisted("extra", "m_extra", 12) ]
+                }),
+                // Chains to WideBase despite two C++ bases: OtherBase's
+                // surface must not leak in.
+                makeClass("ChainNarrowed", {
+                    bases: [ "WideBase", "OtherBase" ],
+                    chain: { name: "WideBase" },
+                    fields: [ { name: "m_texturePath", type: "std::wstring" } ],
+                    attributes: [ persisted("texturePath", "m_texturePath", 13) ]
+                }),
+                // EXPOSURE_END with a C++ base: inherits NOTHING persisted.
+                makeClass("EndsChain", {
+                    bases: [ "WideBase" ],
+                    chain: null,
+                    fields: [ { name: "m_own", type: "float" } ],
+                    attributes: [ persisted("own", "m_own", 14) ]
+                }),
+                // Chain target missing from the class map: fall back to the
+                // legacy merge rather than silently narrowing.
+                makeClass("ChainUnresolved", {
+                    bases: [ "OtherBase" ],
+                    chain: { name: "NotScannedAnywhere" },
+                    fields: [ { name: "m_own", type: "float" } ],
+                    attributes: [ persisted("own", "m_own", 15) ]
+                }),
+                // Legacy document shape (no chainTo key at all): historical
+                // merge of every C++ base is preserved.
+                makeClass("LegacyDoc", {
+                    bases: [ "WideBase", "OtherBase" ],
+                    fields: [ { name: "m_own", type: "float" } ],
+                    attributes: [ persisted("own", "m_own", 16) ]
+                })
+            ]
+        } ]
+    };
+
+    const classes = CjsFormatCarbon.readBlackDefinitions(report).classes;
+
+    assert.deepEqual(classes.ChainNarrowed, { lightColor: "int", radius: "float", texturePath: "wstring" });
+    assert.deepEqual(classes.EndsChain, { own: "float" });
+    assert.deepEqual(classes.ChainUnresolved, { extra: "float", own: "float" });
+    assert.deepEqual(classes.LegacyDoc, { lightColor: "int", radius: "float", extra: "float", own: "float" });
 });

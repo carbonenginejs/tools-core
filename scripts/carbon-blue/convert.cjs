@@ -460,6 +460,7 @@ function scanFamily(config, carbonRoot, family, familyRoot, globalEnums)
                     record.blue.properties.push(...item.properties);
                     record.blue.methods.push(...item.methods);
                     record.blue.interfaces.push(...item.interfaces);
+                    if (item.chainTo) record.blue.chainTo = item.chainTo;
                     record.blue.isExposed = true;
                 }
             }
@@ -570,7 +571,11 @@ function getClassRecord(byName, name, family, classSuffix)
                 attributes: [],
                 properties: [],
                 methods: [],
-                interfaces: []
+                interfaces: [],
+                // Carbon Blue persistence inheritance is declared by
+                // EXPOSURE_CHAINTO, not by C++ bases: null means the exposure
+                // ended with EXPOSURE_END (no persisted Blue parent).
+                chainTo: null
             }
         });
     }
@@ -659,6 +664,7 @@ function finalizeClassRecord(record, carbonRoot)
         defaults: Object.fromEntries(Object.entries(record.defaults).map(([key, value]) => [key, value.value]))
     };
     const blueShape = {
+        chainTo: record.blue.chainTo ?? null,
         defines: dedupeObjects(record.blue.defines, x => `${x.macro}:${x.name}:${x.line}`),
         exposures: dedupeObjects(record.blue.exposures, x => `${x.name}:${x.line}`),
         attributes: dedupeObjects(record.blue.attributes, x => `${x.name}:${x.member}:${x.flags}`),
@@ -1108,6 +1114,18 @@ function parseBlueFile(text, source)
                     line: call.line,
                     source
                 });
+            }
+            else if (call.name === "EXPOSURE_CHAINTO")
+            {
+                // EXPOSURE_CHAINTO(Parent) ends the exposure AND declares the
+                // Blue persistence parent (BlueExposureMacros.h:137-138). This
+                // chain - not the C++ base list - defines which inherited
+                // fields belong to the persisted surface.
+                record.chainTo = {
+                    name: cleanIdentifier(args[0]) || cleanArg(args[0]),
+                    line: call.line,
+                    source
+                };
             }
         }
     }
