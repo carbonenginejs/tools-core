@@ -75,7 +75,7 @@ The baseline check is offline and uses synthetic fixtures or injected network
 implementations. Acquired data, caches, reports, SQLite files, credentials, and
 private work material must not be committed or published.
 
-## License and provenance
+## License
 
 MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE). CarbonEngine, Fenris Creations
 (CCP Games), Twitch, and Kick names and API terms are used solely for

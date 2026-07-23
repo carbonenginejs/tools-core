@@ -58,12 +58,11 @@ event-media construction is requested; without them the result is a source
 catalog rather than a complete event-to-playable-media index. Embedded items
 are classified as `wem`, `midi`, `plugin`, or `unknown` from their bank bytes.
 
-SoundbanksInfo remains the public primary metadata source. A caller may decode
-`audiometadata.fsdbinary` with the private `tool-fsd` reader, convert its three
-maps (`Events`, `SoundBanks`, and `WemFileIDs`) to plain JSON, and pass that
-file through `--enrichment`. Tools-core does not import the private reader;
-the enrichment adds culling, stop-relation, and essential flags without
-changing acquisition ownership.
+SoundbanksInfo remains the public primary metadata source. Optional enrichment
+accepts a caller-owned plain JSON document containing `Events`, `SoundBanks`,
+and `WemFileIDs` maps. Tools-core does not acquire or decode private metadata
+formats; enrichment only adds culling, stop-relation, and essential flags
+without changing acquisition ownership.
 
 Localized HIRC objects reuse IDs, so one event graph cannot safely union every
 language. `--language` selects the event graph language and is recorded as

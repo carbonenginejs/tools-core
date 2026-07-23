@@ -26,7 +26,7 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | `./realtime/resource-watch` | Snapshot-recoverable filesystem projection | `CjsRealtimeResourceWatchService` |
 | `./realtime/server` | Service registry, authority, hub, HTTP router, and connections | `CjsRealtimeHub`, `CjsRealtimeSessionAuthority`, related classes |
 | `./realtime/websocket` | Node WebSocket gateway and transport | `CjsRealtimeWebSocketGateway`, `CjsRealtimeWebSocketTransport` |
-| `./schema` | Carbon schema scanning, checking, and class emission | `CjsToolSchema` |
+| `./schema` | Carbon schema scanning, checking, and class emission | `CjsFormatCarbon` |
 | `./service` | HTTP/realtime composition and standalone listener | `CjsToolServiceHost`, `CjsRealtimeServer` |
 | `./sde` | Exact-build JSONL SDE preparation and queries | `CjsSde`, archive/database/repository classes |
 | `./shader` | Exact-build shader catalog and build orchestration | `CjsShaderTargetRegistry`, `CjsToolWebglBuilder`, `CjsToolWebgpuBuilder` |
@@ -46,6 +46,7 @@ except the retained Carbon Blue scanner entry point.
 ## Related documentation
 
 - [Architecture](../architecture.md)
+- [Class catalogs](classes/README.md)
 - [Generated libraries](../guides/generated-libraries.md)
 - [Exact-build cache prefetch](../guides/prefetch.md)
 - [Local service](../guides/local-service.md)

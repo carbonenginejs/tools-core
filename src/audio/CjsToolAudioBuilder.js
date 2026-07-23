@@ -1143,7 +1143,7 @@ function ResolveLibraryTarget({ target, game, provider }, targets)
 }
 
 // res:/audio/<language>/<id>.wem carries a language folder; Media/ and
-// Essential_Media/ do not (AudPathResolver routing, see AUDIO-PORT-KB).
+// Essential_Media/ do not, matching the authored AudPathResolver routing.
 function LanguageSegment(lowerPath)
 {
     const segments = lowerPath.split("/");

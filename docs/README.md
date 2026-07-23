@@ -41,6 +41,7 @@ format/runtime packages
 
 - [Architecture and boundaries](architecture.md)
 - [Public API and subpaths](reference/api.md)
+- [Class catalogs](reference/classes/README.md)
 - [Build generated libraries](guides/generated-libraries.md)
 - [Prepare exact-build cache inputs](guides/prefetch.md)
 - [Run the local service](guides/local-service.md)
@@ -53,6 +54,7 @@ format/runtime packages
 - [Exact-build cache prefetch](guides/prefetch.md)
 - [Chat and livestream source topology](concepts/chat-and-livestream-sources.md)
 - [Local HTTP route reference](reference/http-routes.md)
+- [Maintained class catalogs](reference/classes/README.md)
 - [Future realtime operations](reference/realtime-operations.md)
 - [Realtime protocol v1](protocols/realtime-v1.md)
 - [Chat family contract v1](protocols/chat-v1.md)
