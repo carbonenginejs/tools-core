@@ -53,3 +53,24 @@ test("recovered default config carries the reconstructed families and portable o
         assert.ok(config[key].startsWith("scripts/carbon-blue/"), `${key} must resolve under scripts/carbon-blue/`);
     }
 });
+
+test("named nested structs do not leak their members into the containing class", () =>
+{
+    const parsed = scanner.__test.parseHeaderFile(`
+        class AudGameObjResource
+        {
+        public:
+            struct Orientation
+            {
+                Vector3 front;
+                Vector3 top;
+            };
+
+            Vector3 m_position;
+        };
+    `, "audio/src/AudGameObjResource.h");
+    const classInfo = parsed.classes.find(item => item.name === "AudGameObjResource");
+
+    assert.ok(classInfo);
+    assert.deepEqual(classInfo.fields.map(field => field.name), ["m_position"]);
+});

@@ -1727,6 +1727,27 @@ function readFamilySchemaDoc(schemaRoot, family, typeName)
     return null;
 }
 
+function ownerExposesBlueField(schemaRoot, family, ownerName, fieldName)
+{
+    const ownerDoc = readFamilySchemaDoc(schemaRoot, family, ownerName);
+    if (!ownerDoc) return true;
+
+    return [
+        ...(Array.isArray(ownerDoc.attributes) ? ownerDoc.attributes : []),
+        ...(Array.isArray(ownerDoc.properties) ? ownerDoc.properties : [])
+    ].some(item =>
+        (item.blueName || roleKey(item.black?.names, "name") || item.name || null) === fieldName
+    );
+}
+
+function ownerExposesBlueMethod(schemaRoot, family, ownerName, methodName)
+{
+    const ownerDoc = readFamilySchemaDoc(schemaRoot, family, ownerName);
+    if (!ownerDoc) return true;
+    return (Array.isArray(ownerDoc.methods) ? ownerDoc.methods : [])
+        .some(item => (item.blueName || item.target || null) === methodName);
+}
+
 function toResolvedMemberLeaf(field)
 {
     return {
@@ -1779,12 +1800,18 @@ export function deriveExpectedFields(doc, options = {})
     };
 
     const attributes = Array.isArray(doc.attributes) ? doc.attributes : [];
+    const properties = Array.isArray(doc.properties) ? doc.properties : [];
     const blackFields = Array.isArray(doc.black?.fields) ? doc.black.fields : [];
     const rawFields = Array.isArray(doc.fields) ? doc.fields : [];
     const usableRawFields = rawFields.filter(field => field.cppName && isUsefulCppType(field.cppType));
-    const methods = deriveExpectedMethods(doc);
+    const methods = deriveExpectedMethods(doc, {
+        schemaRoot,
+        family,
+        includeInherited,
+        className: meta.cppClass
+    });
 
-    const hasDetail = attributes.length > 0 || blackFields.length > 0 || usableRawFields.length > 0 || methods.length > 0;
+    const hasDetail = attributes.length > 0 || properties.length > 0 || blackFields.length > 0 || usableRawFields.length > 0 || methods.length > 0;
     if (!hasDetail)
     {
         return {
@@ -1820,7 +1847,12 @@ export function deriveExpectedFields(doc, options = {})
 
             const declaredOn = attr.declaredOn || black?.declaredOn || null;
             const enumContextClass = declaredOn || className;
-            if (!includeInherited && declaredOn && declaredOn !== meta.cppClass)
+            if (
+                !includeInherited &&
+                declaredOn &&
+                declaredOn !== meta.cppClass &&
+                ownerExposesBlueField(schemaRoot, family, declaredOn, name)
+            )
             {
                 inheritedSkipped++;
                 continue;
@@ -1875,6 +1907,17 @@ export function deriveExpectedFields(doc, options = {})
         {
             const name = roleKey(black.names, "name") || stripMemberPrefix(roleKey(black.names, "member"));
             if (!name) continue;
+            const declaredOn = black.declaredOn || null;
+            if (
+                !includeInherited &&
+                declaredOn &&
+                declaredOn !== meta.cppClass &&
+                ownerExposesBlueField(schemaRoot, family, declaredOn, name)
+            )
+            {
+                inheritedSkipped++;
+                continue;
+            }
             const member = roleKey(black.names, "memberPath") || roleKey(black.names, "member");
             const flags = unionFlags(black.flags);
             const notes = [];
@@ -1933,6 +1976,44 @@ export function deriveExpectedFields(doc, options = {})
                 flags: [], kindInfo, parsedDefault, notes
             }));
         }
+    }
+
+    for (const property of properties)
+    {
+        const name = property.blueName || property.name || null;
+        if (!name) continue;
+        const declaredOn = property.declaredOn || null;
+        if (
+            !includeInherited &&
+            declaredOn &&
+            declaredOn !== meta.cppClass &&
+            ownerExposesBlueField(schemaRoot, family, declaredOn, name)
+        )
+        {
+            inheritedSkipped++;
+            continue;
+        }
+
+        const cppType = property.cppType || property.getterReturnType || property.setterValueType || null;
+        if (!isUsefulCppType(cppType)) continue;
+        const kindInfo = inferKindFromCpp(cppType, name, schemaRoot, declaredOn || className);
+        const parsedDefault = parseSchemaDefault(null, kindInfo.kind, {
+            enumType: kindInfo.enumType,
+            enumQualifiedName: kindInfo.enumQualifiedName,
+            className: declaredOn || className,
+            schemaRoot
+        });
+        const flags = property.readOnly ? ["READ"] : ["READWRITE"];
+
+        pushExpected(buildExpectedField({
+            name,
+            member: property.getter || property.setter || null,
+            cppType,
+            flags,
+            kindInfo,
+            parsedDefault,
+            notes: ["Blue property"]
+        }));
     }
 
     applySourceFieldOverrides(className, fields);
@@ -2039,15 +2120,28 @@ function buildExpectedField({ name, member, cppType, flags, kindInfo, parsedDefa
     };
 }
 
-function deriveExpectedMethods(doc)
+function deriveExpectedMethods(doc, options = {})
 {
     const methods = [];
     const seen = new Set();
+    const schemaRoot = options.schemaRoot || DEFAULT_SCHEMA_ROOT;
+    const family = options.family || doc.family || null;
+    const includeInherited = Boolean(options.includeInherited);
+    const className = options.className || doc.cppClass || doc.blueClass || null;
 
     for (const method of Array.isArray(doc.methods) ? doc.methods : [])
     {
         const name = method.blueName || method.target || null;
         if (!name || seen.has(name)) continue;
+        if (
+            !includeInherited &&
+            method.declaredOn &&
+            method.declaredOn !== className &&
+            ownerExposesBlueMethod(schemaRoot, family, method.declaredOn, name)
+        )
+        {
+            continue;
+        }
         seen.add(name);
         methods.push({
             name,
@@ -2147,7 +2241,7 @@ const METHOD_RE = /^(?:(?:public|private|protected|override|async)\s+)*(#?[A-Za-
 /**
  * Parse a runtime class file. Returns:
  *   { className, base, fields:[{name, kind, typeArg, kinds[], ioNames[], notify, default, annotation, line, hasType, hasIo}],
- *     methods:[{name, line, carbonNames[], implNames[], hasCarbon, hasImpl}],
+ *     methods:[{name, line, carbonNames[], carbonOriginalNames[], implNames[], implStatusNames[], hasCarbon, hasImpl, hasReason}],
  *     helpers:[names], define:{className, family} }
  * Throws Error(code="class-file-unparseable") if no class is found.
  */
@@ -2322,15 +2416,33 @@ function buildParsedMethod(name, pending, line)
 {
     const carbonDecorators = pending.filter(d => d.ns === "carbon");
     const implDecorators = pending.filter(d => d.ns === "impl");
+    const implStatusNames = implDecorators
+        .map(d => d.name)
+        .filter(name => IMPLEMENTATION_STATUS_NAMES.has(name));
     return {
         name,
         line,
         carbonNames: carbonDecorators.map(d => d.name),
+        carbonOriginalNames: carbonDecorators
+            .filter(d => d.name === "renamed" && d.arg !== undefined)
+            .map(d => stripQuotes(d.arg)),
         implNames: implDecorators.map(d => d.name),
-        hasCarbon: carbonDecorators.some(d => d.name === "method"),
-        hasImpl: implDecorators.length > 0
+        implStatusNames,
+        hasCarbon: carbonDecorators.some(d => d.name === "method" || d.name === "renamed"),
+        hasImpl: implStatusNames.length > 0,
+        hasReason: implDecorators.some(d => d.name === "reason")
     };
 }
+
+const IMPLEMENTATION_STATUS_NAMES = new Set([
+    "abstract",
+    "adapted",
+    "custom",
+    "implemented",
+    "noop",
+    "notImplemented",
+    "notSupported"
+]);
 
 function normalizeFieldName(rawName)
 {
@@ -2555,8 +2667,8 @@ function defaultsEqual(a, b)
 }
 
 /**
- * Compare expected fields against a parsed class file.
- * Returns { class, family, schemaPath, filePath, shapeHash, fields, summary, fallback }.
+ * Compare expected fields and methods against a parsed class file.
+ * Returns { class, family, schemaPath, filePath, shapeHash, fields, methods, summary, fallback }.
  */
 export function compareClass(expected, parsed, options = {})
 {
@@ -2581,12 +2693,14 @@ export function compareClass(expected, parsed, options = {})
         {
             results.push(makeExtraResult(field, allowExtra, strict));
         }
-        const summary = summarize(results);
+        const methodResults = compareMethods(expected.methods || [], parsed.methods || []);
+        const summary = summarize([...results, ...methodResults]);
         return {
             class: meta.className || parsed.className || null,
             family: meta.family || null,
             shapeHash: meta.shapeHash || null,
             fields: results,
+            methods: methodResults,
             summary,
             fallback: expected.fallback
         };
@@ -2766,15 +2880,106 @@ export function compareClass(expected, parsed, options = {})
         });
     }
 
-    const summary = summarize(results);
+    const methodResults = compareMethods(expected.methods || [], parsed.methods || []);
+    const summary = summarize([...results, ...methodResults]);
     return {
         class: meta.className || parsed.className || null,
         family: meta.family || null,
         shapeHash: meta.shapeHash || null,
         fields: results,
+        methods: methodResults,
         summary,
         fallback: null
     };
+}
+
+function compareMethods(expectedMethods, parsedMethods)
+{
+    const results = [];
+    const used = new Set();
+
+    for (const expected of expectedMethods)
+    {
+        const actual = parsedMethods.find(method =>
+            !used.has(method) &&
+            (
+                method.name === expected.name ||
+                method.carbonOriginalNames.includes(expected.name)
+            )
+        ) || null;
+
+        if (!actual)
+        {
+            results.push({
+                name: expected.name,
+                verdict: "missing-method",
+                severity: "error",
+                symbol: "cross",
+                notes: [`schema exposes ${expected.name}${expected.target && expected.target !== expected.name ? ` -> ${expected.target}` : ""}`],
+                expected: exportExpectedMethod(expected),
+                actual: null
+            });
+            continue;
+        }
+        used.add(actual);
+
+        const notes = [];
+        const expectsRename = Boolean(expected.target && expected.target !== expected.name);
+        const hasExpectedCarbon = expectsRename
+            ? actual.carbonNames.includes("renamed") && actual.carbonOriginalNames.includes(expected.name)
+            : actual.carbonNames.includes("method");
+
+        if (!actual.hasCarbon || !hasExpectedCarbon)
+        {
+            notes.push(expectsRename
+                ? `expected @carbon.renamed("${expected.name}")`
+                : "expected @carbon.method");
+        }
+        if (actual.implStatusNames.length === 0)
+        {
+            notes.push("expected exactly one implementation-status decorator");
+        }
+        else if (actual.implStatusNames.length > 1)
+        {
+            notes.push(`multiple implementation-status decorators: ${actual.implStatusNames.map(name => `@impl.${name}`).join(", ")}`);
+        }
+        else if (
+            (actual.implStatusNames[0] === "adapted" || actual.implStatusNames[0] === "custom") &&
+            !actual.hasReason
+        )
+        {
+            notes.push(`@impl.${actual.implStatusNames[0]} requires @impl.reason(...)`);
+        }
+
+        const severity = notes.length ? "error" : "ok";
+        results.push({
+            name: expected.name,
+            verdict: notes.length
+                ? (!actual.hasCarbon || !hasExpectedCarbon ? "existing-unexposed-method" : "method-metadata")
+                : "method-match",
+            severity,
+            symbol: severity === "error" ? "cross" : "ok",
+            notes,
+            expected: exportExpectedMethod(expected),
+            actual: exportActualMethod(actual)
+        });
+    }
+
+    for (const method of parsedMethods)
+    {
+        if (used.has(method) || !method.hasCarbon) continue;
+        results.push({
+            name: method.name,
+            verdict: "additional-carbon-method",
+            severity: "info",
+            symbol: "info",
+            notes: [`Carbon-decorated runtime method is outside this Blue schema (line ${method.line})`],
+            expected: null,
+            actual: exportActualMethod(method)
+        });
+    }
+
+    return results;
 }
 
 function makeExtraResult(field, allowExtra, strict)
@@ -2854,6 +3059,28 @@ function exportActual(field)
     };
 }
 
+function exportExpectedMethod(method)
+{
+    return {
+        blueName: method.name,
+        target: method.target || null,
+        macro: method.macro || null,
+        declaredOn: method.declaredOn || null
+    };
+}
+
+function exportActualMethod(method)
+{
+    return {
+        name: method.name,
+        carbon: method.carbonNames,
+        carbonOriginalNames: method.carbonOriginalNames,
+        implementation: method.implStatusNames,
+        hasReason: method.hasReason,
+        line: method.line
+    };
+}
+
 function summarize(results)
 {
     const summary = {
@@ -2864,6 +3091,11 @@ function summarize(results)
         missingIoFlag: 0,
         wrongDefault: 0,
         classPolicy: 0,
+        methodMatch: 0,
+        missingMethod: 0,
+        existingUnexposedMethod: 0,
+        methodMetadata: 0,
+        additionalCarbonMethod: 0,
         info: 0,
         drift: false
     };
@@ -2873,6 +3105,15 @@ function summarize(results)
         else if (result.verdict === "missing-in-file") summary.missingInFile++;
         else if (result.verdict === "extra-in-file") summary.extraInFile++;
         else if (result.verdict === "class-policy") summary.classPolicy++;
+        else if (result.verdict === "method-match") summary.methodMatch++;
+        else if (result.verdict === "missing-method") summary.missingMethod++;
+        else if (result.verdict === "existing-unexposed-method") summary.existingUnexposedMethod++;
+        else if (result.verdict === "method-metadata") summary.methodMetadata++;
+        else if (result.verdict === "additional-carbon-method")
+        {
+            summary.additionalCarbonMethod++;
+            summary.info++;
+        }
         else if (result.verdict === "match")
         {
             if (result.missingIo) summary.missingIoFlag++;
@@ -2930,6 +3171,14 @@ export function buildJsonReport(result)
             actual: field.actual,
             notes: field.notes || []
         })),
+        methods: (result.methods || []).map(method => ({
+            name: method.name,
+            verdict: method.verdict,
+            severity: method.severity,
+            expected: method.expected,
+            actual: method.actual,
+            notes: method.notes || []
+        })),
         summary: result.summary,
         fallback: result.fallback || null
     };
@@ -2961,6 +3210,14 @@ function renderHumanReport(result, options = {})
                 lines.push(renderFieldLine(field, sym));
             }
         }
+        if ((result.methods || []).length)
+        {
+            lines.push("");
+            for (const method of result.methods)
+            {
+                lines.push(renderMethodLine(method, sym));
+            }
+        }
         lines.push("");
         lines.push(`  summary: ${summaryLine(result.summary)}`);
         lines.push(`  result: ${result.summary.drift ? "DRIFT" : "OK (fallback)"}`);
@@ -2970,6 +3227,11 @@ function renderHumanReport(result, options = {})
     for (const field of result.fields)
     {
         lines.push(renderFieldLine(field, sym));
+    }
+    if (result.fields.length && (result.methods || []).length) lines.push("");
+    for (const method of result.methods || [])
+    {
+        lines.push(renderMethodLine(method, sym));
     }
     lines.push("");
     lines.push(`  summary: ${summaryLine(result.summary)}`);
@@ -2983,6 +3245,18 @@ function renderFieldLine(field, sym)
     const namePad = field.name.padEnd(14);
     const detail = renderFieldDetail(field);
     return `  ${symbol} ${namePad} ${detail}`;
+}
+
+function renderMethodLine(method, sym)
+{
+    const symbol = sym[method.symbol] || sym.info;
+    const namePad = `${method.name}()`.padEnd(14);
+    if (method.verdict === "method-match")
+    {
+        const status = method.actual?.implementation?.[0] || "unknown";
+        return `  ${symbol} ${namePad} carbon method  impl:${status}`;
+    }
+    return `  ${symbol} ${namePad} ${method.verdict}: ${(method.notes || []).join("; ")}`;
 }
 
 function renderFieldDetail(field)
@@ -3008,6 +3282,11 @@ function summaryLine(summary)
         `${summary.missingIoFlag} missing-io-flag`,
         `${summary.wrongDefault} wrong-default`,
         `${summary.classPolicy} class-policy`,
+        `${summary.methodMatch} method-match`,
+        `${summary.missingMethod} missing-method`,
+        `${summary.existingUnexposedMethod} existing-unexposed-method`,
+        `${summary.methodMetadata} method-metadata`,
+        `${summary.additionalCarbonMethod} additional-carbon-method`,
         `${summary.info} info`
     ].join(", ");
 }
@@ -3214,7 +3493,9 @@ export function renderClassFile(expected, options = {})
     {
         if (index > 0) lines.push("");
         lines.push(`  ${renderMethodComment(method)}`);
-        lines.push("  @carbon.method");
+        lines.push(method.target && method.target !== method.name
+            ? `  @carbon.renamed("${method.name}")`
+            : "  @carbon.method");
         lines.push("  @impl.notImplemented");
         lines.push(`  ${renderMethodDecl(method, isJs)}`);
         lines.push("  {");

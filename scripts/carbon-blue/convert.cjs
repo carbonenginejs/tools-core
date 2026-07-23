@@ -470,6 +470,7 @@ function scanFamily(config, carbonRoot, family, familyRoot, globalEnums)
     const classes = Array.from(byName.values())
         .map(record => finalizeClassRecord(record, carbonRoot))
         .sort((a, b) => a.name.localeCompare(b.name));
+    const classMap = new Map(classes.map(item => [item.name, item]));
 
     for (const classInfo of classes)
     {
@@ -522,11 +523,10 @@ function scanFamily(config, carbonRoot, family, familyRoot, globalEnums)
             });
         }
 
-        const fieldNames = new Set(classInfo.fields.map(x => x.name));
         for (const attr of classInfo.blue.attributes)
         {
             const memberRoot = getMemberRoot(attr.member);
-            if (memberRoot && !fieldNames.has(memberRoot))
+            if (memberRoot && !resolveAttributeFieldInfo(classInfo, attr, classMap))
             {
                 classInfo.reviewNotes.push({
                     type: "attribute-member-not-found",
@@ -1398,30 +1398,31 @@ function extractNestedStructFields(body, source, baseLine)
 
         const tail = body.slice(close + 1, semicolon).trim();
         const memberMatch = tail.match(/^([A-Za-z_]\w*)$/);
-        if (!memberMatch) continue;
-
-        const memberName = memberMatch[1];
-        const nestedBody = body.slice(open + 1, close);
-        const nestedLine = baseLine + lineOf(body, open) - 1;
-        const nestedFields = parseFields(nestedBody, source, nestedLine);
-
-        fields.push({
-            type: structName,
-            name: memberName,
-            source,
-            line: baseLine + lineOf(body, close) - 1,
-            nestedStruct: true
-        });
-
-        for (const field of nestedFields)
+        if (memberMatch)
         {
+            const memberName = memberMatch[1];
+            const nestedBody = body.slice(open + 1, close);
+            const nestedLine = baseLine + lineOf(body, open) - 1;
+            const nestedFields = parseFields(nestedBody, source, nestedLine);
+
             fields.push({
-                ...field,
-                name: `${memberName}.${field.name}`,
-                parent: memberName,
-                struct: structName,
-                nested: true
+                type: structName,
+                name: memberName,
+                source,
+                line: baseLine + lineOf(body, close) - 1,
+                nestedStruct: true
             });
+
+            for (const field of nestedFields)
+            {
+                fields.push({
+                    ...field,
+                    name: `${memberName}.${field.name}`,
+                    parent: memberName,
+                    struct: structName,
+                    nested: true
+                });
+            }
         }
 
         ranges.push([match.index, semicolon + 1]);
@@ -3524,4 +3525,10 @@ if (require.main === module)
     main();
 }
 
-module.exports = { DEFAULT_CONFIG, DEFAULT_CLASS_REPORT };
+module.exports = {
+    DEFAULT_CONFIG,
+    DEFAULT_CLASS_REPORT,
+    __test: {
+        parseHeaderFile
+    }
+};
