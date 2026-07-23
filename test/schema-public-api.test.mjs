@@ -1471,6 +1471,110 @@ test("read resolves nested members, enum catalog values, and bannerShader overri
     }
 });
 
+test("read resolves embedded-struct members across families from scan reports", () =>
+{
+    // The eve smart lights map attributes through lights/LightData: the struct
+    // is declared in another family, so leaf resolution must consult the
+    // report-wide class set instead of stalling on beType IROOT with a
+    // black-type-unresolved note.
+    const structClass = {
+        name: "LightData",
+        family: "structs",
+        headerFiles: [ "structs/LightData.h" ],
+        cppFiles: [ "structs/LightData.cpp" ],
+        bases: [],
+        fields: [
+            { name: "brightness", type: "float" },
+            { name: "flags", type: "uint16_t" }
+        ],
+        methods: [],
+        blue: {
+            isExposed: false,
+            files: [],
+            defines: [],
+            exposures: [],
+            attributes: [],
+            properties: [],
+            methods: [],
+            interfaces: []
+        },
+        reviewNotes: []
+    };
+    const smartLight = {
+        name: "FixtureSmartLight",
+        family: "smartLights",
+        headerFiles: [ "smartLights/FixtureSmartLight.h" ],
+        cppFiles: [ "smartLights/FixtureSmartLight.cpp" ],
+        bases: [],
+        fields: [
+            { name: "m_lightGroupData", type: "LightData" }
+        ],
+        methods: [],
+        blue: {
+            isExposed: true,
+            files: [ "smartLights/FixtureSmartLight_Blue.cpp" ],
+            defines: [
+                { macro: "BLUE_DEFINE", name: "FixtureSmartLight" }
+            ],
+            exposures: [
+                { macro: "EXPOSURE_BEGIN", name: "FixtureSmartLight" }
+            ],
+            attributes: [
+                {
+                    macro: "MAP_ATTRIBUTE",
+                    name: "brightness",
+                    nameSource: "literal",
+                    member: "m_lightGroupData.brightness",
+                    flags: [ "READWRITE", "PERSIST" ],
+                    source: "smartLights/FixtureSmartLight_Blue.cpp",
+                    line: 10
+                },
+                {
+                    macro: "MAP_ATTRIBUTE",
+                    name: "flags",
+                    nameSource: "literal",
+                    member: "m_lightGroupData.flags",
+                    flags: [ "READWRITE", "PERSIST" ],
+                    source: "smartLights/FixtureSmartLight_Blue.cpp",
+                    line: 11
+                }
+            ],
+            properties: [],
+            methods: [],
+            interfaces: []
+        },
+        reviewNotes: []
+    };
+    const report = {
+        carbonRoot: "E:/carbonengine",
+        generatedAt: "2026-07-23T00:00:00.000Z",
+        enums: [],
+        families: [
+            { name: "structs", root: "structs", classes: [ structClass ] },
+            { name: "smartLights", root: "smartLights", classes: [ smartLight ] }
+        ]
+    };
+
+    const bundle = CjsFormatCarbon.read(report);
+    const light = bundle.families
+        .find(family => family.name === "smartLights").classes
+        .find(item => item.blueClass === "FixtureSmartLight");
+    const attrByName = new Map(light.attributes.map(field => [ field.blueName, field ]));
+    const blackByName = new Map(light.black.fields.map(field => [ nameForRole(field, "name"), field ]));
+
+    assert.equal(attrByName.get("brightness").cppType, "float");
+    assert.equal(blackByName.get("brightness").beType, "FLOAT");
+    assert.equal(blackByName.get("brightness").wireType, "float32");
+    assert.equal(attrByName.get("flags").cppType, "uint16_t");
+    assert.equal(blackByName.get("flags").beType, "SHORT");
+    assert.equal(blackByName.get("flags").wireType, "uint16");
+    assert.deepEqual(
+        light.reviewNotes.filter(note => note.type === "black-type-unresolved"),
+        [],
+        "cross-family embedded-struct leaves must not be flagged unresolved"
+    );
+});
+
 test("read resolves flattened inline struct leaf fields from scan reports", () =>
 {
     const report = {

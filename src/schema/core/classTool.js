@@ -1713,16 +1713,44 @@ function resolveMemberLeafInDoc(doc, member, allowDirectLeaf = false)
     return { field: direct || null, rootType: null };
 }
 
+const SCHEMA_FAMILY_DIR_CACHE = new Map();
+
+function listSchemaFamilyDirs(schemaRoot)
+{
+    if (SCHEMA_FAMILY_DIR_CACHE.has(schemaRoot)) return SCHEMA_FAMILY_DIR_CACHE.get(schemaRoot);
+    let names = [];
+    try
+    {
+        names = fs.readdirSync(schemaRoot, { withFileTypes: true })
+            .filter(entry => entry.isDirectory())
+            .map(entry => entry.name)
+            .sort();
+    }
+    catch
+    {
+        names = [];
+    }
+    SCHEMA_FAMILY_DIR_CACHE.set(schemaRoot, names);
+    return names;
+}
+
 function readFamilySchemaDoc(schemaRoot, family, typeName)
 {
     if (!schemaRoot || !family || !typeName) return null;
     const candidates = [cleanNamedType(typeName), cleanNamedType(typeName).split("::").at(-1)];
-    for (const candidate of new Set(candidates))
+    // Embedded-struct types may be declared in another family (the eve smart
+    // lights reach into lights/LightData), so fall back to the sibling family
+    // dirs, own family first, in deterministic sorted order.
+    const families = [family, ...listSchemaFamilyDirs(schemaRoot).filter(name => name !== family)];
+    for (const familyName of families)
     {
-        const file = path.join(schemaRoot, family, `${candidate}.json`);
-        if (!fs.existsSync(file)) continue;
-        try { return readJson(file); }
-        catch { return null; }
+        for (const candidate of new Set(candidates))
+        {
+            const file = path.join(schemaRoot, familyName, `${candidate}.json`);
+            if (!fs.existsSync(file)) continue;
+            try { return readJson(file); }
+            catch { return null; }
+        }
     }
     return null;
 }

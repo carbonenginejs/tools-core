@@ -45,6 +45,7 @@ const BLUE_CALLS = [
     "MAP_ATTRIBUTE_WITH_IID",
     "MAP_ATTRIBUTE_WITH_CHOOSER",
     "MAP_ATTRIBUTE_AS_CUSTOM_BINARY_BLOCK",
+    "MAPFLOATARRAYSIZE",
     "MAP_PROPERTY",
     "MAP_PROPERTY_READONLY",
     "MAP_PROPERTY_PERSISTED",
@@ -1088,7 +1089,7 @@ function parseBlueFile(text, source)
             if (!currentClass) continue;
             const record = getBlueClass(byClass, currentClass);
 
-            if (call.name.startsWith("MAP_ATTRIBUTE"))
+            if (call.name.startsWith("MAP_ATTRIBUTE") || call.name === "MAPFLOATARRAYSIZE")
             {
                 record.attributes.push(parseAttributeCall(call, args, source, { choosers }));
             }
@@ -1151,6 +1152,28 @@ function parseAttributeCall(call, args, source, context = {})
             flags: ["PERSISTONLY"],
             chooser: null,
             iid: null,
+            source,
+            line: call.line
+        };
+    }
+
+    // MAPFLOATARRAYSIZE(name, member, iid, desc, flags, size) exposes the
+    // member's leading floats as Be::FLOATARRAY of `size` entries.
+    if (call.name === "MAPFLOATARRAYSIZE")
+    {
+        const length = Number.parseInt(cleanArg(args[5]), 10);
+        return {
+            macro: call.name,
+            name: blueName.name,
+            nameExpression: blueName.expression,
+            nameSource: blueName.source,
+            nameChooser: blueName.chooser,
+            member: cleanArg(args[1]),
+            description: readCString(args[3]),
+            flags: parseFlags(args[4]),
+            chooser: null,
+            iid: cleanArg(args[2]),
+            length: Number.isInteger(length) ? length : cleanArg(args[5]),
             source,
             line: call.line
         };
@@ -3529,6 +3552,8 @@ module.exports = {
     DEFAULT_CONFIG,
     DEFAULT_CLASS_REPORT,
     __test: {
-        parseHeaderFile
+        parseHeaderFile,
+        parseBlueFile,
+        resolveAttributeFieldInfo
     }
 };

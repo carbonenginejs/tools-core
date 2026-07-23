@@ -571,9 +571,21 @@ function emitSchemaBundleFromReport(report, values, readerName)
             enums: Array.isArray(report.enums) ? report.enums.length : 0
         };
 
+    // Embedded-struct roots may be declared in another family (the eve smart
+    // lights map attributes through lights/LightData); nested-member resolution
+    // consults this report-wide fallback when a root type is not family-local.
+    const crossFamilyTypes = new Map();
     for (const family of report.families || [])
     {
-        const familyBundle = emitFamilyFromReport(family, generatedAt, version, enumNames, carbonRoot, values);
+        for (const classInfo of family.classes || [])
+        {
+            if (classInfo?.name && !crossFamilyTypes.has(classInfo.name)) crossFamilyTypes.set(classInfo.name, classInfo);
+        }
+    }
+
+    for (const family of report.families || [])
+    {
+        const familyBundle = emitFamilyFromReport(family, generatedAt, version, enumNames, carbonRoot, values, crossFamilyTypes);
         families.push(familyBundle);
         rootIndex.families.push({
             name: familyBundle.name,
@@ -644,7 +656,7 @@ function assertNoSchemaResolutionIssues(schema, readerName)
     throw error;
 }
 
-function emitFamilyFromReport(family, generatedAt, version, enumNames, carbonRoot, values)
+function emitFamilyFromReport(family, generatedAt, version, enumNames, carbonRoot, values, crossFamilyTypes = null)
 {
     const
         classInfos = (family.classes || []).filter(shouldEmitReportClass),
@@ -657,6 +669,11 @@ function emitFamilyFromReport(family, generatedAt, version, enumNames, carbonRoo
             root: family.root,
             classes: []
         };
+
+    // Carried on the family map so nested-member resolution can reach
+    // embedded-struct types declared in other families without changing how
+    // parents and local fields resolve.
+    classMap.crossFamilyTypes = crossFamilyTypes;
 
     for (const classInfo of classInfos)
     {
@@ -1640,7 +1657,7 @@ function findNestedFieldInfo(classInfo, memberName, classMap, seen)
 
     if (!classMap) return null;
 
-    const nestedType = classMap.get(rootType);
+    const nestedType = classMap.get(rootType) || classMap.crossFamilyTypes?.get(rootType);
     if (!nestedType)
     {
         return findFlattenedNestedFieldInfo(classInfo, memberPath, rootName, parts.join("."), rootType);

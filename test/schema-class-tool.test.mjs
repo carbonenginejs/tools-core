@@ -104,6 +104,59 @@ test("inherited attributes stay on their exposed runtime base by default", (t) =
     assert.equal(expected.meta.inheritedSkipped, 1);
 });
 
+test("embedded-struct leaves resolve through docs declared in another family", (t) =>
+{
+    // The eve smart lights persist m_lightGroupData.* while LightData's schema
+    // doc lives in the lights family: leaf type and constructor default must
+    // come from the sibling family dir, not fall back to zero.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "carbon-class-cross-family-"));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    WriteSchema(root, "structs", "LightData", {
+        family: "structs",
+        blueClass: "LightData",
+        cppClass: "LightData",
+        blue: { isExposed: false },
+        bases: [],
+        fields: [
+            { cppName: "brightness", cppType: "float", default: { cpp: "1.0f", json: 1, kind: "number" } },
+            { cppName: "flags", cppType: "uint16_t", default: { cpp: "1", json: 1, kind: "number" } }
+        ]
+    });
+
+    const expected = deriveExpectedFields({
+        family: "smartLights",
+        blueClass: "FixtureSmartLight",
+        cppClass: "FixtureSmartLight",
+        attributes: [
+            {
+                blueName: "brightness",
+                member: "m_lightGroupData.brightness",
+                flags: ["READWRITE", "PERSIST"],
+                black: { cppType: "LightData", wireType: "inlineObject" }
+            },
+            {
+                blueName: "flags",
+                member: "m_lightGroupData.flags",
+                flags: ["READWRITE", "PERSIST"],
+                black: { cppType: "LightData", wireType: "inlineObject" }
+            }
+        ]
+    }, {
+        schemaRoot: root,
+        family: "smartLights"
+    });
+
+    assert.deepEqual(expected.fields.map(field => field.name), ["brightness", "flags"]);
+    const brightness = expected.fields[0];
+    assert.equal(brightness.kind, "float32");
+    assert.equal(brightness.cppType, "float");
+    assert.equal(brightness.default?.value, 1);
+    const flags = expected.fields[1];
+    assert.equal(flags.kind, "uint16");
+    assert.equal(flags.cppType, "uint16_t");
+    assert.equal(flags.default?.value, 1);
+});
+
 test("readonly Blue properties are projected into readonly runtime fields", () =>
 {
     const expected = deriveExpectedFields({

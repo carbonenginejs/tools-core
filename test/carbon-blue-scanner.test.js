@@ -54,6 +54,52 @@ test("recovered default config carries the reconstructed families and portable o
     }
 });
 
+test("MAPFLOATARRAYSIZE attributes are captured with iid, flags, and length", () =>
+{
+    // Modeled on EveEffectRoot2_Blue.cpp: MAPFLOATARRAYSIZE has a different
+    // argument order than MAP_ATTRIBUTE (name, member, iid, desc, flags, size).
+    const parsed = scanner.__test.parseBlueFile(`
+        EXPOSURE_BEGIN( EveEffectRoot2, "" )
+            MAP_ATTRIBUTE( "scaling", m_scaling, "", Be::READWRITE | Be::PERSIST )
+            MAPFLOATARRAYSIZE( "boundingSphereCenter", m_boundingSphere, BlueDefaultIID, "The center of the minimum bounding sphere", Be::READWRITE | Be::PERSIST, 3 )
+        EXPOSURE_END()
+    `, "trinity/trinity/Eve/EveEffectRoot2_Blue.cpp");
+    const classInfo = parsed.classes.find(item => item.name === "EveEffectRoot2");
+
+    assert.ok(classInfo);
+    assert.deepEqual(classInfo.attributes.map(attr => attr.name), ["scaling", "boundingSphereCenter"]);
+
+    const floatArray = classInfo.attributes[1];
+    assert.equal(floatArray.macro, "MAPFLOATARRAYSIZE");
+    assert.equal(floatArray.member, "m_boundingSphere");
+    assert.equal(floatArray.iid, "BlueDefaultIID");
+    assert.equal(floatArray.description, "The center of the minimum bounding sphere");
+    assert.deepEqual(floatArray.flags, ["READWRITE", "PERSIST"]);
+    assert.equal(floatArray.length, 3);
+    assert.equal(floatArray.chooser, null);
+});
+
+test("through-struct attribute members resolve without a stale attribute-member-not-found note", () =>
+{
+    // scanFamily flags an attribute-member-not-found review note exactly when
+    // resolveAttributeFieldInfo returns null; a dotted member through an
+    // embedded struct (the light classes' m_lightData surface) must resolve.
+    const light = {
+        name: "FixtureLight",
+        bases: [],
+        fields: [{ name: "m_lightData", type: "LightData" }]
+    };
+    const classMap = new Map([["FixtureLight", light]]);
+    const resolve = scanner.__test.resolveAttributeFieldInfo;
+
+    const through = resolve(light, { name: "position", member: "m_lightData.position" }, classMap);
+    assert.ok(through, "dotted member must resolve through its embedded-struct root");
+    assert.equal(through.field.name, "m_lightData");
+
+    const missing = resolve(light, { name: "ghost", member: "m_ghost.position" }, classMap);
+    assert.equal(missing, null, "a genuinely missing member root must still be flagged");
+});
+
 test("named nested structs do not leak their members into the containing class", () =>
 {
     const parsed = scanner.__test.parseHeaderFile(`
