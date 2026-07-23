@@ -292,3 +292,9 @@ add optional metadata. They do not ignore an unknown message `type`, protocol
 version, family payload version, required field, or incompatible field type.
 A semantic change to ordering, authentication, required fields, or message
 meaning requires a new protocol version and WebSocket subprotocol.
+
+## Provenance
+
+Twitch and Kick names and API terms identify interoperable third-party
+protocol surfaces. CarbonEngineJS is not affiliated with or endorsed by Twitch
+or Kick.

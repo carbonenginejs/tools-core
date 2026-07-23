@@ -148,3 +148,9 @@ Family version 1 permits additive fields only beneath existing provider
 extensions. Adding a canonical field, topic, enumeration value, or changing
 null/omission semantics requires a reviewed contract revision. Provider
 adapters must pass the executable contract before publishing.
+
+## Provenance
+
+Twitch and Kick names and API terms identify interoperable third-party
+protocol surfaces. CarbonEngineJS is not affiliated with or endorsed by Twitch
+or Kick.

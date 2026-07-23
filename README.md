@@ -1221,7 +1221,7 @@ GUI are not required.
 
 The repository contains code and synthetic fixtures only. Caches, persistent
 local overlays, fetched EVE indexes/payloads, and generated game-derived
-outputs are ignored by Git and must not be committed. CarbonEngine and Fenris
-Creations (CCP Games) are named for interoperability and provenance context;
-this project is not affiliated with or endorsed by them. See `LICENSE` and
-`NOTICE`.
+outputs are ignored by Git and must not be committed. CarbonEngine, Fenris
+Creations (CCP Games), Twitch, and Kick names and API terms are used solely for
+interoperability and provenance context. This project is not affiliated with or
+endorsed by those organizations. See `LICENSE` and `NOTICE`.
