@@ -1,4 +1,7 @@
 import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
+import {
+    CjsRealtimeChatContract,
+} from "../../realtime/chat/CjsRealtimeChatContract.js";
 
 /** Canonicalizes Twitch IRC and EventSub messages into the common chat family. */
 export class CjsRealtimeTwitchChatNormalizer
@@ -33,6 +36,7 @@ export class CjsRealtimeTwitchChatNormalizer
             room: {
                 provider: "twitch",
                 id: roomId,
+                kind: "channel",
                 login: roomLogin,
                 displayName: null,
             },
@@ -96,6 +100,7 @@ export class CjsRealtimeTwitchChatNormalizer
             room: {
                 provider: "twitch",
                 id: roomId,
+                kind: "channel",
                 login: roomLogin,
                 displayName: CjsRealtimeTwitchChatNormalizer.string(
                     event?.broadcaster_user_name,
@@ -142,18 +147,18 @@ export class CjsRealtimeTwitchChatNormalizer
             throw CjsRealtimeTwitchChatNormalizer.invalidMessage();
         }
 
-        return Object.freeze({
+        return CjsRealtimeChatContract.normalizeMessage({
             id,
             text,
             occurredAt,
             deliveryMode: "live",
-            room: Object.freeze(room),
-            author: Object.freeze(author),
-            reply: reply === null ? null : Object.freeze(reply),
-            fragments: Object.freeze(fragments.map(fragment => Object.freeze(fragment))),
-            extensions: Object.freeze({
-                twitch: Object.freeze(twitch),
-            }),
+            room,
+            author,
+            reply,
+            fragments,
+            extensions: {
+                twitch,
+            },
         });
     }
 

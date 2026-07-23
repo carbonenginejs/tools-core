@@ -1,0 +1,170 @@
+{
+    "contractVersion": 1,
+    "messages": [
+        {
+            "case": "twitch-channel-message",
+            "topic": "chat.message.received",
+            "data": {
+                "id": "twitch-message-one",
+                "text": "Hello from Twitch",
+                "occurredAt": "2026-07-24T02:00:00.000Z",
+                "deliveryMode": "live",
+                "room": {
+                    "provider": "twitch",
+                    "integrationId": "twitch-primary",
+                    "space": null,
+                    "id": "100",
+                    "kind": "channel",
+                    "parentRoomId": null,
+                    "login": "carbon_actor",
+                    "displayName": "Carbon Actor"
+                },
+                "author": {
+                    "id": "200",
+                    "login": "viewer",
+                    "displayName": "Viewer",
+                    "color": "#9146FF",
+                    "roles": [
+                        "subscriber"
+                    ]
+                },
+                "reply": null,
+                "fragments": [
+                    {
+                        "type": "text",
+                        "text": "Hello from Twitch"
+                    }
+                ],
+                "extensions": {
+                    "twitch": {
+                        "transport": "eventsub",
+                        "notificationId": "notification-one"
+                    }
+                }
+            }
+        },
+        {
+            "case": "hierarchical-thread-message",
+            "topic": "chat.message.received",
+            "data": {
+                "id": "thread-message-one",
+                "text": "Hello from a thread",
+                "occurredAt": "2026-07-24T02:01:00.000Z",
+                "deliveryMode": "live",
+                "room": {
+                    "provider": "discord",
+                    "integrationId": "discord-primary",
+                    "space": {
+                        "id": "server-one",
+                        "kind": "server",
+                        "login": null,
+                        "displayName": "Example Server"
+                    },
+                    "id": "thread-one",
+                    "kind": "thread",
+                    "parentRoomId": "channel-one",
+                    "login": null,
+                    "displayName": "Example Thread"
+                },
+                "author": {
+                    "id": "member-one",
+                    "login": "member",
+                    "displayName": "Member",
+                    "color": null,
+                    "roles": [
+                        "member",
+                        "moderator"
+                    ]
+                },
+                "reply": {
+                    "parentMessageId": "thread-parent-one",
+                    "parentAuthorId": "member-two",
+                    "parentAuthorLogin": "other-member",
+                    "parentAuthorDisplayName": "Other Member",
+                    "parentText": "Parent message",
+                    "threadParentMessageId": "thread-parent-one"
+                },
+                "fragments": [
+                    {
+                        "type": "text",
+                        "text": "Hello "
+                    },
+                    {
+                        "type": "mention",
+                        "text": "@Other Member",
+                        "mention": {
+                            "userId": "member-two",
+                            "login": "other-member",
+                            "displayName": "Other Member"
+                        }
+                    },
+                    {
+                        "type": "text",
+                        "text": " from a thread"
+                    }
+                ],
+                "extensions": {
+                    "discord": {
+                        "syntheticFixture": true
+                    }
+                }
+            }
+        }
+    ],
+    "statuses": [
+        {
+            "case": "twitch-integration-ready",
+            "topic": "chat.status.changed",
+            "data": {
+                "state": "ready",
+                "reasonCode": null,
+                "retryable": false,
+                "occurredAt": "2026-07-24T02:00:00.000Z",
+                "source": {
+                    "provider": "twitch",
+                    "integrationId": "twitch-primary"
+                },
+                "room": null,
+                "extensions": {
+                    "twitch": {
+                        "transport": "eventsub"
+                    }
+                }
+            }
+        },
+        {
+            "case": "hierarchical-room-degraded",
+            "topic": "chat.status.changed",
+            "data": {
+                "state": "degraded",
+                "reasonCode": "provider_unavailable",
+                "retryable": true,
+                "occurredAt": "2026-07-24T02:02:00.000Z",
+                "source": {
+                    "provider": "discord",
+                    "integrationId": "discord-primary"
+                },
+                "room": {
+                    "provider": "discord",
+                    "integrationId": "discord-primary",
+                    "space": {
+                        "id": "server-one",
+                        "kind": "server",
+                        "login": null,
+                        "displayName": "Example Server"
+                    },
+                    "id": "thread-one",
+                    "kind": "thread",
+                    "parentRoomId": "channel-one",
+                    "login": null,
+                    "displayName": "Example Thread"
+                },
+                "extensions": {
+                    "discord": {
+                        "syntheticFixture": true
+                    }
+                }
+            }
+        }
+    ]
+}

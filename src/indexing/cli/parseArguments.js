@@ -3,6 +3,7 @@ const BooleanOptions = new Set([
     "help",
     "indexes",
     "no-cache",
+    "prefetch-refresh",
     "refresh",
     "sde-auto-prepare",
 ]);

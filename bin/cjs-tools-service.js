@@ -6,8 +6,11 @@ import { fileURLToPath } from "node:url";
 import {
     CjsIndexCache,
     CjsIndexOverlayStore,
+    CjsToolAudioPrefetch,
+    CjsToolAudioRepository,
     CjsToolCharacterRepository,
     CjsToolIndex,
+    CjsToolPrefetch,
     CjsSdeRepository,
     CjsToolCache,
     CjsToolHttpProxy,
@@ -15,6 +18,11 @@ import {
     TOOLS_SERVICE_PROTOCOL_VERSION,
 } from "../src/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
+
+const DEFAULT_MAX_PAYLOAD_BYTES = 256 * 1024 * 1024;
+const DEFAULT_PREFETCH_MAX_PAYLOAD_BYTES = 512 * 1024 * 1024;
+const DEFAULT_PREFETCH_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30 * 1000;
 
 try
 {
@@ -44,16 +52,52 @@ async function main()
         args.data ?? path.join(packageDirectory, "data.local"),
     ));
     const toolCache = new CjsToolCache(cacheDirectory);
+    const prefetchEnabled = args.prefetch !== undefined;
     const indexes = new CjsToolIndex({
         cache: new CjsIndexCache({ directory: cacheDirectory }),
         overlays: new CjsIndexOverlayStore(dataDirectory),
+        requestTimeoutMs: Number(
+            args.requestTimeoutMs
+            ?? (prefetchEnabled
+                ? DEFAULT_PREFETCH_REQUEST_TIMEOUT_MS
+                : DEFAULT_REQUEST_TIMEOUT_MS),
+        ),
+        maxPayloadBytes: Number(
+            args.maxPayloadBytes
+            ?? (prefetchEnabled
+                ? DEFAULT_PREFETCH_MAX_PAYLOAD_BYTES
+                : DEFAULT_MAX_PAYLOAD_BYTES),
+        ),
     });
     const sde = new CjsSdeRepository({
         cache: toolCache,
         autoPrepare: args.sdeAutoPrepare === true,
     });
     const characters = new CjsToolCharacterRepository({ cache: toolCache, indexes });
-    const proxy = new CjsToolHttpProxy({ indexes, sde, characters });
+    const audio = new CjsToolAudioRepository({ cache: toolCache, indexes });
+    let prefetchReport = null;
+
+    if (args.prefetch !== undefined)
+    {
+        const prefetch = new CjsToolPrefetch({
+            indexes,
+            profiles: [ new CjsToolAudioPrefetch({ audio }) ],
+        });
+
+        prefetchReport = await prefetch.Prefetch({
+            target: args.target ?? "eve",
+            build: args.build ?? "latest",
+            client: args.client,
+            profiles: args.prefetch === true ? "audio" : args.prefetch,
+            concurrency: args.prefetchConcurrency ?? 4,
+            refresh: args.prefetchRefresh === true,
+        });
+        process.stderr.write(
+            `Prefetch complete: ${JSON.stringify(prefetchReport)}\n`,
+        );
+    }
+
+    const proxy = new CjsToolHttpProxy({ indexes, sde, characters, audio });
     const server = proxy.CreateServer();
 
     await new Promise((resolve, reject) =>
@@ -79,6 +123,7 @@ async function main()
         cacheDirectory,
         dataDirectory,
         capabilities: proxy.capabilities,
+        ...(prefetchReport ? { prefetch: prefetchReport } : {}),
     })}\n`);
 
     const close = () =>
@@ -124,16 +169,28 @@ function printHelp()
 
 Usage:
   cjs-tools-service [--host 127.0.0.1] [--port 0] [--cache <directory>] [--data <directory>]
+    [--prefetch audio] [--target eve] [--build latest]
 
 Options:
-  --host <address>   Loopback address: 127.0.0.1 or ::1
-  --port <number>    Loopback port; zero selects an available port
-  --cache <path>     Shared tools cache root
-  --data <path>      Persistent local overlay root; never removed by cache cleanup
-  --sde-auto-prepare Download a missing EVE SDE database on its first request
-  --help             Show this help
+  --host <address>          Loopback address: 127.0.0.1 or ::1
+  --port <number>           Loopback port; zero selects an available port
+  --cache <path>            Shared tools cache root
+  --data <path>             Persistent local overlay root
+  --prefetch [profiles]     Prepare profiles before listening; default: audio
+  --prefetch-concurrency <number>
+                            Parallel resource reads from 1 to 64; default: 4
+  --prefetch-refresh        Replace valid cached payloads from the source
+  --request-timeout-ms <number>
+                            Index request/body deadline; prefetch default: 300000
+  --max-payload-bytes <number>
+                            Resource ceiling; prefetch default: 536870912
+  --target <target>         Prefetch target; default: eve
+  --build <build>           Prefetch build; default: latest
+  --client <client>         Optional prefetch client/build selector
+  --sde-auto-prepare        Prepare a missing EVE SDE on its first request
+  --help                    Show this help
 
 The first stdout line is a JSON bootstrap record for local clients, including
-ccpwgl and Blender.
+ccpwgl and Blender. Requested prefetch work finishes before the listener starts.
 `);
 }

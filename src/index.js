@@ -4,6 +4,7 @@ export * from "./cache/index.js";
 export * from "./character/index.js";
 export * from "./indexing/index.js";
 export * from "./library/index.js";
+export * from "./prefetch/index.js";
 export * from "./proxy/index.js";
 export * from "./sde/index.js";
 export * from "./shader/index.js";

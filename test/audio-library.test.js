@@ -110,6 +110,25 @@ test("audio CLI reads and validates logical inputs from the shared ResFiles cach
     fs.readFileSync(outputPath),
   );
 
+  const installedArgs = [ ...args ];
+  const outIndex = installedArgs.indexOf("--out");
+
+  installedArgs.splice(outIndex, 2);
+
+  const installed = spawnSync(process.execPath, installedArgs, { encoding: "utf8" });
+  const installedPath = path.join(
+    cacheDirectory,
+    "custom", "games", "eve", "providers", "ccp", "builds", "3435006",
+    "audio_v2.json",
+  );
+
+  assert.equal(installed.status, 0, installed.stderr);
+  assert.equal(JSON.parse(fs.readFileSync(installedPath, "utf8")).sourceBuild, "3435006");
+  assert.deepEqual(
+    GunzipSync(fs.readFileSync(`${installedPath}.gz`)),
+    fs.readFileSync(installedPath),
+  );
+
   fs.writeFileSync(cachePath, "{}");
 
   const invalid = spawnSync(process.execPath, args, { encoding: "utf8" });
@@ -133,7 +152,7 @@ test("CjsToolAudioBuilder joins index + SoundbanksInfo + optional enrichment det
   });
 
   assert.equal(library.schema, CjsToolAudioBuilder.schema);
-  assert.equal(library.schemaVersion, 1);
+  assert.equal(library.schemaVersion, 2);
   assert.equal(library.sourceTarget, "eve");
   assert.equal(library.sourceGame, "Eve");
   assert.equal(library.sourceProvider, "ccp");
@@ -149,7 +168,20 @@ test("CjsToolAudioBuilder joins index + SoundbanksInfo + optional enrichment det
   assert.equal(library.media["777"].resPath, "res:/audio/media/777.wem");
   assert.equal(library.media["888"].essential, true);
   assert.equal(library.media["999"].language, "en");
-  assert.equal(library.banks["524.bnk"].storagePath, "aa/524_hash.bnk");
+  assert.deepEqual(
+    {
+      sourceID: library.banks["524:0"].sourceID,
+      bankID: library.banks["524:0"].bankID,
+      languageID: library.banks["524:0"].languageID,
+      storagePath: library.banks["524:0"].storagePath,
+    },
+    {
+      sourceID: "524:0",
+      bankID: "524",
+      languageID: "0",
+      storagePath: "aa/524_hash.bnk",
+    },
+  );
 
   // Determinism: identical inputs -> identical serialization.
   const again = CjsToolAudioBuilder.build({
@@ -178,6 +210,73 @@ test("CjsToolAudioBuilder creates named, sorted, unioned event-media edges", () 
   });
 });
 
+test("audio v2 keeps language variants as distinct bank identities", () =>
+{
+  const soundbanksInfo = {
+    SoundBanksInfo: {
+      SoundBanks: [
+        {
+          Id: "700",
+          ShortName: "voices",
+          Language: "English(US)",
+          Path: "SoundBanks\\English(US)\\voices.bnk",
+        },
+        {
+          Id: "700",
+          ShortName: "voices",
+          Language: "German",
+          Path: "SoundBanks\\German\\voices.bnk",
+        },
+        {
+          Id: "700",
+          ShortName: "voices",
+          Language: "Chinese",
+          Path: "SoundBanks\\Chinese\\voices.bnk",
+        },
+        {
+          Id: "701",
+          ShortName: "common",
+          Language: "SFX",
+          Path: "SoundBanks\\common.bnk",
+        },
+      ],
+    },
+  };
+  const entries = CjsToolAudioBuilder.parseIndexEntries([
+    "res:/audio/English(US)/700.bnk,en/700.bnk,en-md5,10",
+    "res:/audio/German/700.bnk,de/700.bnk,de-md5,10",
+    "res:/audio/Chinese/700.bnk,zh/700.bnk,zh-md5,10",
+    "res:/audio/common.bnk,sfx/common.bnk,sfx-md5,10",
+  ].join("\n"));
+  const library = CjsToolAudioBuilder.build({
+    indexEntries: entries,
+    soundbanksInfo,
+  });
+  const banks = Object.values(library.banks);
+
+  assert.equal(banks.length, 4);
+  assert.deepEqual(
+    new Set(banks.map(bank => bank.bankID)),
+    new Set([ "700", "701" ]),
+  );
+  assert.equal(
+    new Set(
+      banks
+        .filter(bank => bank.bankID === "700")
+        .map(bank => bank.languageID),
+    ).size,
+    3,
+  );
+  assert.deepEqual(
+    banks.map(bank => bank.language).sort(),
+    [ "", "de", "en-us", "zh-cn" ],
+  );
+  assert.deepEqual(
+    banks.map(bank => bank.authoredLanguage).sort(),
+    [ "Chinese", "English(US)", "German", "SFX" ],
+  );
+});
+
 test("CjsToolAudioBuilder attaches optional eventMedia + embeddedMedia additively", () =>
 {
   const base = {
@@ -194,11 +293,11 @@ test("CjsToolAudioBuilder attaches optional eventMedia + embeddedMedia additivel
   const withTables = CjsToolAudioBuilder.build({
     ...base,
     eventMedia: { engine_loop: ["900001"] },
-    embeddedMedia: { 900001: { bank: "524.bnk", offset: 96, byteLength: 64 } }
+    embeddedMedia: { 900001: { bank: "524:0", offset: 96, byteLength: 64 } }
   });
-  assert.equal(withTables.schemaVersion, 1, "tables are additive, schema unchanged");
+  assert.equal(withTables.schemaVersion, 2, "tables are additive, schema unchanged");
   assert.deepEqual(withTables.eventMedia, { engine_loop: ["900001"] });
-  assert.deepEqual(withTables.embeddedMedia["900001"], { bank: "524.bnk", offset: 96, byteLength: 64 });
+  assert.deepEqual(withTables.embeddedMedia["900001"], { bank: "524:0", offset: 96, byteLength: 64 });
 });
 
 test("audio builder supports audited Frontier inputs and rejects unaudited targets", () =>

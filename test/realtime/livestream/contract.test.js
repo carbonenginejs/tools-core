@@ -11,7 +11,7 @@ import {
 } from "../../../src/realtime/livestream/index.js";
 
 const fixtures = JSON.parse(await fs.readFile(new URL(
-    "../../../docs/realtime-livestream-v1.fixtures.json",
+    "../../../docs/protocols/livestream-v1.fixtures.json",
     import.meta.url,
 ), "utf8"));
 

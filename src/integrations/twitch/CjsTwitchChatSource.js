@@ -16,7 +16,7 @@ export class CjsTwitchChatSource
 
     #running;
 
-    constructor({ provider } = {})
+    constructor({ provider, integrationId = null } = {})
     {
         if (!provider || !PROVIDER_KINDS.has(provider.kind)
             || typeof provider.Start !== "function" || typeof provider.Stop !== "function")
@@ -24,7 +24,14 @@ export class CjsTwitchChatSource
             throw new TypeError("Twitch chat source requires an IRC or EventSub provider");
         }
 
+        if (integrationId !== null && (typeof integrationId !== "string"
+            || integrationId.length < 1 || integrationId.length > 256))
+        {
+            throw new TypeError("Twitch chat source integrationId is invalid");
+        }
+
         this.kind = provider.kind;
+        this.integrationId = integrationId;
         this.#abortController = null;
         this.#consumers = new Map();
         this.#lane = new CjsRealtimeSerialLane();

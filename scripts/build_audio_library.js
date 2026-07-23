@@ -5,14 +5,20 @@
 //
 // Usage:
 //   npm run build:audio -- --index <resfileindex.txt> --cache <dir>
-//     --soundbanksinfo <path-or-res-lookup> --out <library.json> --build <id>
+//     --soundbanksinfo <path-or-res-lookup> --build <id> [--out <library.json>]
 //     [--target <eve>]
-//     [--enrichment <audio-metadata.json>] [--generated-at <iso>] [--compact]
+//     [--enrichment <audio-metadata.json>] [--event-media] [--music]
+//     [--language <bcp47-tag>]
+//     [--generated-at <iso>] [--compact]
 //
 // --enrichment accepts a caller-supplied plain-JSON metadata overlay.
 import fs from "node:fs";
 import path from "node:path";
-import { CjsToolAudio, CjsToolAudioBuilder } from "../src/audio/index.js";
+import {
+    CjsToolAudio,
+    CjsToolAudioBuilder,
+    CjsToolAudioSource,
+} from "../src/audio/index.js";
 import { CjsToolCache } from "../src/cache/index.js";
 import { CjsToolLibraryArtifact } from "../src/library/index.js";
 import * as utils from "../src/utils.js";
@@ -48,6 +54,11 @@ function ParseArgs(argv)
             options.eventMedia = true;
             continue;
         }
+        if (flag === "--music")
+        {
+            options.music = true;
+            continue;
+        }
         if (!flag.startsWith("--"))
         {
             throw new Error(`Unknown argument: ${flag}`);
@@ -68,11 +79,11 @@ async function Main(argv)
     const options = ParseArgs(argv);
     if (options.help)
     {
-        console.log("build_audio_library --index <resfileindex.txt> --cache <dir> --soundbanksinfo <file> --out <file> --build <id> [--target <eve|frontier>] [--enrichment <file>] [--event-media] [--generated-at <iso>] [--compact]");
+        console.log("build_audio_library --index <resfileindex.txt> --cache <dir> --soundbanksinfo <file> --build <id> [--out <file>] [--target <eve|frontier>] [--enrichment <file>] [--event-media] [--music] [--language <bcp47-tag>] [--generated-at <iso>] [--compact]");
         console.log("Library builders are target-specific. Only targets explicitly audited for audio can be selected.");
         return 0;
     }
-    for (const required of ["index", "cache", "soundbanksinfo", "out", "build"])
+    for (const required of ["index", "cache", "soundbanksinfo", "build"])
     {
         if (!options[required])
         {
@@ -127,7 +138,8 @@ async function Main(argv)
         : null;
 
     const generatedAt = options.generatedAt ?? new Date().toISOString();
-    let library = audio.Build({
+    const eventMediaLanguage = NormalizeLanguage(options.language ?? "en-us");
+    const buildOptions = {
         indexEntries,
         soundbanksInfo,
         enrichment,
@@ -136,84 +148,178 @@ async function Main(argv)
         sourceProvider: target.provider,
         sourceBuild,
         generatedAt
-    });
+    };
+    let library = audio.Build(buildOptions);
 
-    // --event-media: extract exact event -> wem edges from the banks' HIRC
-    // graphs. Still no remote reads: every bank must already sit in --cache
-    // (acquire beforehand); missing banks fail loudly with their paths.
-    if (options.eventMedia)
+    // --event-media extracts event -> media edges and embedded-media windows.
+    // --music implies that inspection and additionally projects the dynamic
+    // music graph. Every bank is read exactly once and its payload views are
+    // compacted before the next bank is opened.
+    if (options.eventMedia || options.music)
     {
+        if (options.music)
+        {
+            const availableBankNames = new Set(
+                Object.values(library.banks)
+                    .map(bank => BankSourceName(bank.resPath)),
+            );
+            const missingMusicBanks = [
+                "common.bnk",
+                "music.bnk",
+                "music_essential.bnk",
+            ].filter(name => !availableBankNames.has(name));
+
+            if (missingMusicBanks.length)
+            {
+                throw new Error(
+                    "--music requires indexed banks: "
+                    + missingMusicBanks.join(", "),
+                );
+            }
+        }
+
         const missing = [];
         const inspections = [];
-        const inspectionBankNames = [];
+        const bankIdentities = {};
+        const embeddedMedia = {};
         // Sequential inspection with a compaction pass: HIRC payload views are
         // copied so the multi-hundred-MB bank buffers never coexist in memory.
-        for (const [bankName, bank] of Object.entries(library.banks))
+        for (const [ sourceID, bank ] of Object.entries(library.banks))
         {
             const cached = await cache.ReadRemote(bank.storagePath, CacheExpectation(bank));
 
             if (!cached)
             {
-                missing.push(`${bankName} -> ${bank.storagePath}`);
+                missing.push(`${sourceID} -> ${bank.storagePath}`);
                 continue;
             }
 
-            const inspection = CjsBnkFormat.inspect(new Uint8Array(cached.bytes));
-            inspections.push({
-                hirc: inspection.hirc.map(entry => ({ ...entry, payload: entry.payload.slice() })),
-                media: inspection.media.map(entry => ({ ...entry }))
-            });
-            inspectionBankNames.push(bankName);
-        }
-        if (missing.length)
-        {
-            throw new Error(`--event-media requires cached banks; missing:\n  ${missing.join("\n  ")}`);
-        }
-        // EVE keeps events in common.bnk and their targets in the media
-        // banks: edges only resolve over the merged graph.
-        const merged = CjsBnkFormat.wwise.eventMediaFromBanks(inspections, { knownWemIds: Object.keys(library.media) });
+            const bytes = ToUint8Array(cached.bytes);
+            const source = BankSourceName(bank.resPath);
+            const inspection = CjsBnkFormat.inspect(bytes, { source });
+            const inspectedSourceID = `${inspection.bankId >>> 0}:${inspection.languageId >>> 0}`;
 
-        // Embedded media directory: wems living inside bank DATA (absent
-        // from the streamed index). Streamed wems win when present in both
-        // (music prefetch heads embed a truncated copy).
-        const embeddedMedia = {};
-        for (const [inspectionIndex, inspection] of inspections.entries())
-        {
+            bankIdentities[bank.resPath.toLowerCase()] = {
+                bankID: inspection.bankId,
+                languageID: inspection.languageId,
+            };
+            inspections.push({
+                source,
+                resPath: bank.resPath,
+                bankId: inspection.bankId,
+                languageId: inspection.languageId,
+                language: bank.language,
+                hirc: inspection.hirc.map(entry => ({
+                    ...entry,
+                    payload: entry.payload.slice(),
+                })),
+                media: inspection.media.map(entry => ({ ...entry })),
+            });
+
             for (const record of inspection.media)
             {
                 const id = String(record.id);
-                if (record.available && !library.media[id] && !embeddedMedia[id])
+
+                if (!record.available || library.media[id])
                 {
-                    embeddedMedia[id] = {
-                        bank: inspectionBankNames[inspectionIndex],
-                        offset: record.absoluteOffset,
-                        byteLength: record.length
-                    };
+                    continue;
+                }
+
+                const descriptor = {
+                    sourceID: `embedded:${id}:${inspectedSourceID}`,
+                    bank: inspectedSourceID,
+                    offset: record.absoluteOffset,
+                    byteLength: record.length,
+                    language: bank.language,
+                    mediaType: CjsToolAudioBuilder.mediaTypeFromMagic(
+                        bytes,
+                        record.absoluteOffset,
+                    ),
+                };
+                const current = embeddedMedia[id];
+
+                if (current === undefined)
+                {
+                    embeddedMedia[id] = descriptor;
+                }
+                else if (Array.isArray(current))
+                {
+                    current.push(descriptor);
+                }
+                else
+                {
+                    embeddedMedia[id] = [ current, descriptor ];
                 }
             }
         }
+        if (missing.length)
+        {
+            const option = options.music ? "--music" : "--event-media";
+
+            throw new Error(`${option} requires cached banks; missing:\n  ${missing.join("\n  ")}`);
+        }
+
+        // EVE keeps events in common.bnk and their targets in the media
+        // banks: edges only resolve over the merged graph.
+        const merged = CjsToolAudioBuilder.createEventMediaGraphs(
+            inspections,
+            {
+                knownWemIds: Object.keys(library.media),
+                language: eventMediaLanguage,
+            },
+        );
+        const eventMedia = CjsToolAudioBuilder.createEventMediaTable(
+            library.metadata,
+            merged,
+        );
 
         library = audio.Build({
-            indexEntries,
-            soundbanksInfo,
-            enrichment,
-            eventMedia: CjsToolAudioBuilder.createEventMediaTable(library.metadata, [merged]),
+            ...buildOptions,
+            bankIdentities,
+            eventMedia,
+            eventMediaLanguage,
             embeddedMedia,
-            sourceTarget: target.id,
-            sourceGame: target.game,
-            sourceProvider: target.provider,
-            sourceBuild,
-            generatedAt
         });
+
+        if (options.music)
+        {
+            const music = CjsToolAudioBuilder.createMusicGraph({
+                inspections: inspections.filter(inspection =>
+                    [ "common.bnk", "music.bnk", "music_essential.bnk" ]
+                        .includes(BankSourceName(inspection.source))),
+                metadata: library.metadata,
+                media: library.media,
+                embeddedMedia: library.embeddedMedia,
+            });
+
+            library = audio.Build({
+                ...buildOptions,
+                bankIdentities,
+                eventMedia,
+                eventMediaLanguage,
+                embeddedMedia,
+                music,
+            });
+        }
     }
 
-    const outPath = path.resolve(options.out);
+    const outPath = options.out
+        ? path.resolve(options.out)
+        : cache.GetCustomPath({
+            game: target.game,
+            provider: target.provider,
+            build: sourceBuild,
+            name: "audio",
+            version: "v2",
+        });
+    CjsToolAudioSource.validateLibrary(library);
     const artifacts = await CjsToolLibraryArtifact.write(outPath, library, {
         compact: options.compact,
     });
     console.log(JSON.stringify({
         out: artifacts.jsonPath,
         gzip: artifacts.gzipPath,
+        schemaVersion: library.schemaVersion,
         jsonBytes: artifacts.jsonBytes,
         gzipBytes: artifacts.gzipBytes,
         target: library.sourceTarget,
@@ -225,7 +331,12 @@ async function Main(argv)
         media: Object.keys(library.media).length,
         banks: Object.keys(library.banks).length,
         enriched: !!enrichment,
-        eventMedia: library.eventMedia ? Object.keys(library.eventMedia).length : 0
+        eventMedia: library.eventMedia ? Object.keys(library.eventMedia).length : 0,
+        eventMediaLanguage: library.eventMediaLanguage ?? null,
+        embeddedMedia: library.embeddedMedia
+            ? Object.keys(library.embeddedMedia).length
+            : 0,
+        musicNodes: library.music ? Object.keys(library.music.nodes).length : 0,
     }, null, 2));
     return 0;
 }
@@ -236,6 +347,51 @@ function CacheExpectation(entry)
         ...(entry.checksum ? { md5: entry.checksum } : {}),
         ...(Number(entry.byteLength) > 0 ? { size: Number(entry.byteLength) } : {}),
     };
+}
+
+function BankSourceName(value)
+{
+    return String(value ?? "")
+        .trim()
+        .replaceAll("\\", "/")
+        .split("/")
+        .pop()
+        .toLowerCase();
+}
+
+function NormalizeLanguage(value)
+{
+    const language = String(value ?? "")
+        .trim()
+        .replaceAll("_", "-")
+        .toLowerCase();
+
+    if (!/^[a-z]{2,8}(?:-[a-z0-9]{1,8})*$/u.test(language))
+    {
+        throw new TypeError(`Invalid audio language tag: ${value}`);
+    }
+
+    return language;
+}
+
+function ToUint8Array(value)
+{
+    if (value instanceof Uint8Array)
+    {
+        return value;
+    }
+
+    if (value instanceof ArrayBuffer)
+    {
+        return new Uint8Array(value);
+    }
+
+    if (ArrayBuffer.isView(value))
+    {
+        return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    }
+
+    throw new TypeError("Cached bank bytes must be an ArrayBuffer view");
 }
 
 try

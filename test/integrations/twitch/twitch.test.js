@@ -129,6 +129,7 @@ function ChatMessage(id, text = "hello")
         room: Object.freeze({
             provider: "twitch",
             id: "200",
+            kind: "channel",
             login: "carbon",
             displayName: "Carbon",
         }),
@@ -358,7 +359,10 @@ test("exports the Twitch slice through its exact package subpath", async () =>
 test("shares one Twitch transport across aggregate and exact room emitters", async () =>
 {
     const provider = new CjsFakeTwitchProvider();
-    const source = new CjsTwitchChatSource({ provider });
+    const source = new CjsTwitchChatSource({
+        provider,
+        integrationId: "twitch-primary",
+    });
     const aggregate = [];
     const carbon = [];
     const other = [];
@@ -408,6 +412,8 @@ test("shares one Twitch transport across aggregate and exact room emitters", asy
         [ "carbon-message", "other-message" ]);
     assert.deepEqual(carbon.map(entry => entry.data.id), [ "carbon-message" ]);
     assert.deepEqual(other.map(entry => entry.data.id), [ "other-message" ]);
+    assert.ok(aggregate.every(entry =>
+        entry.data.room.integrationId === "twitch-primary"));
 
     await aggregateService.Stop();
     await carbonService.Stop();
@@ -493,12 +499,25 @@ test("normalizes IRC and EventSub into one provider-neutral chat shape", () =>
 
     assert.equal(irc.text, "Hello <agent>");
     assert.equal(irc.deliveryMode, "live");
+    assert.equal(irc.room.kind, "channel");
+    assert.equal(irc.room.integrationId, null);
+    assert.equal(irc.room.space, null);
     assert.equal(irc.extensions.twitch.transport, "irc");
     assert.deepEqual(irc.author.roles, [ "moderator" ]);
     assert.equal(eventSub.room.id, irc.room.id);
     assert.equal(eventSub.author.id, irc.author.id);
     assert.equal(eventSub.extensions.twitch.transport, "eventsub");
     assert.equal(eventSub.fragments[1].emote.id, "25");
+
+    const status = CjsRealtimeTwitchChatService.normalizeStatus({
+        state: "ready",
+        retryable: false,
+    }, "twitch.eventsub", Date.parse("2026-07-21T12:00:00.000Z"), "primary");
+
+    assert.equal(status.source.provider, "twitch");
+    assert.equal(status.source.integrationId, "primary");
+    assert.equal(status.room, null);
+    assert.equal(status.extensions.twitch.transport, "eventsub");
 });
 
 test("reuses OAuth scope and refresh policy across Helix integration points", async () =>
