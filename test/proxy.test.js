@@ -298,6 +298,24 @@ test("resolves character names and type identities with atomic LOD bundles", asy
         sourceGame: "Eve",
         sourceProvider: "ccp",
         sourceBuild: "3435006",
+        visemeSets: {
+            "female-speech-03": {
+                sex: "female",
+                parameterNode: "Visemes",
+                neutralVisemeID: "x",
+                maskName: "Mouth",
+                maskBoneNames: [ "Jaw" ],
+                visemes: [ {
+                    id: "x",
+                    parameterName: "x",
+                    animationName: "Female_Additive_Face_Default_03",
+                    resourcePath: "res:/character/female_additive_face_default_03.gr2",
+                    minimum: 0,
+                    maximum: 1,
+                    defaultValue: 0,
+                } ],
+            },
+        },
         partSources: {
             "female/hair/hair_long_01": {
                 resources: {
@@ -421,6 +439,7 @@ test("resolves character names and type identities with atomic LOD bundles", asy
     assert.equal(wholeLibrary.sourceTarget, "eve");
     assert.equal(wholeLibrary.partSources["female/hair/hair_long_01"]
         .versions.default.types[partID].typeID, "9001");
+    assert.equal(wholeLibrary.visemeSets["female-speech-03"].neutralVisemeID, "x");
     assert.deepEqual(library.GetSourceIdentity(), {
         sourceTarget: "eve",
         sourceGame: "Eve",

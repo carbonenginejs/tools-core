@@ -17,6 +17,7 @@ import {
     CjsCharacterRecipe,
     CjsCharacterSculptField,
     CjsCharacterUniqueCharacter,
+    CjsCharacterVisemeSet,
 } from "../../runtime-character/npm/dist/index.js";
 import {
     CjsToolCharacterAssembler,
@@ -47,6 +48,7 @@ test("exports the character tool class family through tools-core/character", () 
         "sculptFields",
         "blendshapeLimits",
         "uniqueCharacters",
+        "visemeSets",
     ]);
     assert.equal(publicCharacterLibraryTools.compileCharacterLibraryData, undefined);
     assert.equal(publicCharacterLibraryTools.normalizeTypeProfile, undefined);
@@ -202,6 +204,56 @@ test("preserves unique characters, modifier inventories, face setup, and authori
 
     assert.throws(() => CjsToolCharacterNormalizer.normalizeFaceControlsProfile({ invalid: [ "bone", 1 ] }), /4 or 7 values/);
     assert.throws(() => CjsToolCharacterNormalizer.normalizeUniqueAnimationOffsetsProfile({ Head: [ 0, 1 ] }), /must contain 3 numeric values/);
+});
+
+test("preserves viseme sets through expanded and compact character libraries", () =>
+{
+    const visemeSet = {
+        id: "female-speech-03",
+        sex: "female",
+        stateGraphPath: "res:/character/female/speech.gsf",
+        parameterNode: "Visemes",
+        neutralVisemeID: "x",
+        maskName: "Mouth",
+        maskBoneNames: [ "Jaw", "LipLower" ],
+        visemes: [
+            {
+                id: "AA",
+                parameterName: "AA",
+                animationName: "Female_Viseme_AA",
+                resourcePath: "res:/character/female/female_viseme_aa.gr2",
+                minimum: 0,
+                maximum: 1,
+                defaultValue: 0
+            },
+            {
+                id: "x",
+                parameterName: "x",
+                animationName: "Female_Additive_Face_Default_03",
+                resourcePath: "res:/character/female/female_additive_face_default_03.gr2",
+                minimum: 0,
+                maximum: 1,
+                defaultValue: 0
+            }
+        ]
+    };
+    const expanded = CjsToolCharacterAssembler.assemble({ visemeSets: [ visemeSet ] });
+
+    assert.deepEqual(expanded.visemeSets.map(value => value.id), [ "female-speech-03" ]);
+
+    const compiled = CjsToolCharacterCompiler.compile(expanded);
+    assert.deepEqual(Object.keys(compiled.visemeSets), [ "female-speech-03" ]);
+    assert.equal(compiled.visemeSets["female-speech-03"].id, undefined);
+    assert.deepEqual(compiled.visemeSets["female-speech-03"].maskBoneNames, [ "Jaw", "LipLower" ]);
+
+    const roundTrip = CjsToolCharacterCompiler.expand(compiled);
+    assert.deepEqual(roundTrip.visemeSets, [ visemeSet ]);
+
+    const library = new CjsCharacterLibrary(roundTrip);
+    const hydrated = library.GetVisemeSet("female-speech-03");
+    assert.ok(hydrated instanceof CjsCharacterVisemeSet);
+    assert.equal(hydrated.visemes[0].id, "AA");
+    assert.equal(hydrated.visemes[1].id, "x");
 });
 
 test("assembles normalized catalogs in stable order and validates source references", () =>

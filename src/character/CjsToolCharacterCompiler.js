@@ -1,6 +1,6 @@
 const KEYED_CATALOGS = [
     "materials", "projections", "poses", "presets", "sculptFields",
-    "blendshapeLimits", "uniqueCharacters"
+    "blendshapeLimits", "uniqueCharacters", "visemeSets"
 ];
 
 /** Stateless transforms between expanded and compact character-library data. */
@@ -517,6 +517,11 @@ function BuildPartSources(parts, metadata, projectionByFolder, partSourceResourc
             colorVariant: part.colorVariant,
             materialId: materialId !== derivedMaterialId ? materialId : null
         });
+    }
+
+    for (const [ sourceId, resourcePaths ] of Object.entries(partSourceResources))
+    {
+        GetSource(sources, sourceId).resources ||= SplitResources(resourcePaths);
     }
 
     for (const record of metadata)

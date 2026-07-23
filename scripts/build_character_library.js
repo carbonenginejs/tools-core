@@ -456,6 +456,8 @@ function LinkParts(catalogs, metadata, partContexts, folders)
         exactModelFolders: 0,
         singleModelFamilyFallbackFolders: 0,
         lodModelFolders: 0,
+        dependencySourcesWithResources: 0,
+        dependencyResourcePaths: 0,
         unresolvedMaterialVariants: []
     };
     for (const { part, baseFolder, sourceFolder } of partContexts)
@@ -497,7 +499,81 @@ function LinkParts(catalogs, metadata, partContexts, folders)
             });
         }
     }
+    LinkDependencyResources(catalogs.partMetadata, partContexts, folders, partSourceResources, report);
     return { report, partSourceResources };
+}
+
+function LinkDependencyResources(partMetadata, partContexts, folders, partSourceResources, report)
+{
+    const metadataById = new Map(partMetadata.map(record => [ record.id.toLowerCase(), record ]));
+    const queue = partContexts.map(({ part }) => part.metadataId).filter(Boolean);
+    const visited = new Set();
+
+    while (queue.length)
+    {
+        const metadataId = String(queue.shift()).toLowerCase();
+        if (visited.has(metadataId)) continue;
+        visited.add(metadataId);
+
+        const record = metadataById.get(metadataId);
+        if (!record) continue;
+        const sex = metadataId.split("/")[0];
+
+        for (const value of record.dependentModifiers || [])
+        {
+            const relative = DependencyResourcePath(value);
+            if (!relative) continue;
+            const sourceId = relative.startsWith("female/") || relative.startsWith("male/")
+                ? relative
+                : `${sex}/${relative}`;
+            const sourceSex = sourceId.split("/")[0];
+            const sourcePath = sourceId.split("/").slice(1).join("/");
+            const folder = `res:/graphics/character/${sourceSex}/paperdoll/${sourcePath}`;
+            const resources = SelectDependencyResources(folder, folders);
+
+            if (resources.length)
+            {
+                const previous = partSourceResources[sourceId];
+                if (previous && JSON.stringify(previous) !== JSON.stringify(resources))
+                {
+                    throw new Error(`Character dependency source "${sourceId}" has conflicting resources`);
+                }
+                if (!previous)
+                {
+                    partSourceResources[sourceId] = resources;
+                    report.dependencySourcesWithResources++;
+                    report.dependencyResourcePaths += resources.length;
+                }
+            }
+
+            if (metadataById.has(sourceId)) queue.push(sourceId);
+        }
+    }
+}
+
+function DependencyResourcePath(value)
+{
+    return String(value || "")
+        .trim()
+        .replace(/#+[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/u, "")
+        .replace(/\\/gu, "/")
+        .replace(/^\/+|\/+$/gu, "")
+        .toLowerCase();
+}
+
+function SelectDependencyResources(selectedFolder, folders)
+{
+    const lodFolder = selectedFolder.replace("/paperdoll/", "/paperdoll_lod/");
+    const entries = [
+        ...(folders.get(selectedFolder) || []),
+        ...(lodFolder === selectedFolder ? [] : folders.get(lodFolder) || [])
+    ].filter(entry => MODEL_EXTENSIONS.has(path.posix.extname(entry.lowerPath))
+        || TEXTURE_EXTENSIONS.has(path.posix.extname(entry.lowerPath)));
+    const unique = new Map(entries.map(entry => [ entry.lowerPath, entry ]));
+
+    return Array.from(unique.values())
+        .sort(CompareResourceEntries)
+        .map(entry => entry.logicalPath);
 }
 
 function ResolvePartResources(inherited, overrides)

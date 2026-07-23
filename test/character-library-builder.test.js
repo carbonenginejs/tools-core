@@ -30,18 +30,39 @@ test("character builder reads and validates profiles from the shared ResFiles ca
     const typeBytes = Buffer.from(JSON.stringify([ "hair/hair_long_01", "", "" ]));
     const typeChecksum = crypto.createHash("md5").update(typeBytes).digest("hex");
     const typeCachePath = path.join(cacheDirectory, "ResFiles", "bb", "hair_long_01.type");
+    const metadataLogicalPath = "res:/graphics/character/female/paperdoll/"
+        + "hair/hair_long_01/metadata.yaml";
+    const metadataStoragePath = "cc/hair_long_01_metadata.yaml";
+    const metadataBytes = Buffer.from(JSON.stringify({
+        dependantModifiers: [
+            "dependants/tuck/basic",
+            "dependants/masktuck/tuckmaskmid",
+        ],
+    }));
+    const metadataChecksum = crypto.createHash("md5").update(metadataBytes).digest("hex");
+    const metadataCachePath = path.join(cacheDirectory, "ResFiles", "cc", "hair_long_01_metadata.yaml");
+    const tuckConfigPath = "res:/graphics/character/female/paperdoll/dependants/tuck/basic/tuck.black";
+    const tuckGeometryPath = "res:/graphics/character/female/paperdoll/dependants/tuck/basic/tuck.gr2";
+    const tuckMaskPath = "res:/graphics/character/female/paperdoll/dependants/"
+        + "masktuck/tuckmaskmid/comp_body_m.png";
     const partID = "female/hair/hair_long_01/types/hair_long_01";
 
     context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
     fs.mkdirSync(path.dirname(cachePath), { recursive: true });
     fs.mkdirSync(path.dirname(typeCachePath), { recursive: true });
+    fs.mkdirSync(path.dirname(metadataCachePath), { recursive: true });
     fs.writeFileSync(cachePath, bytes);
     fs.writeFileSync(typeCachePath, typeBytes);
+    fs.writeFileSync(metadataCachePath, metadataBytes);
     fs.writeFileSync(
         inputPath,
         [
             `${logicalPath},${storagePath},${checksum},${bytes.byteLength},${bytes.byteLength}`,
             `${typeLogicalPath},${typeStoragePath},${typeChecksum},${typeBytes.byteLength},${typeBytes.byteLength}`,
+            `${metadataLogicalPath},${metadataStoragePath},${metadataChecksum},${metadataBytes.byteLength},${metadataBytes.byteLength}`,
+            `${tuckConfigPath},dd/tuck.black,,,`,
+            `${tuckGeometryPath},ee/tuck.gr2,,,`,
+            `${tuckMaskPath},ff/comp_body_m.png,,,`,
             "",
         ].join("\n"),
     );
@@ -77,6 +98,18 @@ test("character builder reads and validates profiles from the shared ResFiles ca
     assert.deepEqual(
         library.partSources["female/hair/hair_long_01"].versions.default.types[partID],
         { typeID: "9001", name: "Long Hair" },
+    );
+    assert.deepEqual(
+        library.partSources["female/dependants/tuck/basic"].resources.configPaths,
+        [ tuckConfigPath ],
+    );
+    assert.deepEqual(
+        library.partSources["female/dependants/tuck/basic"].resources.geometryPaths,
+        [ tuckGeometryPath ],
+    );
+    assert.deepEqual(
+        library.partSources["female/dependants/masktuck/tuckmaskmid"].resources.texturePaths,
+        [ tuckMaskPath ],
     );
 
     fs.writeFileSync(cachePath, "{}");

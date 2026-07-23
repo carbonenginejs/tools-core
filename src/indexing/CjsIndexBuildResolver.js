@@ -1,4 +1,5 @@
 import { CjsIndexProvider, normalizeBuildReference } from "./CjsIndexProvider.js";
+import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
 import * as utils from "../utils.js";
 
 /**
@@ -11,12 +12,21 @@ export class CjsIndexBuildResolver
 
     #latest;
 
+    #maxMetadataBytes;
+
     #now;
+
+    #requestTimeoutMs;
 
     /**
      * Creates a resolver with an injectable Fetch-compatible function.
      */
-    constructor({ fetch = globalThis.fetch, now = Date.now } = {})
+    constructor({
+        fetch = globalThis.fetch,
+        now = Date.now,
+        requestTimeoutMs = 15000,
+        maxMetadataBytes = 64 * 1024,
+    } = {})
     {
         if (typeof fetch !== "function")
         {
@@ -28,9 +38,14 @@ export class CjsIndexBuildResolver
             throw new TypeError("CjsIndexBuildResolver now must be a function");
         }
 
+        CjsBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
+        CjsBoundedFetch.normalizeLimit(maxMetadataBytes, "maxMetadataBytes");
+
         this.#fetch = fetch;
         this.#latest = new Map();
         this.#now = now;
+        this.#requestTimeoutMs = requestTimeoutMs;
+        this.#maxMetadataBytes = maxMetadataBytes;
         Object.freeze(this);
     }
 
@@ -183,11 +198,23 @@ export class CjsIndexBuildResolver
             provider.remote.metadataBaseUrl,
             `eveclient_${client.metadataToken}.json`,
         );
-        const response = await this.#fetch(metadataUrl);
+        const response = await CjsBoundedFetch.request(
+            this.#fetch,
+            metadataUrl,
+            {},
+            {
+                timeoutMs: this.#requestTimeoutMs,
+                label: "Index build metadata request",
+            },
+        );
 
         utils.assertOkResponse(response, metadataUrl);
 
-        const metadata = await response.json();
+        const metadata = await CjsBoundedFetch.readJson(response, {
+            maxBytes: this.#maxMetadataBytes,
+            label: "Index build metadata response",
+            timeoutMs: this.#requestTimeoutMs,
+        });
         const build = parseRemoteBuild(metadata);
 
         return {

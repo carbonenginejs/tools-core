@@ -18,6 +18,7 @@ export class CjsToolCharacterAssembler
         sculptFields: "sculptFields",
         blendshapeLimits: "blendshapeLimits",
         uniqueCharacters: "uniqueCharacters",
+        visemeSets: "visemeSets",
     });
 
     static assemble(catalogs = {}, options = {}, { targets = TargetRegistry } = {})

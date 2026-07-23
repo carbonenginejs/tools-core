@@ -1,5 +1,6 @@
 import { CjsIndexCache } from "./CjsIndexCache.js";
 import { CjsIndex } from "./CjsIndex.js";
+import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
 import * as utils from "../utils.js";
 
 /** Internal capability used by the composed overlay source. */
@@ -17,10 +18,20 @@ export class CjsIndexSource
 
     #inflight;
 
+    #maxPayloadBytes;
+
+    #requestTimeoutMs;
+
     /**
      * Opens cached payload reads over one immutable provider/build index.
      */
-    constructor({ indexes, fetch = globalThis.fetch, cache = null })
+    constructor({
+        indexes,
+        fetch = globalThis.fetch,
+        cache = null,
+        requestTimeoutMs = 30000,
+        maxPayloadBytes = 256 * 1024 * 1024,
+    })
     {
         if (!(indexes instanceof CjsIndex))
         {
@@ -37,6 +48,9 @@ export class CjsIndexSource
             throw new TypeError("CjsIndexSource cache must be a CjsIndexCache or null");
         }
 
+        CjsBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
+        CjsBoundedFetch.normalizeLimit(maxPayloadBytes, "maxPayloadBytes");
+
         this.indexes = indexes;
         this.target = indexes.target;
         this.game = indexes.game;
@@ -50,6 +64,8 @@ export class CjsIndexSource
         this.#fetch = fetch;
         this.#cache = cache;
         this.#inflight = new Map();
+        this.#requestTimeoutMs = requestTimeoutMs;
+        this.#maxPayloadBytes = maxPayloadBytes;
 
         Object.freeze(this);
     }
@@ -230,12 +246,28 @@ export class CjsIndexSource
             }
         }
 
-        const response = await this.#fetch(resolution.sourceUrl, options.fetchOptions);
+        const response = await CjsBoundedFetch.request(
+            this.#fetch,
+            resolution.sourceUrl,
+            options.fetchOptions ?? {},
+            {
+                timeoutMs: this.#requestTimeoutMs,
+                label: "Index payload request",
+            },
+        );
 
         utils.assertOkResponse(response, resolution.sourceUrl);
 
         const bytes = utils.validateResourceBytes(
-            Buffer.from(await response.arrayBuffer()),
+            await CjsBoundedFetch.readBytes(response, {
+                maxBytes: CjsIndexSource.responseLimit(
+                    resolution.record,
+                    this.#maxPayloadBytes,
+                ),
+                label: "Index payload response",
+                timeoutMs: this.#requestTimeoutMs,
+                signal: options.fetchOptions?.signal,
+            }),
             resolution.record,
             resolution.logicalPath,
         );
@@ -247,6 +279,23 @@ export class CjsIndexSource
         ) ?? null;
 
         return Object.freeze({ bytes, cacheHit: false, cachePath });
+    }
+
+    /** Applies both the configured ceiling and an exact declared byte length. */
+    static responseLimit(resource, maximum)
+    {
+        const source = resource?.uncompressedSize;
+
+        if (source === undefined || source === null || source === "")
+        {
+            return maximum;
+        }
+
+        const declared = Number(source);
+
+        return Number.isSafeInteger(declared) && declared >= 0
+            ? Math.min(maximum, Math.max(1, declared))
+            : maximum;
     }
 
 }

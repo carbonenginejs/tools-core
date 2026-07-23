@@ -137,6 +137,56 @@ test("uses exact builds without fetching channel metadata", async () =>
     );
 });
 
+test("bounds index metadata and streamed index response work", async () =>
+{
+    const resolver = new CjsIndexBuildResolver({
+        requestTimeoutMs: 10,
+        fetch: async () => new Promise(() => undefined),
+    });
+
+    await assert.rejects(
+        resolver.Resolve(new CjsIndexProvider(Provider), "latest", "live"),
+        error => error.code === "request_timeout",
+    );
+
+    const tool = new CjsToolIndex({
+        providers: new CjsIndexProviderRegistry([ Provider ]),
+        fetch: async () => streamResponse("123456789"),
+        cache: null,
+        maxIndexBytes: 8,
+    });
+
+    await assert.rejects(
+        tool.Open({ provider: "test", build: "77" }),
+        error => error.code === "response_too_large",
+    );
+});
+
+test("bounds streamed resource payloads before cache validation", async () =>
+{
+    const fetch = async url =>
+    {
+        if (url === "https://indexes.test/eveonline_77.txt")
+        {
+            return createResponse(row("app:/bin/file.bin", "app/file"));
+        }
+
+        return streamResponse("12345");
+    };
+    const tool = new CjsToolIndex({
+        providers: new CjsIndexProviderRegistry([ Provider ]),
+        fetch,
+        cache: null,
+        maxPayloadBytes: 4,
+    });
+    const source = await tool.Open({ provider: "test", build: "77" });
+
+    await assert.rejects(
+        source.Read("app:/bin/file.bin"),
+        error => error.code === "response_too_large",
+    );
+});
+
 test("built-in latest is not a client alias and NetEase tq is not a client", () =>
 {
     const ccp = new CjsIndexProvider(DefaultProviderData.find(
@@ -262,6 +312,35 @@ function jsonResponse(value)
 function binaryResponse(body)
 {
     return { kind: "binary", body: Buffer.from(body) };
+}
+
+function createResponse(body)
+{
+    const buffer = Buffer.from(body);
+
+    return {
+        ok: true,
+        status: 200,
+        async arrayBuffer()
+        {
+            return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        },
+    };
+}
+
+function streamResponse(body)
+{
+    return {
+        ok: true,
+        status: 200,
+        body: new ReadableStream({
+            start(controller)
+            {
+                controller.enqueue(Buffer.from(body));
+                controller.close();
+            },
+        }),
+    };
 }
 
 function createFetch(responses, requests = [])

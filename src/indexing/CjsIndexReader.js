@@ -1,4 +1,5 @@
 import path from "node:path";
+import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
 import { CjsIndexBuildResolver } from "./CjsIndexBuildResolver.js";
 import { CjsIndexCache } from "./CjsIndexCache.js";
 import { parseIndexGroup } from "./CjsIndexGroup.js";
@@ -20,6 +21,10 @@ export class CjsIndexReader
 
     #cache;
 
+    #maxIndexBytes;
+
+    #requestTimeoutMs;
+
     /**
      * Creates a complete remote index reader with optional local caching.
      */
@@ -27,6 +32,9 @@ export class CjsIndexReader
         providers = new CjsIndexProviderRegistry(),
         fetch = globalThis.fetch,
         cache = null,
+        requestTimeoutMs = 30000,
+        maxMetadataBytes = 64 * 1024,
+        maxIndexBytes = 64 * 1024 * 1024,
     } = {})
     {
         if (!(providers instanceof CjsIndexProviderRegistry))
@@ -44,10 +52,20 @@ export class CjsIndexReader
             throw new TypeError("CjsIndexReader cache must be a CjsIndexCache or null");
         }
 
+        CjsBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
+        CjsBoundedFetch.normalizeLimit(maxMetadataBytes, "maxMetadataBytes");
+        CjsBoundedFetch.normalizeLimit(maxIndexBytes, "maxIndexBytes");
+
         this.#providers = providers;
         this.#fetch = fetch;
-        this.#builds = new CjsIndexBuildResolver({ fetch });
+        this.#builds = new CjsIndexBuildResolver({
+            fetch,
+            requestTimeoutMs,
+            maxMetadataBytes,
+        });
         this.#cache = cache;
+        this.#requestTimeoutMs = requestTimeoutMs;
+        this.#maxIndexBytes = maxIndexBytes;
         Object.freeze(this);
     }
 
@@ -142,12 +160,27 @@ export class CjsIndexReader
             }
         }
 
-        const response = await this.#fetch(options.sourceUrl);
+        const response = await CjsBoundedFetch.request(
+            this.#fetch,
+            options.sourceUrl,
+            {},
+            {
+                timeoutMs: this.#requestTimeoutMs,
+                label: "Index file request",
+            },
+        );
 
         utils.assertOkResponse(response, options.sourceUrl);
 
         const bytes = utils.validateResourceBytes(
-            Buffer.from(await response.arrayBuffer()),
+            await CjsBoundedFetch.readBytes(response, {
+                maxBytes: CjsIndexReader.responseLimit(
+                    options.expectedResource,
+                    this.#maxIndexBytes,
+                ),
+                label: "Index file response",
+                timeoutMs: this.#requestTimeoutMs,
+            }),
             options.expectedResource,
             options.sourceUrl,
         );
@@ -171,6 +204,23 @@ export class CjsIndexReader
         );
 
         return group;
+    }
+
+    /** Applies both the configured ceiling and an exact declared byte length. */
+    static responseLimit(resource, maximum)
+    {
+        const source = resource?.uncompressedSize;
+
+        if (source === undefined || source === null || source === "")
+        {
+            return maximum;
+        }
+
+        const declared = Number(source);
+
+        return Number.isSafeInteger(declared) && declared >= 0
+            ? Math.min(maximum, Math.max(1, declared))
+            : maximum;
     }
 
 }

@@ -4,6 +4,7 @@ import { CjsIndexOverlaySource } from "./CjsIndexOverlaySource.js";
 import { CjsIndexOverlayStore } from "./CjsIndexOverlayStore.js";
 import { CjsIndexSource } from "./CjsIndexSource.js";
 import { CjsIndexCache } from "./CjsIndexCache.js";
+import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 
@@ -17,7 +18,11 @@ export class CjsToolIndex
 
     #indexes;
 
+    #maxPayloadBytes;
+
     #overlays;
+
+    #requestTimeoutMs;
 
     #targets;
 
@@ -28,6 +33,10 @@ export class CjsToolIndex
         fetch = globalThis.fetch,
         cache = new CjsIndexCache(),
         overlays = null,
+        requestTimeoutMs = 30000,
+        maxMetadataBytes = 64 * 1024,
+        maxIndexBytes = 64 * 1024 * 1024,
+        maxPayloadBytes = 256 * 1024 * 1024,
     } = {})
     {
         if (typeof fetch !== "function")
@@ -52,11 +61,22 @@ export class CjsToolIndex
             );
         }
 
+        CjsBoundedFetch.normalizeLimit(maxPayloadBytes, "maxPayloadBytes");
+
         this.#fetch = fetch;
         this.#cache = cache;
         this.#targets = targets;
         this.#overlays = overlays;
-        this.#indexes = new CjsIndexReader({ providers, fetch, cache });
+        this.#requestTimeoutMs = requestTimeoutMs;
+        this.#maxPayloadBytes = maxPayloadBytes;
+        this.#indexes = new CjsIndexReader({
+            providers,
+            fetch,
+            cache,
+            requestTimeoutMs,
+            maxMetadataBytes,
+            maxIndexBytes,
+        });
         Object.freeze(this);
     }
 
@@ -113,7 +133,13 @@ export class CjsToolIndex
     {
         const indexes = await this.ReadIndexes(options);
 
-        return new CjsIndexSource({ indexes, fetch: this.#fetch, cache: this.#cache });
+        return new CjsIndexSource({
+            indexes,
+            fetch: this.#fetch,
+            cache: this.#cache,
+            requestTimeoutMs: this.#requestTimeoutMs,
+            maxPayloadBytes: this.#maxPayloadBytes,
+        });
     }
 
     /** Opens cached resource access through a short public target alias. */
@@ -124,6 +150,8 @@ export class CjsToolIndex
             indexes,
             fetch: this.#fetch,
             cache: this.#cache,
+            requestTimeoutMs: this.#requestTimeoutMs,
+            maxPayloadBytes: this.#maxPayloadBytes,
         });
 
         if (!this.#overlays)
