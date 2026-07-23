@@ -1274,7 +1274,7 @@ function stripStructureSuffix(name)
 // Carbon clock types (Be::Time, CcpTime) are int64 tick clocks in C++, converted via
 // TimeAsDouble/TimeAsFloat to seconds before curve evaluation. Runtime-facing JS uses a
 // numeric seconds scalar (float64), never a fake enum "Time" or a raw struct; raw ticks
-// belong only in explicit binary/format readers. See .agents/DECISIONS.md (2026-07-08).
+// belong only in explicit binary or format readers.
 const TIME_SCALAR_CPP = new Set(["Be::Time", "CcpTime"]);
 function isTimeScalarCpp(cppType)
 {
