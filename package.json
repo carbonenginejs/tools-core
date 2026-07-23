@@ -49,6 +49,7 @@
         "docs/",
         "providers/",
         "scripts/",
+        "!scripts/carbon-blue/reports/",
         "src/",
         "README.md",
         "LICENSE",
