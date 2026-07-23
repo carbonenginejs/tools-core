@@ -20,7 +20,7 @@ import {
 } from "./CjsRealtimeTestSupport.js";
 
 const fixture = JSON.parse(await fs.readFile(
-    new URL("../../docs/realtime-protocol-v1.transcript.json", import.meta.url),
+    new URL("../../docs/protocols/realtime-v1.transcript.json", import.meta.url),
     "utf8",
 ));
 

@@ -1,9 +1,14 @@
 import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
 import { CjsRealtimeProtocol } from "../../realtime/CjsRealtimeProtocol.js";
+import {
+    CHAT_FAMILY,
+    CHAT_TOPICS,
+    CjsRealtimeChatContract,
+} from "../../realtime/chat/CjsRealtimeChatContract.js";
 import { CjsTwitchChatSource } from "./CjsTwitchChatSource.js";
 
-const MESSAGE_TOPIC = "chat.message.received";
-const STATUS_TOPIC = "chat.status.changed";
+const MESSAGE_TOPIC = CHAT_TOPICS.MESSAGE_RECEIVED;
+const STATUS_TOPIC = CHAT_TOPICS.STATUS_CHANGED;
 
 /** Exposes a Twitch transport through the provider-neutral live chat family. */
 export class CjsRealtimeTwitchChatService
@@ -14,6 +19,8 @@ export class CjsRealtimeTwitchChatService
     #clock;
 
     #context;
+
+    #integrationId;
 
     #operations;
 
@@ -31,6 +38,7 @@ export class CjsRealtimeTwitchChatService
         id,
         provider = null,
         source = null,
+        integrationId = null,
         room = null,
         clock = () => Date.now(),
         recentMessageLimit = 1000,
@@ -46,7 +54,17 @@ export class CjsRealtimeTwitchChatService
             throw new TypeError("Twitch chat service requires exactly one provider or source");
         }
 
-        const chatSource = source ?? new CjsTwitchChatSource({ provider });
+        if (source !== null && integrationId !== null)
+        {
+            throw new TypeError(
+                "Twitch chat integrationId belongs to the shared source",
+            );
+        }
+
+        const chatSource = source ?? new CjsTwitchChatSource({
+            provider,
+            integrationId,
+        });
 
         if (typeof chatSource.kind !== "string"
             || typeof chatSource.Attach !== "function"
@@ -67,6 +85,11 @@ export class CjsRealtimeTwitchChatService
 
         this.id = id;
         this.#room = CjsRealtimeTwitchChatService.normalizeRoom(room);
+        this.#integrationId = CjsRealtimeChatContract.normalizeNullableString(
+            chatSource.integrationId ?? null,
+            "source.integrationId",
+            256,
+        );
         this.#clock = clock;
         this.#recentMessageLimit = recentMessageLimit;
         this.#accepting = false;
@@ -81,7 +104,7 @@ export class CjsRealtimeTwitchChatService
     Describe()
     {
         return {
-            family: "chat",
+            family: CHAT_FAMILY,
             familyVersion: 1,
             kind: this.#source.kind,
             id: this.id,
@@ -153,7 +176,10 @@ export class CjsRealtimeTwitchChatService
 
         try
         {
-            normalized = CjsRealtimeTwitchChatService.normalizeMessage(message);
+            normalized = CjsRealtimeTwitchChatService.normalizeMessage(
+                message,
+                this.#integrationId,
+            );
         }
         catch
         {
@@ -173,7 +199,8 @@ export class CjsRealtimeTwitchChatService
 
         const operation = this.#context.Commit(async context =>
         {
-            if (!this.#accepting || this.#IsDuplicate(normalized.room.id, normalized.id))
+            if (!this.#accepting
+                || this.#IsDuplicate(normalized.room, normalized.id))
             {
                 return;
             }
@@ -181,7 +208,7 @@ export class CjsRealtimeTwitchChatService
             await context.Publish(MESSAGE_TOPIC, normalized, {
                 occurredAt: normalized.occurredAt,
             });
-            this.#Remember(normalized.room.id, normalized.id);
+            this.#Remember(normalized.room, normalized.id);
         });
 
         this.#Track(operation);
@@ -202,6 +229,7 @@ export class CjsRealtimeTwitchChatService
                 status,
                 this.#source.kind,
                 this.#clock(),
+                this.#integrationId,
             );
         }
         catch
@@ -216,19 +244,22 @@ export class CjsRealtimeTwitchChatService
         this.#Track(operation);
     }
 
-    #IsDuplicate(roomId, messageId)
+    #IsDuplicate(room, messageId)
     {
-        return this.#recentByRoom.get(roomId)?.ids.has(messageId) ?? false;
+        const roomKey = CjsRealtimeChatContract.roomKey(room);
+
+        return this.#recentByRoom.get(roomKey)?.ids.has(messageId) ?? false;
     }
 
-    #Remember(roomId, messageId)
+    #Remember(room, messageId)
     {
-        let record = this.#recentByRoom.get(roomId);
+        const roomKey = CjsRealtimeChatContract.roomKey(room);
+        let record = this.#recentByRoom.get(roomKey);
 
         if (!record)
         {
             record = { ids: new Set(), order: [] };
-            this.#recentByRoom.set(roomId, record);
+            this.#recentByRoom.set(roomKey, record);
         }
 
         record.ids.add(messageId);
@@ -252,19 +283,34 @@ export class CjsRealtimeTwitchChatService
     }
 
     /** Requires the stable fields shared by all live chat transports. */
-    static normalizeMessage(value)
+    static normalizeMessage(value, integrationId = null)
     {
-        const normalized = CjsRealtimeProtocol.cloneJson(value);
+        let candidate = value;
 
-        if (!normalized || typeof normalized !== "object"
-            || typeof normalized.id !== "string" || normalized.id.length === 0
-            || typeof normalized.text !== "string" || normalized.text.length === 0
-            || normalized.deliveryMode !== "live"
-            || typeof normalized.room?.id !== "string" || normalized.room.id.length === 0
-            || normalized.room.provider !== "twitch"
-            || typeof normalized.author?.id !== "string"
-            || normalized.author.id.length === 0
-            || !Number.isFinite(Date.parse(normalized.occurredAt)))
+        if (integrationId !== null)
+        {
+            if (!CjsRealtimeProtocol.isRecord(value)
+                || !CjsRealtimeProtocol.isRecord(value.room))
+            {
+                throw new CjsRealtimeError(
+                    "twitch_invalid_message",
+                    "Twitch delivered an invalid normalized chat message",
+                );
+            }
+
+            candidate = {
+                ...value,
+                room: {
+                    ...value.room,
+                    integrationId,
+                },
+            };
+        }
+
+        const normalized = CjsRealtimeChatContract.normalizeMessage(candidate);
+
+        if (normalized.room.provider !== "twitch"
+            || !CjsRealtimeProtocol.isRecord(normalized.extensions.twitch))
         {
             throw new CjsRealtimeError(
                 "twitch_invalid_message",
@@ -312,26 +358,28 @@ export class CjsRealtimeTwitchChatService
     }
 
     /** Creates the bounded provider status exposed to chat consumers. */
-    static normalizeStatus(value, transport, receivedAt)
+    static normalizeStatus(value, kind, receivedAt, integrationId = null)
     {
-        const states = new Set([ "degraded", "ready", "reconnecting" ]);
-        const state = value?.state;
-        const reasonCode = value?.reasonCode ?? null;
-        const occurredAt = value?.occurredAt ?? receivedAt;
-
-        if (!states.has(state) || (reasonCode !== null
-            && (typeof reasonCode !== "string"
-                || !/^[a-z][a-z0-9_]{0,63}$/u.test(reasonCode))))
+        if (!new Set([ "twitch.eventsub", "twitch.irc" ]).has(kind))
         {
             throw new TypeError("Twitch provider status is invalid");
         }
 
-        return Object.freeze({
-            state,
-            reasonCode,
+        return CjsRealtimeChatContract.normalizeStatus({
+            state: value?.state,
+            reasonCode: value?.reasonCode ?? null,
             retryable: value?.retryable === true,
-            occurredAt: new Date(occurredAt).toISOString(),
-            transport,
+            occurredAt: new Date(value?.occurredAt ?? receivedAt).toISOString(),
+            source: {
+                provider: "twitch",
+                integrationId,
+            },
+            room: null,
+            extensions: {
+                twitch: {
+                    transport: kind.slice("twitch.".length),
+                },
+            },
         });
     }
 

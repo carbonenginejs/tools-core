@@ -61,6 +61,7 @@ test("serves health, SOF values, and compatibility document requests without a f
         protocolVersion: 1,
         capabilities: {
             resources: false,
+            audio: false,
             character: false,
             sde: false,
             skin: false,
@@ -123,7 +124,16 @@ test("answers browser CORS preflight without an authentication contract", async 
 
     assert.equal(preflight.status, 204);
     assert.equal(preflight.headers.get("access-control-allow-origin"), "*");
-    assert.equal(preflight.headers.get("access-control-allow-headers"), "Content-Type");
+    assert.equal(
+        preflight.headers.get("access-control-allow-headers"),
+        [
+            "Accept",
+            "Accept-Language",
+            "Content-Type",
+            "If-None-Match",
+            "Range",
+        ].join(", "),
+    );
     assert.equal(preflight.headers.get("access-control-allow-private-network"), "true");
     assert.equal(await preflight.text(), "");
 
@@ -231,6 +241,7 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
 
     assert.deepEqual((await health.json()).capabilities, {
         resources: false,
+        audio: false,
         character: false,
         sde: true,
         skin: true,
@@ -424,6 +435,7 @@ test("resolves character names and type identities with atomic LOD bundles", asy
 
     assert.deepEqual((await health.json()).capabilities, {
         resources: false,
+        audio: false,
         character: true,
         sde: false,
         skin: false,
@@ -671,6 +683,7 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
     assert.equal(health.status, 200);
     assert.deepEqual(healthBody.capabilities, {
         resources: true,
+        audio: false,
         character: false,
         sde: false,
         skin: false,
@@ -848,6 +861,7 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
     assert.equal(bootstrap.dataDirectory, path.resolve(dataDirectory));
     assert.deepEqual(bootstrap.capabilities, {
         resources: true,
+        audio: true,
         character: true,
         sde: true,
         skin: true,

@@ -1,11 +1,14 @@
 # Carbon tools realtime protocol v1
 
-Status: normative package contract, 2026-07-23
+Status: Stable  
+Scope: `@carbonenginejs/tools-core/realtime`, protocol version 1  
+Audience: Integrators and realtime client implementers  
+Summary: Defines the authenticated HTTP and WebSocket contract for CarbonEngineJS tool services.
 
 This document defines the version 1 boundary implemented by `tools-core` and
 consumed by `tools-browser` or other process clients. The executable examples
 are checked in beside it as
-`docs/realtime-protocol-v1.transcript.json`. Package tests replay those
+`realtime-v1.transcript.json`. Package tests replay those
 transcripts through the real hub so that documentation and implementation do
 not drift silently.
 

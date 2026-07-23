@@ -1,6 +1,9 @@
 # Realtime livestream contract v1
 
-Status: normative package contract, 2026-07-23
+Status: Stable  
+Scope: `@carbonenginejs/tools-core/realtime/livestream`, family version 1  
+Audience: Provider integration authors and realtime consumers  
+Summary: Defines provider-neutral livestream activity and state payloads for realtime services.
 
 This contract defines the provider-neutral payloads published by tools-core
 livestream integrations. It is independent of the WebSocket framing contract:

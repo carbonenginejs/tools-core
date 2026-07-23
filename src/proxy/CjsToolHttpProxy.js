@@ -10,10 +10,19 @@ export const TOOLS_SERVICE_PROTOCOL = "carbon.tools";
 export const TOOLS_SERVICE_PROTOCOL_VERSION = 1;
 const CORS_HEADERS = Object.freeze({
     "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "Content-Type",
+    "access-control-allow-methods": "GET, HEAD, POST, OPTIONS",
+    "access-control-allow-headers": [
+        "Accept",
+        "Accept-Language",
+        "Content-Type",
+        "If-None-Match",
+        "Range",
+    ].join(", "),
     "access-control-allow-private-network": "true",
     "access-control-expose-headers": [
+        "Accept-Ranges",
+        "Content-Language",
+        "Content-Range",
         "X-Carbon-Answer",
         "X-Carbon-Target",
         "X-Carbon-Game",
@@ -26,6 +35,8 @@ const CORS_HEADERS = Object.freeze({
         "X-Carbon-Storage-Kind",
         "X-Carbon-SOF-Hull",
         "X-Carbon-Respath-Insert",
+        "X-Carbon-Audio-Media-ID",
+        "X-Carbon-Audio-Path",
         "ETag",
     ].join(", "),
 });
@@ -48,6 +59,7 @@ export class CjsToolHttpProxy
         indexes = null,
         sde = null,
         characters = null,
+        audio = null,
         maxRequestBytes = 1024 * 1024,
     } = {})
     {
@@ -71,10 +83,16 @@ export class CjsToolHttpProxy
             throw new TypeError("CjsToolHttpProxy character service must provide OpenTarget(target, build)");
         }
 
-        if (core === null && indexes === null && sde === null && characters === null)
+        if (audio !== null && typeof audio.OpenTarget !== "function")
+        {
+            throw new TypeError("CjsToolHttpProxy audio service must provide OpenTarget(target, build)");
+        }
+
+        if (core === null && indexes === null && sde === null
+            && characters === null && audio === null)
         {
             throw new TypeError(
-                "CjsToolHttpProxy requires a core, index, SDE, or character service"
+                "CjsToolHttpProxy requires a core, index, SDE, character, or audio service"
             );
         }
 
@@ -87,6 +105,7 @@ export class CjsToolHttpProxy
         this.indexes = indexes;
         this.sde = sde;
         this.characters = characters;
+        this.audio = audio;
         this.maxRequestBytes = maxRequestBytes;
         this.#answerCatalogs = new Map();
         this.#targetSources = new Map();
@@ -94,6 +113,7 @@ export class CjsToolHttpProxy
         this.#weaponLibraries = new Map();
         this.capabilities = Object.freeze({
             resources: indexes !== null,
+            audio: audio !== null,
             character: characters !== null,
             sde: sde !== null,
             skin: sde !== null,
@@ -192,6 +212,14 @@ export class CjsToolHttpProxy
         }
 
         let targetRoute = MatchTargetRoute(url.pathname);
+
+        if ([ "GET", "HEAD" ].includes(request.method)
+            && targetRoute?.topic === "audio")
+        {
+            await this.#HandleAudioRoute(request, targetRoute, response);
+
+            return;
+        }
 
         if (request.method === "GET" && targetRoute)
         {
@@ -488,6 +516,67 @@ export class CjsToolHttpProxy
         }
 
         WriteJson(response, 404, { error: "Not found" });
+    }
+
+    async #HandleAudioRoute(request, route, response)
+    {
+        if (!this.audio)
+        {
+            WriteJson(response, 501, { error: "Audio service is not configured" });
+
+            return;
+        }
+
+        const audio = await this.audio.OpenTarget(route.target, route.build);
+        const audioRequest = ParseAudioRequest(route.path);
+        const mediaTypes = ParseAcceptHeader(request.headers.accept);
+        const selection = audioRequest.kind === "id"
+            ? audio.ResolveMediaByID(audioRequest.value, {
+                mediaTypes,
+                languages: ParseAcceptLanguageHeader(
+                    request.headers["accept-language"],
+                ),
+            })
+            : audio.ResolveMediaByPath(audioRequest.value, { mediaTypes });
+        const range = ParseByteRange(
+            request.headers.range,
+            selection.totalByteLength,
+        );
+        let headers = CreateAudioHeaders(
+            audio,
+            route,
+            audioRequest,
+            selection,
+            range,
+        );
+
+        if (IsNotModified(request, selection.etag))
+        {
+            WriteEmpty(response, 304, headers);
+
+            return;
+        }
+
+        const statusCode = range ? 206 : 200;
+
+        if (request.method === "HEAD")
+        {
+            WriteHead(response, statusCode, headers);
+
+            return;
+        }
+
+        const result = await audio.Read(selection, range ?? {});
+
+        if (headers["content-length"] === undefined)
+        {
+            headers = {
+                ...headers,
+                "content-length": result.byteLength,
+            };
+        }
+
+        WriteBytes(response, statusCode, result.bytes, headers);
     }
 
     async #HandleIndexAnswerRoute(route, response)
@@ -1317,6 +1406,226 @@ function MatchTargetRoute(pathname)
     }
 }
 
+function ParseAudioRequest(value)
+{
+    const path = String(value ?? "");
+    const separator = path.indexOf("/");
+    const kind = (separator === -1 ? path : path.slice(0, separator)).toLowerCase();
+    const requestValue = separator === -1 ? "" : path.slice(separator + 1);
+
+    if (kind === "id")
+    {
+        if (!requestValue || requestValue.includes("/"))
+        {
+            throw new TypeError("Audio ID route requires one media ID");
+        }
+
+        return Object.freeze({ kind, value: requestValue });
+    }
+
+    if (kind === "path")
+    {
+        if (!requestValue)
+        {
+            throw new TypeError("Audio path route requires one indexed audio path");
+        }
+
+        return Object.freeze({ kind, value: requestValue });
+    }
+
+    const error = new Error("Audio route not found");
+
+    error.statusCode = 404;
+    throw error;
+}
+
+function ParseAcceptHeader(value)
+{
+    return ParseWeightedHeader(value, item =>
+    {
+        const mediaType = item.toLowerCase();
+
+        if (!/^(?:\*\/\*|[a-z0-9!#$&^_.+-]+\/(?:\*|[a-z0-9!#$&^_.+-]+))$/u
+            .test(mediaType))
+        {
+            throw new TypeError(`Invalid Accept media type: ${item}`);
+        }
+
+        return mediaType;
+    });
+}
+
+function ParseAcceptLanguageHeader(value)
+{
+    return ParseWeightedHeader(value, item =>
+    {
+        const language = item.replaceAll("_", "-").toLowerCase();
+
+        if (language !== "*" && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(language))
+        {
+            throw new TypeError(`Invalid Accept-Language value: ${item}`);
+        }
+
+        return language;
+    });
+}
+
+function ParseWeightedHeader(value, normalize)
+{
+    if (value === undefined || value === null || value === "")
+    {
+        return [];
+    }
+
+    const values = [];
+
+    for (const [ index, part ] of String(value).split(",").entries())
+    {
+        const segments = part.split(";").map(segment => segment.trim());
+        const item = segments.shift();
+        let quality = 1;
+
+        if (!item)
+        {
+            throw new TypeError("Weighted request header contains an empty value");
+        }
+
+        for (const parameter of segments)
+        {
+            const match = parameter.match(/^q=(0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/u);
+
+            if (!match)
+            {
+                throw new TypeError(`Invalid weighted request-header parameter: ${parameter}`);
+            }
+
+            quality = Number(match[1]);
+        }
+
+        if (quality > 0)
+        {
+            values.push({
+                value: normalize(item),
+                quality,
+                index,
+            });
+        }
+    }
+
+    return values
+        .sort((left, right) =>
+            right.quality - left.quality
+            || left.index - right.index)
+        .map(item => item.value);
+}
+
+function ParseByteRange(value, totalByteLength)
+{
+    if (value === undefined || value === null || value === "")
+    {
+        return null;
+    }
+
+    if (!Number.isSafeInteger(totalByteLength) || totalByteLength < 0)
+    {
+        throw CreateRangeError(totalByteLength);
+    }
+
+    const match = String(value).trim().match(/^bytes=(\d*)-(\d*)$/u);
+
+    if (!match || (!match[1] && !match[2]))
+    {
+        throw CreateRangeError(totalByteLength);
+    }
+
+    let offset;
+    let end;
+
+    if (match[1])
+    {
+        offset = Number(match[1]);
+        end = match[2] ? Number(match[2]) : totalByteLength - 1;
+
+        if (!Number.isSafeInteger(offset)
+            || !Number.isSafeInteger(end)
+            || offset >= totalByteLength
+            || end < offset)
+        {
+            throw CreateRangeError(totalByteLength);
+        }
+
+        end = Math.min(end, totalByteLength - 1);
+    }
+    else
+    {
+        const suffixLength = Number(match[2]);
+
+        if (!Number.isSafeInteger(suffixLength)
+            || suffixLength < 1
+            || totalByteLength < 1)
+        {
+            throw CreateRangeError(totalByteLength);
+        }
+
+        offset = Math.max(0, totalByteLength - suffixLength);
+        end = totalByteLength - 1;
+    }
+
+    return Object.freeze({
+        offset,
+        byteLength: end - offset + 1,
+        end,
+    });
+}
+
+function CreateRangeError(totalByteLength)
+{
+    const error = new Error("Requested audio byte range is not satisfiable");
+
+    error.statusCode = 416;
+    error.headers = Number.isSafeInteger(totalByteLength) && totalByteLength >= 0
+        ? { "content-range": `bytes */${totalByteLength}` }
+        : {};
+
+    return error;
+}
+
+function CreateAudioHeaders(audio, route, audioRequest, selection, range)
+{
+    const contentLength = range?.byteLength ?? selection.totalByteLength;
+    const headers = {
+        "x-carbon-answer": audioRequest.kind === "id" ? "audio-id" : "audio-path",
+        "x-carbon-target": audio.sourceTarget || route.target,
+        "x-carbon-game": audio.sourceGame || "",
+        "x-carbon-provider": audio.sourceProvider || "",
+        "x-carbon-build": audio.sourceBuild || route.build,
+        "content-type": selection.mediaType,
+        ...(selection.language
+            ? { "content-language": selection.language }
+            : {}),
+        "cache-control": utils.isExactBuild(route.build)
+            ? "public, max-age=31536000, immutable"
+            : "public, max-age=300, must-revalidate",
+        vary: audioRequest.kind === "id"
+            ? "Accept, Accept-Language"
+            : "Accept",
+        ...(selection.etag ? { etag: selection.etag } : {}),
+        ...(selection.acceptRanges ? { "accept-ranges": "bytes" } : {}),
+        ...(contentLength === null
+            ? {}
+            : { "content-length": contentLength }),
+        ...(range ? {
+            "content-range":
+                `bytes ${range.offset}-${range.end}/${selection.totalByteLength}`,
+        } : {}),
+        ...(audioRequest.kind === "id"
+            ? { "x-carbon-audio-media-id": selection.mediaID }
+            : { "x-carbon-audio-path": selection.path }),
+    };
+
+    return headers;
+}
+
 function IsLoopback(value)
 {
     const address = String(value ?? "").toLowerCase();
@@ -1584,11 +1893,12 @@ function IsNotModified(request, etag)
         return false;
     }
 
+    const expected = String(etag).replace(/^W\//u, "");
     const candidates = String(request.headers?.["if-none-match"] ?? "")
         .split(",")
         .map(value => value.trim().replace(/^W\//u, ""));
 
-    return candidates.includes("*") || candidates.includes(etag);
+    return candidates.includes("*") || candidates.includes(expected);
 }
 
 async function ReadJson(request, maxBytes)
@@ -1653,7 +1963,7 @@ function WriteError(response, error)
 
     WriteJson(response, statusCode, {
         error: statusCode === 500 ? "Internal tool error" : error.message
-    });
+    }, error?.headers ?? {});
 }
 
 function WriteJson(response, statusCode, value, headers = {})
@@ -1689,6 +1999,16 @@ function WriteEmpty(response, statusCode, headers = {})
     response.writeHead(statusCode, {
         ...CORS_HEADERS,
         "content-length": 0,
+        "cache-control": "no-store",
+        ...headers,
+    });
+    response.end();
+}
+
+function WriteHead(response, statusCode, headers = {})
+{
+    response.writeHead(statusCode, {
+        ...CORS_HEADERS,
         "cache-control": "no-store",
         ...headers,
     });
