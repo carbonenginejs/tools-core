@@ -5,6 +5,7 @@ import test from "node:test";
 import {
     CHAT_FAMILY,
     CHAT_TOPICS,
+    CjsRealtimeChatBlockList,
     CjsRealtimeChatContract,
 } from "../../../src/realtime/chat/index.js";
 
@@ -18,6 +19,7 @@ test("exports the provider-neutral chat contract subpath", async () =>
     const chat = await import("@carbonenginejs/tools-core/realtime/chat");
 
     assert.equal(chat.CjsRealtimeChatContract, CjsRealtimeChatContract);
+    assert.equal(chat.CjsRealtimeChatBlockList, CjsRealtimeChatBlockList);
     assert.equal(CHAT_FAMILY, "chat");
     assert.equal(CHAT_TOPICS.MESSAGE_RECEIVED, "chat.message.received");
     assert.equal(CHAT_TOPICS.STATUS_CHANGED, "chat.status.changed");
@@ -72,6 +74,165 @@ test("keys messages by complete provider integration and room identity", () =>
     assert.equal(
         CjsRealtimeChatContract.roomKey(first),
         CjsRealtimeChatContract.roomKey(structuredClone(first)),
+    );
+});
+
+test("selects provider rooms by hierarchy and stable id or login", () =>
+{
+    const twitchRoom = fixtures.messages[0].data.room;
+    const selector = CjsRealtimeChatContract.normalizeRoomSelector({
+        provider: "twitch",
+        integrationId: twitchRoom.integrationId,
+        kind: "channel",
+        login: twitchRoom.login.toUpperCase(),
+    });
+
+    assert.equal(
+        CjsRealtimeChatContract.matchesRoomSelector(selector, twitchRoom),
+        true,
+    );
+    assert.equal(
+        CjsRealtimeChatContract.matchesRoomSelector({
+            provider: "twitch",
+            integrationId: "twitch-secondary",
+            id: twitchRoom.id,
+        }, twitchRoom),
+        false,
+    );
+    assert.throws(
+        () => CjsRealtimeChatContract.normalizeRoomSelector({
+            provider: "twitch",
+        }),
+        /requires id or login/u,
+    );
+});
+
+test("preserves animated emote formats and hosted visual media", () =>
+{
+    const message = structuredClone(fixtures.messages[0].data);
+
+    message.room.assets = {
+        icon: {
+            id: "room-icon",
+            url: "https://example.test/room-icon.png",
+            contentType: "image/png",
+            animated: false,
+        },
+    };
+    message.fragments = [
+        {
+            type: "emote",
+            text: "Wave",
+            emote: {
+                id: "emote-one",
+                setId: "set-one",
+                ownerId: "owner-one",
+                formats: [ "static", "animated" ],
+                asset: {
+                    id: "emote-one-animated",
+                    url: "https://example.test/emote-one.gif",
+                    contentType: "image/gif",
+                    animated: true,
+                },
+            },
+        },
+        {
+            type: "media",
+            text: "GIF",
+            media: {
+                id: "gif-one",
+                url: "https://example.test/chat/gif-one.gif",
+                contentType: "image/gif",
+                animated: true,
+            },
+        },
+    ];
+    const normalized = CjsRealtimeChatContract.normalizeMessage(message);
+
+    assert.deepEqual(normalized.fragments[0].emote.formats, [
+        "animated",
+        "static",
+    ]);
+    assert.equal(normalized.fragments[0].emote.asset.url,
+        "https://example.test/emote-one.gif");
+    assert.equal(normalized.room.assets.icon.url,
+        "https://example.test/room-icon.png");
+    assert.equal(normalized.fragments[1].media.animated, true);
+    assert.throws(() => CjsRealtimeChatContract.normalizeMedia({
+        id: null,
+        url: "http://example.test/not-secure.gif",
+        contentType: "image/gif",
+        animated: true,
+    }), /must use HTTPS/u);
+});
+
+test("supports empty, scoped-term, and stable-user block lists without defaults", () =>
+{
+    const empty = new CjsRealtimeChatBlockList();
+
+    assert.equal(empty.IsEmpty(), true);
+    const blocks = new CjsRealtimeChatBlockList({
+        terms: [
+            "spoiler",
+            {
+                text: "room secret",
+                provider: "twitch",
+                roomLogin: "blockedroom",
+            },
+        ],
+        users: [ {
+            provider: "twitch",
+            id: "blocked-user",
+            login: "old-login",
+        } ],
+    });
+    const room = {
+        provider: "twitch",
+        integrationId: "primary",
+        space: null,
+        id: "200",
+        kind: "channel",
+        parentRoomId: null,
+        login: "BlockedRoom",
+    };
+
+    assert.equal(blocks.IsEmpty(), false);
+    assert.equal(Object.isFrozen(blocks), true);
+    assert.equal(blocks.BlocksTerm(room, "A SPOILER appeared"), true);
+    assert.equal(blocks.BlocksTerm(room, "The room secret appeared"), true);
+    assert.equal(blocks.BlocksTerm({
+        ...room,
+        login: "allowedroom",
+    }, "The room secret appeared"), false);
+    assert.equal(blocks.BlocksMessage({
+        room,
+        author: {
+            id: "allowed-user",
+            login: "allowed-user",
+        },
+        text: "",
+        fragments: [ {
+            type: "emote",
+            text: "Wave",
+            emote: { id: "emote-one" },
+        } ],
+    }), false);
+    assert.equal(blocks.BlocksUser({
+        ...room,
+        login: "allowedroom",
+    }, {
+        id: "blocked-user",
+        login: "renamed-user",
+    }), true);
+    assert.equal(blocks.BlocksUser(room, {
+        id: "allowed-user",
+        login: "old-login",
+    }), false);
+    assert.throws(
+        () => new CjsRealtimeChatBlockList({
+            users: [ { provider: "twitch" } ],
+        }),
+        /requires id or login/u,
     );
 });
 

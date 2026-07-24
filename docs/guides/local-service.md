@@ -47,12 +47,18 @@ groups are:
 | `/eve/{build}/skin[...]` | SKIN library sections |
 | `/eve/{build}/skinr[...]` | SKINR library sections |
 | `/eve/{build}/weapons[...]` | Weapon, ammunition, projectile, and group queries |
+| `/eve/{build}/sof/{catalog}[...]` | GPU-free runtime-sof catalog collections and details |
+| `/eve/{build}/sof/dna/<dna>` | GPU-free runtime-sof `carbon.document` |
 | `/v1/sof/values` | Recommended plain SOF model values when configured |
 | `/v1/sof/document` | Diagnostic `carbon.document` when configured |
 
 Specialized billboard, nebula, cube, and hull resource-path-insert routes
 provide derived answers that are not plain directory enumeration. Response
 headers expose the exact resolved build even when the request uses `latest`.
+The target/build SOF routes use the same exact resource source, decode
+`data.black` once per retained build, and pass the complete resource-file list
+to runtime-sof for resPathInsert existence checks. They return runtime-sof's
+catalog projections and document JSON without runtime-trinity hydration.
 
 See the [local HTTP route reference](../reference/http-routes.md) for the
 complete implemented route families and query semantics.

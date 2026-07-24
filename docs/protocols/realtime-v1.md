@@ -108,10 +108,11 @@ request ID cannot be reused, even after its request has completed.
 }
 ```
 
-Topics must be non-empty and unique. Version 1 permits at most one active
-subscription to a given service on one connection. The completed result
-contains the opaque `subscriptionId`, service identity, and a cursor captured
-on the service publication lane:
+Topics must be non-empty and unique. A connection may hold several active
+subscriptions to the same service when discovery advertises
+`subscriptions.multiple`. The completed result contains the opaque
+`subscriptionId`, service identity, and a cursor captured on the service
+publication lane:
 
 ```json
 {
@@ -144,6 +145,42 @@ delivered after the result. An aggregate chat service may carry an unlimited
 configured set of provider rooms in its payloads. Exact-room services are
 separate least-privilege projections over the same provider source, not one
 WebSocket connection per room.
+
+### Targeted subscribe
+
+A service whose discovery advertises a non-null `subscriptions.target` accepts
+the explicit `subscribe-targeted` message type:
+
+```json
+{
+    "type": "subscribe-targeted",
+    "requestId": "subscribe-fenris-1",
+    "serviceId": "primary-chat",
+    "topics": [
+        "chat.message.received",
+        "chat.status.changed"
+    ],
+    "target": {
+        "room": {
+            "provider": "twitch",
+            "login": "fenriscreations"
+        }
+    }
+}
+```
+
+The distinct message type makes a targeted client fail safely against an older
+server instead of silently receiving an aggregate feed. The service validates
+and canonicalizes the target; the completed result echoes that canonical
+target. A service may enrich it with stable IDs, display names, hierarchy, and
+URL-backed presentation assets. For example, chat room activation can return a
+Twitch channel profile image or Discord guild icon without requiring a browser
+to call the supplier API.
+
+Targeted subscriptions have delivery-local sequence and topic-sequence
+counters. Events for sibling targets do not create apparent gaps. They retain
+the service stream ID and the same subscribe/unsubscribe barrier semantics as
+aggregate subscriptions.
 
 ### Unsubscribe
 
@@ -264,7 +301,9 @@ by the revision-pinned content route.
 
 Discovery has schema `carbon.tools.realtime.discovery`, version 1. Snapshots
 have schema `carbon.tools.realtime.snapshot`, version 1, a service identity,
-cursor, and family-versioned payload.
+cursor, and family-versioned payload. Each service description includes
+`subscriptions.multiple` and `subscriptions.target`; a null target means that
+the service accepts aggregate subscriptions only.
 
 For a topic whose discovery recovery is `snapshot`, a client subscribes first,
 buffers matching events, obtains a snapshot, discards buffered events from a

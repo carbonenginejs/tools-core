@@ -121,6 +121,43 @@ test("named nested structs do not leak their members into the containing class",
     assert.deepEqual(classInfo.fields.map(field => field.name), ["m_position"]);
 });
 
+test("header methods retain declaration owner and virtual contract metadata", () =>
+{
+    const parsed = scanner.__test.parseHeaderFile(`
+        BLUE_INTERFACE( IFixtureRenderable ) :
+            public IRoot
+        {
+        public:
+            virtual bool IsVisible() const
+            {
+                return true;
+            }
+            virtual bool HasTransparentBatches() = 0;
+            void Rebuild() override;
+            int Count() const;
+        };
+    `, "trinity/trinity/IFixtureRenderable.h");
+    const classInfo = parsed.classes.find(item => item.name === "IFixtureRenderable");
+
+    assert.ok(classInfo);
+    assert.equal(classInfo.declarationKind, "interface");
+    assert.deepEqual(classInfo.fields, [], "inline method bodies must not produce fields");
+    const byName = new Map(classInfo.methods.map(method => [method.name, method]));
+    assert.deepEqual({
+        declaredOn: byName.get("HasTransparentBatches").declaredOn,
+        virtual: byName.get("HasTransparentBatches").virtual,
+        pureVirtual: byName.get("HasTransparentBatches").pureVirtual
+    }, {
+        declaredOn: "IFixtureRenderable",
+        virtual: true,
+        pureVirtual: true
+    });
+    assert.equal(byName.get("Rebuild").virtual, true, "override is a virtual declaration");
+    assert.equal(byName.get("Rebuild").pureVirtual, false);
+    assert.equal(byName.get("Count").virtual, false);
+    assert.equal(byName.get("Count").isConst, true);
+});
+
 test("EXPOSURE_CHAINTO records the Blue persistence parent per class", () =>
 {
     const scanner = require(scannerPath);

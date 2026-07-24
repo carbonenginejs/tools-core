@@ -131,6 +131,213 @@ export class CjsRealtimeChatContract
         ]);
     }
 
+    /** Normalizes a client-selected room at any provider hierarchy tier. */
+    static normalizeRoomSelector(value)
+    {
+        if (!CjsRealtimeProtocol.isRecord(value))
+        {
+            throw new TypeError("Chat room selector must be an object");
+        }
+
+        const id = CjsRealtimeChatContract.normalizeNullableString(
+            value.id ?? null,
+            "room selector.id",
+            256,
+        );
+        const login = CjsRealtimeChatContract.normalizeNullableString(
+            value.login ?? null,
+            "room selector.login",
+            256,
+        );
+
+        if (id === null && login === null)
+        {
+            throw new TypeError("Chat room selector requires id or login");
+        }
+
+        return CjsRealtimeChatContract.freeze({
+            provider: CjsRealtimeChatContract.normalizeProvider(value.provider),
+            integrationId: CjsRealtimeChatContract.normalizeNullableString(
+                value.integrationId ?? null,
+                "room selector.integrationId",
+                256,
+            ),
+            space: value.space === null || value.space === undefined
+                ? null
+                : CjsRealtimeChatContract.normalizeSpace(value.space),
+            id,
+            kind: value.kind === null || value.kind === undefined
+                ? null
+                : CjsRealtimeChatContract.normalizeKind(value.kind, "room selector.kind"),
+            parentRoomId: CjsRealtimeChatContract.normalizeNullableString(
+                value.parentRoomId ?? null,
+                "room selector.parentRoomId",
+                256,
+            ),
+            login,
+        });
+    }
+
+    /** Tests one normalized room against a normalized hierarchical selector. */
+    static matchesRoomSelector(selectorValue, roomValue)
+    {
+        const selector = CjsRealtimeChatContract.normalizeRoomSelector(selectorValue);
+        const room = CjsRealtimeChatContract.normalizeRoom(roomValue);
+
+        return selector.provider === room.provider
+            && selector.integrationId === room.integrationId
+            && (selector.space === null || selector.space.id === room.space?.id)
+            && (selector.id === null || selector.id === room.id)
+            && (selector.kind === null || selector.kind === room.kind)
+            && (selector.parentRoomId === null
+                || selector.parentRoomId === room.parentRoomId)
+            && (selector.login === null
+                || selector.login.toLowerCase() === room.login?.toLowerCase());
+    }
+
+    /** Normalizes one literal blocked-term selector and its optional room scope. */
+    static normalizeTermSelector(value)
+    {
+        const candidate = typeof value === "string" ? { text: value } : value;
+
+        if (!CjsRealtimeProtocol.isRecord(candidate))
+        {
+            throw new TypeError("Chat term selector must be a string or object");
+        }
+
+        const provider = candidate.provider === null
+            || candidate.provider === undefined
+            ? null
+            : CjsRealtimeChatContract.normalizeProvider(candidate.provider);
+        const integrationId = CjsRealtimeChatContract.normalizeNullableString(
+            candidate.integrationId ?? null,
+            "term selector.integrationId",
+            256,
+        );
+        const spaceId = CjsRealtimeChatContract.normalizeNullableString(
+            candidate.spaceId ?? null,
+            "term selector.spaceId",
+            256,
+        );
+        const roomId = CjsRealtimeChatContract.normalizeNullableString(
+            candidate.roomId ?? null,
+            "term selector.roomId",
+            256,
+        );
+        const roomLogin = CjsRealtimeChatContract.normalizeNullableString(
+            candidate.roomLogin ?? null,
+            "term selector.roomLogin",
+            256,
+        );
+
+        if (provider === null
+            && [ integrationId, spaceId, roomId, roomLogin ].some(item => item !== null))
+        {
+            throw new TypeError("Scoped chat term selector requires a provider");
+        }
+
+        return CjsRealtimeChatContract.freeze({
+            provider,
+            integrationId,
+            spaceId,
+            roomId,
+            roomLogin,
+            text: CjsRealtimeChatContract.normalizeString(
+                candidate.text,
+                "term selector.text",
+                512,
+            ).toLowerCase(),
+        });
+    }
+
+    /** Tests a literal term against message text within its optional room scope. */
+    static matchesTermBlock(selectorValue, roomValue, textValue)
+    {
+        const selector = CjsRealtimeChatContract.normalizeTermSelector(selectorValue);
+        const room = CjsRealtimeChatContract.normalizeRoom(roomValue);
+        const text = CjsRealtimeChatContract.normalizeString(
+            textValue,
+            "block candidate text",
+            16384,
+        ).toLowerCase();
+
+        return (selector.provider === null || selector.provider === room.provider)
+            && (selector.integrationId === null
+                || selector.integrationId === room.integrationId)
+            && (selector.spaceId === null || selector.spaceId === room.space?.id)
+            && (selector.roomId !== null
+                ? selector.roomId === room.id
+                : selector.roomLogin === null
+                    || selector.roomLogin.toLowerCase() === room.login?.toLowerCase())
+            && text.includes(selector.text);
+    }
+
+    /** Normalizes one provider user block selector. */
+    static normalizeUserSelector(value)
+    {
+        if (!CjsRealtimeProtocol.isRecord(value))
+        {
+            throw new TypeError("Chat user selector must be an object");
+        }
+
+        const id = CjsRealtimeChatContract.normalizeNullableString(
+            value.id ?? null,
+            "user selector.id",
+            256,
+        );
+        const login = CjsRealtimeChatContract.normalizeNullableString(
+            value.login ?? null,
+            "user selector.login",
+            256,
+        );
+
+        if (id === null && login === null)
+        {
+            throw new TypeError("Chat user selector requires id or login");
+        }
+
+        return CjsRealtimeChatContract.freeze({
+            provider: CjsRealtimeChatContract.normalizeProvider(value.provider),
+            integrationId: CjsRealtimeChatContract.normalizeNullableString(
+                value.integrationId ?? null,
+                "user selector.integrationId",
+                256,
+            ),
+            id,
+            login,
+        });
+    }
+
+    /** Tests a user block using stable user ID before login fallback. */
+    static matchesUserBlock(selectorValue, roomValue, authorValue)
+    {
+        const selector = CjsRealtimeChatContract.normalizeUserSelector(selectorValue);
+        const room = CjsRealtimeChatContract.normalizeRoomSelector(roomValue);
+
+        if (!CjsRealtimeProtocol.isRecord(authorValue))
+        {
+            throw new TypeError("Chat block candidate author must be an object");
+        }
+
+        const authorId = CjsRealtimeChatContract.normalizeNullableString(
+            authorValue.id ?? null,
+            "block candidate author.id",
+            256,
+        );
+        const authorLogin = CjsRealtimeChatContract.normalizeNullableString(
+            authorValue.login ?? null,
+            "block candidate author.login",
+            256,
+        );
+
+        return selector.provider === room.provider
+            && (selector.integrationId === null
+                || selector.integrationId === room.integrationId)
+            && (selector.id !== null
+                ? selector.id === authorId
+                : selector.login?.toLowerCase() === authorLogin?.toLowerCase());
+    }
+
     /** Normalizes one provider-native conversation container. */
     static normalizeRoom(value)
     {
@@ -151,7 +358,7 @@ export class CjsRealtimeChatContract
             throw new TypeError("Chat thread room requires parentRoomId");
         }
 
-        return {
+        const result = {
             provider: CjsRealtimeChatContract.normalizeProvider(value.provider),
             integrationId: CjsRealtimeChatContract.normalizeNullableString(
                 value.integrationId ?? null,
@@ -173,6 +380,16 @@ export class CjsRealtimeChatContract
                 512,
             ),
         };
+
+        if (Object.hasOwn(value, "assets"))
+        {
+            result.assets = CjsRealtimeChatContract.normalizeAssets(
+                value.assets,
+                "room",
+            );
+        }
+
+        return result;
     }
 
     /** Normalizes an optional parent workspace, server, guild, or community. */
@@ -188,7 +405,7 @@ export class CjsRealtimeChatContract
             throw new TypeError("Chat room space must be an object or null");
         }
 
-        return {
+        const result = {
             id: CjsRealtimeChatContract.normalizeString(value.id, "space.id", 256),
             kind: CjsRealtimeChatContract.normalizeKind(value.kind, "space.kind"),
             login: CjsRealtimeChatContract.normalizeNullableString(
@@ -202,6 +419,16 @@ export class CjsRealtimeChatContract
                 512,
             ),
         };
+
+        if (Object.hasOwn(value, "assets"))
+        {
+            result.assets = CjsRealtimeChatContract.normalizeAssets(
+                value.assets,
+                "space",
+            );
+        }
+
+        return result;
     }
 
     /** Normalizes one provider-native author identity. */
@@ -340,6 +567,11 @@ export class CjsRealtimeChatContract
             );
         }
 
+        if (Object.hasOwn(value, "media"))
+        {
+            result.media = CjsRealtimeChatContract.normalizeMedia(value.media);
+        }
+
         return result;
     }
 
@@ -351,7 +583,7 @@ export class CjsRealtimeChatContract
             throw new TypeError("Chat emote fragment is invalid");
         }
 
-        return {
+        const result = {
             id: CjsRealtimeChatContract.normalizeString(value.id, "emote.id", 256),
             setId: CjsRealtimeChatContract.normalizeNullableString(
                 value.setId ?? null,
@@ -363,6 +595,102 @@ export class CjsRealtimeChatContract
                 "emote.ownerId",
                 256,
             ),
+        };
+
+        if (Object.hasOwn(value, "formats"))
+        {
+            if (!Array.isArray(value.formats)
+                || value.formats.length < 1
+                || value.formats.length > 16)
+            {
+                throw new TypeError("Chat emote formats must be a bounded array");
+            }
+
+            result.formats = [ ...new Set(value.formats.map(format =>
+                CjsRealtimeChatContract.normalizeKind(format, "emote format"))) ].sort();
+        }
+
+        if (Object.hasOwn(value, "asset"))
+        {
+            result.asset = CjsRealtimeChatContract.normalizeMedia(value.asset);
+        }
+
+        return result;
+    }
+
+    /** Normalizes URL-backed presentation assets for a room hierarchy node. */
+    static normalizeAssets(value, label = "entity")
+    {
+        if (!CjsRealtimeProtocol.isRecord(value))
+        {
+            throw new TypeError(`Chat ${label} assets must be an object`);
+        }
+
+        const result = {};
+
+        for (const name of [ "icon", "banner" ])
+        {
+            if (Object.hasOwn(value, name))
+            {
+                result[name] = CjsRealtimeChatContract.normalizeMedia(value[name]);
+            }
+        }
+
+        if (Object.keys(result).length === 0)
+        {
+            throw new TypeError(`Chat ${label} assets must contain icon or banner`);
+        }
+
+        return result;
+    }
+
+    /** Normalizes one externally hosted visual media fragment. */
+    static normalizeMedia(value)
+    {
+        if (!CjsRealtimeProtocol.isRecord(value))
+        {
+            throw new TypeError("Chat media fragment is invalid");
+        }
+
+        const url = CjsRealtimeChatContract.normalizeString(
+            value.url,
+            "media.url",
+            2048,
+        );
+        let parsed;
+
+        try
+        {
+            parsed = new URL(url);
+        }
+        catch
+        {
+            throw new TypeError("Chat media.url is invalid");
+        }
+
+        if (parsed.protocol !== "https:")
+        {
+            throw new TypeError("Chat media.url must use HTTPS");
+        }
+
+        if (typeof value.animated !== "boolean")
+        {
+            throw new TypeError("Chat media.animated must be boolean");
+        }
+
+        return {
+            id: CjsRealtimeChatContract.normalizeNullableString(
+                value.id ?? null,
+                "media.id",
+                256,
+            ),
+            url: parsed.href,
+            contentType: CjsRealtimeChatContract.normalizeNullableString(
+                value.contentType ?? null,
+                "media.contentType",
+                128,
+            ),
+            animated: value.animated,
         };
     }
 

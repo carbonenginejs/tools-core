@@ -104,16 +104,34 @@ export class CjsRealtimeServiceController
         this.#accepting = false;
         this.#abortController?.abort();
         await this.#lane.Drain();
+        let failure = null;
+
+        try
+        {
+            await this.#CloseSubscriptions([ ...this.#subscribers.values() ]);
+        }
+        catch (error)
+        {
+            failure = error;
+        }
+
         this.status = "stopping";
 
         try
         {
             await this.#service.Stop();
         }
-        finally
+        catch (error)
         {
-            this.status = "stopped";
-            this.#subscribers.clear();
+            failure ??= error;
+        }
+
+        this.status = "stopped";
+        this.#subscribers.clear();
+
+        if (failure)
+        {
+            throw failure;
         }
     }
 
@@ -132,11 +150,11 @@ export class CjsRealtimeServiceController
     }
 
     /** Atomically installs a subscription and enqueues its cursor result. */
-    async Subscribe(connection, topics, requestId)
+    async Subscribe(connection, topics, target, requestId)
     {
         this.#RequireAccepting();
 
-        return this.#lane.Enqueue(() =>
+        return this.#lane.Enqueue(async () =>
         {
             this.#RequireRunning();
 
@@ -148,7 +166,17 @@ export class CjsRealtimeServiceController
                 );
             }
 
-            if (this.#subscribers.has(connection.id))
+            if (target !== null && this.description.subscriptions.target === null)
+            {
+                throw new CjsRealtimeError(
+                    "subscription_target_unsupported",
+                    "Realtime service does not support targeted subscriptions",
+                );
+            }
+
+            if (!this.description.subscriptions.multiple
+                && [ ...this.#subscribers.values() ].some(record =>
+                    record.connection === connection))
             {
                 throw new CjsRealtimeError(
                     "subscription_exists",
@@ -167,27 +195,74 @@ export class CjsRealtimeServiceController
             }
 
             const subscriptionId = this.#createId("subscription");
-            const record = Object.freeze({
+            const request = Object.freeze({
                 subscriptionId,
+                serviceId: this.description.id,
+                topics: Object.freeze([ ...topics ]),
+                target: target === null
+                    ? null
+                    : Object.freeze(CjsRealtimeProtocol.cloneJson(target)),
+                actor: Object.freeze(CjsRealtimeProtocol.cloneJson(connection.session.actor)),
+            });
+            const canonicalTarget = typeof this.#service.OpenSubscription === "function"
+                ? await this.#RunInline(this.#streamId, request.actor, context =>
+                    this.#service.OpenSubscription(request, context))
+                : request.target;
+
+            if (target !== null && !CjsRealtimeProtocol.isRecord(canonicalTarget))
+            {
+                throw new CjsRealtimeError(
+                    "invalid_service_result",
+                    "Realtime service returned an invalid subscription target",
+                    { statusCode: 500 },
+                );
+            }
+
+            if (target === null && canonicalTarget !== null)
+            {
+                throw new CjsRealtimeError(
+                    "invalid_service_result",
+                    "Realtime service added an unexpected subscription target",
+                    { statusCode: 500 },
+                );
+            }
+
+            const record = {
+                ...request,
                 connection,
                 topics: new Set(topics),
-            });
+                target: canonicalTarget === null
+                    ? null
+                    : Object.freeze(CjsRealtimeProtocol.cloneJson(canonicalTarget)),
+                sequence: 0,
+                topicSequences: new Map(
+                    this.description.topics.map(topic => [ topic.name, 0 ]),
+                ),
+            };
 
-            this.#subscribers.set(connection.id, record);
+            this.#subscribers.set(subscriptionId, record);
             connection.AddSubscription(subscriptionId, this.description.id);
+            const data = {
+                subscriptionId,
+                service: CjsRealtimeProtocol.serviceIdentity(this.description),
+                cursor: this.#SubscriptionCursor(record),
+            };
+
+            if (record.target !== null)
+            {
+                data.target = record.target;
+            }
+
             const accepted = connection.SendResult(requestId, {
                 status: "completed",
-                data: {
-                    subscriptionId,
-                    service: CjsRealtimeProtocol.serviceIdentity(this.description),
-                    cursor: this.Cursor(),
-                },
+                data,
             });
 
             if (!accepted)
             {
-                this.#subscribers.delete(connection.id);
+                this.#subscribers.delete(subscriptionId);
                 connection.RemoveSubscription(subscriptionId);
+                await this.#CloseSubscription(record);
 
                 return null;
             }
@@ -203,9 +278,9 @@ export class CjsRealtimeServiceController
 
         return this.#lane.Enqueue(() =>
         {
-            const record = this.#subscribers.get(connection.id);
+            const record = this.#subscribers.get(subscriptionId);
 
-            if (!record || record.subscriptionId !== subscriptionId)
+            if (!record || record.connection !== connection)
             {
                 throw new CjsRealtimeError(
                     "subscription_not_found",
@@ -213,19 +288,33 @@ export class CjsRealtimeServiceController
                 );
             }
 
-            this.#subscribers.delete(connection.id);
+            this.#subscribers.delete(subscriptionId);
             connection.RemoveSubscription(subscriptionId);
-            connection.SendResult(requestId, {
+            const close = this.#CloseSubscription(record);
+
+            return Promise.resolve(close).then(() => connection.SendResult(requestId, {
                 status: "completed",
                 data: { subscriptionId },
-            });
+            }));
         });
     }
 
     /** Removes any subscription owned by a closed connection. */
     RemoveConnection(connection)
     {
-        this.#subscribers.delete(connection.id);
+        return this.#lane.Enqueue(async () =>
+        {
+            const records = [ ...this.#subscribers.values() ]
+                .filter(record => record.connection === connection);
+
+            for (const record of records)
+            {
+                this.#subscribers.delete(record.subscriptionId);
+                connection.RemoveSubscription(record.subscriptionId);
+            }
+
+            await this.#CloseSubscriptions(records);
+        });
     }
 
     /** Executes one authoritative command through the service lane. */
@@ -493,13 +582,121 @@ export class CjsRealtimeServiceController
 
         for (const subscriber of this.#subscribers.values())
         {
-            if (subscriber.topics.has(topic))
+            if (!subscriber.topics.has(topic)
+                || !this.#MatchesSubscription(subscriber, topic, event.payload.data))
             {
-                subscriber.connection.Deliver(subscriber.subscriptionId, event);
+                continue;
             }
+
+            const delivery = subscriber.target === null
+                ? event
+                : this.#CreateTargetedDelivery(subscriber, event);
+
+            subscriber.connection.Deliver(subscriber.subscriptionId, delivery);
         }
 
         return event;
+    }
+
+    #CreateTargetedDelivery(record, event)
+    {
+        record.sequence++;
+        const topicSequence = (record.topicSequences.get(event.topic) ?? 0) + 1;
+
+        record.topicSequences.set(event.topic, topicSequence);
+
+        return Object.freeze({
+            ...event,
+            sequence: record.sequence,
+            topicSequence,
+        });
+    }
+
+    #MatchesSubscription(record, topic, data)
+    {
+        if (record.target === null)
+        {
+            return true;
+        }
+
+        if (typeof this.#service.MatchesSubscription !== "function")
+        {
+            return false;
+        }
+
+        const matches = this.#service.MatchesSubscription(Object.freeze({
+            subscriptionId: record.subscriptionId,
+            serviceId: this.description.id,
+            topics: Object.freeze([ ...record.topics ]),
+            target: record.target,
+            actor: record.actor,
+        }), topic, data);
+
+        if (typeof matches !== "boolean")
+        {
+            throw new CjsRealtimeError(
+                "invalid_service_result",
+                "Realtime subscription matcher must return boolean",
+                { statusCode: 500 },
+            );
+        }
+
+        return matches;
+    }
+
+    #SubscriptionCursor(record)
+    {
+        if (record.target === null)
+        {
+            return this.Cursor();
+        }
+
+        return Object.freeze({
+            streamId: this.#streamId,
+            sequence: record.sequence,
+            topicSequences: Object.freeze(Object.fromEntries(record.topicSequences)),
+        });
+    }
+
+    async #CloseSubscription(record)
+    {
+        if (typeof this.#service.CloseSubscription !== "function")
+        {
+            return;
+        }
+
+        const request = Object.freeze({
+            subscriptionId: record.subscriptionId,
+            serviceId: this.description.id,
+            topics: Object.freeze([ ...record.topics ]),
+            target: record.target,
+            actor: record.actor,
+        });
+
+        await this.#RunInline(this.#streamId, record.actor, context =>
+            this.#service.CloseSubscription(request, context));
+    }
+
+    async #CloseSubscriptions(records)
+    {
+        let failure = null;
+
+        for (const record of records)
+        {
+            try
+            {
+                await this.#CloseSubscription(record);
+            }
+            catch (error)
+            {
+                failure ??= error;
+            }
+        }
+
+        if (failure)
+        {
+            throw failure;
+        }
     }
 
     #RequireRunning()

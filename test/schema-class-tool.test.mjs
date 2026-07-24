@@ -7,7 +7,8 @@ import test from "node:test";
 import {
     compareClass,
     deriveExpectedFields,
-    parseClassFile
+    parseClassFile,
+    renderClassFile
 } from "../src/schema/core/classTool.js";
 
 function WriteSchema(root, family, name, doc)
@@ -177,6 +178,86 @@ test("readonly Blue properties are projected into readonly runtime fields", () =
     assert.equal(expected.fields[0].name, "front");
     assert.equal(expected.fields[0].kind, "vec3");
     assert.equal(expected.fields[0].io, "read");
+});
+
+test("reviewed native decal fields are merged with Blue attributes without exposing other native state", () =>
+{
+    const expected = deriveExpectedFields({
+        family: "eve",
+        blueClass: "EveSpaceObjectDecal",
+        cppClass: "EveSpaceObjectDecal",
+        blue: { isExposed: true },
+        attributes: [
+            {
+                blueName: "name",
+                member: "m_name",
+                cppType: "std::string",
+                flags: ["READWRITE", "PERSIST"]
+            }
+        ],
+        fields: [
+            { cppName: "m_name", cppType: "std::string" },
+            { cppName: "m_parentData", cppType: "IEveSpaceObject2::ParentData" },
+            { cppName: "m_parentBoneMatrix", cppType: "Matrix" },
+            { cppName: "m_invParentBoneMatrix", cppType: "Matrix" },
+            { cppName: "m_vertexDeclarationOverride", cppType: "unsigned int" }
+        ],
+        methods: []
+    });
+
+    assert.deepEqual(expected.fields.map(field => field.name), [
+        "name",
+        "parentData",
+        "parentBoneMatrix",
+        "invParentBoneMatrix"
+    ]);
+    assert.equal(expected.fields.find(field => field.name === "parentData").kind, "rawStruct");
+    assert.equal(
+        expected.fields.find(field => field.name === "parentData").typeArg,
+        "IEveSpaceObject2::ParentData"
+    );
+    assert.equal(expected.fields.find(field => field.name === "parentBoneMatrix").kind, "mat4");
+    assert.equal(expected.fields.some(field => field.member === "m_vertexDeclarationOverride"), false);
+    assert.deepEqual(expected.meta.reviewedNativeFields, {
+        included: ["m_parentData", "m_parentBoneMatrix", "m_invParentBoneMatrix"],
+        missing: []
+    });
+});
+
+test("emitted decal stubs include all renderable and pickable pure contracts", () =>
+{
+    const methods = [
+        ["GetID", "ITr2Pickable"],
+        ["GetPickingBatches", "ITr2Pickable"],
+        ["GetBatches", "ITr2Renderable"],
+        ["HasTransparentBatches", "ITr2Renderable"],
+        ["GetSortValue", "ITr2Renderable"],
+        ["GetPerObjectData", "ITr2Renderable"]
+    ].map(([target, interfaceName]) => ({
+        target,
+        declaredOn: interfaceName,
+        interface: interfaceName,
+        virtual: true,
+        pureVirtual: true
+    }));
+    const doc = {
+        family: "eve",
+        blueClass: "EveSpaceObjectDecal",
+        cppClass: "EveSpaceObjectDecal",
+        blue: { isExposed: true },
+        attributes: [],
+        fields: [],
+        methods
+    };
+    const expected = deriveExpectedFields(doc);
+    const source = renderClassFile(expected, { doc, js: true });
+
+    assert.deepEqual(expected.methods.map(method => method.name), methods.map(method => method.target));
+    for (const method of methods)
+    {
+        assert.match(source, new RegExp(`\\n  ${method.target}\\(\\.\\.\\.args\\)`));
+        assert.match(source, new RegExp(`${method.interface} contract`));
+    }
 });
 
 test("renamed Blue methods require Carbon provenance and one implementation status", () =>

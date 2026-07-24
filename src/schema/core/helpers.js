@@ -781,6 +781,7 @@ function renderClassSchema(classInfo, classMap, version, enumNames, carbonRoot =
         family: classInfo.family,
         blueClass: classInfo.name,
         cppClass: classInfo.name,
+        declarationKind: classInfo.declarationKind || null,
         sourceRefs: sourceRefs.toJSON(),
         bases: classInfo.bases || [],
         parents: toParentSchemas(classInfo, classMap),
@@ -802,8 +803,8 @@ function renderClassSchema(classInfo, classMap, version, enumNames, carbonRoot =
         fields: (classInfo.fields || []).map(field => toFieldSchema(classInfo, field)),
         attributes,
         properties: (classInfo.blue?.properties || []).map(prop => toPropertySchema(classInfo, prop, reviewNotes, classMap)),
-        methods: (classInfo.blue?.methods || []).map(method =>
-            toBlueMethodSchema(classInfo, method, classMap)),
+        methods: toMethodSchemas(classInfo, classMap),
+        nativeMethods: toNativeMethodSchemas(classInfo),
         reviewNotes
     };
 }
@@ -1422,8 +1423,166 @@ function toBlueMethodSchema(classInfo, method, classMap)
         blueName: method.name || null,
         target: method.target || null,
         declaredOn: ownerName && ownerName !== className ? ownerName : null,
+        cppName: declaration?.method?.name || null,
+        returnType: declaration?.method?.returnType || null,
+        parameters: declaration?.method?.parameters || null,
+        isConst: declaration?.method?.isConst ?? null,
+        virtual: declaration?.method?.virtual ?? null,
+        pureVirtual: declaration?.method?.pureVirtual ?? null,
         description: method.description || null
     });
+}
+
+function toNativeMethodSchema(classInfo, method, interfaceName = null)
+{
+    if (!method || method.kind !== "declaration" || !method.name) return null;
+
+    return compactObject({
+        target: method.name,
+        cppName: method.name,
+        declaredOn: method.declaredOn || classInfoName(classInfo),
+        interface: interfaceName,
+        returnType: method.returnType || null,
+        parameters: method.parameters || null,
+        isConst: method.isConst ?? false,
+        virtual: method.virtual ?? false,
+        pureVirtual: method.pureVirtual ?? false
+    });
+}
+
+function lookupClassInfo(classMap, name)
+{
+    if (!classMap || !name) return null;
+    return classMap.get(name) || classMap.crossFamilyTypes?.get(name) || null;
+}
+
+function directInterfaceNames(classInfo)
+{
+    const className = classInfoName(classInfo);
+    return Array.from(new Set([
+        ...(classInfo?.blue?.interfaces || []).map(item => item?.name),
+        ...(classInfo?.bases || []).map(cleanBaseName)
+    ].filter(name => name && name !== className)));
+}
+
+const EXPANDED_INTERFACE_CONTRACTS = new Set([
+    "ITr2Renderable",
+    "ITr2Pickable"
+]);
+
+function collectPureVirtualContracts(classInfo, classMap, contracts = [], seen = new Set())
+{
+    for (const parentName of directInterfaceNames(classInfo))
+    {
+        if (seen.has(parentName)) continue;
+        seen.add(parentName);
+
+        const parentInfo = lookupClassInfo(classMap, parentName);
+        if (!parentInfo) continue;
+
+        if (EXPANDED_INTERFACE_CONTRACTS.has(parentName))
+        {
+            for (const method of parentInfo.methods || [])
+            {
+                if (method.kind !== "declaration" || !method.pureVirtual) continue;
+                const schema = toNativeMethodSchema(parentInfo, method, parentName);
+                if (schema) contracts.push(schema);
+            }
+        }
+
+        collectPureVirtualContracts(parentInfo, classMap, contracts, seen);
+    }
+    return contracts;
+}
+
+function nativeMethodKey(method)
+{
+    return [
+        method.cppName || method.target || "",
+        method.returnType || "",
+        JSON.stringify(method.parameters || []),
+        method.isConst ? "const" : ""
+    ].join("\u0000");
+}
+
+function toNativeMethodSchemas(classInfo)
+{
+    const nativeMethods = [];
+    const seen = new Set();
+    for (const method of classInfo.methods || [])
+    {
+        const schema = toNativeMethodSchema(classInfo, method);
+        if (!schema) continue;
+        const key = nativeMethodKey(schema);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        nativeMethods.push(schema);
+    }
+    return nativeMethods;
+}
+
+function contractProvenance(contract)
+{
+    return compactObject({
+        interface: contract.interface || null,
+        declaredOn: contract.declaredOn || null,
+        cppName: contract.cppName || null,
+        returnType: contract.returnType || null,
+        parameters: contract.parameters || null,
+        isConst: contract.isConst ?? null,
+        virtual: contract.virtual ?? null,
+        pureVirtual: contract.pureVirtual ?? null
+    });
+}
+
+function mergeContractProvenance(method, contract)
+{
+    if (!contract) return method;
+    return compactObject({
+        ...(method || contract),
+        interface: contract.interface || null,
+        contract: contractProvenance(contract)
+    });
+}
+
+function toMethodSchemas(classInfo, classMap)
+{
+    const nativeMethods = toNativeMethodSchemas(classInfo);
+    const contracts = collectPureVirtualContracts(classInfo, classMap);
+    const blueMethods = [];
+    const blueKeys = new Set();
+
+    for (const method of classInfo.blue?.methods || [])
+    {
+        const blue = toBlueMethodSchema(classInfo, method, classMap);
+        const key = `${blue.blueName || ""}\u0000${blue.target || blue.cppName || ""}`;
+        if (blueKeys.has(key)) continue;
+        blueKeys.add(key);
+
+        const target = blue.target || blue.cppName || blue.blueName;
+        const declaration = nativeMethods.find(item => item.cppName === target) || null;
+        const contract = contracts.find(item => item.target === target) || null;
+        const methodSchema = compactObject({
+            ...(declaration || {}),
+            ...blue
+        });
+        blueMethods.push(mergeContractProvenance(methodSchema, contract));
+    }
+
+    const representedTargets = new Set(blueMethods
+        .map(method => method.target || method.cppName || method.blueName)
+        .filter(Boolean));
+    const methodSchemas = [ ...blueMethods ];
+
+    for (const contract of contracts)
+    {
+        if (representedTargets.has(contract.target)) continue;
+        representedTargets.add(contract.target);
+        const declaration = nativeMethods.find(item => item.cppName === contract.target) || null;
+        methodSchemas.push(mergeContractProvenance(declaration, contract));
+    }
+
+    return methodSchemas;
 }
 
 function resolveAttributeFieldInfo(classInfo, attr, classMap, reviewNotes, resolution = null)
@@ -1873,7 +2032,12 @@ function findMethodDeclarationInfo(classInfo, name, classMap, seen = new Set())
 
     for (const base of classInfo.bases || [])
     {
-        const found = findMethodDeclarationInfo(classMap.get(cleanBaseName(base)), name, classMap, seen);
+        const found = findMethodDeclarationInfo(
+            lookupClassInfo(classMap, cleanBaseName(base)),
+            name,
+            classMap,
+            seen
+        );
         if (found) return found;
     }
 
@@ -2320,7 +2484,10 @@ function hydrateClassSchema(type, classes)
         fields: (type.fields || []).map(item => build(classes, "Field", item)),
         attributes: (type.attributes || []).map(item => build(classes, "Decorator", item)),
         properties: (type.properties || []).map(item => build(classes, "Decorator", item)),
-        methods: (type.methods || []).map(item => build(classes, "Decorator", item))
+        methods: (type.methods || []).map(item => build(classes, "Decorator", item)),
+        ...(Array.isArray(type.nativeMethods)
+            ? { nativeMethods: type.nativeMethods.map(item => build(classes, "Decorator", item)) }
+            : {})
     });
 }
 

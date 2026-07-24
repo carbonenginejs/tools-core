@@ -169,7 +169,8 @@ export class CjsRealtimeHub
 
         for (const serviceId of connection.ListSubscriptionServices())
         {
-            this.#controllers.get(serviceId)?.RemoveConnection(connection);
+            this.#controllers.get(serviceId)?.RemoveConnection(connection)
+                .catch(() => undefined);
         }
     }
 
@@ -188,7 +189,7 @@ export class CjsRealtimeHub
     /** Installs one exact service/topic subscription. */
     async Subscribe(connection, message)
     {
-        if (connection.ListSubscriptionServices().length >= this.limits.maxSubscriptions)
+        if (connection.GetSubscriptionCount() >= this.limits.maxSubscriptions)
         {
             throw new CjsRealtimeError(
                 "queue_full",
@@ -204,7 +205,12 @@ export class CjsRealtimeHub
         );
         const controller = this.#RequireController(message.serviceId);
 
-        return controller.Subscribe(connection, message.topics, message.requestId);
+        return controller.Subscribe(
+            connection,
+            message.topics,
+            message.target ?? null,
+            message.requestId,
+        );
     }
 
     /** Removes one connection-owned subscription. */

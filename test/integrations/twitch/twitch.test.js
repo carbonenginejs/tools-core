@@ -7,6 +7,7 @@ import { CjsRealtimeSessionAuthority } from "../../../src/realtime/server/CjsRea
 import { CjsRealtimeTwitchChatNormalizer } from "../../../src/integrations/twitch/CjsRealtimeTwitchChatNormalizer.js";
 import { CjsRealtimeTwitchChatService } from "../../../src/integrations/twitch/CjsRealtimeTwitchChatService.js";
 import { CjsTwitchChatSource } from "../../../src/integrations/twitch/CjsTwitchChatSource.js";
+import { CjsTwitchChatAssetResolver } from "../../../src/integrations/twitch/CjsTwitchChatAssetResolver.js";
 import { CjsTwitchEventSubChatProvider } from "../../../src/integrations/twitch/CjsTwitchEventSubChatProvider.js";
 import { CjsTwitchEventSubSession } from "../../../src/integrations/twitch/CjsTwitchEventSubSession.js";
 import { CjsTwitchEventSubSource } from "../../../src/integrations/twitch/CjsTwitchEventSubSource.js";
@@ -53,6 +54,8 @@ class CjsFakeIrcClient extends EventEmitter
         super();
         this.connected = false;
         this.disconnected = false;
+        this.joins = [];
+        this.parts = [];
         this.connect = async () =>
         {
             this.connected = true;
@@ -61,6 +64,14 @@ class CjsFakeIrcClient extends EventEmitter
         this.disconnect = async () =>
         {
             this.disconnected = true;
+        };
+        this.join = async room =>
+        {
+            this.joins.push(room);
+        };
+        this.part = async room =>
+        {
+            this.parts.push(room);
         };
     }
 
@@ -198,7 +209,12 @@ function EventSubNotification(messageId = "message-one")
                         {
                             type: "emote",
                             text: "Kappa",
-                            emote: { id: "25", emote_set_id: "0", owner_id: "0" },
+                            emote: {
+                                id: "25",
+                                emote_set_id: "0",
+                                owner_id: "0",
+                                format: [ "static", "animated" ],
+                            },
                         },
                     ],
                 },
@@ -323,6 +339,7 @@ test("exports the Twitch slice through its exact package subpath", async () =>
     assert.equal(twitch.TwitchIrcChatProvider.name, "TwitchIrcChatProvider");
     assert.equal(twitch.TwitchChatService.name, "TwitchChatService");
     assert.equal(twitch.TwitchChatSource.name, "TwitchChatSource");
+    assert.equal(twitch.TwitchChatAssetResolver.name, "TwitchChatAssetResolver");
     assert.equal(new twitch.TwitchOAuthTokenProvider({
         clientId: "client-one",
         getAccessToken: () => "access-token-one",
@@ -422,6 +439,65 @@ test("shares one Twitch transport across aggregate and exact room emitters", asy
     assert.equal(provider.stopCount, 1);
 });
 
+test("applies optional term and user blocks before publication", async () =>
+{
+    const provider = new CjsFakeTwitchProvider("twitch.irc");
+
+    const published = [];
+    const abortController = new AbortController();
+    const serviceContext = {
+        signal: abortController.signal,
+        Commit: callback => Promise.resolve().then(() => callback(serviceContext)),
+        Publish: async (topic, data) => published.push({ topic, data }),
+    };
+    const service = new CjsRealtimeTwitchChatService({
+        id: "blocked-chat",
+        provider,
+        blockList: {
+            terms: [ {
+                text: "spoiler",
+                provider: "twitch",
+                roomLogin: "allowedroom",
+            } ],
+            users: [ {
+                provider: "twitch",
+                id: "blocked-user",
+            } ],
+        },
+    });
+
+    await service.Start(serviceContext);
+    const termBlocked = JSON.parse(JSON.stringify(ChatMessage("term-blocked")));
+
+    termBlocked.room.id = "202";
+    termBlocked.room.login = "allowedroom";
+    termBlocked.text = "A SPOILER appeared";
+    provider.EmitMessage(termBlocked);
+
+    const userBlocked = JSON.parse(JSON.stringify(ChatMessage("user-blocked")));
+
+    userBlocked.room.id = "202";
+    userBlocked.room.login = "allowedroom";
+    userBlocked.author.id = "blocked-user";
+    userBlocked.author.login = "renamed-user";
+    provider.EmitMessage(userBlocked);
+
+    const allowed = JSON.parse(JSON.stringify(ChatMessage("allowed")));
+
+    allowed.room.id = "202";
+    allowed.room.login = "allowedroom";
+    allowed.author.id = "allowed-user";
+    provider.EmitMessage(allowed);
+    await Flush();
+
+    assert.deepEqual(
+        published.filter(entry => entry.topic === "chat.message.received")
+            .map(entry => entry.data.id),
+        [ "allowed" ],
+    );
+    await service.Stop();
+});
+
 test("serializes an OAuth refresh and never reflects a rejected secret", async () =>
 {
     let validationCount = 0;
@@ -508,6 +584,36 @@ test("normalizes IRC and EventSub into one provider-neutral chat shape", () =>
     assert.equal(eventSub.author.id, irc.author.id);
     assert.equal(eventSub.extensions.twitch.transport, "eventsub");
     assert.equal(eventSub.fragments[1].emote.id, "25");
+    assert.deepEqual(eventSub.fragments[1].emote.formats, [
+        "animated",
+        "static",
+    ]);
+
+    const richIrc = CjsRealtimeTwitchChatNormalizer.fromIrc({
+        channel: "#Carbon",
+        text: "Hi 😀 Kappa GIF",
+        receivedAt: Date.parse("2026-07-21T12:00:02.000Z"),
+        tags: {
+            id: "irc-rich",
+            "room-id": "200",
+            "user-id": "300",
+            username: "viewer",
+            emotes: { 25: [ "5-9" ] },
+            gifs: "11-13|gif-one|https://example.test/chat/gif-one.gif",
+        },
+    });
+
+    assert.deepEqual(richIrc.fragments.map(fragment => fragment.type), [
+        "text",
+        "emote",
+        "text",
+        "media",
+    ]);
+    assert.equal(richIrc.fragments[0].text, "Hi 😀 ");
+    assert.equal(richIrc.fragments[1].emote.id, "25");
+    assert.equal(richIrc.fragments[3].media.animated, true);
+    assert.equal(richIrc.fragments[3].media.url,
+        "https://example.test/chat/gif-one.gif");
 
     const status = CjsRealtimeTwitchChatService.normalizeStatus({
         state: "ready",
@@ -518,6 +624,84 @@ test("normalizes IRC and EventSub into one provider-neutral chat shape", () =>
     assert.equal(status.source.integrationId, "primary");
     assert.equal(status.room, null);
     assert.equal(status.extensions.twitch.transport, "eventsub");
+});
+
+test("resolves Twitch channel logos and preferred animated IRC emote URLs", async () =>
+{
+    const requests = [];
+    const probes = [];
+    const helix = {
+        Request: async (route, options) =>
+        {
+            requests.push({ route, options });
+            const data = route === "users"
+                ? [ {
+                    id: "200",
+                    login: "crispybunnyuk",
+                    display_name: "CrispyBunnyUK",
+                    profile_image_url: "https://static-cdn.jtvnw.net/jtv_user_pictures/719ea713-profile_image-70x70.png",
+                } ]
+                : route === "chat/emotes/global"
+                    ? [ {
+                        id: "25",
+                        format: [ "static", "animated" ],
+                    } ]
+                    : [];
+
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ data }),
+            };
+        },
+    };
+    const resolver = new CjsTwitchChatAssetResolver({
+        helix,
+        fetch: async (url, options) =>
+        {
+            probes.push({ url, options });
+            return { ok: true, status: 200 };
+        },
+    });
+    const assets = await resolver.ResolveIrcMessage({
+        channel: "#CrispyBunnyUK",
+        tags: {
+            emotes: {
+                25: [ "0-4" ],
+                99: [ "6-10" ],
+            },
+        },
+    });
+
+    assert.equal(
+        assets.room.assets.icon.url,
+        "https://static-cdn.jtvnw.net/jtv_user_pictures/719ea713-profile_image-70x70.png",
+    );
+    assert.equal(assets.emotes["25"].animated, true);
+    assert.match(assets.emotes["25"].url, /\/25\/animated\/dark\/3\.0$/u);
+    assert.equal(assets.emotes["99"].animated, true);
+    assert.equal(probes.length, 1);
+    assert.equal(probes[0].options.method, "HEAD");
+    assert.deepEqual(
+        requests.filter(entry => entry.route === "users")[0].options.query,
+        { login: "crispybunnyuk" },
+    );
+
+    const message = CjsRealtimeTwitchChatNormalizer.fromIrc({
+        channel: "#CrispyBunnyUK",
+        text: "Kappa",
+        tags: {
+            id: "resolved-message",
+            "room-id": "200",
+            "user-id": "300",
+            username: "viewer",
+            emotes: { 25: [ "0-4" ] },
+        },
+        assets,
+    });
+
+    assert.equal(message.room.assets.icon.url, assets.room.assets.icon.url);
+    assert.equal(message.fragments[0].emote.asset.url, assets.emotes["25"].url);
 });
 
 test("reuses OAuth scope and refresh policy across Helix integration points", async () =>
@@ -708,6 +892,7 @@ test("adapts receive-only tmi-compatible IRC without owning token acquisition", 
     };
     const provider = new CjsTwitchIrcChatProvider({
         oauth,
+        assetResolver: null,
         rooms: [ "#Carbon" ],
         validationIntervalMs: 60000,
         createClient: value =>
@@ -736,6 +921,7 @@ test("adapts receive-only tmi-compatible IRC without owning token acquisition", 
         "tmi-sent-ts": "1784635201000",
     }, "hello", false);
     clients[0].emit("message", "#carbon", {}, "self", true);
+    await new Promise(resolve => setImmediate(resolve));
 
     assert.deepEqual(oauthRequests[0].requiredScopes, [ "chat:read" ]);
     assert.deepEqual(options[0].channels, [ "carbon" ]);
@@ -746,6 +932,165 @@ test("adapts receive-only tmi-compatible IRC without owning token acquisition", 
     await provider.Stop();
     assert.equal(clients[0].disconnected, true);
     assert.equal(clients[0].listenerCount("message"), 0);
+});
+
+test("shares dynamic IRC rooms until their final downstream listener leaves", async context =>
+{
+    const clients = [];
+    const oauth = {
+        Acquire: async () => ({
+            accessToken: "irc-token",
+            clientId: "client-one",
+            userId: "100",
+            login: "agentuser",
+            scopes: [ "chat:read" ],
+        }),
+        Invalidate: () => undefined,
+    };
+    const provider = new CjsTwitchIrcChatProvider({
+        oauth,
+        assetResolver: null,
+        validationIntervalMs: 60000,
+        createClient: () =>
+        {
+            const client = new CjsFakeIrcClient();
+
+            clients.push(client);
+
+            return client;
+        },
+    });
+    const service = new CjsRealtimeTwitchChatService({
+        id: "primary-chat",
+        provider,
+    });
+    const capability = CjsRealtimeSessionAuthority.createCapability();
+    const origin = "http://127.0.0.1:8080";
+    const authority = new CjsRealtimeSessionAuthority({
+        grants: [ {
+            capability,
+            actor: { id: "viewer-one", kind: "viewer" },
+            allowedOrigins: [ origin ],
+            scopes: {
+                discover: true,
+                services: {
+                    "primary-chat": {
+                        topics: [ "chat.message.received" ],
+                        commands: [],
+                        snapshots: false,
+                        content: false,
+                    },
+                },
+            },
+        } ],
+    });
+    let nextId = 0;
+    const hub = new CjsRealtimeHub({
+        authority,
+        createId: prefix => `${prefix}-${++nextId}`,
+    });
+
+    hub.Register(service);
+    await hub.Start();
+    context.after(() => hub.Stop());
+
+    const Connect = async () =>
+    {
+        const transport = new CjsRealtimeMemoryTransport();
+        const connection = hub.OpenConnection({ transport, origin });
+
+        await connection.ReceiveText(JSON.stringify({
+            type: "hello",
+            protocolVersion: 1,
+            capability,
+        }));
+
+        return { connection, transport };
+    };
+    const Subscribe = async (client, requestId, login) =>
+    {
+        await client.connection.ReceiveText(JSON.stringify({
+            type: "subscribe-targeted",
+            requestId,
+            serviceId: "primary-chat",
+            topics: [ "chat.message.received" ],
+            target: {
+                room: {
+                    provider: "twitch",
+                    login,
+                },
+            },
+        }));
+        await client.connection.Drain();
+
+        return client.transport.messages.find(message =>
+            message.requestId === requestId).data.subscriptionId;
+    };
+    const first = await Connect();
+    const second = await Connect();
+    const firstFenris = await Subscribe(first, "first-fenris", "FenrisCreations");
+    const secondFenris = await Subscribe(second, "second-fenris", "fenriscreations");
+    const firstCaldari = await Subscribe(
+        first,
+        "first-caldari",
+        "caldariprimeponyclub",
+    );
+
+    assert.deepEqual(clients[0].joins, [
+        "fenriscreations",
+        "caldariprimeponyclub",
+    ]);
+    assert.equal(firstFenris === firstCaldari, false);
+
+    clients[0].emit("message", "#caldariprimeponyclub", {
+        id: "caldari-message",
+        "room-id": "201",
+        "user-id": "300",
+        username: "viewer",
+        "display-name": "Viewer",
+        "tmi-sent-ts": "1784635201000",
+    }, "caldari", false);
+    clients[0].emit("message", "#fenriscreations", {
+        id: "fenris-message",
+        "room-id": "200",
+        "user-id": "300",
+        username: "viewer",
+        "display-name": "Viewer",
+        "tmi-sent-ts": "1784635201001",
+    }, "fenris", false);
+    await Flush();
+    await Promise.all([ first.connection.Drain(), second.connection.Drain() ]);
+
+    const firstEvents = first.transport.messages.filter(message =>
+        message.type === "event");
+    const secondEvents = second.transport.messages.filter(message =>
+        message.type === "event");
+
+    assert.deepEqual(firstEvents.map(message => message.payload.data.room.login),
+        [ "caldariprimeponyclub", "fenriscreations" ]);
+    assert.deepEqual(firstEvents.map(message => message.sequence), [ 1, 1 ]);
+    assert.deepEqual(secondEvents.map(message => message.payload.data.room.login),
+        [ "fenriscreations" ]);
+
+    await first.connection.ReceiveText(JSON.stringify({
+        type: "unsubscribe",
+        requestId: "first-fenris-close",
+        subscriptionId: firstFenris,
+    }));
+    await first.connection.Drain();
+    assert.deepEqual(clients[0].parts, []);
+
+    second.connection.TransportClosed();
+    await Flush();
+    assert.deepEqual(clients[0].parts, [ "fenriscreations" ]);
+
+    first.connection.TransportClosed();
+    await Flush();
+    assert.deepEqual(clients[0].parts, [
+        "fenriscreations",
+        "caldariprimeponyclub",
+    ]);
+    assert.equal(secondFenris.length > 0, true);
 });
 
 test("creates EventSub subscriptions and migrates sessions without recreating them", async () =>

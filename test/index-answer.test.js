@@ -112,6 +112,7 @@ test("serves build answers with exact-build identity", async context =>
     const cubes = await fetch(`${root}/cubes`);
     const resfiles = await fetch(`${root}/res/resfiles`);
     const inserts = await fetch(`${root}/sof/hulls/ab1_t1/respathinserts`);
+    const unavailableSofCatalog = await fetch(`${root}/sof/hulls`);
     const resolved = await fetch(
         `${root}/sof/hulls/ab1_t1/respathinserts/navy/resolve`,
         {
@@ -148,6 +149,7 @@ test("serves build answers with exact-build identity", async context =>
     ]);
     assert.deepEqual(await resfiles.json(), SortedPaths);
     assert.deepEqual(await inserts.json(), [ "igc", "navy" ]);
+    assert.equal(unavailableSofCatalog.status, 501);
     assert.deepEqual(await resolved.json(), [
         "res:/dx9/model/ship/amarr/battleship/ab1/navy/ab1_t1_navy_m.dds",
         "res:/texture/shared/ships/plates/navy/shared_navy_m.dds",

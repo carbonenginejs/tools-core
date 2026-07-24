@@ -32,6 +32,13 @@ Clients subscribe to logical services. They do not connect directly to
 provider transports, and one browser subscription does not create one upstream
 provider connection.
 
+An IRC-backed service may advertise the `chat.room` subscription target.
+Clients then select a room by provider, optional integration and space, and a
+stable room ID or provider login. The server joins an upstream room for the
+first downstream listener, fans that room out to every matching listener, and
+parts it only after the final listener leaves or disconnects. The shared IRC
+connection can remain active for other rooms.
+
 ## Room identity
 
 Every message carries its complete provider-native conversation identity:
@@ -45,6 +52,14 @@ Every message carries its complete provider-native conversation identity:
         kind: "server",
         login: null,
         displayName: "Example Server",
+        assets: {
+            icon: {
+                id: "server-one-icon",
+                url: "https://cdn.example.test/server-one.png",
+                contentType: "image/png",
+                animated: false,
+            },
+        },
     },
     id: "thread-one",
     kind: "thread",
@@ -62,6 +77,10 @@ credential, or transient socket ID.
 and Kick channels normally omit it. A thread is itself a room and identifies
 its parent with `parentRoomId`. Common room kinds are `channel`, `thread`, and
 `direct`; adapters may use another bounded kind when those meanings do not fit.
+Rooms and spaces may carry URL-backed `assets.icon` and `assets.banner`
+objects. A targeted subscription result returns the resolved hierarchy
+metadata, so a Twitch or Kick channel profile image and a Discord guild icon
+are available before the first message arrives.
 
 The stable room key is the provider, integration ID, space ID, and room ID
 tuple. Display names and logins are labels, never identity.
@@ -100,10 +119,42 @@ therefore combines the room key and message ID.
 `reply`, when present, identifies the parent message and may include bounded
 parent-author labels and text supplied by the provider. `fragments` preserve
 ordered visible text plus normalized emote, mention, or contribution metadata.
-Provider-only values stay under `extensions.<provider>`.
+Consumers render fragments rather than reducing a message to `text`.
+Emotes may declare provider-reported `formats`, including `animated`, and an
+`asset` containing the server-selected HTTPS URL, content type, and explicit
+animation flag. A `media` fragment uses the same URL-backed media shape for
+provider-hosted visual content. Consumers render these URLs directly; provider
+catalog templates, CDN rules, theme choices, and image selection remain
+server-owned.
+
+Twitch IRC emote ranges are reconstructed as typed fragments. IRC supplies the
+emote ID but not its available static or animated formats; those come from the
+Twitch emote APIs and a bounded server cache. Unknown IRC emote IDs may be
+probed once and cached so the preferred animated or static URL is still
+selected before publication. EventSub fragments already carry the format
+list. Twitch IRC-hosted GIF tags retain the complete provider URL without
+rewriting it.
 
 Credentials, raw provider payloads, authorization headers, webhook signatures,
 and credential-bearing URLs are never extensions.
+
+## Optional block policy
+
+`CjsRealtimeChatBlockList` provides empty-by-default literal term and user
+blocks for a logical chat projection. Terms are case-insensitive substrings and
+may be global or scoped by provider, integration, space, and stable room ID or
+login fallback. User selectors use a provider, an optional integration, and
+either a stable user ID or a login fallback.
+
+A stable room or user ID takes precedence when its selector also contains a
+login, so a rename does not bypass the block and a reused login does not block
+a different stable identity. Omitting the integration ID applies the selector
+to all integrations for that provider.
+
+Term and user blocks suppress matching messages. The library supplies no
+built-in entries or persistence. Provider-managed blocked terms, AutoMod rules,
+and user block lists remain separate privileged integration capabilities; this
+local policy does not synchronize or claim semantic parity with them.
 
 ## Status payload
 

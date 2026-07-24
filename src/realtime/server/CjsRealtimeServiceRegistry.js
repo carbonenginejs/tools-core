@@ -52,6 +52,16 @@ export class CjsRealtimeServiceRegistry
             throw new TypeError(`Realtime service ${description.id} advertises no HandleCommand()`);
         }
 
+        if (description.subscriptions.target !== null
+            && (typeof service.OpenSubscription !== "function"
+                || typeof service.CloseSubscription !== "function"
+                || typeof service.MatchesSubscription !== "function"))
+        {
+            throw new TypeError(
+                `Realtime service ${description.id} advertises incomplete targeted subscriptions`,
+            );
+        }
+
         const entry = Object.freeze({ service, description });
 
         this.#entries.set(description.id, entry);

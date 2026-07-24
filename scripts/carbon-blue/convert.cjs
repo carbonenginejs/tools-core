@@ -405,6 +405,10 @@ function scanFamily(config, carbonRoot, family, familyRoot, globalEnums)
             {
                 const record = getClassRecord(byName, item.name, family.name, config.classSuffix);
                 record.headerFiles.add(rel);
+                if (item.declarationKind === "interface" || !record.declarationKind)
+                {
+                    record.declarationKind = item.declarationKind;
+                }
                 record.bases.push(...item.bases);
                 record.fields.push(...item.fields);
                 record.methods.push(...item.methods);
@@ -560,6 +564,7 @@ function getClassRecord(byName, name, family, classSuffix)
             headerFiles: new Set(),
             cppFiles: new Set(),
             blueFiles: new Set(),
+            declarationKind: null,
             bases: [],
             fields: [],
             methods: [],
@@ -658,6 +663,7 @@ function finalizeClassRecord(record, carbonRoot)
     const sourceFiles = unique([...headerFiles, ...cppFiles, ...blueFiles]).sort();
     const shape = {
         name: record.name,
+        declarationKind: record.declarationKind,
         bases: unique(record.bases.map(x => x.trim()).filter(Boolean)).sort(),
         fields: dedupeObjects(record.fields, x => `${x.name}:${x.type || ""}`),
         methods: dedupeObjects(record.methods, x => `${x.name}:${x.kind || ""}`),
@@ -676,6 +682,7 @@ function finalizeClassRecord(record, carbonRoot)
     return {
         name: record.name,
         family: record.family,
+        declarationKind: record.declarationKind,
         generatedName: record.generatedName,
         generatedFile: `${record.family}/${record.generatedName}.js`,
         headerFiles,
@@ -756,21 +763,26 @@ function parseHeaderFile(text, source)
     const clean = normalizeHeaderClassMacros(stripComments(text));
     const classes = [];
     const classRanges = [];
-    const classPattern = /\b(?:class|struct)\s+([A-Za-z_]\w*)\s*(?::\s*([^\{]+))?\s*\{/g;
+    const classPattern = /\b(class|struct|interface)\s+([A-Za-z_]\w*)\s*(?::\s*([^\{]+))?\s*\{/g;
     let match;
 
     while ((match = classPattern.exec(clean)))
     {
-        const className = match[1];
+        const declarationKind = match[1];
+        const className = match[2];
         const bodyStart = match.index + match[0].length - 1;
         const bodyEnd = findMatchingBrace(clean, bodyStart);
         if (bodyEnd === -1) continue;
 
         const body = clean.slice(bodyStart + 1, bodyEnd);
-        const bases = parseBases(match[2] || "");
+        const bases = parseBases(match[3] || "");
         const fields = parseFields(body, source, lineOf(clean, bodyStart));
-        const methods = parseMethodDeclarations(body, source, lineOf(clean, bodyStart));
-        classes.push({ name: className, bases, fields, methods });
+        const methods = parseMethodDeclarations(body, source, lineOf(clean, bodyStart))
+            .map(method => ({
+                ...method,
+                declaredOn: className
+            }));
+        classes.push({ name: className, declarationKind, bases, fields, methods });
         classRanges.push({
             name: className,
             start: bodyStart,
@@ -895,7 +907,7 @@ function normalizeHeaderClassMacros(text)
 {
     return text
         .replace(/\bBLUE(?:_BLUEIMPORT)?_CLASS(?:_ALLOW_DELAYED_DELETE)?\s*\(\s*([A-Za-z_]\w*)\s*\)/g, "class $1")
-        .replace(/\bBLUE_INTERFACE\s*\(\s*([A-Za-z_]\w*)\s*\)/g, "class $1");
+        .replace(/\bBLUE_INTERFACE\s*\(\s*([A-Za-z_]\w*)\s*\)/g, "interface $1");
 }
 
 function parseCppFile(text, source)
@@ -1384,7 +1396,7 @@ function parseFields(body, source, baseLine = 1)
         if (!line || line.includes("(") || !line.endsWith(";")) continue;
         if (line.startsWith("}")) continue;
         if (/^(public|private|protected):$/.test(line)) continue;
-        if (/^(using|typedef|friend|static_assert|enum)\b/.test(line)) continue;
+        if (/^(using|typedef|friend|static_assert|enum|return)\b/.test(line)) continue;
 
         const declaration = line.replace(/;$/, "").trim();
         const parts = splitTopLevelArgs(declaration);
@@ -1512,6 +1524,10 @@ function parseMethodDeclarations(body, source, baseLine = 1)
             .trim();
         const args = signature.slice(open + 1, close).trim();
         const suffix = signature.slice(close + 1).trim();
+        const pureVirtual = /=\s*0\s*$/.test(suffix);
+        const virtual = /\bvirtual\b/.test(beforeParen) ||
+            /\b(?:override|final)\b/.test(suffix) ||
+            pureVirtual;
 
         methods.push({
             name: nameMatch[1],
@@ -1519,6 +1535,8 @@ function parseMethodDeclarations(body, source, baseLine = 1)
             args,
             parameters: parseParameters(args),
             isConst: /\bconst\b/.test(suffix),
+            virtual,
+            pureVirtual,
             source,
             line: baseLine + i,
             kind: "declaration"
@@ -1839,6 +1857,7 @@ function renderClassSchema(classInfo, classMap)
         family: classInfo.family,
         blueClass: classInfo.name,
         cppClass: classInfo.name,
+        declarationKind: classInfo.declarationKind || null,
         bases: classInfo.bases,
         parents: toParentSchemas(classInfo, classMap),
         source: compactObject({

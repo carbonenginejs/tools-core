@@ -27,6 +27,7 @@
         "./sde": "./src/sde/index.js",
         "./shader": "./src/shader/index.js",
         "./skin": "./src/skin/index.js",
+        "./sof": "./src/sof/index.js",
         "./target": "./src/target/index.js",
         "./webhook": "./src/webhook/index.js",
         "./weapon": "./src/weapon/index.js",

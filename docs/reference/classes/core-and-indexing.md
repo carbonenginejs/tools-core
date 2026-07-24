@@ -45,6 +45,26 @@ Opens exact-build prepared audio libraries and their indexed byte sources.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
+<!-- class:CjsToolSofRepository -->
+## `CjsToolSofRepository`
+
+Opens and retains exact-build runtime-sof catalogs from composed resource sources.
+
+- Export: `@carbonenginejs/tools-core/sof`
+- Source: `src/sof/CjsToolSofRepository.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolSofCatalog -->
+## `CjsToolSofCatalog`
+
+Provides read-only catalog and DNA answers for one exact runtime-sof build.
+
+- Export: `@carbonenginejs/tools-core/sof`
+- Source: `src/sof/CjsToolSofRepository.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
 <!-- class:CjsToolAudioSource -->
 ## `CjsToolAudioSource`
 

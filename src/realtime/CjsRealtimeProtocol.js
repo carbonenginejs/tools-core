@@ -120,7 +120,7 @@ export class CjsRealtimeProtocol
 
         CjsRealtimeProtocol.assertRequestId(value.requestId);
 
-        if (value.type === "subscribe")
+        if ([ "subscribe", "subscribe-targeted" ].includes(value.type))
         {
             CjsRealtimeProtocol.assertServiceId(value.serviceId);
 
@@ -141,12 +141,29 @@ export class CjsRealtimeProtocol
                 throw new CjsRealtimeError("invalid_request", "subscribe.topics must be unique");
             }
 
-            return Object.freeze({
+            const targeted = value.type === "subscribe-targeted";
+
+            if (targeted && !CjsRealtimeProtocol.isRecord(value.target))
+            {
+                throw new CjsRealtimeError(
+                    "invalid_request",
+                    "subscribe-targeted.target must be an object",
+                );
+            }
+
+            const message = {
                 type: "subscribe",
                 requestId: value.requestId,
                 serviceId: value.serviceId,
                 topics: Object.freeze([ ...topics ]),
-            });
+            };
+
+            if (targeted)
+            {
+                message.target = Object.freeze(CjsRealtimeProtocol.cloneJson(value.target));
+            }
+
+            return Object.freeze(message);
         }
 
         if (value.type === "unsubscribe")
@@ -263,6 +280,20 @@ export class CjsRealtimeProtocol
             );
         }
 
+        const subscriptionValue = value.subscriptions ?? {};
+
+        if (!CjsRealtimeProtocol.isRecord(subscriptionValue))
+        {
+            throw new TypeError("Realtime service subscriptions must be an object");
+        }
+
+        const subscriptionTarget = subscriptionValue.target ?? null;
+
+        if (subscriptionTarget !== null)
+        {
+            CjsRealtimeProtocol.assertName(subscriptionTarget, "subscription target");
+        }
+
         return Object.freeze({
             family: value.family,
             familyVersion: value.familyVersion,
@@ -272,6 +303,10 @@ export class CjsRealtimeProtocol
             commands: Object.freeze(commands),
             snapshot: value.snapshot === true,
             resources: value.resources === true,
+            subscriptions: Object.freeze({
+                multiple: subscriptionValue.multiple !== false,
+                target: subscriptionTarget,
+            }),
         });
     }
 

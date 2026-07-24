@@ -67,6 +67,7 @@ test("serves health, SOF values, and compatibility document requests without a f
             skin: false,
             skinr: false,
             weapons: false,
+            sofCatalog: false,
             sofValues: true,
             sofDocument: true,
         },
@@ -95,6 +96,208 @@ test("serves health, SOF values, and compatibility document requests without a f
         schema: "carbon.document",
         dna: "rifter:minmatar:minmatar"
     });
+});
+
+test("serves exact-build GPU-free SOF catalogs and DNA documents", async context =>
+{
+    let openTargetCount = 0;
+    let openSofCount = 0;
+    let valuesCount = 0;
+    const builtDna = [];
+    const source = {
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        buildRef: "latest",
+        build: "3435006",
+        client: "tranquility",
+        Match()
+        {
+            return [];
+        },
+        async Fetch()
+        {
+            throw new Error("Injected SOF catalog should not fetch directly");
+        },
+    };
+    const catalog = {
+        ...source,
+        ListHulls: () => [ "ab1_t1", "zz1_t1" ],
+        ListFactions: () => [ "amarrbase" ],
+        ListRaces: () => [ "amarr" ],
+        ListMaterials: () => [ "gold" ],
+        ListLayouts: () => [ "antennae" ],
+        ListPatterns: () => [ "alpha", "stripes" ],
+        ListHullPatterns: hull => hull === "ab1_t1"
+            ? [ "alpha", "stripes" ]
+            : hull === "zz1_t1" ? [] : null,
+        GetHull: name => name === "ab1_t1" ? { name: "ab1_t1" } : null,
+        GetFaction: name => name === "amarrbase" ? { name: "amarrbase" } : null,
+        GetRace: name => name === "amarr" ? { name: "amarr" } : null,
+        GetMaterial: name => name === "gold"
+            ? { name: "gold", parameters: { PaintColor: [1, 2, 3, 4] } }
+            : null,
+        GetLayout: name => name === "antennae" ? { name: "antennae" } : null,
+        GetPatternHull(pattern, hull)
+        {
+            return pattern === "stripes" && hull === "ab1_t1"
+                ? { layerAndProjection: [{ layer: { textureName: "PatternTex" } }] }
+                : null;
+        },
+        InspectDna(dna)
+        {
+            if (dna.startsWith("missing:"))
+            {
+                return { buildable: false, valid: false, error: "unknown-hull" };
+            }
+            if (!dna.includes(":"))
+            {
+                return { buildable: false, valid: false, error: "not-enough-parts" };
+            }
+            return { buildable: true, valid: true, error: null };
+        },
+        async BuildDocumentAsync(dna)
+        {
+            builtDna.push(dna);
+            if (dna.includes(":unbuildable")) return null;
+
+            return { schema: "carbon.document", dna };
+        },
+        BuildValues()
+        {
+            valuesCount++;
+            throw new Error("SOF values hydration was not expected");
+        },
+    };
+    const proxy = new CjsToolHttpProxy({
+        indexes: {
+            Open() {},
+            async ResolveTargetBuild(target, build)
+            {
+                assert.equal(target, "eve");
+                assert.ok([ "latest", "3435006" ].includes(build));
+
+                return {
+                    target,
+                    game: "Eve",
+                    provider: "ccp",
+                    buildRef: build,
+                    build: "3435006",
+                    client: "tranquility",
+                    source: build === "latest" ? "latest-remote-metadata" : "exact",
+                };
+            },
+            async OpenTarget(target, build, options)
+            {
+                assert.equal(target, "eve");
+                assert.equal(build, "3435006");
+                assert.deepEqual(options, { client: "tranquility" });
+                openTargetCount++;
+
+                return source;
+            },
+        },
+        sof: {
+            async OpenSource(received)
+            {
+                assert.equal(received, source);
+                openSofCount++;
+
+                return catalog;
+            },
+        },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const root = `http://127.0.0.1:${server.address().port}/eve/latest/sof`;
+    const collections = {
+        hulls: [ "ab1_t1", "zz1_t1" ],
+        factions: [ "amarrbase" ],
+        races: [ "amarr" ],
+        materials: [ "gold" ],
+        layouts: [ "antennae" ],
+        patterns: [ "alpha", "stripes" ],
+    };
+
+    for (const [name, expected] of Object.entries(collections))
+    {
+        const response = await fetch(`${root}/${name}`);
+
+        assert.equal(response.status, 200, name);
+        assert.deepEqual(await response.json(), expected, name);
+        assert.equal(response.headers.get("x-carbon-target"), "eve");
+        assert.equal(response.headers.get("x-carbon-build"), "3435006");
+    }
+
+    assert.deepEqual(await (await fetch(`${root}/hulls/AB1_T1`)).json(), {
+        name: "ab1_t1",
+    });
+    assert.deepEqual(await (await fetch(`${root}/factions/AMARRBASE`)).json(), {
+        name: "amarrbase",
+    });
+    assert.deepEqual(await (await fetch(`${root}/races/AMARR`)).json(), {
+        name: "amarr",
+    });
+    assert.deepEqual(await (await fetch(`${root}/materials/GOLD`)).json(), {
+        name: "gold",
+        parameters: { PaintColor: [1, 2, 3, 4] },
+    });
+    assert.deepEqual(await (await fetch(`${root}/layouts/ANTENNAE`)).json(), {
+        name: "antennae",
+    });
+    assert.deepEqual(await (await fetch(
+        `${root}/patterns/STRIPES/hulls/AB1_T1`,
+    )).json(), {
+        layerAndProjection: [{ layer: { textureName: "PatternTex" } }],
+    });
+    const hullPatterns = await fetch(`${root}/hulls/AB1_T1/patterns/`);
+    assert.equal(hullPatterns.status, 200);
+    assert.deepEqual(await hullPatterns.json(), [ "alpha", "stripes" ]);
+    assert.equal(hullPatterns.headers.get("x-carbon-sof-hull"), "ab1_t1");
+    assert.deepEqual(
+        await (await fetch(`${root}/hulls/zz1_t1/patterns`)).json(),
+        [],
+    );
+
+    const literalDna = "ab1_t1:amarrbase:amarr:pattern?stripes;none;none";
+    const encodedDna = literalDna.replace("?", "%3F");
+    const literal = await fetch(`${root}/dna/${literalDna}`);
+    const encoded = await fetch(`${root}/dna/${encodedDna}`);
+
+    assert.equal(literal.status, 200);
+    assert.equal(encoded.status, 200);
+    assert.equal((await literal.json()).schema, "carbon.document");
+    assert.equal((await encoded.json()).schema, "carbon.document");
+    assert.deepEqual(builtDna, [ literalDna, literalDna ]);
+    assert.equal(valuesCount, 0);
+
+    assert.equal((await fetch(`${root}/hulls/missing`)).status, 404);
+    assert.equal((await fetch(`${root}/hulls/missing/patterns`)).status, 404);
+    assert.equal((await fetch(
+        `${root}/patterns/missing/hulls/ab1_t1`,
+    )).status, 404);
+    assert.equal((await fetch(
+        `${root}/patterns/stripes/hulls/missing`,
+    )).status, 404);
+    assert.equal((await fetch(
+        `${root}/dna/missing:amarrbase:amarr`,
+    )).status, 404);
+    assert.equal((await fetch(
+        `${root}/dna/ab1_t1:amarrbase:unbuildable`,
+    )).status, 404);
+    assert.equal((await fetch(`${root}/dna/malformed`)).status, 400);
+    assert.equal((await fetch(`${root}/hulls/not%20safe`)).status, 400);
+    assert.equal((await fetch(`${root}/patterns/stripes`)).status, 400);
+    assert.equal((await fetch(`${root}/generic`)).status, 404);
+    assert.equal(openTargetCount, 1);
+    assert.equal(openSofCount, 1);
 });
 
 test("answers browser CORS preflight without an authentication contract", async context =>
@@ -247,6 +450,7 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
         skin: true,
         skinr: true,
         weapons: true,
+        sofCatalog: false,
         sofValues: false,
         sofDocument: false,
     });
@@ -441,6 +645,7 @@ test("resolves character names and type identities with atomic LOD bundles", asy
         skin: false,
         skinr: false,
         weapons: false,
+        sofCatalog: false,
         sofValues: false,
         sofDocument: false,
     });
@@ -689,6 +894,7 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
         skin: false,
         skinr: false,
         weapons: false,
+        sofCatalog: false,
         sofValues: false,
         sofDocument: false,
     });
@@ -867,6 +1073,7 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
         skin: true,
         skinr: true,
         weapons: true,
+        sofCatalog: true,
         sofValues: false,
         sofDocument: false,
     });

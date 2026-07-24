@@ -5,6 +5,16 @@ Scope: `@carbonenginejs/tools-core` realtime, service-hosting, and webhook class
 Audience: Users, maintainers, and automated readers
 Summary: Provides source-backed purpose descriptors for realtime protocol, transport, hosting, and webhook classes.
 
+<!-- class:CjsRealtimeChatBlockList -->
+## `CjsRealtimeChatBlockList`
+
+Applies immutable, empty-by-default term and user blocks to provider-neutral chat payloads.
+
+- Export: `@carbonenginejs/tools-core/realtime/chat`
+- Source: `src/realtime/chat/CjsRealtimeChatBlockList.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
 <!-- class:CjsRealtimeChatContract -->
 ## `CjsRealtimeChatContract`
 
@@ -24,6 +34,15 @@ Stable protocol-facing error for realtime requests and transports.
 - Source: `src/realtime/CjsRealtimeError.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
+
+<!-- class:CjsTwitchChatAssetResolver -->
+## `CjsTwitchChatAssetResolver`
+
+Resolves and caches Twitch channel profile images and preferred static or animated IRC emote URLs before chat publication.
+
+- Source: `src/integrations/twitch/CjsTwitchChatAssetResolver.js`
+- Visibility: Internal
+- Kind: Internal implementation
 
 <!-- class:CjsRealtimeProtocol -->
 ## `CjsRealtimeProtocol`

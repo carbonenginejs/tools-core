@@ -145,6 +145,12 @@ export class CjsRealtimeConnection
         return [ ...new Set(this.#subscriptions.values()) ];
     }
 
+    /** Returns the number of connection-owned subscriptions. */
+    GetSubscriptionCount()
+    {
+        return this.#subscriptions.size;
+    }
+
     /** Enqueues one successful terminal request response. */
     SendResult(requestId, result)
     {

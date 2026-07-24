@@ -80,6 +80,51 @@ The resolve request accepts `{ "paths": [...] }` and returns a positional
 array. It inserts only candidates present in the composed exact-build resource
 view and otherwise returns the original path.
 
+## GPU-free SOF routes
+
+The command-line service opens the selected exact resource build, fetches
+`res:/dx9/model/spaceobjectfactory/data.black`, and gives runtime-sof the
+complete composed `res:/` file list:
+
+```text
+GET /eve/<build>/sof/hulls
+GET /eve/<build>/sof/factions
+GET /eve/<build>/sof/races
+GET /eve/<build>/sof/materials
+GET /eve/<build>/sof/layouts
+GET /eve/<build>/sof/patterns
+
+GET /eve/<build>/sof/hulls/<hull>
+GET /eve/<build>/sof/hulls/<hull>/patterns/
+GET /eve/<build>/sof/factions/<faction>
+GET /eve/<build>/sof/races/<race>
+GET /eve/<build>/sof/materials/<material>
+GET /eve/<build>/sof/layouts/<layout>
+GET /eve/<build>/sof/patterns/<pattern>/hulls/<hull>
+GET /eve/<build>/sof/dna/<dna>
+```
+
+Collections are sorted unique canonical lowercase names. Detail lookups are
+case-insensitive and return runtime-sof's detached catalog record directly in
+JSON-compatible form. Runtime-sof owns the conversion of nested Maps, Sets,
+typed arrays, and model values; tools-core does not define a second catalog
+shape. The pattern/hull route returns only that one runtime-sof pattern
+application. The hull/patterns route returns the sorted canonical names of
+patterns with a runtime-sof application for that hull. A known hull without
+applications returns `[]`; an unknown hull returns `404`.
+
+The DNA route returns runtime-sof's GPU-free `carbon.document` directly from
+`BuildFromDNA`/`BuildFromDNAAsync`. It does not hydrate runtime-trinity values.
+A DNA command separator may be sent either as a literal `?` or as `%3F`; the
+service treats a literal `?` after `/sof/dna/` as part of the DNA rather than
+discarding it as an HTTP query.
+
+Friendly builds resolve through the normal target index policy. Response
+headers report the selected exact numeric build, and the decoded catalog is
+reused by exact target/build identity. Missing records or unbuildable
+selections return `404`, malformed paths or DNA return `400`, and catalog/DNA
+routes return `501` only when the SOF service is not configured.
+
 ## SDE routes
 
 ```text
@@ -148,7 +193,7 @@ Ammunition compatibility comes from dogma charge groups and size, not filename
 or market-name guessing. Projectile graphics remain a separate official
 launcher catalog.
 
-## SOF routes
+## Injected compatibility SOF routes
 
 When the embedding application injects a prepared facade:
 

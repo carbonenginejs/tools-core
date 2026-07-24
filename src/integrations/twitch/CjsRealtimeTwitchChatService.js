@@ -3,8 +3,9 @@ import { CjsRealtimeProtocol } from "../../realtime/CjsRealtimeProtocol.js";
 import {
     CHAT_FAMILY,
     CHAT_TOPICS,
+    CjsRealtimeChatBlockList,
     CjsRealtimeChatContract,
-} from "../../realtime/chat/CjsRealtimeChatContract.js";
+} from "../../realtime/chat/index.js";
 import { CjsTwitchChatSource } from "./CjsTwitchChatSource.js";
 
 const MESSAGE_TOPIC = CHAT_TOPICS.MESSAGE_RECEIVED;
@@ -15,6 +16,8 @@ export class CjsRealtimeTwitchChatService
 {
 
     #accepting;
+
+    #blockList;
 
     #clock;
 
@@ -34,12 +37,15 @@ export class CjsRealtimeTwitchChatService
 
     #source;
 
+    #subscriptionRooms;
+
     constructor({
         id,
         provider = null,
         source = null,
         integrationId = null,
         room = null,
+        blockList = null,
         clock = () => Date.now(),
         recentMessageLimit = 1000,
     } = {})
@@ -84,6 +90,9 @@ export class CjsRealtimeTwitchChatService
         }
 
         this.id = id;
+        this.#blockList = blockList instanceof CjsRealtimeChatBlockList
+            ? blockList
+            : new CjsRealtimeChatBlockList(blockList ?? {});
         this.#room = CjsRealtimeTwitchChatService.normalizeRoom(room);
         this.#integrationId = CjsRealtimeChatContract.normalizeNullableString(
             chatSource.integrationId ?? null,
@@ -98,6 +107,7 @@ export class CjsRealtimeTwitchChatService
         this.#recentByRoom = new Map();
         this.#running = false;
         this.#source = chatSource;
+        this.#subscriptionRooms = new Map();
     }
 
     /** Declares one future-only provider-neutral chat stream. */
@@ -115,6 +125,10 @@ export class CjsRealtimeTwitchChatService
             commands: [],
             snapshot: false,
             resources: false,
+            subscriptions: {
+                multiple: true,
+                target: this.#source.supportsDynamicRooms ? "chat.room" : null,
+            },
         };
     }
 
@@ -158,11 +172,85 @@ export class CjsRealtimeTwitchChatService
         this.#context = null;
         this.#operations = new Set();
         this.#recentByRoom = new Map();
+        this.#subscriptionRooms = new Map();
 
         if (stopResult.status === "rejected")
         {
             throw stopResult.reason;
         }
+    }
+
+    /** Acquires the Twitch IRC room selected by one downstream subscription. */
+    async OpenSubscription(subscription)
+    {
+        if (subscription.target === null)
+        {
+            return null;
+        }
+
+        if (!this.#source.supportsDynamicRooms)
+        {
+            throw new CjsRealtimeError(
+                "subscription_target_unsupported",
+                "Twitch chat source does not support dynamic room subscriptions",
+            );
+        }
+
+        const target = CjsRealtimeTwitchChatService.normalizeSubscriptionTarget(
+            subscription.target,
+            this.#integrationId,
+        );
+
+        const roomMetadata = await this.#source.AcquireRoom(
+            this,
+            subscription.subscriptionId,
+            target.room.login,
+        );
+        const resolvedTarget = Object.freeze({
+            room: CjsRealtimeChatContract.freeze({
+                ...target.room,
+                id: roomMetadata?.id ?? target.room.id,
+                displayName: roomMetadata?.displayName ?? null,
+                ...(roomMetadata?.assets
+                    ? { assets: roomMetadata.assets }
+                    : {}),
+            }),
+        });
+        this.#subscriptionRooms.set(
+            subscription.subscriptionId,
+            resolvedTarget.room,
+        );
+
+        return resolvedTarget;
+    }
+
+    /** Releases the upstream Twitch IRC room held by one subscription. */
+    async CloseSubscription(subscription)
+    {
+        if (!this.#subscriptionRooms.delete(subscription.subscriptionId))
+        {
+            return;
+        }
+
+        await this.#source.ReleaseRoom(this, subscription.subscriptionId);
+    }
+
+    /** Selects room messages and room-scoped status for one subscription. */
+    MatchesSubscription(subscription, topic, data)
+    {
+        const room = subscription.target?.room;
+
+        if (!room)
+        {
+            return true;
+        }
+
+        if (topic === STATUS_TOPIC && data.room === null)
+        {
+            return true;
+        }
+
+        return CjsRealtimeChatContract.matchesRoomSelector(room, data.room);
     }
 
     #OnMessage(message)
@@ -193,6 +281,11 @@ export class CjsRealtimeTwitchChatService
         }
 
         if (!CjsRealtimeTwitchChatService.matchesRoom(this.#room, normalized.room))
+        {
+            return;
+        }
+
+        if (this.#blockList.BlocksMessage(normalized))
         {
             return;
         }
@@ -355,6 +448,46 @@ export class CjsRealtimeTwitchChatService
             || ((selector.id === null || selector.id === room.id)
                 && (selector.login === null
                     || selector.login === room.login?.toLowerCase()));
+    }
+
+    /** Normalizes a provider-neutral room target for Twitch IRC joining. */
+    static normalizeSubscriptionTarget(value, integrationId = null)
+    {
+        if (!CjsRealtimeProtocol.isRecord(value)
+            || !CjsRealtimeProtocol.isRecord(value.room))
+        {
+            throw new CjsRealtimeError(
+                "invalid_subscription_target",
+                "Twitch chat target must contain a room selector",
+            );
+        }
+
+        const selector = CjsRealtimeChatContract.normalizeRoomSelector(value.room);
+        const login = selector.login?.replace(/^#/u, "").toLowerCase() ?? null;
+
+        if (selector.provider !== "twitch"
+            || selector.space !== null
+            || (selector.integrationId !== null
+                && selector.integrationId !== integrationId)
+            || (selector.kind !== null && selector.kind !== "channel")
+            || (selector.id !== null && !/^\d+$/u.test(selector.id))
+            || login === null
+            || !/^[a-z0-9_]{1,25}$/u.test(login))
+        {
+            throw new CjsRealtimeError(
+                "invalid_subscription_target",
+                "Twitch chat target must identify a channel login",
+            );
+        }
+
+        return Object.freeze({
+            room: CjsRealtimeChatContract.freeze({
+                ...selector,
+                integrationId,
+                kind: "channel",
+                login,
+            }),
+        });
     }
 
     /** Creates the bounded provider status exposed to chat consumers. */

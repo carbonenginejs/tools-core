@@ -9,6 +9,7 @@ export * from "./proxy/index.js";
 export * from "./sde/index.js";
 export * from "./shader/index.js";
 export * from "./skin/index.js";
+export * from "./sof/index.js";
 export * from "./target/index.js";
 export * from "./weapon/index.js";
 export { CjsToolCore } from "./CjsToolCore.js";

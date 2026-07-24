@@ -892,6 +892,199 @@ test("read records the C++ declaration owner for inherited Blue methods", () =>
     assert.equal(child.methods[0].declaredOn, "FixtureBase");
 });
 
+test("read expands pure interface contracts across schema families and deduplicates Blue methods", () =>
+{
+    const declaration = (name, returnType, parameters = []) => ({
+        name,
+        returnType,
+        parameters,
+        isConst: false,
+        virtual: true,
+        pureVirtual: true,
+        declaredOn: name.startsWith("GetPicking") || name === "GetID"
+            ? "ITr2Pickable"
+            : "ITr2Renderable",
+        kind: "declaration"
+    });
+    const report = {
+        carbonRoot: "carbonengine-fixture",
+        generatedAt: "2026-07-25T00:00:00.000Z",
+        enums: [],
+        families: [
+            {
+                name: "trinityCore",
+                root: "trinity/trinity",
+                classes: [
+                    {
+                        name: "ITr2Renderable",
+                        family: "trinityCore",
+                        declarationKind: "interface",
+                        bases: ["IRoot"],
+                        fields: [],
+                        methods: [
+                            declaration("GetBatches", "void"),
+                            declaration("HasTransparentBatches", "bool"),
+                            declaration("GetSortValue", "float"),
+                            declaration("GetPerObjectData", "Tr2PerObjectData*")
+                        ],
+                        blue: {
+                            isExposed: false,
+                            methods: [],
+                            interfaces: []
+                        }
+                    },
+                    {
+                        name: "ITr2Pickable",
+                        family: "trinityCore",
+                        declarationKind: "interface",
+                        bases: ["IRoot"],
+                        fields: [],
+                        methods: [
+                            declaration("GetID", "IRoot*"),
+                            declaration("GetPickingBatches", "void")
+                        ],
+                        blue: {
+                            isExposed: false,
+                            methods: [],
+                            interfaces: []
+                        }
+                    },
+                    {
+                        name: "Tr2CurveLineSet",
+                        family: "trinityCore",
+                        bases: ["ITr2Renderable"],
+                        fields: [],
+                        methods: [],
+                        blue: {
+                            isExposed: true,
+                            methods: [],
+                            interfaces: []
+                        }
+                    }
+                ]
+            },
+            {
+                name: "eve",
+                root: "trinity/trinity/Eve",
+                classes: [
+                    {
+                        name: "EveSpaceObjectDecal",
+                        family: "eve",
+                        bases: ["ITr2Renderable", "ITr2Pickable"],
+                        fields: [],
+                        methods: [
+                            {
+                                name: "GetBatches",
+                                returnType: "void",
+                                parameters: [],
+                                isConst: false,
+                                virtual: true,
+                                pureVirtual: false,
+                                declaredOn: "EveSpaceObjectDecal",
+                                kind: "declaration"
+                            },
+                            {
+                                name: "NativeHelper",
+                                returnType: "void",
+                                parameters: [],
+                                isConst: false,
+                                virtual: false,
+                                pureVirtual: false,
+                                declaredOn: "EveSpaceObjectDecal",
+                                kind: "declaration"
+                            }
+                        ],
+                        blue: {
+                            isExposed: true,
+                            methods: [
+                                {
+                                    macro: "MAP_METHOD_AND_WRAP",
+                                    name: "GetBatches",
+                                    target: "GetBatches"
+                                },
+                                {
+                                    macro: "MAP_METHOD_AND_WRAP",
+                                    name: "GetBatches",
+                                    target: "GetBatches"
+                                }
+                            ],
+                            interfaces: [
+                                { name: "EveSpaceObjectDecal" },
+                                { name: "ITr2Renderable" },
+                                { name: "ITr2Pickable" }
+                            ]
+                        }
+                    },
+                    {
+                        name: "EveCurveLineSet",
+                        family: "eve",
+                        bases: ["Tr2CurveLineSet"],
+                        fields: [],
+                        methods: [],
+                        blue: {
+                            isExposed: true,
+                            methods: [],
+                            interfaces: []
+                        }
+                    }
+                ]
+            }
+        ]
+    };
+
+    const bundle = CjsFormatCarbon.read(report);
+    const decal = bundle.families
+        .find(family => family.name === "eve")
+        .classes.find(item => item.blueClass === "EveSpaceObjectDecal");
+    const renderable = bundle.families
+        .find(family => family.name === "trinityCore")
+        .classes.find(item => item.blueClass === "ITr2Renderable");
+    const contracts = decal.methods.filter(method => method.blueName || method.interface);
+
+    assert.equal(renderable.declarationKind, "interface");
+    assert.equal(renderable.methods.length, 0);
+    assert.equal(renderable.nativeMethods.length, 4);
+    assert.deepEqual(decal.blue.interfaces.map(item => item.name), [
+        "EveSpaceObjectDecal",
+        "ITr2Renderable",
+        "ITr2Pickable"
+    ]);
+    assert.deepEqual(contracts.map(method => method.blueName || method.target).sort(), [
+        "GetBatches",
+        "GetID",
+        "GetPerObjectData",
+        "GetPickingBatches",
+        "GetSortValue",
+        "HasTransparentBatches"
+    ]);
+    assert.equal(contracts.filter(method => method.target === "GetBatches").length, 1);
+    const getBatches = contracts.find(method => method.target === "GetBatches");
+    assert.equal(getBatches.interface, "ITr2Renderable");
+    assert.equal(getBatches.declaredOn, "EveSpaceObjectDecal");
+    assert.equal(getBatches.pureVirtual, false);
+    assert.equal(getBatches.contract.declaredOn, "ITr2Renderable");
+    assert.equal(getBatches.contract.pureVirtual, true);
+    assert.equal(contracts.find(method => method.target === "GetID").declaredOn, "ITr2Pickable");
+    assert.equal(contracts.every(method => method.virtual), true);
+    assert.equal(contracts.filter(method => method !== getBatches).every(method => method.pureVirtual), true);
+    assert.equal(decal.methods.some(method => method.target === "NativeHelper"), false);
+
+    const nativeHelper = decal.nativeMethods.find(method => method.target === "NativeHelper");
+    assert.equal(nativeHelper.declaredOn, "EveSpaceObjectDecal");
+    assert.equal(nativeHelper.virtual, false);
+
+    const curveLineSet = bundle.families
+        .find(family => family.name === "eve")
+        .classes.find(item => item.blueClass === "EveCurveLineSet");
+    assert.deepEqual(curveLineSet.methods.map(method => method.target).sort(), [
+        "GetBatches",
+        "GetPerObjectData",
+        "GetSortValue",
+        "HasTransparentBatches"
+    ]);
+    assert.equal(curveLineSet.methods.every(method => method.interface === "ITr2Renderable"), true);
+});
+
 test("read preserves source-backed defaults for indexed SOF applicable areas", () =>
 {
     const members = [

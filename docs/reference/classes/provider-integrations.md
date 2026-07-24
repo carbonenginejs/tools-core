@@ -254,6 +254,16 @@ Public Twitch chat normalizer backed by the internal Carbon implementation.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
+<!-- class:TwitchChatAssetResolver -->
+## `TwitchChatAssetResolver`
+
+Public Twitch channel and preferred static or animated IRC emote URL resolver.
+
+- Export: `@carbonenginejs/tools-core/integrations/twitch`
+- Source: `src/integrations/twitch/index.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
 <!-- class:TwitchChatService -->
 ## `TwitchChatService`
 

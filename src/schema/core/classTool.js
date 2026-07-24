@@ -969,6 +969,17 @@ const SOF_GENERIC_SWARM_FIELD_OVERRIDES = swarmBehaviorFieldOverrides(
     SOF_GENERIC_SWARM_EXPOSED_FIELDS
 );
 
+// Native members are not part of the generated runtime surface merely because
+// the header scanner can see them. This allowlist records the small set that
+// has been reviewed as required runtime state alongside a class's Blue fields.
+const REVIEWED_NATIVE_FIELD_INCLUSIONS = Object.freeze({
+    EveSpaceObjectDecal: Object.freeze([
+        "m_parentData",
+        "m_parentBoneMatrix",
+        "m_invParentBoneMatrix"
+    ])
+});
+
 const SOURCE_FIELD_OVERRIDES = Object.freeze({
     CompressionOptions: Object.freeze({
         // nvtt::Quality_Production; Blue exposes the chooser key PRODUCTION.
@@ -2006,6 +2017,39 @@ export function deriveExpectedFields(doc, options = {})
         }
     }
 
+    const reviewedNativeFields = REVIEWED_NATIVE_FIELD_INCLUSIONS[className] || [];
+    const includedNativeFields = [];
+    const missingNativeFields = [];
+    for (const cppName of reviewedNativeFields)
+    {
+        const field = usableRawFields.find(item => item.cppName === cppName);
+        if (!field)
+        {
+            missingNativeFields.push(cppName);
+            continue;
+        }
+
+        const name = stripMemberPrefix(field.cppName);
+        const kindInfo = inferKindFromCpp(field.cppType, name, schemaRoot, className);
+        const parsedDefault = parseSchemaDefault(field.default, kindInfo.kind, {
+            enumType: kindInfo.enumType,
+            enumQualifiedName: kindInfo.enumQualifiedName,
+            className,
+            schemaRoot
+        });
+        const before = fields.length;
+        pushExpected(buildExpectedField({
+            name,
+            member: field.cppName,
+            cppType: field.cppType || null,
+            flags: [],
+            kindInfo,
+            parsedDefault,
+            notes: ["reviewed native field inclusion"]
+        }));
+        if (fields.length !== before) includedNativeFields.push(cppName);
+    }
+
     for (const property of properties)
     {
         const name = property.blueName || property.name || null;
@@ -2056,6 +2100,13 @@ export function deriveExpectedFields(doc, options = {})
         className
     );
     meta.inheritedSkipped = inheritedSkipped;
+    if (reviewedNativeFields.length)
+    {
+        meta.reviewedNativeFields = {
+            included: includedNativeFields,
+            missing: missingNativeFields
+        };
+    }
     return { fields, methods, fallback: null, meta };
 }
 
@@ -2159,10 +2210,15 @@ function deriveExpectedMethods(doc, options = {})
 
     for (const method of Array.isArray(doc.methods) ? doc.methods : [])
     {
+        const blueMethod = Boolean(method.blueName || method.macro);
+        const interfaceMethod = Boolean(method.interface || method.pureVirtual);
+        if (!blueMethod && !interfaceMethod) continue;
+
         const name = method.blueName || method.target || null;
         if (!name || seen.has(name)) continue;
         if (
             !includeInherited &&
+            !interfaceMethod &&
             method.declaredOn &&
             method.declaredOn !== className &&
             ownerExposesBlueMethod(schemaRoot, family, method.declaredOn, name)
@@ -2176,6 +2232,11 @@ function deriveExpectedMethods(doc, options = {})
             blueName: method.blueName || null,
             target: method.target || null,
             declaredOn: method.declaredOn || null,
+            interface: method.interface || null,
+            virtual: method.virtual ?? null,
+            pureVirtual: method.pureVirtual ?? null,
+            returnType: method.returnType || null,
+            parameters: method.parameters || [],
             macro: method.macro || null,
             description: method.description || null
         });
@@ -3093,7 +3154,10 @@ function exportExpectedMethod(method)
         blueName: method.name,
         target: method.target || null,
         macro: method.macro || null,
-        declaredOn: method.declaredOn || null
+        declaredOn: method.declaredOn || null,
+        interface: method.interface || null,
+        virtual: method.virtual ?? null,
+        pureVirtual: method.pureVirtual ?? null
     };
 }
 
@@ -3571,7 +3635,8 @@ function renderMethodComment(method)
 {
     const target = method.target && method.target !== method.name ? ` -> ${method.target}` : "";
     const macro = method.macro ? ` (${method.macro})` : "";
-    return `/** Carbon method ${method.name}${target}${macro}. */`;
+    const contract = method.interface ? ` [${method.interface} contract]` : "";
+    return `/** Carbon method ${method.name}${target}${macro}${contract}. */`;
 }
 
 function renderMethodDecl(method, isJs)

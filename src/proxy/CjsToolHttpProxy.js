@@ -49,6 +49,8 @@ export class CjsToolHttpProxy
 
     #targetSources;
 
+    #sofCatalogs;
+
     #skinLibraries;
 
     #weaponLibraries;
@@ -57,6 +59,7 @@ export class CjsToolHttpProxy
     constructor({
         core = null,
         indexes = null,
+        sof = null,
         sde = null,
         characters = null,
         audio = null,
@@ -71,6 +74,21 @@ export class CjsToolHttpProxy
         if (indexes !== null && typeof indexes.Open !== "function")
         {
             throw new TypeError("CjsToolHttpProxy indexes must provide Open(options)");
+        }
+
+        if (sof !== null && typeof sof.OpenSource !== "function")
+        {
+            throw new TypeError(
+                "CjsToolHttpProxy SOF service must provide OpenSource(source)",
+            );
+        }
+
+        if (sof !== null && (indexes === null
+            || typeof indexes.OpenTarget !== "function"))
+        {
+            throw new TypeError(
+                "CjsToolHttpProxy SOF service requires target index acquisition",
+            );
         }
 
         if (sde !== null && typeof sde.OpenTarget !== "function")
@@ -88,7 +106,7 @@ export class CjsToolHttpProxy
             throw new TypeError("CjsToolHttpProxy audio service must provide OpenTarget(target, build)");
         }
 
-        if (core === null && indexes === null && sde === null
+        if (core === null && indexes === null && sof === null && sde === null
             && characters === null && audio === null)
         {
             throw new TypeError(
@@ -103,12 +121,14 @@ export class CjsToolHttpProxy
 
         this.core = core;
         this.indexes = indexes;
+        this.sof = sof;
         this.sde = sde;
         this.characters = characters;
         this.audio = audio;
         this.maxRequestBytes = maxRequestBytes;
         this.#answerCatalogs = new Map();
         this.#targetSources = new Map();
+        this.#sofCatalogs = new Map();
         this.#skinLibraries = new Map();
         this.#weaponLibraries = new Map();
         this.capabilities = Object.freeze({
@@ -119,6 +139,7 @@ export class CjsToolHttpProxy
             skin: sde !== null,
             skinr: sde !== null,
             weapons: sde !== null,
+            sofCatalog: sof !== null,
             // Recommended boundary: plain model values from GetValues.
             sofValues: core !== null && typeof core.BuildSofValuesAsync === "function",
             // Compatibility/diagnostic boundary: explicit carbon.document graphs.
@@ -211,7 +232,10 @@ export class CjsToolHttpProxy
             return;
         }
 
-        let targetRoute = MatchTargetRoute(url.pathname);
+        let targetRoute = AppendSofDnaSearch(
+            MatchTargetRoute(url.pathname),
+            url.search,
+        );
 
         if ([ "GET", "HEAD" ].includes(request.method)
             && targetRoute?.topic === "audio")
@@ -638,6 +662,30 @@ export class CjsToolHttpProxy
             return;
         }
 
+        if (request.method === "GET"
+            && segments.length === 3
+            && segments[0].toLowerCase() === "hulls"
+            && segments[2].toLowerCase() === "patterns")
+        {
+            const hull = RequireSofName(segments[1], "SOF hull");
+            const catalog = await this.#GetSofCatalog(route.target, route.build);
+            const patterns = catalog.ListHullPatterns(hull);
+            const headers = CreateAnswerHeaders(catalog, "sof-hull-patterns", { hull });
+
+            if (patterns === null)
+            {
+                WriteJson(response, 404, {
+                    error: `SOF hull not found: ${hull}`,
+                }, headers);
+
+                return;
+            }
+
+            WriteJson(response, 200, patterns, headers);
+
+            return;
+        }
+
         if (request.method === "POST"
             && segments.length === 5
             && segments[0].toLowerCase() === "hulls"
@@ -659,7 +707,194 @@ export class CjsToolHttpProxy
             return;
         }
 
+        if (request.method !== "GET")
+        {
+            WriteJson(response, 404, { error: "SOF route not found" });
+
+            return;
+        }
+
+        const topic = String(segments[0] ?? "").toLowerCase();
+
+        if (topic === "dna")
+        {
+            if (segments.length !== 2)
+            {
+                WriteJson(response, 400, { error: "Malformed SOF DNA route" });
+
+                return;
+            }
+
+            const dna = RequireSofDna(segments[1]);
+            const catalog = await this.#GetSofCatalog(route.target, route.build);
+            const inspection = catalog.InspectDna(dna);
+            const headers = CreateAnswerHeaders(catalog, "sof-dna");
+
+            if (!inspection?.buildable)
+            {
+                const statusCode = String(inspection?.error ?? "").startsWith("unknown-")
+                    ? 404
+                    : 400;
+
+                WriteJson(response, statusCode, {
+                    error: statusCode === 404
+                        ? "SOF DNA selection was not found"
+                        : "Malformed SOF DNA",
+                }, headers);
+
+                return;
+            }
+
+            if (!inspection.valid)
+            {
+                WriteJson(response, 400, { error: "Invalid SOF DNA content" }, headers);
+
+                return;
+            }
+
+            const document = await catalog.BuildDocumentAsync(dna);
+
+            if (document === null)
+            {
+                WriteJson(response, 404, {
+                    error: "SOF DNA selection could not be built",
+                }, headers);
+
+                return;
+            }
+
+            WriteJson(response, 200, document, headers);
+
+            return;
+        }
+
+        const collectionMethods = {
+            hulls: "ListHulls",
+            factions: "ListFactions",
+            races: "ListRaces",
+            materials: "ListMaterials",
+            layouts: "ListLayouts",
+            patterns: "ListPatterns",
+        };
+        const detailMethods = {
+            hulls: "GetHull",
+            factions: "GetFaction",
+            races: "GetRace",
+            materials: "GetMaterial",
+            layouts: "GetLayout",
+        };
+
+        if (segments.length === 1 && Object.hasOwn(collectionMethods, topic))
+        {
+            const catalog = await this.#GetSofCatalog(route.target, route.build);
+
+            WriteJson(
+                response,
+                200,
+                catalog[collectionMethods[topic]](),
+                CreateAnswerHeaders(catalog, `sof-${topic}`),
+            );
+
+            return;
+        }
+
+        if (segments.length === 2 && Object.hasOwn(detailMethods, topic))
+        {
+            const name = RequireSofName(segments[1], `SOF ${topic.slice(0, -1)}`);
+            const catalog = await this.#GetSofCatalog(route.target, route.build);
+            const value = catalog[detailMethods[topic]](name);
+            const headers = CreateAnswerHeaders(catalog, `sof-${topic}`, {
+                ...(topic === "hulls" ? { hull: name } : {}),
+            });
+
+            if (value === null)
+            {
+                WriteJson(response, 404, {
+                    error: `SOF ${topic.slice(0, -1)} not found: ${name}`,
+                }, headers);
+
+                return;
+            }
+
+            WriteJson(response, 200, value, headers);
+
+            return;
+        }
+
+        if (segments.length === 4
+            && topic === "patterns"
+            && String(segments[2]).toLowerCase() === "hulls")
+        {
+            const pattern = RequireSofName(segments[1], "SOF pattern");
+            const hull = RequireSofName(segments[3], "SOF hull");
+            const catalog = await this.#GetSofCatalog(route.target, route.build);
+            const value = catalog.GetPatternHull(pattern, hull);
+            const headers = CreateAnswerHeaders(catalog, "sof-pattern-hull", { hull });
+
+            if (value === null)
+            {
+                WriteJson(response, 404, {
+                    error: `SOF pattern application not found: ${pattern}/${hull}`,
+                }, headers);
+
+                return;
+            }
+
+            WriteJson(response, 200, value, headers);
+
+            return;
+        }
+
+        if (Object.hasOwn(collectionMethods, topic))
+        {
+            WriteJson(response, 400, { error: "Malformed SOF catalog route" });
+
+            return;
+        }
+
         WriteJson(response, 404, { error: "SOF index-answer route not found" });
+    }
+
+    async #GetSofCatalog(target, build)
+    {
+        if (!this.sof)
+        {
+            const error = new Error("SOF service is not configured");
+
+            error.statusCode = 501;
+            throw error;
+        }
+
+        const source = await this.#OpenTargetSource(target, build);
+        const key = [
+            source.target,
+            source.game,
+            source.provider,
+            source.build,
+            source.client ?? "",
+        ].join("\0");
+        let loading = this.#sofCatalogs.get(key);
+
+        if (!loading)
+        {
+            loading = Promise.resolve().then(() => this.sof.OpenSource(source));
+            this.#sofCatalogs.set(key, loading);
+            RetainNewest(this.#sofCatalogs, 4);
+            loading.catch(() =>
+            {
+                if (this.#sofCatalogs.get(key) === loading)
+                {
+                    this.#sofCatalogs.delete(key);
+                }
+            });
+        }
+        else
+        {
+            this.#sofCatalogs.delete(key);
+            this.#sofCatalogs.set(key, loading);
+        }
+
+        return loading;
     }
 
     async #GetIndexAnswerCatalog(target, build)
@@ -1406,6 +1641,28 @@ function MatchTargetRoute(pathname)
     }
 }
 
+function AppendSofDnaSearch(route, search)
+{
+    if (!route || route.topic !== "sof"
+        || !String(route.path ?? "").toLowerCase().startsWith("dna/")
+        || !search)
+    {
+        return route;
+    }
+
+    try
+    {
+        return Object.freeze({
+            ...route,
+            path: `${route.path}${decodeURIComponent(search)}`,
+        });
+    }
+    catch
+    {
+        throw new TypeError("SOF DNA route contains invalid URL encoding");
+    }
+}
+
 function ParseAudioRequest(value)
 {
     const path = String(value ?? "");
@@ -1859,6 +2116,30 @@ function ReadFormatJson(path, bytes)
 function normalizeRouteSegment(value)
 {
     return String(value).trim().toLowerCase();
+}
+
+function RequireSofName(value, label)
+{
+    const name = String(value ?? "").trim().toLowerCase();
+
+    if (!/^[a-z0-9][a-z0-9._-]*$/u.test(name))
+    {
+        throw new TypeError(`${label} must be one safe path segment`);
+    }
+
+    return name;
+}
+
+function RequireSofDna(value)
+{
+    const dna = String(value ?? "").trim();
+
+    if (!dna || dna.includes("/") || dna.includes("\\"))
+    {
+        throw new TypeError("SOF DNA must be one non-empty URL path segment");
+    }
+
+    return dna;
 }
 
 function RetainNewest(cache, limit)

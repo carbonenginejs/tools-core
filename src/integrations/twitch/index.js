@@ -12,6 +12,7 @@ import { CjsTwitchEventSubChatProvider } from "./CjsTwitchEventSubChatProvider.j
 import { CjsTwitchEventSubSession } from "./CjsTwitchEventSubSession.js";
 import { CjsTwitchEventSubSource } from "./CjsTwitchEventSubSource.js";
 import { CjsTwitchChatSource } from "./CjsTwitchChatSource.js";
+import { CjsTwitchChatAssetResolver } from "./CjsTwitchChatAssetResolver.js";
 import { CjsTwitchHelixClient } from "./CjsTwitchHelixClient.js";
 import { CjsTwitchIrcChatProvider } from "./CjsTwitchIrcChatProvider.js";
 import { CjsTwitchOAuthTokenProvider } from "./CjsTwitchOAuthTokenProvider.js";
@@ -75,6 +76,13 @@ export class TwitchChatService
 /** Public shared Twitch chat source backed by the internal Carbon implementation. */
 export class TwitchChatSource
     extends CjsTwitchChatSource
+{
+
+}
+
+/** Public Twitch room and emote URL resolver. */
+export class TwitchChatAssetResolver
+    extends CjsTwitchChatAssetResolver
 {
 
 }

@@ -14,6 +14,7 @@ import {
     CjsSdeRepository,
     CjsToolCache,
     CjsToolHttpProxy,
+    CjsToolSofRepository,
     TOOLS_SERVICE_PROTOCOL,
     TOOLS_SERVICE_PROTOCOL_VERSION,
 } from "../src/index.js";
@@ -75,6 +76,7 @@ async function main()
     });
     const characters = new CjsToolCharacterRepository({ cache: toolCache, indexes });
     const audio = new CjsToolAudioRepository({ cache: toolCache, indexes });
+    const sof = new CjsToolSofRepository();
     let prefetchReport = null;
 
     if (args.prefetch !== undefined)
@@ -97,7 +99,13 @@ async function main()
         );
     }
 
-    const proxy = new CjsToolHttpProxy({ indexes, sde, characters, audio });
+    const proxy = new CjsToolHttpProxy({
+        indexes,
+        sof,
+        sde,
+        characters,
+        audio,
+    });
     const server = proxy.CreateServer();
 
     await new Promise((resolve, reject) =>

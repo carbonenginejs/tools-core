@@ -1,11 +1,16 @@
 import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
+import { CjsRealtimeSerialLane } from "../../realtime/internal/CjsRealtimeSerialLane.js";
 import { CjsRealtimeTwitchChatNormalizer } from "./CjsRealtimeTwitchChatNormalizer.js";
+import { CjsTwitchChatAssetResolver } from "./CjsTwitchChatAssetResolver.js";
+import { CjsTwitchHelixClient } from "./CjsTwitchHelixClient.js";
 
 /** Adapts an injected tmi.js-compatible client into the Twitch chat source contract. */
 export class CjsTwitchIrcChatProvider
 {
 
     #active;
+
+    #assetResolver;
 
     #client;
 
@@ -17,6 +22,10 @@ export class CjsTwitchIrcChatProvider
 
     #identity;
 
+    #lane;
+
+    #messageLane;
+
     #onMessage;
 
     #onStatus;
@@ -24,6 +33,8 @@ export class CjsTwitchIrcChatProvider
     #oauth;
 
     #operation;
+
+    #pinnedRooms;
 
     #rooms;
 
@@ -33,10 +44,15 @@ export class CjsTwitchIrcChatProvider
 
     constructor({
         oauth,
-        rooms,
+        rooms = [],
         createClient,
         clock = () => Date.now(),
         validationIntervalMs = 60 * 60 * 1000,
+        assetResolver = undefined,
+        helix = null,
+        fetch: fetchImplementation = globalThis.fetch,
+        apiEndpoint = "https://api.twitch.tv/helix/",
+        requestTimeoutMs = 10000,
     } = {})
     {
         if (!oauth || typeof oauth.Acquire !== "function"
@@ -60,7 +76,27 @@ export class CjsTwitchIrcChatProvider
 
         this.kind = "twitch.irc";
         this.#oauth = oauth;
-        this.#rooms = CjsTwitchIrcChatProvider.normalizeRooms(rooms);
+        this.#assetResolver = assetResolver === null
+            ? null
+            : assetResolver ?? new CjsTwitchChatAssetResolver({
+                helix: helix ?? new CjsTwitchHelixClient({
+                    oauth,
+                    fetch: fetchImplementation,
+                    endpoint: apiEndpoint,
+                    requestTimeoutMs,
+                }),
+                fetch: fetchImplementation,
+                clock,
+                requestTimeoutMs,
+            });
+        if (this.#assetResolver !== null
+            && (typeof this.#assetResolver.ResolveRoom !== "function"
+                || typeof this.#assetResolver.ResolveIrcMessage !== "function"))
+        {
+            throw new TypeError("Twitch IRC asset resolver is invalid");
+        }
+        this.#pinnedRooms = new Set(CjsTwitchIrcChatProvider.normalizeRooms(rooms));
+        this.#rooms = new Set(this.#pinnedRooms);
         this.#createClient = createClient;
         this.#clock = clock;
         this.#validationIntervalMs = validationIntervalMs;
@@ -68,10 +104,110 @@ export class CjsTwitchIrcChatProvider
         this.#client = null;
         this.#handlers = null;
         this.#identity = null;
+        this.#lane = new CjsRealtimeSerialLane();
+        this.#messageLane = new CjsRealtimeSerialLane();
         this.#onMessage = null;
         this.#onStatus = null;
         this.#operation = null;
         this.#timer = null;
+    }
+
+    /** Resolves one joined channel into canonical room presentation metadata. */
+    ResolveRoom(login)
+    {
+        const room = CjsTwitchIrcChatProvider.normalizeRoom(login);
+        return this.#assetResolver?.ResolveRoom(room) ?? Promise.resolve(null);
+    }
+
+    /** Joins one desired Twitch channel once across all downstream listeners. */
+    JoinRoom(login)
+    {
+        const room = CjsTwitchIrcChatProvider.normalizeRoom(login);
+
+        return this.#lane.Enqueue(async () =>
+        {
+            if (this.#rooms.has(room))
+            {
+                return false;
+            }
+
+            if (this.#rooms.size >= 100)
+            {
+                throw new CjsRealtimeError(
+                    "twitch_room_limit",
+                    "Twitch IRC channel limit was reached",
+                    { retryable: false },
+                );
+            }
+
+            this.#rooms.add(room);
+
+            if (!this.#active || !this.#client)
+            {
+                return true;
+            }
+
+            if (typeof this.#client.join !== "function")
+            {
+                this.#rooms.delete(room);
+                throw new TypeError("Twitch IRC client does not support dynamic joins");
+            }
+
+            try
+            {
+                await this.#client.join(room);
+            }
+            catch (error)
+            {
+                this.#rooms.delete(room);
+                this.#EmitStatus("degraded", "room_unavailable", true);
+
+                throw new CjsRealtimeError(
+                    "twitch_room_unavailable",
+                    "Twitch IRC channel could not be joined",
+                    { retryable: true, cause: error },
+                );
+            }
+
+            return true;
+        });
+    }
+
+    /** Parts one unpinned Twitch channel when it is no longer desired. */
+    PartRoom(login)
+    {
+        const room = CjsTwitchIrcChatProvider.normalizeRoom(login);
+
+        return this.#lane.Enqueue(async () =>
+        {
+            if (this.#pinnedRooms.has(room) || !this.#rooms.delete(room))
+            {
+                return false;
+            }
+
+            if (!this.#active || !this.#client)
+            {
+                return true;
+            }
+
+            if (typeof this.#client.part !== "function")
+            {
+                this.#EmitStatus("degraded", "room_part_failed", false);
+
+                return true;
+            }
+
+            try
+            {
+                await this.#client.part(room);
+            }
+            catch
+            {
+                this.#EmitStatus("degraded", "room_part_failed", true);
+            }
+
+            return true;
+        });
     }
 
     /** Connects receive-only Twitch IRC using chat:read authorization. */
@@ -123,6 +259,8 @@ export class CjsTwitchIrcChatProvider
         clearInterval(this.#timer);
         this.#timer = null;
         await this.#operation?.catch(() => undefined);
+        await this.#messageLane.Drain();
+        await this.#lane.Drain();
         await this.#CloseClient();
         this.#identity = null;
         this.#onMessage = null;
@@ -137,7 +275,7 @@ export class CjsTwitchIrcChatProvider
                 username: identity.login,
                 password: `oauth:${identity.accessToken}`,
             }),
-            channels: this.#rooms,
+            channels: Object.freeze([ ...this.#rooms ].sort()),
             connection: Object.freeze({ secure: true, reconnect: true }),
         }));
 
@@ -155,19 +293,14 @@ export class CjsTwitchIrcChatProvider
                     return;
                 }
 
-                try
-                {
-                    this.#onMessage(CjsRealtimeTwitchChatNormalizer.fromIrc({
-                        channel,
-                        tags,
-                        text,
-                        receivedAt: this.#clock(),
-                    }));
-                }
-                catch
+                this.#messageLane.Enqueue(() => this.#HandleMessage(
+                    channel,
+                    tags,
+                    text,
+                )).catch(() =>
                 {
                     this.#EmitStatus("degraded", "invalid_message", false);
-                }
+                });
             },
             connected: () =>
             {
@@ -219,6 +352,36 @@ export class CjsTwitchIrcChatProvider
         }
     }
 
+    async #HandleMessage(channel, tags, text)
+    {
+        let assets = null;
+
+        try
+        {
+            assets = await this.#assetResolver?.ResolveIrcMessage({
+                channel,
+                tags,
+            }) ?? null;
+        }
+        catch
+        {
+            this.#EmitStatus("degraded", "asset_metadata_unavailable", true);
+        }
+
+        if (!this.#active)
+        {
+            return;
+        }
+
+        this.#onMessage(CjsRealtimeTwitchChatNormalizer.fromIrc({
+            channel,
+            tags,
+            text,
+            receivedAt: this.#clock(),
+            assets,
+        }));
+    }
+
     #TrackValidation()
     {
         if (!this.#active || this.#operation)
@@ -226,7 +389,7 @@ export class CjsTwitchIrcChatProvider
             return;
         }
 
-        const operation = this.#ValidateAuthorization();
+        const operation = this.#lane.Enqueue(() => this.#ValidateAuthorization());
 
         this.#operation = operation;
         operation.then(
@@ -327,15 +490,28 @@ export class CjsTwitchIrcChatProvider
     /** Validates and freezes the receive-only channel login list. */
     static normalizeRooms(value)
     {
-        if (!Array.isArray(value) || value.length === 0 || value.length > 100
-            || value.some(room => typeof room !== "string"
-                || !/^[a-z0-9_]{1,25}$/iu.test(room.replace(/^#/u, ""))))
+        if (!Array.isArray(value) || value.length > 100)
         {
-            throw new TypeError("Twitch IRC rooms must be 1 to 100 channel logins");
+            throw new TypeError("Twitch IRC rooms must contain at most 100 channel logins");
         }
 
         return Object.freeze([ ...new Set(value.map(room =>
-            room.replace(/^#/u, "").toLowerCase())) ].sort());
+            CjsTwitchIrcChatProvider.normalizeRoom(room))) ].sort());
+    }
+
+    /** Normalizes one Twitch IRC channel login. */
+    static normalizeRoom(value)
+    {
+        const room = typeof value === "string"
+            ? value.replace(/^#/u, "").toLowerCase()
+            : "";
+
+        if (!/^[a-z0-9_]{1,25}$/u.test(room))
+        {
+            throw new TypeError("Twitch IRC room login is invalid");
+        }
+
+        return room;
     }
 
     /** Sanitizes adapter startup failures without reflecting credentials. */

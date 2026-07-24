@@ -38,6 +38,35 @@ test("normalizes the versioned client message boundary", () =>
         serviceId: "primary-chat",
         topics: [ "chat.message.received" ],
     });
+    assert.deepEqual(CjsRealtimeProtocol.normalizeClientMessage({
+        type: "subscribe-targeted",
+        requestId: "request-2",
+        serviceId: "primary-chat",
+        topics: [ "chat.message.received" ],
+        target: {
+            room: {
+                provider: "twitch",
+                login: "fenriscreations",
+            },
+        },
+    }, { authenticated: true }), {
+        type: "subscribe",
+        requestId: "request-2",
+        serviceId: "primary-chat",
+        topics: [ "chat.message.received" ],
+        target: {
+            room: {
+                provider: "twitch",
+                login: "fenriscreations",
+            },
+        },
+    });
+    assert.throws(() => CjsRealtimeProtocol.normalizeClientMessage({
+        type: "subscribe-targeted",
+        requestId: "request-3",
+        serviceId: "primary-chat",
+        topics: [ "chat.message.received" ],
+    }, { authenticated: true }), error => error.code === "invalid_request");
 
     assert.throws(() => CjsRealtimeProtocol.normalizeClientMessage({
         type: "subscribe",
@@ -163,6 +192,22 @@ test("requires snapshots for snapshot-recovery topics", () =>
         topics: [ { name: "synthetic.state.changed", recovery: "snapshot" } ],
         snapshot: false,
     }), /require service snapshot support/u);
+    const targeted = CjsRealtimeProtocol.normalizeServiceDescription({
+        family: "chat",
+        familyVersion: 1,
+        kind: "twitch.irc",
+        id: "primary-chat",
+        topics: [ "chat.message.received" ],
+        subscriptions: {
+            multiple: true,
+            target: "chat.room",
+        },
+    });
+
+    assert.deepEqual(targeted.subscriptions, {
+        multiple: true,
+        target: "chat.room",
+    });
 });
 
 test("sanitizes hostile protocol error metadata", () =>
