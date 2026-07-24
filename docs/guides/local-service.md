@@ -49,8 +49,6 @@ groups are:
 | `/eve/{build}/weapons[...]` | Weapon, ammunition, projectile, and group queries |
 | `/eve/{build}/sof/{catalog}[...]` | GPU-free runtime-sof catalog collections and details |
 | `/eve/{build}/sof/dna/<dna>` | GPU-free runtime-sof `carbon.document` |
-| `/v1/sof/values` | Recommended plain SOF model values when configured |
-| `/v1/sof/document` | Diagnostic `carbon.document` when configured |
 
 Specialized billboard, nebula, cube, and hull resource-path-insert routes
 provide derived answers that are not plain directory enumeration. Response

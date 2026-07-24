@@ -193,18 +193,6 @@ Ammunition compatibility comes from dogma charge groups and size, not filename
 or market-name guessing. Projectile graphics remain a separate official
 launcher catalog.
 
-## Injected compatibility SOF routes
-
-When the embedding application injects a prepared facade:
-
-```text
-POST /v1/sof/values
-POST /v1/sof/document
-```
-
-Values are the recommended JSON-compatible model graph. The explicit
-`carbon.document` route is for diagnostics and graph tooling.
-
 ## Related documentation
 
 - [Run the local service](../guides/local-service.md)

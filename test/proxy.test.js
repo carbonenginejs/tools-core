@@ -13,30 +13,12 @@ import { CjsToolCharacterLibrary, CjsToolHttpProxy } from "../src/index.js";
 
 const FixtureDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-test("serves health, SOF values, and compatibility document requests without a framework", async context =>
+test("serves health without the removed legacy SOF routes", async context =>
 {
     const proxy = new CjsToolHttpProxy({
-        core: {
-            BuildSofDocument()
-            {
-                throw new Error("Synchronous path was not expected");
-            },
-            async BuildSofDocumentAsync(dna)
-            {
-                return { schema: "carbon.document", dna };
-            },
-            async BuildTypeSofDocumentAsync(selection)
-            {
-                return { schema: "carbon.document", selection };
-            },
-            async BuildSofValuesAsync(dna)
-            {
-                return { _type: "EveShip2", dna };
-            },
-            async BuildTypeSofValuesAsync(selection)
-            {
-                return { _type: "EveShip2", selection };
-            }
+        indexes: {
+            Open()
+            {}
         }
     });
     const server = proxy.CreateServer();
@@ -60,7 +42,7 @@ test("serves health, SOF values, and compatibility document requests without a f
         protocol: "carbon.tools",
         protocolVersion: 1,
         capabilities: {
-            resources: false,
+            resources: true,
             audio: false,
             character: false,
             sde: false,
@@ -68,34 +50,20 @@ test("serves health, SOF values, and compatibility document requests without a f
             skinr: false,
             weapons: false,
             sofCatalog: false,
-            sofValues: true,
-            sofDocument: true,
         },
     });
 
-    const values = await fetch(`${root}/v1/sof/values`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ dna: "rifter:minmatar:minmatar" })
-    });
+    for (const route of [ "/v1/sof/values", "/v1/sof/document" ])
+    {
+        const response = await fetch(`${root}${route}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ dna: "rifter:minmatar:minmatar" })
+        });
 
-    assert.equal(values.status, 200);
-    assert.deepEqual(await values.json(), {
-        _type: "EveShip2",
-        dna: "rifter:minmatar:minmatar"
-    });
-
-    const response = await fetch(`${root}/v1/sof/document`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ dna: "rifter:minmatar:minmatar" })
-    });
-
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), {
-        schema: "carbon.document",
-        dna: "rifter:minmatar:minmatar"
-    });
+        assert.equal(response.status, 404);
+        assert.deepEqual(await response.json(), { error: "Not found" });
+    }
 });
 
 test("serves exact-build GPU-free SOF catalogs and DNA documents", async context =>
@@ -451,8 +419,6 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
         skinr: true,
         weapons: true,
         sofCatalog: false,
-        sofValues: false,
-        sofDocument: false,
     });
 
     const catalog = await fetch(`${root}/eve/latest/sde`);
@@ -646,8 +612,6 @@ test("resolves character names and type identities with atomic LOD bundles", asy
         skinr: false,
         weapons: false,
         sofCatalog: false,
-        sofValues: false,
-        sofDocument: false,
     });
 
     const wholeLibrary = await (await fetch(root)).json();
@@ -895,8 +859,6 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
         skinr: false,
         weapons: false,
         sofCatalog: false,
-        sofValues: false,
-        sofDocument: false,
     });
 
     const targetResponse = await fetch(`${root}/targets`, { headers });
@@ -1074,8 +1036,6 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
         skinr: true,
         weapons: true,
         sofCatalog: true,
-        sofValues: false,
-        sofDocument: false,
     });
 
     const health = await fetch(`http://${bootstrap.host}:${bootstrap.port}/v1/health`);

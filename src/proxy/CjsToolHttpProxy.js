@@ -41,7 +41,7 @@ const CORS_HEADERS = Object.freeze({
     ].join(", "),
 });
 
-/** Minimal optional HTTP adapter over a CjsToolCore instance. */
+/** Minimal optional HTTP adapter over exact-build tool services. */
 export class CjsToolHttpProxy
 {
 
@@ -57,7 +57,6 @@ export class CjsToolHttpProxy
 
     /** Creates a versioned loopback adapter over optional resource and SOF services. */
     constructor({
-        core = null,
         indexes = null,
         sof = null,
         sde = null,
@@ -66,11 +65,6 @@ export class CjsToolHttpProxy
         maxRequestBytes = 1024 * 1024,
     } = {})
     {
-        if (core !== null && typeof core.BuildSofDocumentAsync !== "function")
-        {
-            throw new TypeError("CjsToolHttpProxy requires a CjsToolCore-compatible facade");
-        }
-
         if (indexes !== null && typeof indexes.Open !== "function")
         {
             throw new TypeError("CjsToolHttpProxy indexes must provide Open(options)");
@@ -106,11 +100,11 @@ export class CjsToolHttpProxy
             throw new TypeError("CjsToolHttpProxy audio service must provide OpenTarget(target, build)");
         }
 
-        if (core === null && indexes === null && sof === null && sde === null
+        if (indexes === null && sof === null && sde === null
             && characters === null && audio === null)
         {
             throw new TypeError(
-                "CjsToolHttpProxy requires a core, index, SDE, character, or audio service"
+                "CjsToolHttpProxy requires an index, SOF, SDE, character, or audio service"
             );
         }
 
@@ -119,7 +113,6 @@ export class CjsToolHttpProxy
             throw new TypeError("CjsToolHttpProxy maxRequestBytes must be a positive integer");
         }
 
-        this.core = core;
         this.indexes = indexes;
         this.sof = sof;
         this.sde = sde;
@@ -140,10 +133,6 @@ export class CjsToolHttpProxy
             skinr: sde !== null,
             weapons: sde !== null,
             sofCatalog: sof !== null,
-            // Recommended boundary: plain model values from GetValues.
-            sofValues: core !== null && typeof core.BuildSofValuesAsync === "function",
-            // Compatibility/diagnostic boundary: explicit carbon.document graphs.
-            sofDocument: core !== null,
         });
         Object.freeze(this);
     }
@@ -496,45 +485,6 @@ export class CjsToolHttpProxy
                 cacheHit: file.cacheHit,
                 cachePath: file.cachePath,
             });
-
-            return;
-        }
-
-        if (request.method === "POST" && url.pathname === "/v1/sof/values")
-        {
-            if (!this.core || typeof this.core.BuildSofValuesAsync !== "function")
-            {
-                WriteJson(response, 501, { error: "SOF values service is not configured" });
-
-                return;
-            }
-
-            const body = await ReadJson(request, this.maxRequestBytes);
-            const values = body.selection
-                ? await this.core.BuildTypeSofValuesAsync(body.selection, body.options)
-                : await this.core.BuildSofValuesAsync(body.dna, body.options);
-
-            WriteJson(response, 200, values);
-
-            return;
-        }
-
-        // Compatibility/diagnostic path; prefer /v1/sof/values.
-        if (request.method === "POST" && url.pathname === "/v1/sof/document")
-        {
-            if (!this.core)
-            {
-                WriteJson(response, 501, { error: "SOF service is not configured" });
-
-                return;
-            }
-
-            const body = await ReadJson(request, this.maxRequestBytes);
-            const document = body.selection
-                ? await this.core.BuildTypeSofDocumentAsync(body.selection, body.options)
-                : await this.core.BuildSofDocumentAsync(body.dna, body.options);
-
-            WriteJson(response, 200, document);
 
             return;
         }
