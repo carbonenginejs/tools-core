@@ -10,7 +10,7 @@
 // - OPTIONAL enrichment: caller-supplied plain JSON metadata overlay
 //   (radius/loop/2D/vital/stops/essential).
 // Targeted subpath import: audioMetadata.js is a dependency-free pure module
-// (no schema classes, no core-types) - tools-core loads exactly this file and
+// (no schema classes, no runtime-utils) - tools-core loads exactly this file and
 // none of runtime-audio's runtime graph.
 import { audioMetadataFromSoundbanksInfo } from "@carbonenginejs/runtime-audio/audioMetadata";
 import { CjsBnkFormat } from "@carbonenginejs/runtime-resource/formats/bnk";

@@ -1,4 +1,4 @@
-import { CjsClassRegistry } from "@carbonenginejs/core-types/document";
+import { CjsClassRegistry } from "@carbonenginejs/runtime-utils/document";
 import { EveSOF } from "@carbonenginejs/runtime-sof";
 import * as runtimeTrinity from "@carbonenginejs/runtime-trinity";
 import { CjsToolCache } from "./cache/CjsToolCache.js";

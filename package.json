@@ -1,6 +1,6 @@
 {
     "name": "@carbonenginejs/tools-core",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "description": "Node toolchain for CarbonEngineJS acquisition, generated libraries, caches, graph output, and optional HTTP and realtime service hosting.",
     "type": "module",
     "main": "src/index.js",
@@ -83,13 +83,13 @@
         "check": "npm run lint && npm test"
     },
     "dependencies": {
-        "@carbonenginejs/core-types": "^0.12.0",
+        "@carbonenginejs/runtime-utils": "^0.1.0",
         "@carbonenginejs/format-webgl": "^0.1.6",
-        "@carbonenginejs/format-webgpu": "^0.2.1",
-        "@carbonenginejs/runtime-audio": "^0.1.0",
-        "@carbonenginejs/runtime-resource": "^0.9.0",
-        "@carbonenginejs/runtime-sof": "^0.2.0",
-        "@carbonenginejs/runtime-trinity": "^0.4.0",
+        "@carbonenginejs/format-webgpu": "^0.4.1",
+        "@carbonenginejs/runtime-audio": "^0.1.2",
+        "@carbonenginejs/runtime-resource": "^0.9.2",
+        "@carbonenginejs/runtime-sof": "^0.3.1",
+        "@carbonenginejs/runtime-trinity": "^0.6.0",
         "better-sqlite3": "^11.10.0",
         "unzipper": "^0.12.5",
         "ws": "^8.21.1"
