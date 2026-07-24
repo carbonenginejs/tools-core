@@ -256,43 +256,30 @@ export class CjsIndexOverlaySource
 
     #ResolveOverlay(logicalPath, mode)
     {
+        // Later overlays clobber earlier records of the same logical path:
+        // the last defined overlay declaring the path owns the record.
         const matches = this.overlays
             .filter((overlay) => overlay.mode === mode)
             .map((overlay) => overlay.Resolve(logicalPath))
             .filter(Boolean);
 
-        if (matches.length > 1)
-        {
-            throw new Error(
-                `Resource has conflicting ${mode} overlays: ${logicalPath}`,
-            );
-        }
-
-        return matches[0] ?? null;
+        return matches.length ? matches[matches.length - 1] : null;
     }
 
     #MatchOverlays(pattern, mode, options)
     {
-        const results = [];
-        const paths = new Set();
+        const resultsByPath = new Map();
 
         for (const overlay of this.overlays.filter((item) => item.mode === mode))
         {
             for (const resolution of overlay.Match(pattern, options))
             {
-                if (paths.has(resolution.logicalPath))
-                {
-                    throw new Error(
-                        `Resource has conflicting ${mode} overlays: ${resolution.logicalPath}`,
-                    );
-                }
-
-                paths.add(resolution.logicalPath);
-                results.push(resolution);
+                // Later overlays clobber earlier records of the same path.
+                resultsByPath.set(resolution.logicalPath, resolution);
             }
         }
 
-        return results;
+        return [ ...resultsByPath.values() ];
     }
 
 }

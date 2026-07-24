@@ -91,18 +91,12 @@ export class CjsIndex
             throw createMissingError(`Resource file not found: ${normalizedPath}`);
         }
 
-        if (matches.length > 1)
-        {
-            throw new Error(
-                `Resource has conflicting declarations; select an index: ${normalizedPath}`,
-            );
-        }
-
         return matches[0];
     }
 
     /**
-     * Matches logical paths without layering or reordering source groups.
+     * Matches logical paths across the composed view: a later index clobbers
+     * earlier records of the same logical path, so each path yields one record.
      */
     Match(pattern, options = {})
     {
@@ -144,7 +138,7 @@ export class CjsIndex
         const groups = indexName === undefined || indexName === null || indexName === "all"
             ? Object.values(this.indexes)
             : [ this.GetIndex(indexName) ];
-        const matchesByPath = new Map();
+        const declaringByPath = new Map();
 
         for (const group of groups)
         {
@@ -155,39 +149,24 @@ export class CjsIndex
                     continue;
                 }
 
-                let variants = matchesByPath.get(resource.logicalPath);
+                let declaring = declaringByPath.get(resource.logicalPath);
 
-                if (!variants)
+                if (!declaring)
                 {
-                    variants = new Map();
-                    matchesByPath.set(resource.logicalPath, variants);
+                    declaring = [];
+                    declaringByPath.set(resource.logicalPath, declaring);
                 }
 
-                const key = getResourceIdentity(resource);
-                const variant = variants.get(key);
-
-                if (variant)
-                {
-                    variant.groups.push(group);
-                }
-                else
-                {
-                    variants.set(key, { resource, groups: [ group ] });
-                }
+                declaring.push({ group, resource });
             }
         }
 
-        const results = [];
-
-        for (const variants of matchesByPath.values())
+        return [ ...declaringByPath.values() ].map((declaring) =>
         {
-            for (const variant of variants.values())
-            {
-                results.push(this.#CreateResolution(variant.resource, variant.groups));
-            }
-        }
+            const winner = selectWinningDeclaration(declaring);
 
-        return results;
+            return this.#CreateResolution(winner.resource, winner.groups);
+        });
     }
 
     #FindExactResourceMatches(logicalPath, indexName)
@@ -195,32 +174,26 @@ export class CjsIndex
         const groups = indexName === undefined || indexName === null || indexName === "all"
             ? Object.values(this.indexes)
             : [ this.GetIndex(indexName) ];
-        const variants = new Map();
+        const declaring = [];
 
         for (const group of groups)
         {
             const resource = group.Find(logicalPath);
 
-            if (!resource)
+            if (resource)
             {
-                continue;
-            }
-
-            const key = getResourceIdentity(resource);
-            const variant = variants.get(key);
-
-            if (variant)
-            {
-                variant.groups.push(group);
-            }
-            else
-            {
-                variants.set(key, { resource, groups: [ group ] });
+                declaring.push({ group, resource });
             }
         }
 
-        return [...variants.values()].map((variant) =>
-            this.#CreateResolution(variant.resource, variant.groups));
+        if (declaring.length === 0)
+        {
+            return [];
+        }
+
+        const winner = selectWinningDeclaration(declaring);
+
+        return [ this.#CreateResolution(winner.resource, winner.groups) ];
     }
 
     #CreateResolution(resource, groups)
@@ -264,6 +237,20 @@ function getResourceIdentity(resource)
         resource.compressedSize,
         resource.binaryOperation,
     ].join("|");
+}
+
+function selectWinningDeclaration(declaring)
+{
+    // Later groups clobber earlier records of the same logical path: the last
+    // declaring group owns the record, and every group agreeing with that
+    // record is retained as provenance.
+    const winner = declaring[declaring.length - 1];
+    const winnerKey = getResourceIdentity(winner.resource);
+    const groups = declaring
+        .filter((entry) => getResourceIdentity(entry.resource) === winnerKey)
+        .map((entry) => entry.group);
+
+    return { resource: winner.resource, groups };
 }
 
 function normalizeIndexName(value)

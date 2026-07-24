@@ -60,10 +60,12 @@ test("returns a friendly build's complete app/res index graph", async () =>
         "windows_prefetch",
         "linux",
     ]);
-    assert.throws(
-        () => source.Resolve("res:/same.red"),
-        /conflicting declarations/u,
+    assert.equal(
+        source.Resolve("res:/same.red").record.storagePath,
+        "windows/source",
+        "the last declared index clobbers earlier records of the same path",
     );
+    assert.deepEqual(source.Resolve("res:/same.red").indexNames, [ "windows" ]);
     assert.equal(
         source.Resolve("res:/same.red", { indexName: "main" }).record.storagePath,
         "main/source",
