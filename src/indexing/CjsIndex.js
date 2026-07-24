@@ -243,12 +243,16 @@ function selectWinningDeclaration(declaring)
 {
     // Later groups clobber earlier records of the same logical path: the last
     // declaring group owns the record, and every group agreeing with that
-    // record is retained as provenance.
+    // record is retained as provenance. The owning group leads the list so
+    // the resolution's indexName re-resolves to the identical record.
     const winner = declaring[declaring.length - 1];
     const winnerKey = getResourceIdentity(winner.resource);
-    const groups = declaring
-        .filter((entry) => getResourceIdentity(entry.resource) === winnerKey)
-        .map((entry) => entry.group);
+    const groups = [
+        winner.group,
+        ...declaring
+            .filter((entry) => entry !== winner && getResourceIdentity(entry.resource) === winnerKey)
+            .map((entry) => entry.group),
+    ];
 
     return { resource: winner.resource, groups };
 }

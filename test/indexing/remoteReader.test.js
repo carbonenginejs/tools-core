@@ -43,7 +43,10 @@ test("returns a friendly build's complete app/res index graph", async () =>
         ].join("\n")),
         "https://app.test/aa/main": textResponse(row("res:/same.red", "main/source")),
         "https://app.test/bb/windows": textResponse(row("res:/same.red", "windows/source")),
-        "https://app.test/cc/windows-prefetch": textResponse(row("res:/prefetch.red", "prefetch/source")),
+        "https://app.test/cc/windows-prefetch": textResponse([
+            row("res:/prefetch.red", "prefetch/source"),
+            row("res:/same.red", "windows/source"),
+        ].join("\n")),
         "https://app.test/dd/linux": textResponse(row("res:/linux.red", "linux/source")),
     });
     const source = await createReader(fetch).Open({ provider: "test", build: "latest" });
@@ -65,7 +68,21 @@ test("returns a friendly build's complete app/res index graph", async () =>
         "windows/source",
         "the last declared index clobbers earlier records of the same path",
     );
-    assert.deepEqual(source.Resolve("res:/same.red").indexNames, [ "windows" ]);
+    assert.equal(
+        source.Resolve("res:/same.red").indexName,
+        "windows_prefetch",
+        "the last agreeing index owns the winning record",
+    );
+    assert.deepEqual(
+        source.Resolve("res:/same.red").indexNames,
+        [ "windows_prefetch", "windows" ],
+        "agreeing earlier indexes are retained as provenance after the owner",
+    );
+    assert.equal(
+        source.Resolve("res:/same.red").record,
+        source.indexes.GetIndex("windows_prefetch").Find("res:/same.red"),
+        "the resolved record is the owning index's exact entry, so ownership re-resolves",
+    );
     assert.equal(
         source.Resolve("res:/same.red", { indexName: "main" }).record.storagePath,
         "main/source",

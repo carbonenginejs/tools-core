@@ -1,6 +1,6 @@
 {
     "name": "@carbonenginejs/tools-core",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "description": "Node toolchain for CarbonEngineJS acquisition, generated libraries, caches, graph output, and optional HTTP and realtime service hosting.",
     "type": "module",
     "main": "src/index.js",
