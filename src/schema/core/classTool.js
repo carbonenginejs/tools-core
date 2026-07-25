@@ -1748,7 +1748,14 @@ function listSchemaFamilyDirs(schemaRoot)
 function readFamilySchemaDoc(schemaRoot, family, typeName)
 {
     if (!schemaRoot || !family || !typeName) return null;
-    const candidates = [cleanNamedType(typeName), cleanNamedType(typeName).split("::").at(-1)];
+    // Class-scope structs are written as dot-qualified docs (Owner.Inner), so
+    // a scoped C++ reference (Owner::Inner) tries that exact doc before the
+    // legacy unqualified fallbacks.
+    const candidates = [
+        cleanNamedType(typeName).replaceAll("::", "."),
+        cleanNamedType(typeName),
+        cleanNamedType(typeName).split("::").at(-1)
+    ];
     // Embedded-struct types may be declared in another family (the eve smart
     // lights reach into lights/LightData), so fall back to the sibling family
     // dirs, own family first, in deterministic sorted order.

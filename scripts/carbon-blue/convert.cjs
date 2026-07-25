@@ -776,12 +776,43 @@ function parseHeaderFile(text, source)
 
         const body = clean.slice(bodyStart + 1, bodyEnd);
         const bases = parseBases(match[3] || "");
-        const fields = parseFields(body, source, lineOf(clean, bodyStart));
+        const structDefs = [];
+        const fields = parseFields(body, source, lineOf(clean, bodyStart), structDefs);
         const methods = parseMethodDeclarations(body, source, lineOf(clean, bodyStart))
             .map(method => ({
                 ...method,
                 declaredOn: className
             }));
+
+        // Class-scope structs become their own dot-qualified records
+        // (Owner.Inner) so every declared struct gets a schema doc; the dot
+        // form is collision-proof across same-named nested types (for
+        // example Tr2Light's file-scope LightData versus
+        // EveChildCloud2::LightData) and filesystem-safe as a doc name.
+        for (const structDef of structDefs)
+        {
+            classes.push({
+                name: `${className}.${structDef.name}`,
+                declarationKind: "struct",
+                bases: [],
+                fields: parseFields(structDef.body, source, structDef.line),
+                methods: []
+            });
+        }
+
+        // Fields whose type names a sibling class-scope struct are stored
+        // with the scoped C++ type (Owner::Inner), matching how an external
+        // declaration would already be captured (e.g. the decal's
+        // IEveSpaceObject2::ParentData member).
+        const structNames = new Set(structDefs.map(structDef => structDef.name));
+        for (const field of fields)
+        {
+            if (structNames.has(field.type))
+            {
+                field.type = `${className}::${field.type}`;
+            }
+        }
+
         classes.push({ name: className, declarationKind, bases, fields, methods });
         classRanges.push({
             name: className,
@@ -1383,9 +1414,9 @@ function parseBases(tail)
         .filter(Boolean);
 }
 
-function parseFields(body, source, baseLine = 1)
+function parseFields(body, source, baseLine = 1, structDefs = null)
 {
-    const nested = extractNestedStructFields(body, source, baseLine);
+    const nested = extractNestedStructFields(body, source, baseLine, structDefs);
     const fields = [];
     const topLevelBody = maskRanges(body, nested.ranges);
     const lines = topLevelBody.split(/\r?\n/);
@@ -1393,7 +1424,24 @@ function parseFields(body, source, baseLine = 1)
     for (let i = 0; i < lines.length; i++)
     {
         const line = lines[i].trim();
-        if (!line || line.includes("(") || !line.endsWith(";")) continue;
+        if (!line || !line.endsWith(";")) continue;
+
+        // A "(" marks a method/macro declaration ONLY when it appears before
+        // any "=". A "(" after "=" is a call-expression default value
+        // (e.g. `Matrix transform = IdentityMatrix();`), which is a field -
+        // skipping those silently dropped every such member from the scan.
+        // Operator overloads (operator==, operator=) carry their "=" inside
+        // the operator symbol and must stay excluded.
+        if (/\boperator\b/.test(line)) continue;
+        const parenIndex = line.indexOf("(");
+        const equalsIndex = line.indexOf("=");
+        if (parenIndex !== -1 && (equalsIndex === -1 || parenIndex < equalsIndex)) continue;
+
+        // An unbalanced ")" before any "(" is the tail of a multi-line method
+        // signature (e.g. `ResourceFlags flags ) const;`) - the historic
+        // source of junk `const` fields - never a field declaration.
+        const closeIndex = line.indexOf(")");
+        if (closeIndex !== -1 && (parenIndex === -1 || closeIndex < parenIndex)) continue;
         if (line.startsWith("}")) continue;
         if (/^(public|private|protected):$/.test(line)) continue;
         if (/^(using|typedef|friend|static_assert|enum|return)\b/.test(line)) continue;
@@ -1432,7 +1480,7 @@ function parseFields(body, source, baseLine = 1)
     return [...fields, ...nested.fields];
 }
 
-function extractNestedStructFields(body, source, baseLine)
+function extractNestedStructFields(body, source, baseLine, structDefs = null)
 {
     const ranges = [];
     const fields = [];
@@ -1448,6 +1496,19 @@ function extractNestedStructFields(body, source, baseLine)
 
         const semicolon = body.indexOf(";", close);
         if (semicolon === -1) continue;
+
+        // Record every class-scope struct definition (both the inline-member
+        // form `struct X { ... } member;` and the separate-declaration form
+        // `struct X { ... }; X m_x;`) so the caller can register it as its
+        // own class record instead of silently discarding the shape.
+        if (structDefs)
+        {
+            structDefs.push({
+                name: structName,
+                body: body.slice(open + 1, close),
+                line: baseLine + lineOf(body, open) - 1
+            });
+        }
 
         const tail = body.slice(close + 1, semicolon).trim();
         const memberMatch = tail.match(/^([A-Za-z_]\w*)$/);
