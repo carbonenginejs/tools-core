@@ -54,18 +54,24 @@ async function main()
     ));
     const toolCache = new CjsToolCache(cacheDirectory);
     const prefetchEnabled = args.prefetch !== undefined;
+    // Auto-preparation (the default) performs prefetch-grade acquisition on
+    // request - whole soundbanks approach 400 MiB - so those runs share the
+    // prefetch deadlines and payload ceiling.
+    const heavyAcquisition = prefetchEnabled
+        || args.noAudioAutoPrepare !== true
+        || args.noSdeAutoPrepare !== true;
     const indexes = new CjsToolIndex({
         cache: new CjsIndexCache({ directory: cacheDirectory }),
         overlays: new CjsIndexOverlayStore(dataDirectory),
         requestTimeoutMs: Number(
             args.requestTimeoutMs
-            ?? (prefetchEnabled
+            ?? (heavyAcquisition
                 ? DEFAULT_PREFETCH_REQUEST_TIMEOUT_MS
                 : DEFAULT_REQUEST_TIMEOUT_MS),
         ),
         maxPayloadBytes: Number(
             args.maxPayloadBytes
-            ?? (prefetchEnabled
+            ?? (heavyAcquisition
                 ? DEFAULT_PREFETCH_MAX_PAYLOAD_BYTES
                 : DEFAULT_MAX_PAYLOAD_BYTES),
         ),
