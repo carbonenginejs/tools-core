@@ -1293,6 +1293,31 @@ function isTimeScalarCpp(cppType)
 }
 
 // Returns { kind, arg?, enumType? }
+/**
+ * Collapse a schema class identity into a legal JavaScript identifier.
+ *
+ * Class-scope structs are documented as `Owner.Inner`; the JavaScript class
+ * concatenates the two (`OwnerInner`). Top-level identities pass through.
+ *
+ * @param {string} className Schema class identity.
+ * @returns {string} A legal JavaScript class identifier.
+ */
+function toJsClassIdentity(className)
+{
+    return String(className || "").split(".").filter(Boolean).join("");
+}
+
+// Carbon math value types. JavaScript models these with the runtime-utils math
+// containers, so they never resolve to a class reference - not even behind a
+// pointer (see the pointer guard in inferKindFromCpp).
+const MATH_VALUE_CPP_TYPES = new Set([
+    "Vector2", "Vector3", "Vector4",
+    "Color", "ColorRGBA", "LinearColor",
+    "Quaternion",
+    "Matrix3", "Mat3",
+    "Matrix", "Matrix4", "Mat4", "TriMatrix"
+]);
+
 function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, className = null)
 {
     const original = String(cppType || "").trim();
@@ -1305,7 +1330,16 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
     if (type.includes("std::vector") || /(?:Vector|List)$/.test(named)) return { kind: "list", arg: collectionItemType(original) };
     if (type.includes("std::map") || /Map$/.test(named)) return { kind: "map", arg: collectionItemType(original) };
     if (type.includes("std::set") || /Set$/.test(named)) return { kind: "set", arg: collectionItemType(original) };
-    if (/\*$/.test(type) || /^P(?:I)?[A-Z]\w+$/.test(named) || /(?:Ptr|Ref)$/.test(named)) return { kind: "objectRef", arg: cleanNamedType(original) };
+    // A pointer to a math VALUE type is still that value (Carbon passes
+    // `const Vector4*` to hand over an array of them, e.g. the packed
+    // spherical-harmonic coefficients). There is no Vector4 class to reference -
+    // JavaScript uses the runtime-utils math containers - so these must resolve
+    // to their math kind rather than to a dangling objectRef.
+    if (!MATH_VALUE_CPP_TYPES.has(named)
+        && (/\*$/.test(type) || /^P(?:I)?[A-Z]\w+$/.test(named) || /(?:Ptr|Ref)$/.test(named)))
+    {
+        return { kind: "objectRef", arg: cleanNamedType(original) };
+    }
 
     switch (named)
     {
@@ -3562,10 +3596,16 @@ export function renderClassFile(expected, options = {})
             lines.push(`import { ${names} } from "${from}";`);
         }
     }
+    // A class-scope struct is documented as Owner.Inner, which is not a legal
+    // JavaScript identifier. Owner and inner name concatenate into one, because
+    // a bare inner name is not unique across the corpus - fifteen inner names
+    // are claimed by several owners and thirteen collide with a top-level class.
+    const jsClassName = toJsClassIdentity(className);
+
     lines.push("");
-    lines.push(`/** ${className} (${family}) - generated${meta.shapeHash ? ` from schema shapeHash ${shortHash(meta.shapeHash)}` : ""}. */`);
-    lines.push(`@type.define({ className: "${className}", family: "${family}" })`);
-    lines.push(`export class ${className} extends ${baseClass}`);
+    lines.push(`/** ${jsClassName} (${family}) - generated${meta.shapeHash ? ` from schema shapeHash ${shortHash(meta.shapeHash)}` : ""}. */`);
+    lines.push(`@type.define({ className: "${jsClassName}", family: "${family}" })`);
+    lines.push(`export class ${jsClassName} extends ${baseClass}`);
     lines.push("{");
     lines.push("");
 
