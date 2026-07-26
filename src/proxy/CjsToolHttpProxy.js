@@ -510,7 +510,12 @@ export class CjsToolHttpProxy
             const etag = library?.generatedAt
                 ? `W/"audio-library-${route.build}-${library.generatedAt}"`
                 : undefined;
-            const headers = etag === undefined ? {} : { etag };
+            const headers = {
+                "cache-control": utils.isExactBuild(route.build)
+                    ? "public, max-age=31536000, immutable"
+                    : "public, max-age=300, must-revalidate",
+                ...(etag === undefined ? {} : { etag }),
+            };
 
             if (IsNotModified(request, etag))
             {

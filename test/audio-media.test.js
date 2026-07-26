@@ -509,6 +509,11 @@ test("audio library endpoint serves the installed document", async context =>
 
         assert.equal(complete.status, 200);
         assert.match(complete.headers.get("content-type"), /application\/json/u);
+        assert.equal(
+            complete.headers.get("cache-control"),
+            "public, max-age=31536000, immutable",
+            "the library document is cacheable, never no-store",
+        );
 
         const document = await complete.json();
 
