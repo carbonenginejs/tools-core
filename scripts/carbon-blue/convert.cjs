@@ -1462,6 +1462,11 @@ function parseFields(body, source, baseLine = 1, structDefs = null)
         if (!first) continue;
 
         const type = first[1].trim();
+
+        // An assignment inside an inline method body (`m_stop = true;`) parses
+        // as a declaration whose "type" swallowed the assignment - a real C++
+        // type never contains "=".
+        if (type.includes("=")) continue;
         fields.push({
             type,
             name: first[2],
