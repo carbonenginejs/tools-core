@@ -489,6 +489,54 @@ test("audio endpoints serve GET, HEAD, exact paths, and logical ranges", async c
     assert.equal(notModified.status, 304);
 });
 
+test("audio library endpoint serves the installed document", async context =>
+{
+    const library = { ...CreateLibrary(), generatedAt: "2026-01-01T00:00:00Z" };
+    const audio = new CjsToolAudioSource({
+        library,
+        source: CreateIndexedSource(),
+    });
+    const root = await StartProxy(context, {
+        async OpenTarget()
+        {
+            return audio;
+        },
+    });
+
+    for (const spelling of [ "library", "library.json" ])
+    {
+        const complete = await fetch(`${root}/eve/123/audio/${spelling}`);
+
+        assert.equal(complete.status, 200);
+        assert.match(complete.headers.get("content-type"), /application\/json/u);
+
+        const document = await complete.json();
+
+        assert.equal(document.schema, "carbonenginejs.audioLibrary");
+        assert.equal(document.sourceBuild, "123");
+        assert.equal(document.generatedAt, library.generatedAt);
+    }
+
+    const etag = (await fetch(`${root}/eve/123/audio/library`)).headers.get("etag");
+
+    assert.match(etag, /audio-library-123/u);
+
+    const head = await fetch(`${root}/eve/123/audio/library`, { method: "HEAD" });
+
+    assert.equal(head.status, 200);
+    assert.equal((await head.arrayBuffer()).byteLength, 0);
+
+    const notModified = await fetch(`${root}/eve/123/audio/library`, {
+        headers: { "if-none-match": etag },
+    });
+
+    assert.equal(notModified.status, 304);
+
+    const invalid = await fetch(`${root}/eve/123/audio/library/extra`);
+
+    assert.equal(invalid.status, 404);
+});
+
 test("audio endpoints reject unacceptable, unknown, and invalid ranges", async context =>
 {
     const root = await StartProxy(context, {

@@ -37,7 +37,16 @@ GET  /eve/<build>/audio/id/<mediaID>
 HEAD /eve/<build>/audio/id/<mediaID>
 GET  /eve/<build>/audio/path/<encoded-audio-path>
 HEAD /eve/<build>/audio/path/<encoded-audio-path>
+GET  /eve/<build>/audio/library
+HEAD /eve/<build>/audio/library
 ```
+
+The library route returns the prepared exact-build audio library document as
+canonical JSON (`library.json` is an accepted alias spelling). It answers with
+a weak ETag derived from the document's `generatedAt` and honors
+`If-None-Match` with `304`. Serving the document is one of the three sourcing
+paths for generated artifacts: clients may equally build it themselves or read
+a locally published copy.
 
 The ID route resolves one canonical positive decimal media ID through the
 prepared exact-build audio library. Compatible prepared/converted media wins

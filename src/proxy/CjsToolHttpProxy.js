@@ -503,6 +503,37 @@ export class CjsToolHttpProxy
 
         const audio = await this.audio.OpenTarget(route.target, route.build);
         const audioRequest = ParseAudioRequest(route.path);
+
+        if (audioRequest.kind === "library")
+        {
+            const library = audio.library;
+            const etag = library?.generatedAt
+                ? `W/"audio-library-${route.build}-${library.generatedAt}"`
+                : undefined;
+            const headers = etag === undefined ? {} : { etag };
+
+            if (IsNotModified(request, etag))
+            {
+                WriteEmpty(response, 304, headers);
+
+                return;
+            }
+
+            if (request.method === "HEAD")
+            {
+                WriteHead(response, 200, {
+                    ...headers,
+                    "content-type": "application/json; charset=utf-8",
+                });
+
+                return;
+            }
+
+            WriteJson(response, 200, library, headers);
+
+            return;
+        }
+
         const mediaTypes = ParseAcceptHeader(request.headers.accept);
         const selection = audioRequest.kind === "id"
             ? audio.ResolveMediaByID(audioRequest.value, {
@@ -1638,6 +1669,19 @@ function ParseAudioRequest(value)
         }
 
         return Object.freeze({ kind, value: requestValue });
+    }
+
+    if (kind === "library" || kind === "library.json")
+    {
+        if (requestValue)
+        {
+            const notFound = new Error("Audio route not found");
+
+            notFound.statusCode = 404;
+            throw notFound;
+        }
+
+        return Object.freeze({ kind: "library" });
     }
 
     const error = new Error("Audio route not found");
