@@ -64,6 +64,12 @@ and `WemFileIDs` maps. Tools-core does not acquire or decode private metadata
 formats; enrichment only adds culling, stop-relation, and essential flags
 without changing acquisition ownership.
 
+The deterministic audio-library join is implemented by
+`@carbonenginejs/tools-browser/audio`. Tools-core supplies target validation,
+exact-build acquisition, shared-cache reads, CLI output, and service routes
+through its `CjsToolAudioBuilder` wrapper. Browser applications may call the
+same underlying builder with object or `Map` metadata and injected bank access.
+
 Localized HIRC objects reuse IDs, so one event graph cannot safely union every
 language. `--language` selects the event graph language and is recorded as
 `eventMediaLanguage`; it defaults to `en-us`. All bank and media source
@@ -75,8 +81,9 @@ requires `common.bnk`, `music.bnk`, and `music_essential.bnk`, then adds the
 dynamic `music` graph to the same v2 document. The graph contains music nodes,
 play and stop event targets, and switch/state setter actions. Its HIRC payload
 decoding is delegated to `@carbonenginejs/runtime-resource`; tools-core owns
-the deterministic artifact assembly and rejects parse failures, missing child
-nodes, and missing track media before replacing either JSON artifact.
+the cache read and transactional artifact replacement. The shared browser
+builder rejects parse failures, missing child nodes, and missing track media
+before either JSON artifact is replaced.
 
 `CjsToolAudio` is the target-aware public front door, while
 `CjsToolAudioBuilder` permits unscoped synthetic/intermediate values.

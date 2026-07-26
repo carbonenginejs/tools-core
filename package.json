@@ -84,6 +84,7 @@
         "check": "npm run lint && npm test"
     },
     "dependencies": {
+        "@carbonenginejs/tools-browser": "^0.1.0",
         "@carbonenginejs/runtime-utils": "^0.1.0",
         "@carbonenginejs/format-webgl": "^0.1.6",
         "@carbonenginejs/format-webgpu": "^0.4.1",

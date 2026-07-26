@@ -18,8 +18,8 @@ Tools-core owns:
 
 - provider/build resolution and validated app/resource index acquisition;
 - the shared exact-build cache and persistent resource overlays;
-- prepared EVE Static Data Export (SDE) databases and deterministic library
-  builders;
+- prepared EVE Static Data Export (SDE) databases and Node-side generated
+  library orchestration;
 - schema scanning and class-emission tooling;
 - Node HTTP, WebSocket, webhook, credential, filesystem-watch, and command-line
   orchestration;
@@ -29,6 +29,8 @@ Tools-core does not own:
 
 - browser clients or browser-safe remote readers, which belong in
   `@carbonenginejs/tools-browser`;
+- browser-safe audio-library construction, which tools-core wraps with target,
+  cache, CLI, and service policy;
 - runtime graph classes and domain behavior, which belong in `runtime-*`;
 - format decoding or shader compilation algorithms, which remain in their
   owning format/runtime packages;
@@ -38,25 +40,22 @@ Tools-core does not own:
 ## Dependency direction
 
 ```text
-core and format packages
-          |
-          v
-domain runtime packages
-          |
-          v
-      tools-core
-          |
-          +----> generated JSON/gzip/SQLite and resource overlays
-          |
-          +----> Node service transports
-                           |
-                           v
-             tools-browser and applications
+core, format, and domain runtime packages
+                   |
+                   v
+             tools-browser
+                   |
+                   v
+               tools-core
+                   |
+                   +----> generated JSON/gzip/SQLite and resource overlays
+                   |
+                   +----> Node service transports and applications
 ```
 
-Runtime and engine packages must not import tools-core. Offline builders may
-depend on browser-safe format APIs, but they coordinate rather than duplicate
-decoding or conversion.
+Runtime and engine packages must not import tools-core. Tools-core may wrap
+browser-safe builders with Node policy; it coordinates rather than duplicates
+their joins, decoding, or conversion.
 
 ## Exact-build data path
 

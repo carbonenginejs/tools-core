@@ -10,6 +10,9 @@ import {
   CjsToolAudio,
   CjsToolAudioBuilder,
 } from "../src/audio/index.js";
+import {
+  CjsAudioLibraryBuilder,
+} from "@carbonenginejs/tools-browser/audio";
 import * as publicAudioLibraryTools from "../src/audio/index.js";
 
 const INDEX_TEXT = [
@@ -38,6 +41,10 @@ test("exports the audio tool class family without standalone builder helpers", (
 {
   assert.equal(publicAudioLibraryTools.CjsToolAudio, CjsToolAudio);
   assert.equal(publicAudioLibraryTools.CjsToolAudioBuilder, CjsToolAudioBuilder);
+  assert.equal(
+    Object.getPrototypeOf(CjsToolAudioBuilder),
+    CjsAudioLibraryBuilder,
+  );
   assert.equal(publicAudioLibraryTools.buildAudioLibrary, undefined);
   assert.equal(publicAudioLibraryTools.parseAudioIndexEntries, undefined);
 });
