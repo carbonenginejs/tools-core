@@ -784,36 +784,44 @@ function parseHeaderFile(text, source)
                 declaredOn: className
             }));
 
+        // A reference to a class-scope struct is stored with its scoped C++
+        // type (Owner::Inner), matching how an external declaration is already
+        // captured (e.g. the decal's IEveSpaceObject2::ParentData member).
+        // C++ name lookup from a nested scope also sees the enclosing class's
+        // types, so this applies to the fields of the nested structs as well:
+        // EveChildCloud2::PerObjectData declares `LightData lights[4]`, which
+        // is EveChildCloud2::LightData - NOT the unrelated file-scope
+        // LightData in Tr2Light.h. Leaving that bare would silently resolve to
+        // the wrong doc.
+        const structNames = new Set(structDefs.map(structDef => structDef.name));
+        const qualifySiblingTypes = list =>
+        {
+            for (const field of list)
+            {
+                if (structNames.has(field.type))
+                {
+                    field.type = `${className}::${field.type}`;
+                }
+            }
+            return list;
+        };
+
         // Class-scope structs become their own dot-qualified records
         // (Owner.Inner) so every declared struct gets a schema doc; the dot
-        // form is collision-proof across same-named nested types (for
-        // example Tr2Light's file-scope LightData versus
-        // EveChildCloud2::LightData) and filesystem-safe as a doc name.
+        // form is collision-proof across same-named nested types and
+        // filesystem-safe as a doc name.
         for (const structDef of structDefs)
         {
             classes.push({
                 name: `${className}.${structDef.name}`,
                 declarationKind: "struct",
                 bases: [],
-                fields: parseFields(structDef.body, source, structDef.line),
+                fields: qualifySiblingTypes(parseFields(structDef.body, source, structDef.line)),
                 methods: []
             });
         }
 
-        // Fields whose type names a sibling class-scope struct are stored
-        // with the scoped C++ type (Owner::Inner), matching how an external
-        // declaration would already be captured (e.g. the decal's
-        // IEveSpaceObject2::ParentData member).
-        const structNames = new Set(structDefs.map(structDef => structDef.name));
-        for (const field of fields)
-        {
-            if (structNames.has(field.type))
-            {
-                field.type = `${className}::${field.type}`;
-            }
-        }
-
-        classes.push({ name: className, declarationKind, bases, fields, methods });
+        classes.push({ name: className, declarationKind, bases, fields: qualifySiblingTypes(fields), methods });
         classRanges.push({
             name: className,
             start: bodyStart,
