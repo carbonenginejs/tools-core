@@ -91,6 +91,12 @@ The service does not inspect an installed game client's cache. Optional
 prefetch uses only its configured tools cache and validates every cache hit
 through the normal exact-build index source.
 
-An SDE `latest` reference resolves independently from the app/resource build.
-Pass `--sde-auto-prepare` only when the service may download and prepare a
-missing exact-build database.
+Generated artifacts are prepared on their first request by default: a missing
+EVE SDE downloads and prepares itself, and a missing audio library builds from
+the exact build's own indexed inputs. Pass `--no-sde-auto-prepare` or
+`--no-audio-auto-prepare` to require deliberate preparation instead.
+
+An SDE `latest` reference resolves independently from the app/resource build,
+and the SDE is never guaranteed to match the current remote game build; when a
+newer export cannot be acquired the service answers from the newest prepared
+database it has. See the SDE section of the local HTTP route reference.

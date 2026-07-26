@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 
 import { CjsToolCache } from "../cache/CjsToolCache.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
@@ -25,7 +26,10 @@ export class CjsSdeRepository
         this.#cache = options.cache ?? new CjsToolCache();
         this.#targets = options.targets ?? new CjsToolTargetRegistry();
         this.#open = new Map();
-        this.autoPrepare = options.autoPrepare === true;
+        // Auto-preparation is the default: the SDE is forward-looking and old
+        // exports generally cannot be re-acquired, so the service prepares a
+        // missing database on first request unless explicitly disabled.
+        this.autoPrepare = options.autoPrepare !== false;
         this.version = NormalizeVersion(options.version ?? "v1");
 
         if (!(this.#cache instanceof CjsToolCache))
@@ -39,15 +43,39 @@ export class CjsSdeRepository
         }
     }
 
-    /** Resolves `latest` independently against the official EVE SDE channel. */
+    /**
+     * Resolves `latest` independently against the official EVE SDE channel.
+     *
+     * The SDE is never guaranteed to match the current remote game build:
+     * exports are published on CCP's own schedule and old exports cannot be
+     * re-acquired. When the official channel is unreachable, `latest` falls
+     * back to the newest prepared database on disk rather than failing.
+     */
     async ResolveTargetBuild(targetValue, buildValue = "latest")
     {
         const target = this.#targets.RequireTopic(targetValue, "sde");
         const buildRef = NormalizeBuildReference(buildValue);
-        const latest = buildRef === "latest"
-            ? await this.#archive.ResolveLatest()
-            : null;
-        const build = String(latest?.build ?? utils.normalizeExactBuildNumber(buildRef, {
+        let latest = null;
+        let fallback = null;
+
+        if (buildRef === "latest")
+        {
+            try
+            {
+                latest = await this.#archive.ResolveLatest();
+            }
+            catch (error)
+            {
+                fallback = await this.#NewestPreparedBuild(target);
+
+                if (fallback === null)
+                {
+                    throw error;
+                }
+            }
+        }
+
+        const build = String(latest?.build ?? fallback ?? utils.normalizeExactBuildNumber(buildRef, {
             message: `Invalid exact SDE build "${buildRef}"`,
         }));
 
@@ -58,7 +86,7 @@ export class CjsSdeRepository
             buildRef,
             build,
             releaseDate: latest?.releaseDate ?? null,
-            source: latest?.source ?? "exact-build",
+            source: fallback !== null ? "newest-prepared-fallback" : latest?.source ?? "exact-build",
         });
     }
 
@@ -132,11 +160,34 @@ export class CjsSdeRepository
         }
         else if (this.autoPrepare)
         {
-            database = await this.#archive.PrepareDatabase({
-                build: resolution.build,
-                releaseDate: resolution.releaseDate,
-                databasePath,
-            });
+            try
+            {
+                database = await this.#archive.PrepareDatabase({
+                    build: resolution.build,
+                    releaseDate: resolution.releaseDate,
+                    databasePath,
+                });
+            }
+            catch (error)
+            {
+                // A stale SDE is the expected steady state between exports:
+                // when the requested export cannot be acquired, answer from
+                // the newest prepared database instead of failing. The
+                // returned source reports the build that actually answered.
+                const fallback = await this.#NewestPreparedBuild(resolution);
+
+                if (fallback === null || fallback === resolution.build)
+                {
+                    throw error;
+                }
+
+                return this.#Open(Object.freeze({
+                    ...resolution,
+                    build: fallback,
+                    requestedBuild: resolution.build,
+                    source: "newest-prepared-fallback",
+                }));
+            }
         }
         else
         {
@@ -167,6 +218,59 @@ export class CjsSdeRepository
             await database.Close();
             throw error;
         }
+    }
+
+    /**
+     * Finds the newest build with a prepared database on disk, or null.
+     * @param {{ game: String, provider: String }} identity
+     * @returns {Promise<?String>}
+     */
+    async #NewestPreparedBuild(identity)
+    {
+        const buildsDirectory = path.join(
+            this.#cache.directory,
+            "custom",
+            "games",
+            identity.game,
+            "providers",
+            identity.provider,
+            "builds",
+        );
+        let names;
+
+        try
+        {
+            names = await fs.readdir(buildsDirectory);
+        }
+        catch (error)
+        {
+            if (error?.code === "ENOENT")
+            {
+                return null;
+            }
+
+            throw error;
+        }
+
+        const builds = names
+            .filter(name => utils.isExactBuild(name))
+            .sort((left, right) => Number(right) - Number(left));
+
+        for (const build of builds)
+        {
+            const databasePath = path.join(
+                buildsDirectory,
+                build,
+                `sde_${this.version}.sqlite`,
+            );
+
+            if (await FileExists(databasePath))
+            {
+                return build;
+            }
+        }
+
+        return null;
     }
 
 }

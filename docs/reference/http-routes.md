@@ -48,6 +48,10 @@ a weak ETag derived from the document's `generatedAt` and honors
 paths for generated artifacts: clients may equally build it themselves or read
 a locally published copy.
 
+Audio routes answer from the prepared exact-build audio library; a missing
+library is built automatically from the build's own indexed inputs on its
+first request (`--no-audio-auto-prepare` disables this).
+
 The ID route resolves one canonical positive decimal media ID through the
 prepared exact-build audio library. Compatible prepared/converted media wins
 by default, followed by loose discrete media and then an embedded bank member.
@@ -146,9 +150,25 @@ GET /eve/<sde-build>/sde/skins?field=types&contains=587
 GET /eve/<sde-build>/sde/resolve?typeID=587&skinID=<skin-id>
 ```
 
-SDE `latest` resolves independently from app/resource `latest`. The service
-normally requires a prepared database; `--sde-auto-prepare` permits on-demand
-preparation.
+SDE `latest` resolves independently from app/resource `latest`, and **an SDE
+is never guaranteed to match the current remote game build**: CCP publishes
+SDE exports on their own irregular schedule, so the newest available SDE
+routinely trails (or occasionally leads) the live client build. Consumers must
+treat SDE answers as approximately-current reference data keyed by their own
+SDE build identity, not as an attribute of the resource build.
+
+Because of that, preparation is forward-looking with a staleness fallback:
+
+- The service prepares a missing SDE on its first request by default
+  (`--no-sde-auto-prepare` disables this).
+- When a newer SDE cannot be acquired, the service answers from the **newest
+  prepared SDE it has** rather than failing — a stale SDE is the expected
+  steady state between exports, and old exports generally cannot be
+  re-acquired once CCP stops serving them.
+- Response headers report the SDE build that actually answered, so consumers
+  can always detect which export they are reading. A richer surface for
+  identifying resource-build/SDE-build divergence (e.g. "resfileindex
+  2020202 answered with SDE 2020201") is planned but not yet specified.
 
 ## Character routes
 

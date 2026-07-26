@@ -72,10 +72,14 @@ async function main()
     });
     const sde = new CjsSdeRepository({
         cache: toolCache,
-        autoPrepare: args.sdeAutoPrepare === true,
+        autoPrepare: args.noSdeAutoPrepare !== true,
     });
     const characters = new CjsToolCharacterRepository({ cache: toolCache, indexes });
-    const audio = new CjsToolAudioRepository({ cache: toolCache, indexes });
+    const audio = new CjsToolAudioRepository({
+        cache: toolCache,
+        indexes,
+        autoPrepare: args.noAudioAutoPrepare !== true,
+    });
     const sof = new CjsToolSofRepository();
     let prefetchReport = null;
 
@@ -195,8 +199,14 @@ Options:
   --target <target>         Prefetch target; default: eve
   --build <build>           Prefetch build; default: latest
   --client <client>         Optional prefetch client/build selector
-  --sde-auto-prepare        Prepare a missing EVE SDE on its first request
+  --no-sde-auto-prepare     Disable default on-request EVE SDE preparation
+  --no-audio-auto-prepare   Disable default on-request audio-library builds
   --help                    Show this help
+
+Generated artifacts are prepared on their first request by default: the data
+is forward-looking, and when a newer EVE SDE cannot be acquired the service
+answers from the newest prepared SDE it has (the SDE is never guaranteed to
+match the current remote game build).
 
 The first stdout line is a JSON bootstrap record for local clients, including
 ccpwgl and Blender. Requested prefetch work finishes before the listener starts.
