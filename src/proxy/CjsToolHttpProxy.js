@@ -704,7 +704,11 @@ export class CjsToolHttpProxy
 
         if (topic === "dna")
         {
-            if (segments.length !== 2)
+            const subTopic = segments.length === 3 ? String(segments[2]).toLowerCase() : "";
+
+            if (segments.length < 2
+                || segments.length > 3
+                || (segments.length === 3 && subTopic !== "visibilitygroups"))
             {
                 WriteJson(response, 400, { error: "Malformed SOF DNA route" });
 
@@ -714,7 +718,10 @@ export class CjsToolHttpProxy
             const dna = RequireSofDna(segments[1]);
             const catalog = await this.#GetSofCatalog(route.target, route.build);
             const inspection = catalog.InspectDna(dna);
-            const headers = CreateAnswerHeaders(catalog, "sof-dna");
+            const headers = CreateAnswerHeaders(
+                catalog,
+                subTopic === "visibilitygroups" ? "sof-dna-visibilitygroups" : "sof-dna",
+            );
 
             if (!inspection?.buildable)
             {
@@ -734,6 +741,24 @@ export class CjsToolHttpProxy
             if (!inspection.valid)
             {
                 WriteJson(response, 400, { error: "Invalid SOF DNA content" }, headers);
+
+                return;
+            }
+
+            if (subTopic === "visibilitygroups")
+            {
+                const groups = catalog.GetDnaVisibilityGroups(dna);
+
+                if (groups === null)
+                {
+                    WriteJson(response, 404, {
+                        error: "SOF DNA selection was not found",
+                    }, headers);
+
+                    return;
+                }
+
+                WriteJson(response, 200, groups, headers);
 
                 return;
             }

@@ -43,6 +43,7 @@ and MD5 before they are returned or cached.
 - profile-driven exact-build cache preparation before tools or services start;
 - prepared SDE databases and deterministic audio, character, SKIN, SKINR,
   weapon, and shader outputs;
+- self-contained SOF bundles for consumers without Carbon or a DDS decoder;
 - schema scanning and class-emission tooling;
 - optional loopback HTTP, authenticated realtime, WebSocket, webhook, and
   filesystem-watch services;
@@ -57,6 +58,7 @@ Each area is independently importable through a documented package subpath.
 - [Public API and subpaths](docs/reference/api.md)
 - [Build generated libraries](docs/guides/generated-libraries.md)
 - [Prepare exact-build cache inputs](docs/guides/prefetch.md)
+- [Build a SOF bundle](docs/guides/sof-bundles.md)
 - [Run the local service](docs/guides/local-service.md)
 - [Host realtime services](docs/guides/realtime-service.md)
 - [Configure Twitch and Kick](docs/guides/provider-integrations.md)

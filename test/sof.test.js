@@ -98,6 +98,17 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
     assert.equal(valuesCount, 0);
     assert.equal(first.target, "eve");
     assert.equal(first.build, "3435006");
+
+    const groups = first.GetDnaVisibilityGroups("ab1_t1:amarrbase:amarr");
+
+    assert.deepEqual(groups.declared, [ "primary", "holiday_19" ]);
+    assert.deepEqual(groups.visible, [ "primary" ]);
+    assert.deepEqual(groups.hidden, [ "police" ]);
+    assert.deepEqual(
+        groups.sets.map(set => [ set.kind, set.visibilityGroup, set.visible ]),
+        [ [ "hullDecalSets", "primary", true ], [ "hullDecalSets", "police", false ] ],
+    );
+    assert.equal(first.GetDnaVisibilityGroups("missing:amarrbase:amarr"), null);
 });
 
 function CreateData()
@@ -116,9 +127,18 @@ function CreateData()
                 geometryResFilePath: "res:/ab1_t1.gr2",
                 boundingSphere: [0, 0, 0, 1],
                 opaqueAreas: [],
+                decalSets: [
+                    { visibilityGroup: "primary", items: [] },
+                    { visibilityGroup: "police", items: [] },
+                ],
             },
         ],
-        faction: [{ name: "amarrbase" }],
+        faction: [{
+            name: "amarrbase",
+            visibilityGroupSet: {
+                visibilityGroups: [ { str: "primary" }, { str: "holiday_19" } ],
+            },
+        }],
         race: [{ name: "amarr" }],
         material: [{
             name: "gold",

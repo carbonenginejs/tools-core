@@ -44,6 +44,7 @@ format/runtime packages
 - [Class catalogs](reference/classes/README.md)
 - [Build generated libraries](guides/generated-libraries.md)
 - [Prepare exact-build cache inputs](guides/prefetch.md)
+- [Build a SOF bundle](guides/sof-bundles.md)
 - [Run the local service](guides/local-service.md)
 - [Host realtime services](guides/realtime-service.md)
 - [Configure Twitch and Kick](guides/provider-integrations.md)

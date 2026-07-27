@@ -121,7 +121,12 @@ export class CjsIndex
 
         if (root === "res" || root === "all")
         {
-            results.push(...this.#FindResourceMatches(matcher, options.indexName));
+            // A complete res match spans the whole build index; spreading it
+            // into push() exceeds the argument limit on real EVE indexes.
+            for (const resolution of this.#FindResourceMatches(matcher, options.indexName))
+            {
+                results.push(resolution);
+            }
         }
 
         if (![ "all", "app", "res" ].includes(root))

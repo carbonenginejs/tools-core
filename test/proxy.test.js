@@ -124,6 +124,19 @@ test("serves exact-build GPU-free SOF catalogs and DNA documents", async context
             }
             return { buildable: true, valid: true, error: null };
         },
+        GetDnaVisibilityGroups(dna)
+        {
+            if (dna.includes(":unbuildable")) return null;
+
+            return {
+                dna,
+                declared: [ "primary" ],
+                authored: [ "police", "primary" ],
+                visible: [ "primary" ],
+                hidden: [ "police" ],
+                sets: [],
+            };
+        },
         async BuildDocumentAsync(dna)
         {
             builtDna.push(dna);
@@ -260,6 +273,27 @@ test("serves exact-build GPU-free SOF catalogs and DNA documents", async context
     assert.equal((await fetch(
         `${root}/dna/ab1_t1:amarrbase:unbuildable`,
     )).status, 404);
+    const visibility = await fetch(`${root}/dna/ab1_t1:amarrbase:amarr/visibilityGroups`);
+
+    assert.equal(visibility.status, 200);
+    assert.deepEqual(await visibility.json(), {
+        dna: "ab1_t1:amarrbase:amarr",
+        declared: [ "primary" ],
+        authored: [ "police", "primary" ],
+        visible: [ "primary" ],
+        hidden: [ "police" ],
+        sets: [],
+    });
+    assert.equal(visibility.headers.get("x-carbon-build"), "3435006");
+    assert.equal((await fetch(
+        `${root}/dna/ab1_t1:amarrbase:unbuildable/visibilityGroups`,
+    )).status, 404);
+    assert.equal((await fetch(
+        `${root}/dna/missing:amarrbase:amarr/visibilityGroups`,
+    )).status, 404);
+    assert.equal((await fetch(
+        `${root}/dna/ab1_t1:amarrbase:amarr/unknownTopic`,
+    )).status, 400);
     assert.equal((await fetch(`${root}/dna/malformed`)).status, 400);
     assert.equal((await fetch(`${root}/hulls/not%20safe`)).status, 400);
     assert.equal((await fetch(`${root}/patterns/stripes`)).status, 400);

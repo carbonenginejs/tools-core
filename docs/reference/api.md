@@ -31,6 +31,7 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | `./sde` | Exact-build JSONL SDE preparation and queries | `CjsSde`, archive/database/repository classes |
 | `./shader` | Exact-build shader catalog and build orchestration | `CjsShaderTargetRegistry`, `CjsToolWebglBuilder`, `CjsToolWebgpuBuilder` |
 | `./skin` | SKIN and SKINR generated libraries | `CjsToolSkin`, `CjsToolSkinBuilder`, `CjsToolSkinrBuilder` |
+| `./sof` | Exact-build SOF catalogs and self-contained SOF bundles | `CjsToolSofRepository`, `CjsToolSofCatalog`, `CjsToolSofBundle` |
 | `./target` | Audited public target identities and capabilities | `CjsToolTargetRegistry` |
 | `./webhook` | Bounded authenticated webhook ingress and projections | Router, ingress, projection, and stream service classes |
 | `./weapon` | Weapon/ammunition/projectile library joins | `CjsToolWeapon`, `CjsToolWeaponBuilder` |

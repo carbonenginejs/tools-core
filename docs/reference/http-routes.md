@@ -115,6 +115,7 @@ GET /eve/<build>/sof/materials/<material>
 GET /eve/<build>/sof/layouts/<layout>
 GET /eve/<build>/sof/patterns/<pattern>/hulls/<hull>
 GET /eve/<build>/sof/dna/<dna>
+GET /eve/<build>/sof/dna/<dna>/visibilityGroups
 ```
 
 Collections are sorted unique canonical lowercase names. Detail lookups are
@@ -131,6 +132,11 @@ The DNA route returns runtime-sof's GPU-free `carbon.document` directly from
 A DNA command separator may be sent either as a literal `?` or as `%3F`; the
 service treats a literal `?` after `/sof/dna/` as part of the DNA rather than
 discarding it as an HTTP query.
+
+The `visibilityGroups` route reports how the DNA's faction gates the selected
+hulls' attachment sets: the groups the faction `declared`, the groups the hulls
+`authored`, the resulting `visible` and `hidden` names, and one record per
+gated set. It answers which sets a build emits without building the object.
 
 Friendly builds resolve through the normal target index policy. Response
 headers report the selected exact numeric build, and the decoded catalog is

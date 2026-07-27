@@ -172,6 +172,21 @@ export class CjsToolSofCatalog
         return this.#sof.InspectDna(RequireDna(dna));
     }
 
+    /** Reports the visibility groups one DNA authors, declares, and resolves. */
+    GetDnaVisibilityGroups(dna)
+    {
+        const value = RequireDna(dna);
+
+        if (typeof this.#sof.GetDnaVisibilityGroups !== "function")
+        {
+            throw new TypeError(
+                "CjsToolSofRepository requires runtime-sof 0.3.2 visibility-group queries",
+            );
+        }
+
+        return this.#sof.GetDnaVisibilityGroups(value);
+    }
+
     /** Builds runtime-sof's GPU-free carbon.document without hydration. */
     async BuildDocumentAsync(dna, options = {})
     {
