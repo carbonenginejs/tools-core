@@ -10,7 +10,7 @@ export class CjsToolWebglBuilder extends CjsToolShaderBuilder
             ...options,
             backend: "webgl",
             extension: "cewg",
-            formatPackage: "@carbonenginejs/format-webgl",
+            formatPackage: "@carbonenginejs/runtime-resource/formats/webgl",
         });
     }
 
