@@ -25,7 +25,7 @@ Current support is:
 
 ```powershell
 npm run prepare:sde -- --cache <cache> [--build <exact-build>]
-npm run build:audio -- --index <resfileindex.txt> --cache <cache> --soundbanksinfo <file-or-res-path> --target <eve|frontier> --build <build> [--out <library.json>] [--enrichment <audio-metadata.json>] [--event-media] [--music] [--language <bcp47-tag>]
+npm run build:audio -- --index <resfileindex.txt> --cache <cache> --soundbanksinfo <file-or-res-path> --target <eve|frontier> --build <build> [--out <library.json>] [--enrichment <audio-metadata.json>] [--event-media] [--sfx] [--music] [--language <bcp47-tag>]
 npm run build:character -- --index <resfileindex.txt> --cache <cache> --out <library.json> --target eve --build <build>
 npm run build:skins -- --cache <cache> --build <build|latest> [--auto-prepare]
 npm run build:weapons -- --cache <cache> --build <build|latest> [--auto-prepare]
@@ -53,9 +53,10 @@ plain-JSON enrichment. Schema v2 identifies every bank by its
 basename. It keeps the canonical BCP-47 `language` separately from the
 SoundbanksInfo `authoredLanguage`; repeated loose or embedded media IDs retain
 their source variants. `eventMedia` and `embeddedMedia` are added only when
-event-media construction is requested; without them the result is a source
-catalog rather than a complete event-to-playable-media index. Embedded items
-are classified as `wem`, `midi`, `plugin`, or `unknown` from their bank bytes.
+event-media, SFX, or music construction is requested; without them the result
+is a source catalog rather than a complete event-to-playable-media index.
+Embedded items are classified as `wem`, `midi`, `plugin`, or `unknown` from
+their bank bytes.
 
 SoundbanksInfo remains the public primary metadata source. Optional enrichment
 accepts a caller-owned plain JSON document containing `Events`, `SoundBanks`,
@@ -70,11 +71,17 @@ through its `CjsToolAudioBuilder` wrapper. Browser applications may call the
 same optional builder with already acquired values and injected bank access,
 or skip it by downloading the complete result.
 
-Localized HIRC objects reuse IDs, so one event graph cannot safely union every
-language. `--language` selects the event graph language and is recorded as
-`eventMediaLanguage`; it defaults to `en-us`. All bank and media source
-variants remain in the v2 catalog, while each `eventMedia` entry contains only
+Localized HIRC objects reuse IDs, so event-media and authored SFX graphs cannot
+safely union every language. `--language` selects both graph inputs and is
+recorded as `eventMediaLanguage`; it defaults to `en-us`. All bank and media
+source variants remain in the v2 catalog, while graph references contain only
 IDs from the selected language plus shared non-localized banks.
+
+`--sfx` implies event-media construction and adds the conservative authored
+SFX graph supported by runtime-audio. HIRC decoding remains owned by
+runtime-resource; unsupported actions, continuous containers, transitions,
+and unresolved partial-bank references are omitted whole rather than silently
+approximated.
 
 `--music` implies event-media construction and reads each cached bank once. It
 requires `common.bnk`, `music.bnk`, and `music_essential.bnk`, then adds the
@@ -83,7 +90,8 @@ play and stop event targets, and switch/state setter actions. Its HIRC payload
 decoding is delegated to `@carbonenginejs/runtime-resource`; tools-core owns
 the cache read and transactional artifact replacement. The runtime-audio
 builder rejects parse failures, missing child nodes, and missing track media
-before either JSON artifact is replaced.
+before either JSON artifact is replaced. `--sfx` and `--music` may be combined
+in one complete library.
 
 `CjsToolAudio` is the target-aware public front door, while
 `CjsToolAudioBuilder` permits unscoped synthetic/intermediate values.

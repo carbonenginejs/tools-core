@@ -7,7 +7,7 @@
 //   npm run build:audio -- --index <resfileindex.txt> --cache <dir>
 //     --soundbanksinfo <path-or-res-lookup> --build <id> [--out <library.json>]
 //     [--target <eve>]
-//     [--enrichment <audio-metadata.json>] [--event-media] [--music]
+//     [--enrichment <audio-metadata.json>] [--event-media] [--sfx] [--music]
 //     [--language <bcp47-tag>]
 //     [--generated-at <iso>] [--compact]
 //
@@ -22,9 +22,6 @@ import {
 import { CjsToolCache } from "../src/cache/index.js";
 import { CjsToolLibraryArtifact } from "../src/library/index.js";
 import * as utils from "../src/utils.js";
-// Bank format reader: inspection (typed HIRC fields) + the event-graph walk
-// grouped under the wwise static. No resource lifecycle pulled in.
-import { CjsBnkFormat } from "@carbonenginejs/runtime-resource/formats/bnk";
 
 function ParseArgs(argv)
 {
@@ -59,6 +56,11 @@ function ParseArgs(argv)
             options.music = true;
             continue;
         }
+        if (flag === "--sfx")
+        {
+            options.sfx = true;
+            continue;
+        }
         if (!flag.startsWith("--"))
         {
             throw new Error(`Unknown argument: ${flag}`);
@@ -79,7 +81,7 @@ async function Main(argv)
     const options = ParseArgs(argv);
     if (options.help)
     {
-        console.log("build_audio_library --index <resfileindex.txt> --cache <dir> --soundbanksinfo <file> --build <id> [--out <file>] [--target <eve|frontier>] [--enrichment <file>] [--event-media] [--music] [--language <bcp47-tag>] [--generated-at <iso>] [--compact]");
+        console.log("build_audio_library --index <resfileindex.txt> --cache <dir> --soundbanksinfo <file> --build <id> [--out <file>] [--target <eve|frontier>] [--enrichment <file>] [--event-media] [--sfx] [--music] [--language <bcp47-tag>] [--generated-at <iso>] [--compact]");
         console.log("Library builders are target-specific. Only targets explicitly audited for audio can be selected.");
         return 0;
     }
@@ -151,11 +153,10 @@ async function Main(argv)
     };
     let library = audio.Build(buildOptions);
 
-    // --event-media extracts event -> media edges and embedded-media windows.
-    // --music implies that inspection and additionally projects the dynamic
-    // music graph. Every bank is read exactly once and its payload views are
-    // compacted before the next bank is opened.
-    if (options.eventMedia || options.music)
+    // Each graph option inspects the banks through the shared runtime builder.
+    // --sfx adds the conservative authored SFX graph; --music adds dynamic
+    // music. Both imply event-media and embedded-media construction.
+    if (options.eventMedia || options.sfx || options.music)
     {
         if (options.music)
         {
@@ -178,129 +179,34 @@ async function Main(argv)
             }
         }
 
-        const missing = [];
-        const inspections = [];
-        const bankIdentities = {};
-        const embeddedMedia = {};
-        // Sequential inspection with a compaction pass: HIRC payload views are
-        // copied so the multi-hundred-MB bank buffers never coexist in memory.
-        for (const [ sourceID, bank ] of Object.entries(library.banks))
-        {
-            const cached = await cache.ReadRemote(bank.storagePath, CacheExpectation(bank));
+        const option = options.music
+            ? "--music"
+            : options.sfx
+                ? "--sfx"
+                : "--event-media";
 
-            if (!cached)
-            {
-                missing.push(`${sourceID} -> ${bank.storagePath}`);
-                continue;
-            }
-
-            const bytes = ToUint8Array(cached.bytes);
-            const source = BankSourceName(bank.resPath);
-            const inspection = CjsBnkFormat.inspect(bytes, { source });
-            const inspectedSourceID = `${inspection.bankId >>> 0}:${inspection.languageId >>> 0}`;
-
-            bankIdentities[bank.resPath.toLowerCase()] = {
-                bankID: inspection.bankId,
-                languageID: inspection.languageId,
-            };
-            inspections.push({
-                source,
-                resPath: bank.resPath,
-                bankId: inspection.bankId,
-                languageId: inspection.languageId,
-                language: bank.language,
-                hirc: inspection.hirc.map(entry => ({
-                    ...entry,
-                    payload: entry.payload.slice(),
-                })),
-                media: inspection.media.map(entry => ({ ...entry })),
-            });
-
-            for (const record of inspection.media)
-            {
-                const id = String(record.id);
-
-                if (!record.available || library.media[id])
-                {
-                    continue;
-                }
-
-                const descriptor = {
-                    sourceID: `embedded:${id}:${inspectedSourceID}`,
-                    bank: inspectedSourceID,
-                    offset: record.absoluteOffset,
-                    byteLength: record.length,
-                    language: bank.language,
-                    mediaType: CjsToolAudioBuilder.mediaTypeFromMagic(
-                        bytes,
-                        record.absoluteOffset,
-                    ),
-                };
-                const current = embeddedMedia[id];
-
-                if (current === undefined)
-                {
-                    embeddedMedia[id] = descriptor;
-                }
-                else if (Array.isArray(current))
-                {
-                    current.push(descriptor);
-                }
-                else
-                {
-                    embeddedMedia[id] = [ current, descriptor ];
-                }
-            }
-        }
-        if (missing.length)
-        {
-            const option = options.music ? "--music" : "--event-media";
-
-            throw new Error(`${option} requires cached banks; missing:\n  ${missing.join("\n  ")}`);
-        }
-
-        // EVE keeps events in common.bnk and their targets in the media
-        // banks: edges only resolve over the merged graph.
-        const merged = CjsToolAudioBuilder.createEventMediaGraphs(
-            inspections,
-            {
-                knownWemIds: Object.keys(library.media),
-                language: eventMediaLanguage,
-            },
-        );
-        const eventMedia = CjsToolAudioBuilder.createEventMediaTable(
-            library.metadata,
-            merged,
-        );
-
-        library = audio.Build({
+        library = await CjsToolAudioBuilder.buildFromBanks({
             ...buildOptions,
-            bankIdentities,
-            eventMedia,
-            eventMediaLanguage,
-            embeddedMedia,
+            language: eventMediaLanguage,
+            includeSfx: options.sfx === true,
+            ...(options.music === true ? { music: true } : {}),
+            async loadBank(bank)
+            {
+                const cached = await cache.ReadRemote(
+                    bank.storagePath,
+                    CacheExpectation(bank),
+                );
+
+                if (!cached)
+                {
+                    throw new Error(
+                        `${option} requires cached bank: ${bank.storagePath}`,
+                    );
+                }
+
+                return ToUint8Array(cached.bytes);
+            },
         });
-
-        if (options.music)
-        {
-            const music = CjsToolAudioBuilder.createMusicGraph({
-                inspections: inspections.filter(inspection =>
-                    [ "common.bnk", "music.bnk", "music_essential.bnk" ]
-                        .includes(BankSourceName(inspection.source))),
-                metadata: library.metadata,
-                media: library.media,
-                embeddedMedia: library.embeddedMedia,
-            });
-
-            library = audio.Build({
-                ...buildOptions,
-                bankIdentities,
-                eventMedia,
-                eventMediaLanguage,
-                embeddedMedia,
-                music,
-            });
-        }
     }
 
     const outPath = options.out
@@ -336,6 +242,8 @@ async function Main(argv)
         embeddedMedia: library.embeddedMedia
             ? Object.keys(library.embeddedMedia).length
             : 0,
+        sfxEvents: library.sfx ? Object.keys(library.sfx.events).length : 0,
+        sfxNodes: library.sfx ? Object.keys(library.sfx.nodes).length : 0,
         musicNodes: library.music ? Object.keys(library.music.nodes).length : 0,
     }, null, 2));
     return 0;

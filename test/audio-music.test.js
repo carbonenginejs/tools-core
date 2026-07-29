@@ -12,6 +12,7 @@ import { CjsToolAudioBuilder } from "../src/audio/index.js";
 const TRACK_ID = 4101;
 const SEGMENT_ID = 4001;
 const PLAYLIST_ID = 4201;
+const SFX_SOUND_ID = 4301;
 const MEDIA_ID = 900001;
 const ESSENTIAL_MEDIA_ID = 900002;
 
@@ -259,6 +260,16 @@ function CreateBank(bankID, objects, embedded = null)
 function CreateSyntheticBanks()
 {
     const music = CreateBank(200, [
+        HircObject(
+            2,
+            SFX_SOUND_ID,
+            Writer()
+                .U32(0x00040001)
+                .U8(0)
+                .U32(MEDIA_ID)
+                .U32(17)
+                .Bytes(),
+        ),
         HircObject(11, TRACK_ID, CreateTrackPayload()),
         HircObject(10, SEGMENT_ID, CreateSegmentPayload()),
         HircObject(13, PLAYLIST_ID, CreatePlaylistPayload()),
@@ -292,6 +303,16 @@ function CreateSyntheticBanks()
             3,
             4,
             Writer().U16(0x1200).U32(0).U32(800).U32(801).Bytes(),
+        ),
+        HircObject(
+            4,
+            102,
+            Writer().U8(1).U32(5).Bytes(),
+        ),
+        HircObject(
+            3,
+            5,
+            Writer().U16(0x0403).U32(SFX_SOUND_ID).Bytes(),
         ),
     ]);
 
@@ -349,7 +370,10 @@ function SyntheticSoundbanksInfo()
                     Id: "202",
                     ShortName: "common",
                     Path: "SoundBanks\\common.bnk",
-                    Events: [ { Id: "101", Name: "music_play" } ],
+                    Events: [
+                        { Id: "101", Name: "music_play" },
+                        { Id: "102", Name: "sfx_play" },
+                    ],
                 },
             ],
         },
@@ -688,6 +712,7 @@ test("audio CLI writes one deterministic music artifact and preserves it on fail
     const soundbanksInfoPath = path.join(directory, "SoundbanksInfo.json");
     const outputPath = path.join(directory, "audio_v2.json");
     const secondOutputPath = path.join(directory, "audio_v2-second.json");
+    const sfxOnlyOutputPath = path.join(directory, "audio_v2-sfx.json");
     const args = [
         "scripts/build_audio_library.js",
         "--index", indexPath,
@@ -695,6 +720,7 @@ test("audio CLI writes one deterministic music artifact and preserves it on fail
         "--soundbanksinfo", soundbanksInfoPath,
         "--build", "123456",
         "--generated-at", "2026-07-24T00:00:00.000Z",
+        "--sfx",
         "--music",
         "--compact",
     ];
@@ -723,11 +749,36 @@ test("audio CLI writes one deterministic music artifact and preserves it on fail
     assert.deepEqual(library.music.eventStops, {
         music_play: [ PLAYLIST_ID ],
     });
+    assert.equal(
+        library.sfx.nodes[SFX_SOUND_ID].mediaId,
+        String(MEDIA_ID),
+    );
     assert.equal(library.embeddedMedia[MEDIA_ID].mediaType, "wem");
     assert.deepEqual(
         gunzipSync(fs.readFileSync(`${outputPath}.gz`)),
         fs.readFileSync(outputPath),
     );
+
+    const sfxOnly = spawnSync(
+        process.execPath,
+        [
+            ...args.filter(value => value !== "--music"),
+            "--out", sfxOnlyOutputPath,
+        ],
+        { encoding: "utf8" },
+    );
+
+    assert.equal(sfxOnly.status, 0, sfxOnly.stderr);
+
+    const sfxOnlyLibrary = JSON.parse(
+        fs.readFileSync(sfxOnlyOutputPath, "utf8"),
+    );
+
+    assert.equal(
+        sfxOnlyLibrary.sfx.nodes[SFX_SOUND_ID].mediaId,
+        String(MEDIA_ID),
+    );
+    assert.equal(sfxOnlyLibrary.music, undefined);
 
     const second = spawnSync(
         process.execPath,

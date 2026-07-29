@@ -1,7 +1,5 @@
 import fs from "node:fs/promises";
 
-import { CjsBnkFormat } from "@carbonenginejs/runtime-resource/formats/bnk";
-
 import { CjsToolCache } from "../cache/CjsToolCache.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
@@ -175,9 +173,9 @@ export class CjsToolAudioRepository
     /**
      * Builds and installs the audio library for one exact build from that
      * build's own inputs (index rows, SoundbanksInfo, bank bytes), mirroring
-     * the deliberate build:audio pipeline with event media and, when the
-     * music banks are indexed, the dynamic-music graph. The first request
-     * per build carries the acquisition and parse cost; the installed
+     * the deliberate build:audio pipeline with authored SFX, event media and,
+     * when the music banks are indexed, the dynamic-music graph. The first
+     * request per build carries the acquisition and parse cost; the installed
      * artifact answers every later request.
      * @returns {Promise<Object>} the installed library document
      */
@@ -209,122 +207,28 @@ export class CjsToolAudioRepository
             ToUint8Array((await source.Fetch(soundbanksEntry.logicalPath)).bytes),
         ).toString("utf8"));
         const eventMediaLanguage = this.#defaultLanguage ?? "en-us";
-        const buildOptions = {
+        const availableBankNames = new Set(indexEntries
+            .map(entry => BankSourceName(entry.logicalPath))
+            .filter(name => name.endsWith(".bnk")));
+        const includeMusic = MUSIC_BANK_NAMES.every(name =>
+            availableBankNames.has(name));
+        const library = await CjsToolAudioBuilder.buildFromBanks({
             indexEntries,
             soundbanksInfo,
             enrichment: null,
+            language: eventMediaLanguage,
+            includeSfx: true,
+            ...(includeMusic ? { music: true } : {}),
             sourceTarget: target.id,
             sourceGame: target.game,
             sourceProvider: target.provider,
             sourceBuild: sourceIdentity.build,
             generatedAt: new Date().toISOString(),
-        };
-        let library = CjsToolAudioBuilder.build(buildOptions, { targets: this.#targets });
-
-        // Event media and embedded windows come from the banks themselves:
-        // every bank is read exactly once and its payload views compacted.
-        const inspections = [];
-        const bankIdentities = {};
-        const embeddedMedia = {};
-
-        for (const [ , bank ] of Object.entries(library.banks))
-        {
-            const bytes = ToUint8Array((await source.Fetch(bank.resPath)).bytes);
-            const bankSource = BankSourceName(bank.resPath);
-            const inspection = CjsBnkFormat.inspect(bytes, { source: bankSource });
-            const inspectedSourceID = `${inspection.bankId >>> 0}:${inspection.languageId >>> 0}`;
-
-            bankIdentities[bank.resPath.toLowerCase()] = {
-                bankID: inspection.bankId,
-                languageID: inspection.languageId,
-            };
-            inspections.push({
-                source: bankSource,
-                resPath: bank.resPath,
-                bankId: inspection.bankId,
-                languageId: inspection.languageId,
-                language: bank.language,
-                hirc: inspection.hirc.map(entry => ({
-                    ...entry,
-                    payload: entry.payload.slice(),
-                })),
-                media: inspection.media.map(entry => ({ ...entry })),
-            });
-
-            for (const record of inspection.media)
+            async loadBank(bank)
             {
-                const id = String(record.id);
-
-                if (!record.available || library.media[id])
-                {
-                    continue;
-                }
-
-                const descriptor = {
-                    sourceID: `embedded:${id}:${inspectedSourceID}`,
-                    bank: inspectedSourceID,
-                    offset: record.absoluteOffset,
-                    byteLength: record.length,
-                    language: bank.language,
-                    mediaType: CjsToolAudioBuilder.mediaTypeFromMagic(
-                        bytes,
-                        record.absoluteOffset,
-                    ),
-                };
-                const current = embeddedMedia[id];
-
-                if (current === undefined)
-                {
-                    embeddedMedia[id] = descriptor;
-                }
-                else if (Array.isArray(current))
-                {
-                    current.push(descriptor);
-                }
-                else
-                {
-                    embeddedMedia[id] = [ current, descriptor ];
-                }
-            }
-        }
-
-        const merged = CjsToolAudioBuilder.createEventMediaGraphs(inspections, {
-            knownWemIds: Object.keys(library.media),
-            language: eventMediaLanguage,
-        });
-        const eventMedia = CjsToolAudioBuilder.createEventMediaTable(
-            library.metadata,
-            merged,
-        );
-        const withEdges = {
-            ...buildOptions,
-            bankIdentities,
-            eventMedia,
-            eventMediaLanguage,
-            embeddedMedia,
-        };
-
-        library = CjsToolAudioBuilder.build(withEdges, { targets: this.#targets });
-
-        const availableBankNames = new Set(
-            Object.values(library.banks).map(bank => BankSourceName(bank.resPath)),
-        );
-
-        if (MUSIC_BANK_NAMES.every(name => availableBankNames.has(name)))
-        {
-            const music = CjsToolAudioBuilder.createMusicGraph({
-                inspections: inspections.filter(inspection =>
-                    MUSIC_BANK_NAMES.includes(inspection.source)),
-                metadata: library.metadata,
-                media: library.media,
-                embeddedMedia: library.embeddedMedia,
-            });
-
-            library = CjsToolAudioBuilder.build(
-                { ...withEdges, music },
-                { targets: this.#targets },
-            );
-        }
+                return ToUint8Array((await source.Fetch(bank.resPath)).bytes);
+            },
+        }, { targets: this.#targets });
 
         await this.#cache.WriteCustomLibrary({
             game: target.game,

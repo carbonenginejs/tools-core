@@ -82,9 +82,11 @@ browser CORS or local realtime capabilities.
 ## Current limitations
 
 The checked-in service does not enable the authenticated realtime host. Audio
-routes require a prepared exact-build `audio_v2.json`. Current generated libraries
-describe loose WEMs, banks, optional embedded media, and—when built with
-`--music`—the dynamic music graph. Prepared or converted source variants become
+routes require a prepared exact-build `audio_v2.json`. Current generated
+libraries describe loose WEMs, banks, optional embedded media, the authored
+SFX graph when built with `--sfx`, and the dynamic music graph when built with
+`--music`. Automatic preparation includes authored SFX and adds music whenever
+the required banks are indexed. Prepared or converted source variants become
 selectable when their descriptors are present.
 
 The service does not inspect an installed game client's cache. Optional

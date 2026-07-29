@@ -12,6 +12,7 @@ import { CjsSdeRepository } from "../src/sde/index.js";
 const TRACK_ID = 4101;
 const SEGMENT_ID = 4001;
 const PLAYLIST_ID = 4201;
+const SFX_SOUND_ID = 4301;
 const MEDIA_ID = 900001;
 
 // Synthetic-bank byte builders mirror test/audio-music.test.js: each test
@@ -255,6 +256,16 @@ function CreateBank(bankID, objects, embedded = null)
 function CreateSyntheticBanks()
 {
     const music = CreateBank(200, [
+        HircObject(
+            2,
+            SFX_SOUND_ID,
+            Writer()
+                .U32(0x00040001)
+                .U8(0)
+                .U32(MEDIA_ID)
+                .U32(17)
+                .Bytes(),
+        ),
         HircObject(11, TRACK_ID, CreateTrackPayload()),
         HircObject(10, SEGMENT_ID, CreateSegmentPayload()),
         HircObject(13, PLAYLIST_ID, CreatePlaylistPayload()),
@@ -278,6 +289,16 @@ function CreateSyntheticBanks()
             3,
             2,
             Writer().U16(0x0103).U32(PLAYLIST_ID).Bytes(),
+        ),
+        HircObject(
+            4,
+            102,
+            Writer().U8(1).U32(5).Bytes(),
+        ),
+        HircObject(
+            3,
+            5,
+            Writer().U16(0x0403).U32(SFX_SOUND_ID).Bytes(),
         ),
     ]);
 
@@ -308,7 +329,10 @@ function SyntheticSoundbanksInfo()
                     Id: "202",
                     ShortName: "common",
                     Path: "SoundBanks\\common.bnk",
-                    Events: [ { Id: "101", Name: "music_play" } ],
+                    Events: [
+                        { Id: "101", Name: "music_play" },
+                        { Id: "102", Name: "sfx_play" },
+                    ],
                 },
             ],
         },
@@ -410,6 +434,11 @@ test("audio repository auto-prepares a missing library from indexed inputs", asy
     assert.equal(audio.library.sourceBuild, "123");
     assert.ok(audio.library.metadata.Events.music_play, "SoundbanksInfo events survive");
     assert.ok(audio.library.embeddedMedia[String(MEDIA_ID)], "embedded windows extracted");
+    assert.equal(
+        audio.library.sfx.nodes[String(SFX_SOUND_ID)].mediaId,
+        String(MEDIA_ID),
+        "authored SFX graph is prepared with the library",
+    );
     assert.ok(audio.library.music, "music graph built when the music banks are indexed");
 
     const installedPath = path.join(
@@ -438,6 +467,36 @@ test("audio repository auto-prepares a missing library from indexed inputs", asy
 
     assert.equal(reopened.library.sourceBuild, "123");
     assert.deepEqual(source.fetched, [], "prepared builds never rebuild");
+});
+
+test("audio repository auto-prepares SFX when music banks are incomplete", async context =>
+{
+    const cacheDirectory = CreateTempDirectory(context, "cjs-audio-sfx-only-");
+    const banks = CreateSyntheticBanks();
+
+    banks.delete("music_essential.bnk");
+
+    const source = CreateFakeIndexSource(banks);
+    const repository = new CjsToolAudioRepository({
+        cache: new CjsToolCache(cacheDirectory),
+        indexes: {
+            async OpenTarget()
+            {
+                return source;
+            },
+            async ResolveTargetBuild()
+            {
+                throw new Error("exact builds must not resolve remotely");
+            },
+        },
+    });
+    const audio = await repository.OpenTarget("eve", "124");
+
+    assert.equal(
+        audio.library.sfx.nodes[String(SFX_SOUND_ID)].mediaId,
+        String(MEDIA_ID),
+    );
+    assert.equal(audio.library.music, undefined);
 });
 
 test("audio repository reports unprepared builds when auto-preparation is disabled", async context =>
