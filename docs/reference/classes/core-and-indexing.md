@@ -18,7 +18,7 @@ Front-facing audio-library build tool.
 <!-- class:CjsToolAudioBuilder -->
 ## `CjsToolAudioBuilder`
 
-Node target-policy wrapper around the browser-owned audio-library builder.
+Node target-policy wrapper around the runtime-audio optional library builder.
 
 - Export: `@carbonenginejs/tools-core/audio`
 - Source: `src/audio/CjsToolAudioBuilder.js`

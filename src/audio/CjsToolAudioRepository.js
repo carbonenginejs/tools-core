@@ -114,28 +114,23 @@ export class CjsToolAudioRepository
     async #Load(target, sourceIdentity)
     {
         let data = null;
+        const filePath = this.#cache.GetCustomPath({
+            game: target.game,
+            provider: target.provider,
+            build: sourceIdentity.build,
+            name: "audio",
+            version: "v2",
+        });
 
-        for (const version of [ "v2", "v1" ])
+        try
         {
-            const filePath = this.#cache.GetCustomPath({
-                game: target.game,
-                provider: target.provider,
-                build: sourceIdentity.build,
-                name: "audio",
-                version,
-            });
-
-            try
+            data = JSON.parse(await fs.readFile(filePath, "utf8"));
+        }
+        catch (error)
+        {
+            if (error?.code !== "ENOENT")
             {
-                data = JSON.parse(await fs.readFile(filePath, "utf8"));
-                break;
-            }
-            catch (error)
-            {
-                if (error?.code !== "ENOENT")
-                {
-                    throw error;
-                }
+                throw error;
             }
         }
 

@@ -1,12 +1,12 @@
 import {
     CjsAudioLibraryBuilder,
-} from "@carbonenginejs/tools-browser/audio";
+} from "@carbonenginejs/runtime-audio/library-builder";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 
 const TargetRegistry = new CjsToolTargetRegistry();
 
 /**
- * Node target-policy wrapper around the browser-owned audio-library builder.
+ * Node target-policy wrapper around the runtime-owned audio-library builder.
  *
  * Acquisition, cache, CLI, and target policy remain in tools-core. The
  * deterministic multi-source join is shared with browser applications.

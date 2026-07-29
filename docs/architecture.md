@@ -29,8 +29,8 @@ Tools-core does not own:
 
 - browser clients or browser-safe remote readers, which belong in
   `@carbonenginejs/tools-browser`;
-- browser-safe audio-library construction, which tools-core wraps with target,
-  cache, CLI, and service policy;
+- runtime-owned audio-library construction, which tools-core calls with
+  exact-build target, cache, CLI, and service policy;
 - runtime graph classes and domain behavior, which belong in `runtime-*`;
 - format decoding or shader compilation algorithms, which remain in their
   owning format/runtime packages;
@@ -43,9 +43,6 @@ Tools-core does not own:
 core, format, and domain runtime packages
                    |
                    v
-             tools-browser
-                   |
-                   v
                tools-core
                    |
                    +----> generated JSON/gzip/SQLite and resource overlays
@@ -53,9 +50,10 @@ core, format, and domain runtime packages
                    +----> Node service transports and applications
 ```
 
-Runtime and engine packages must not import tools-core. Tools-core may wrap
-browser-safe builders with Node policy; it coordinates rather than duplicates
-their joins, decoding, or conversion.
+Runtime and engine packages must not import tools-core. Tools-core calls
+runtime-audio's optional builder with Node-acquired inputs; it coordinates
+rather than duplicates joins, decoding, or conversion. Browser remote clients
+remain optional consumers of the resulting service.
 
 ## Exact-build data path
 

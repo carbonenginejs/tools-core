@@ -39,6 +39,7 @@ groups are:
 | `/{target}/latest/build` | Exact current app/resource build |
 | `/{target}/{build}/app/<path>` | Validated app-index bytes |
 | `/{target}/{build}/res/<path>` | Validated resource bytes |
+| `/{target}/{build}/audio/library.json` | Complete schema-v2 audio-library document |
 | `/{target}/{build}/audio/id/<mediaID>` | Selected logical sample bytes |
 | `/{target}/{build}/audio/path/<encoded-audio-path>` | One exact registered audio file |
 | `/ccp/{build}/resources[/<path>]` | EVE `res:/` file or immediate directory listing |
@@ -81,8 +82,7 @@ browser CORS or local realtime capabilities.
 ## Current limitations
 
 The checked-in service does not enable the authenticated realtime host. Audio
-routes prefer a prepared exact-build `audio_v2.json` and fall back to a legacy
-`audio_v1.json` when v2 has not been built. Current generated libraries
+routes require a prepared exact-build `audio_v2.json`. Current generated libraries
 describe loose WEMs, banks, optional embedded media, and—when built with
 `--music`—the dynamic music graph. Prepared or converted source variants become
 selectable when their descriptors are present.

@@ -12,7 +12,7 @@ import {
 } from "../src/audio/index.js";
 import {
   CjsAudioLibraryBuilder,
-} from "@carbonenginejs/tools-browser/audio";
+} from "@carbonenginejs/runtime-audio/library-builder";
 import * as publicAudioLibraryTools from "../src/audio/index.js";
 
 const INDEX_TEXT = [

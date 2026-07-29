@@ -20,9 +20,9 @@ const Files = new Map([
     [ BankPath, Uint8Array.from([ 30, 31, 32, 33, 34, 35, 36 ]) ],
 ]);
 
-function CreateLibrary({ schemaVersion = 1, music = undefined } = {})
+function CreateLibrary({ schemaVersion = 2, music = undefined } = {})
 {
-    const bankKey = schemaVersion === 2 ? "524:0" : "524.bnk";
+    const bankKey = "524:0";
 
     return {
         schema: "carbonenginejs.audioLibrary",
@@ -58,13 +58,11 @@ function CreateLibrary({ schemaVersion = 1, music = undefined } = {})
         },
         banks: {
             [bankKey]: {
-                ...(schemaVersion === 2 ? {
-                    sourceID: bankKey,
-                    bankID: "524",
-                    languageID: "0",
-                    shortName: "ships",
-                    language: "",
-                } : {}),
+                sourceID: bankKey,
+                bankID: "524",
+                languageID: "0",
+                shortName: "ships",
+                language: "",
                 resPath: BankPath,
                 byteLength: 7,
                 checksum: "bank-checksum",
@@ -75,7 +73,7 @@ function CreateLibrary({ schemaVersion = 1, music = undefined } = {})
                 bank: bankKey,
                 offset: 2,
                 byteLength: 3,
-                mediaType: schemaVersion === 2 ? "wem" : "audio/x-wem",
+                mediaType: "wem",
             },
         },
         ...(music === undefined ? {} : { music }),
@@ -185,6 +183,31 @@ test("audio source resolves prepared, loose, embedded, and exact-path bytes", as
     );
 });
 
+test("audio source also reads exact document records and cached ranges", async () =>
+{
+    const library = CreateLibrary({ schemaVersion: 2 });
+    const audio = new CjsToolAudioSource({
+        library,
+        source: CreateIndexedSource(),
+    });
+    const bank = library.banks["524:0"];
+    const complete = await audio.Read(bank);
+    const ranged = await audio.ReadRange(bank, {
+        offset: 2,
+        byteLength: 3,
+    });
+
+    assert.equal(Object.isFrozen(audio.library), true);
+    assert.deepEqual(
+        new Uint8Array(complete.bytes),
+        Files.get(BankPath),
+    );
+    assert.deepEqual(
+        [ ...new Uint8Array(ranged.bytes) ],
+        [ 32, 33, 34 ],
+    );
+});
+
 test("audio source selects retained embedded variants by language", () =>
 {
     const library = {
@@ -277,7 +300,7 @@ test("audio repository opens the prepared exact-build library and index source",
         provider: "ccp",
         build: "123",
         name: "audio",
-        version: "v1",
+        version: "v2",
     }, CreateLibrary());
 
     const repository = new CjsToolAudioRepository({
@@ -370,7 +393,7 @@ test("audio source accepts v2 music and rejects broken graph references", () =>
     );
 });
 
-test("audio repository prefers v2 and falls back to v1", async context =>
+test("audio repository reads only the v2 artifact", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-audio-v2-"));
     const cache = new CjsToolCache(directory);
@@ -383,6 +406,27 @@ test("audio repository prefers v2 and falls back to v1", async context =>
         name: "audio",
         version: "v1",
     }, CreateLibrary());
+    const indexes = {
+        async ResolveTargetBuild()
+        {
+            return { build: "123", client: null };
+        },
+        async OpenTarget()
+        {
+            return CreateIndexedSource();
+        },
+    };
+    const legacyOnly = new CjsToolAudioRepository({
+        cache,
+        indexes,
+        autoPrepare: false,
+    });
+
+    await assert.rejects(
+        () => legacyOnly.OpenTarget("eve", "123"),
+        /Audio library is not prepared/u,
+    );
+
     await cache.WriteCustomLibrary({
         game: "Eve",
         provider: "ccp",
@@ -391,19 +435,7 @@ test("audio repository prefers v2 and falls back to v1", async context =>
         version: "v2",
     }, CreateLibrary({ schemaVersion: 2 }));
 
-    const repository = new CjsToolAudioRepository({
-        cache,
-        indexes: {
-            async ResolveTargetBuild()
-            {
-                return { build: "123", client: null };
-            },
-            async OpenTarget()
-            {
-                return CreateIndexedSource();
-            },
-        },
-    });
+    const repository = new CjsToolAudioRepository({ cache, indexes });
     const audio = await repository.OpenTarget("eve", "123");
 
     assert.equal(audio.library.schemaVersion, 2);

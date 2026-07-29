@@ -44,8 +44,7 @@ whose decompressed bytes equal the canonical JSON.
 When `--out` is omitted, the audio builder installs `audio_v2.json` and its
 deterministic gzip sibling into the shared exact-build custom cache. That is
 the preferred location used by `CjsToolAudioRepository` and the local audio
-HTTP routes. The repository still opens an existing `audio_v1.json` when v2 is
-not prepared; v1 documents are not rewritten. An explicit `--out` remains
+HTTP routes. Only `audio_v2.json` is accepted. An explicit `--out` remains
 available for distribution builds and other application-owned publication.
 
 Audio builds join SoundbanksInfo, indexed audio paths, and an optional
@@ -65,10 +64,11 @@ formats; enrichment only adds culling, stop-relation, and essential flags
 without changing acquisition ownership.
 
 The deterministic audio-library join is implemented by
-`@carbonenginejs/tools-browser/audio`. Tools-core supplies target validation,
+`@carbonenginejs/runtime-audio/library-builder`. Tools-core supplies target validation,
 exact-build acquisition, shared-cache reads, CLI output, and service routes
 through its `CjsToolAudioBuilder` wrapper. Browser applications may call the
-same underlying builder with object or `Map` metadata and injected bank access.
+same optional builder with already acquired values and injected bank access,
+or skip it by downloading the complete result.
 
 Localized HIRC objects reuse IDs, so one event graph cannot safely union every
 language. `--language` selects the event graph language and is recorded as
@@ -81,14 +81,14 @@ requires `common.bnk`, `music.bnk`, and `music_essential.bnk`, then adds the
 dynamic `music` graph to the same v2 document. The graph contains music nodes,
 play and stop event targets, and switch/state setter actions. Its HIRC payload
 decoding is delegated to `@carbonenginejs/runtime-resource`; tools-core owns
-the cache read and transactional artifact replacement. The shared browser
+the cache read and transactional artifact replacement. The runtime-audio
 builder rejects parse failures, missing child nodes, and missing track media
 before either JSON artifact is replaced.
 
 `CjsToolAudio` is the target-aware public front door, while
 `CjsToolAudioBuilder` permits unscoped synthetic/intermediate values.
 `CjsToolAudioRepository` opens the prepared document and exact indexed build
-together; `CjsToolAudioSource` accepts v1 and v2, validates the v2 music
+together; `CjsToolAudioSource` accepts schema v2, validates the music
 contract, and resolves prepared or loose media and embedded bank windows
 without making the HTTP adapter understand WEM or BNK codecs.
 

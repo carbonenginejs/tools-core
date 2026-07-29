@@ -1,5 +1,10 @@
 import crypto from "node:crypto";
 
+import {
+    installAudioLibraryDocument,
+    validateAudioLibraryDocument,
+} from "@carbonenginejs/runtime-audio/library";
+
 import * as utils from "../utils.js";
 
 const OPAQUE_MEDIA_TYPE = "application/octet-stream";
@@ -22,16 +27,19 @@ export class CjsToolAudioSource
 
     #source;
 
-    /** Validates a prepared v1 or v2 audio-library document. */
+    /** Validates a prepared v2 audio-library document. */
     static validateLibrary(library)
     {
+        validateAudioLibraryDocument(library);
         RequireAudioLibrary(library);
         return true;
     }
 
     constructor({ library, source, defaultLanguage = null } = {})
     {
-        this.constructor.validateLibrary(library);
+        const installed = installAudioLibraryDocument(library);
+
+        this.constructor.validateLibrary(installed);
 
         if (!source
             || (typeof source.Fetch !== "function"
@@ -44,26 +52,26 @@ export class CjsToolAudioSource
 
         this.#source = source;
         this.#defaultLanguage = NormalizeLanguage(
-            defaultLanguage ?? library.eventMediaLanguage ?? "",
+            defaultLanguage ?? installed.eventMediaLanguage ?? "",
         );
         this.#paths = new Map();
-        this.#media = CreateMediaIndex(library.media, source, this.#paths);
-        this.#banks = CreateBankIndex(library.banks, source, this.#paths);
+        this.#media = CreateMediaIndex(installed.media, source, this.#paths);
+        this.#banks = CreateBankIndex(installed.banks, source, this.#paths);
         this.#embeddedMedia = CreateEmbeddedIndex(
-            library.embeddedMedia,
+            installed.embeddedMedia,
             this.#banks,
         );
 
-        this.library = library;
-        this.sourceTarget = String(library.sourceTarget ?? source.target ?? "");
-        this.sourceGame = String(library.sourceGame ?? source.game ?? "");
-        this.sourceProvider = String(library.sourceProvider ?? source.provider ?? "");
-        this.sourceBuild = String(library.sourceBuild ?? source.build ?? "");
+        this.library = installed;
+        this.sourceTarget = String(installed.sourceTarget ?? source.target ?? "");
+        this.sourceGame = String(installed.sourceGame ?? source.game ?? "");
+        this.sourceProvider = String(installed.sourceProvider ?? source.provider ?? "");
+        this.sourceBuild = String(installed.sourceBuild ?? source.build ?? "");
 
-        RequireMatchingIdentity("target", library.sourceTarget, source.target);
-        RequireMatchingIdentity("game", library.sourceGame, source.game);
-        RequireMatchingIdentity("provider", library.sourceProvider, source.provider);
-        RequireMatchingIdentity("build", library.sourceBuild, source.build);
+        RequireMatchingIdentity("target", installed.sourceTarget, source.target);
+        RequireMatchingIdentity("game", installed.sourceGame, source.game);
+        RequireMatchingIdentity("provider", installed.sourceProvider, source.provider);
+        RequireMatchingIdentity("build", installed.sourceBuild, source.build);
         Object.freeze(this);
     }
 
@@ -164,7 +172,7 @@ export class CjsToolAudioSource
 
         if (!descriptor)
         {
-            throw new TypeError("Audio selection does not belong to this source");
+            return this.#ReadExactRecord(selection);
         }
 
         let file;
@@ -229,6 +237,36 @@ export class CjsToolAudioSource
         });
     }
 
+    /**
+     * Reads one exact byte range from a document source record.
+     *
+     * The backing exact-build cache is a whole-file store, so this reads the
+     * cached file and returns only the requested detached window.
+     */
+    async ReadRange(record, { offset = 0, byteLength } = {})
+    {
+        const result = await this.#ReadExactRecord(record);
+        const bytes = ToUint8Array(result.bytes);
+        const range = NormalizeReadRange(
+            offset,
+            byteLength,
+            bytes.byteLength,
+        );
+
+        return Object.freeze({
+            ...result,
+            bytes: utils.toArrayBuffer(bytes.subarray(
+                range.offset,
+                range.offset + range.byteLength,
+            )),
+            offset: range.offset,
+            byteLength: range.byteLength,
+            totalByteLength: bytes.byteLength,
+            complete: range.offset === 0
+                && range.byteLength === bytes.byteLength,
+        });
+    }
+
     #CreateSelection(descriptor, { mediaID, path })
     {
         const selection = Object.freeze({
@@ -247,6 +285,37 @@ export class CjsToolAudioSource
         return selection;
     }
 
+    async #ReadExactRecord(record)
+    {
+        if (!record || typeof record !== "object" || Array.isArray(record))
+        {
+            throw new TypeError(
+                "Audio reads require a source selection or exact record",
+            );
+        }
+
+        const path = record.resPath
+            ?? record.logicalPath
+            ?? record.path;
+
+        if (!path)
+        {
+            throw new TypeError("Audio source record has no logical path");
+        }
+
+        const file = typeof this.#source.FetchAudio === "function"
+            ? await this.#source.FetchAudio(path, record)
+            : await this.#source.Fetch(path);
+        const bytes = ToUint8Array(file?.bytes ?? file);
+
+        return Object.freeze({
+            bytes: utils.toArrayBuffer(bytes),
+            mediaType: record.mediaType ?? OPAQUE_MEDIA_TYPE,
+            complete: true,
+            path,
+        });
+    }
+
 }
 
 function RequireAudioLibrary(value)
@@ -261,7 +330,7 @@ function RequireAudioLibrary(value)
         throw new TypeError(`Unsupported audio-library schema: ${value.schema}`);
     }
 
-    if (![ 1, 2 ].includes(value.schemaVersion))
+    if (value.schemaVersion !== 2)
     {
         throw new TypeError(
             `Unsupported audio-library schema version: ${value.schemaVersion}`,
@@ -276,29 +345,26 @@ function RequireAudioLibrary(value)
         RequireRecordMap(value.embeddedMedia, "audio library embeddedMedia");
     }
 
-    if (value.schemaVersion === 2)
+    RequireV2Banks(value.banks);
+
+    if (value.embeddedMedia !== undefined)
     {
-        RequireV2Banks(value.banks);
+        RequireEmbeddedMedia(value.embeddedMedia, value.banks);
+    }
 
-        if (value.embeddedMedia !== undefined)
-        {
-            RequireEmbeddedMedia(value.embeddedMedia, value.banks);
-        }
+    if (value.eventMedia !== undefined)
+    {
+        RequireEventMedia(
+            value.eventMedia,
+            value.eventMediaLanguage,
+            value.media,
+            value.embeddedMedia ?? {},
+        );
+    }
 
-        if (value.eventMedia !== undefined)
-        {
-            RequireEventMedia(
-                value.eventMedia,
-                value.eventMediaLanguage,
-                value.media,
-                value.embeddedMedia ?? {},
-            );
-        }
-
-        if (value.music !== undefined)
-        {
-            RequireMusicGraph(value.music, value.media, value.embeddedMedia ?? {});
-        }
+    if (value.music !== undefined)
+    {
+        RequireMusicGraph(value.music, value.media, value.embeddedMedia ?? {});
     }
 }
 
