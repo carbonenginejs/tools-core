@@ -6,6 +6,16 @@ import test from "node:test";
 import { WebSocket } from "ws";
 
 import {
+    CjsRealtimeClient as CjsBrowserRealtimeClient,
+} from "@carbonenginejs/tools-browser/realtime";
+import {
+    CjsRealtimeProtocol as CjsBrowserRealtimeProtocol,
+    REALTIME_PROTOCOL as BROWSER_REALTIME_PROTOCOL,
+    REALTIME_PROTOCOL_VERSION as BROWSER_REALTIME_PROTOCOL_VERSION,
+    REALTIME_ROUTE as BROWSER_REALTIME_ROUTE,
+    REALTIME_SUBPROTOCOL as BROWSER_REALTIME_SUBPROTOCOL,
+} from "@carbonenginejs/tools-browser/realtime/wire";
+import {
     REALTIME_PROTOCOL,
     REALTIME_PROTOCOL_VERSION,
     REALTIME_ROUTE,
@@ -117,6 +127,35 @@ class CjsRealtimeConformanceTest
         });
     }
 
+    /** Creates a ws implementation with the browser transcript's Origin. */
+    static browserWebSocketClass(origin)
+    {
+        return class CjsRealtimeConformanceBrowserSocket extends WebSocket
+        {
+
+            constructor(url, protocols)
+            {
+                super(url, protocols, origin === null ? {} : { origin });
+            }
+
+        };
+    }
+
+    /** Bounds one browser-client observation without leaving a live timer. */
+    static withTimeout(promise, label)
+    {
+        let timer = null;
+        const timeout = new Promise((resolve, reject) =>
+        {
+            timer = setTimeout(
+                () => reject(new Error(`Timed out waiting for ${label}`)),
+                1000,
+            );
+        });
+
+        return Promise.race([ promise, timeout ]).finally(() => clearTimeout(timer));
+    }
+
 }
 
 test("keeps the checked-in v1 constants and wire transcripts executable", async () =>
@@ -131,6 +170,99 @@ test("keeps the checked-in v1 constants and wire transcripts executable", async 
     for (const transcript of fixture.transcripts)
     {
         await CjsRealtimeConformanceTest.runTranscript(transcript);
+    }
+});
+
+test("drives the real browser client and shared wire from the normative transcript", async () =>
+{
+    assert.equal(BROWSER_REALTIME_PROTOCOL, REALTIME_PROTOCOL);
+    assert.equal(BROWSER_REALTIME_PROTOCOL_VERSION, REALTIME_PROTOCOL_VERSION);
+    assert.equal(BROWSER_REALTIME_ROUTE, REALTIME_ROUTE);
+    assert.equal(BROWSER_REALTIME_SUBPROTOCOL, REALTIME_SUBPROTOCOL);
+
+    for (const transcript of fixture.transcripts)
+    {
+        const helloStep = transcript.steps.find(step => step.id === "hello");
+        const subscribeStep = transcript.steps.find(step => step.id === "subscribe");
+        const publishStep = transcript.steps.find(step => step.id === "publish");
+        const commandStep = transcript.steps.find(step => step.id === "command");
+        const service = new CjsRealtimeSyntheticService();
+        const server = new CjsRealtimeServer({
+            services: [ service ],
+            grants: [ transcript.grant ],
+            allowedOrigins: transcript.transport.allowedOrigins,
+            allowMissingOrigin: transcript.transport.allowMissingOrigin,
+        });
+        const address = await server.Listen();
+        let resolveEvent = null;
+        const received = subscribeStep === undefined ? null : new Promise(resolve =>
+        {
+            resolveEvent = resolve;
+        });
+        let client = null;
+
+        try
+        {
+            client = new CjsBrowserRealtimeClient({
+                url: `ws://127.0.0.1:${address.port}/v1/realtime`,
+                capability: transcript.grant.capability,
+                client: helloStep.client.client,
+                webSocketClass: CjsRealtimeConformanceTest.browserWebSocketClass(
+                    transcript.transport.origin,
+                ),
+                reconnect: { minimumDelayMs: 0, maximumDelayMs: 0 },
+            });
+            const subscription = subscribeStep === undefined
+                ? null
+                : client.Subscribe({
+                    serviceId: subscribeStep.client.serviceId,
+                    topics: subscribeStep.client.topics,
+                    onEvent: resolveEvent,
+                });
+            const hello = await client.Connect();
+
+            assert.deepEqual(hello.actor, transcript.grant.actor, transcript.id);
+
+            if (subscription === null)
+            {
+                continue;
+            }
+
+            await service.Emit(
+                publishStep.hostPublish.topic,
+                publishStep.hostPublish.data,
+            );
+            const event = await CjsRealtimeConformanceTest.withTimeout(
+                received,
+                `${transcript.id} browser event`,
+            );
+
+            assert.deepEqual(
+                event.payload.data,
+                publishStep.server[0].payload.data,
+                transcript.id,
+            );
+            assert.deepEqual(
+                await client.Command(
+                    commandStep.client.serviceId,
+                    commandStep.client.action,
+                    commandStep.client.data,
+                ),
+                commandStep.server[0].data,
+                transcript.id,
+            );
+            assert.equal(await client.Unsubscribe(subscription), true, transcript.id);
+            assert.equal(
+                CjsBrowserRealtimeProtocol.serviceIdentity(event.service).id,
+                subscribeStep.client.serviceId,
+                transcript.id,
+            );
+        }
+        finally
+        {
+            client?.Close();
+            await server.Stop();
+        }
     }
 });
 

@@ -934,6 +934,68 @@ test("adapts receive-only tmi-compatible IRC without owning token acquisition", 
     assert.equal(clients[0].listenerCount("message"), 0);
 });
 
+test("keeps IRC chat available when optional asset metadata is unavailable", async () =>
+{
+    const clients = [];
+    const messages = [];
+    const statuses = [];
+    const provider = new CjsTwitchIrcChatProvider({
+        oauth: {
+            Acquire: async () => ({
+                accessToken: "irc-token",
+                clientId: "client-one",
+                userId: "100",
+                login: "agentuser",
+                scopes: [ "chat:read" ],
+            }),
+            Invalidate: () => undefined,
+        },
+        assetResolver: {
+            ResolveRoom: async () => null,
+            ResolveIrcMessage: async () =>
+            {
+                throw new Error("metadata endpoint unavailable");
+            },
+        },
+        rooms: [ "carbon" ],
+        validationIntervalMs: 60000,
+        createClient: () =>
+        {
+            const client = new CjsFakeIrcClient();
+
+            clients.push(client);
+
+            return client;
+        },
+    });
+
+    await provider.Start({
+        signal: new AbortController().signal,
+        onMessage: message => messages.push(message),
+        onStatus: status => statuses.push(status),
+    });
+    clients[0].emit("message", "#carbon", {
+        id: "asset-degraded-message",
+        "room-id": "200",
+        "user-id": "300",
+        username: "viewer",
+        "display-name": "Viewer",
+        "tmi-sent-ts": "1784635201000",
+        emotes: { 25: [ "0-4" ] },
+    }, "Kappa remains readable", false);
+    await Flush();
+
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0].text, "Kappa remains readable");
+    assert.equal(Object.hasOwn(messages[0].room, "assets"), false);
+    assert.match(messages[0].fragments[0].emote.asset.url,
+        /^https:\/\/static-cdn\.jtvnw\.net\//u);
+    assert.equal(statuses.at(-1).state, "degraded");
+    assert.equal(statuses.at(-1).reasonCode, "asset_metadata_unavailable");
+    assert.equal(statuses.at(-1).retryable, true);
+    await provider.Stop();
+});
+
 test("shares dynamic IRC rooms until their final downstream listener leaves", async context =>
 {
     const clients = [];
