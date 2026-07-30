@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -81,10 +82,27 @@ async function main()
         autoPrepare: args.noSdeAutoPrepare !== true,
     });
     const characters = new CjsToolCharacterRepository({ cache: toolCache, indexes });
+    const musicLibraryPath = args.musicLibrary
+        ? path.resolve(String(args.musicLibrary))
+        : null;
+    const musicDirectory = args.musicDirectory
+        ? path.resolve(String(args.musicDirectory))
+        : null;
+    if ((musicLibraryPath === null) !== (musicDirectory === null))
+    {
+        throw new Error(
+            "--music-library and --music-directory must be supplied together",
+        );
+    }
+    const musicLibrary = musicLibraryPath === null
+        ? null
+        : JSON.parse(await fs.readFile(musicLibraryPath, "utf8"));
     const audio = new CjsToolAudioRepository({
         cache: toolCache,
         indexes,
         autoPrepare: args.noAudioAutoPrepare !== true,
+        musicLibrary,
+        musicDirectory,
     });
     const sof = new CjsToolSofRepository();
     let prefetchReport = null;
@@ -207,6 +225,8 @@ Options:
   --client <client>         Optional prefetch client/build selector
   --no-sde-auto-prepare     Disable default on-request EVE SDE preparation
   --no-audio-auto-prepare   Disable default on-request audio-library builds
+  --music-library <file>    Optional neutral music-library JSON catalog
+  --music-directory <dir>   Local root containing catalog playlist/song files
   --help                    Show this help
 
 Generated artifacts are prepared on their first request by default: the data

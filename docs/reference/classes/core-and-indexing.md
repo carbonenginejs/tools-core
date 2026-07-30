@@ -65,6 +65,16 @@ Provides read-only catalog and DNA answers for one exact runtime-sof build.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
+<!-- class:CjsToolSofBundle -->
+## `CjsToolSofBundle`
+
+Writes one self-contained SOF bundle: the GPU-free carbon.document plus its geometry and decoded textures, laid out for consumers that cannot run Carbon shaders or decode BC7/BC5 payloads themselves (the Blender add-ons).
+
+- Export: `@carbonenginejs/tools-core/sof`
+- Source: `src/sof/CjsToolSofBundle.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
 <!-- class:CjsToolAudioSource -->
 ## `CjsToolAudioSource`
 
@@ -72,6 +82,16 @@ Resolves and reads playable media from one immutable audio library.
 
 - Export: `@carbonenginejs/tools-core/audio`
 - Source: `src/audio/CjsToolAudioSource.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolMusicSource -->
+## `CjsToolMusicSource`
+
+Lists and reads explicitly cataloged neutral music tracks from one local directory.
+
+- Export: `@carbonenginejs/tools-core/audio`
+- Source: `src/audio/CjsToolMusicSource.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 

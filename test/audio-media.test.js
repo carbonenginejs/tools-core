@@ -1,12 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs/promises";
 
 import {
+    installMusicLibrary,
+} from "@carbonenginejs/runtime-audio/library";
+import {
     CjsToolAudioRepository,
     CjsToolAudioSource,
+    CjsToolMusicSource,
 } from "../src/audio/index.js";
 import { CjsToolCache } from "../src/cache/index.js";
 import { CjsToolHttpProxy } from "../src/proxy/index.js";
@@ -101,11 +106,12 @@ function CreateIndexedSource()
     };
 }
 
-function CreateAudioSource()
+function CreateAudioSource(music = null)
 {
     return new CjsToolAudioSource({
         library: CreateLibrary(),
         source: CreateIndexedSource(),
+        music,
     });
 }
 
@@ -122,6 +128,37 @@ async function StartProxy(context, audio)
     context.after(() => new Promise(resolve => server.close(resolve)));
 
     return `http://127.0.0.1:${server.address().port}`;
+}
+
+async function RequestJson(url, headers = {})
+{
+    return new Promise((resolve, reject) =>
+    {
+        const request = http.request(url, { headers }, response =>
+        {
+            const chunks = [];
+
+            response.on("data", chunk => chunks.push(chunk));
+            response.once("error", reject);
+            response.once("end", () =>
+            {
+                try
+                {
+                    resolve({
+                        status: response.statusCode,
+                        value: JSON.parse(Buffer.concat(chunks).toString()),
+                    });
+                }
+                catch (error)
+                {
+                    reject(error);
+                }
+            });
+        });
+
+        request.once("error", reject);
+        request.end();
+    });
 }
 
 test("audio source resolves prepared, loose, embedded, and exact-path bytes", async () =>
@@ -572,6 +609,337 @@ test("audio library endpoint serves the installed document", async context =>
     const invalid = await fetch(`${root}/eve/123/audio/library/extra`);
 
     assert.equal(invalid.status, 404);
+});
+
+test("audio music endpoints list playlists and expose only available songs", async context =>
+{
+    const directory = await fs.mkdtemp(
+        path.join(os.tmpdir(), "cjs-music-source-"),
+    );
+
+    context.after(() => fs.rm(directory, { recursive: true, force: true }));
+    await fs.mkdir(path.join(directory, "main"), { recursive: true });
+    await fs.writeFile(
+        path.join(directory, "main", "001.m4a"),
+        Uint8Array.from([ 1, 2, 3, 4 ]),
+    );
+    await fs.writeFile(
+        path.join(directory, "main", "001.jpg"),
+        Uint8Array.from([ 9, 10, 11, 12 ]),
+    );
+    await fs.writeFile(
+        path.join(directory, "main", "002.jpg"),
+        Uint8Array.from([ 5, 6, 7, 8 ]),
+    );
+
+    const music = new CjsToolMusicSource({
+        directory,
+        library: {
+            schema: "carbonenginejs.musicLibrary",
+            schemaVersion: 1,
+            name: "Test soundtrack",
+            author: "Test author",
+            version: "1",
+            playlists: [
+                {
+                    id: "main",
+                    name: "Main",
+                    author: "Test curator",
+                    version: "1",
+                    songs: [
+                        {
+                            id: "001",
+                            name: "Available",
+                            url: "https://example.invalid/one.m4a",
+                        },
+                        {
+                            id: "002",
+                            name: "Unavailable",
+                            path: "missing.m4a",
+                        },
+                    ],
+                },
+            ],
+        },
+    });
+    const root = await StartProxy(context, {
+        async OpenMusicTarget()
+        {
+            return CreateAudioSource(music);
+        },
+        async OpenTarget()
+        {
+            throw new Error(
+                "neutral music routes must not open the Wwise library",
+            );
+        },
+    });
+    const requestedBase = `${root}/eve/latest/audio/music`;
+    const base = `${root}/eve/123/audio/music`;
+    const catalogResponse = await fetch(requestedBase);
+    const catalog = await catalogResponse.json();
+
+    assert.equal(catalogResponse.status, 200);
+    assert.equal(catalog.name, "Test soundtrack");
+    assert.deepEqual(catalog.playlists[0], {
+        id: "main",
+        name: "Main",
+        author: "Test curator",
+        version: "1",
+        songCount: 2,
+        availableSongCount: 1,
+        url: `${base}/playlists/main`,
+    });
+
+    const hostile = await RequestJson(requestedBase, {
+        host: "evil.invalid",
+        forwarded: "host=evil.invalid;proto=https",
+        "x-forwarded-host": "evil.invalid",
+        "x-forwarded-proto": "https",
+    });
+
+    assert.equal(hostile.status, 200);
+    assert.equal(
+        hostile.value.playlists[0].url,
+        `${base}/playlists/main`,
+        "service URLs must ignore caller-controlled forwarding headers",
+    );
+
+    const playlistResponse = await fetch(
+        `${requestedBase}/playlists/main`,
+    );
+    const playlist = await playlistResponse.json();
+
+    assert.equal(playlistResponse.status, 200);
+    assert.equal(playlist.songs[0].available, true);
+    assert.equal(
+        playlist.songs[0].url,
+        `${base}/playlists/main/songs/001`,
+    );
+    assert.equal(playlist.songs[1].available, false);
+
+    const installable = await (
+        await fetch(`${requestedBase}/library`)
+    ).json();
+
+    assert.equal(installable.schema, "carbonenginejs.musicLibrary");
+    assert.deepEqual(installMusicLibrary(installable), installable);
+    assert.deepEqual(
+        installable.playlists[0].songs.map(song => song.id),
+        [ "001" ],
+        "the installable catalog omits currently unavailable songs",
+    );
+    assert.equal(
+        installable.playlists[0].songs[0].url,
+        `${base}/playlists/main/songs/001`,
+    );
+
+    const songUrl = installable.playlists[0].songs[0].url;
+    const head = await fetch(songUrl, { method: "HEAD" });
+
+    assert.equal(head.status, 200);
+    assert.equal(head.headers.get("content-type"), "audio/mp4");
+    assert.equal(head.headers.get("content-length"), "4");
+    assert.equal(head.headers.get("x-carbon-music-playlist"), "main");
+    assert.equal(head.headers.get("x-carbon-music-song"), "001");
+
+    const range = await fetch(songUrl, {
+        headers: { range: "bytes=1-2" },
+    });
+
+    assert.equal(range.status, 206);
+    assert.deepEqual(
+        new Uint8Array(await range.arrayBuffer()),
+        Uint8Array.from([ 2, 3 ]),
+    );
+
+    const missing = await fetch(`${base}/playlists/main/songs/002`, {
+        method: "HEAD",
+    });
+
+    assert.equal(missing.status, 404);
+});
+
+test("audio music routes round-trip reserved and escaped catalog IDs", async context =>
+{
+    const directory = await fs.mkdtemp(
+        path.join(os.tmpdir(), "cjs-music-route-"),
+    );
+
+    context.after(() => fs.rm(directory, { recursive: true, force: true }));
+    await fs.writeFile(
+        path.join(directory, "track.m4a"),
+        Uint8Array.from([ 1, 2, 3 ]),
+    );
+
+    const music = new CjsToolMusicSource({
+        directory,
+        library: {
+            schema: "carbonenginejs.musicLibrary",
+            schemaVersion: 1,
+            name: "Route soundtrack",
+            version: "1",
+            playlists: [
+                {
+                    id: "library",
+                    name: "Reserved word",
+                    songs: [
+                        {
+                            id: "track/01",
+                            name: "Escaped song",
+                            path: "track.m4a",
+                        },
+                    ],
+                },
+            ],
+        },
+    });
+    const root = await StartProxy(context, {
+        async OpenMusicTarget()
+        {
+            return CreateAudioSource(music);
+        },
+        async OpenTarget()
+        {
+            return CreateAudioSource(music);
+        },
+    });
+    const base = `${root}/eve/123/audio/music`;
+    const playlist = await (
+        await fetch(`${base}/playlists/library`)
+    ).json();
+
+    assert.equal(playlist.id, "library");
+    assert.equal(
+        playlist.songs[0].url,
+        `${base}/playlists/library/songs/track%2F01`,
+    );
+
+    const response = await fetch(playlist.songs[0].url);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(
+        new Uint8Array(await response.arrayBuffer()),
+        Uint8Array.from([ 1, 2, 3 ]),
+    );
+});
+
+test("audio music library HEAD matches GET when every song is unavailable", async context =>
+{
+    const directory = await fs.mkdtemp(
+        path.join(os.tmpdir(), "cjs-music-empty-"),
+    );
+
+    context.after(() => fs.rm(directory, { recursive: true, force: true }));
+
+    const music = new CjsToolMusicSource({
+        directory,
+        library: {
+            schema: "carbonenginejs.musicLibrary",
+            schemaVersion: 1,
+            name: "Unavailable soundtrack",
+            version: "1",
+            playlists: [
+                {
+                    id: "main",
+                    name: "Main",
+                    songs: [
+                        {
+                            id: "missing",
+                            name: "Missing",
+                            path: "missing.m4a",
+                        },
+                    ],
+                },
+            ],
+        },
+    });
+    const root = await StartProxy(context, {
+        async OpenMusicTarget()
+        {
+            return CreateAudioSource(music);
+        },
+        async OpenTarget()
+        {
+            return CreateAudioSource(music);
+        },
+    });
+    const libraryUrl = `${root}/eve/123/audio/music/library`;
+    const get = await fetch(libraryUrl);
+    const head = await fetch(libraryUrl, { method: "HEAD" });
+
+    assert.equal(get.status, 404);
+    assert.equal(head.status, get.status);
+});
+
+test("audio music source rejects playlist-directory link escapes", async context =>
+{
+    const directory = await fs.mkdtemp(
+        path.join(os.tmpdir(), "cjs-music-root-"),
+    );
+    const outside = await fs.mkdtemp(
+        path.join(os.tmpdir(), "cjs-music-outside-"),
+    );
+
+    context.after(async () =>
+    {
+        await fs.rm(directory, { recursive: true, force: true });
+        await fs.rm(outside, { recursive: true, force: true });
+    });
+    await fs.writeFile(
+        path.join(outside, "001.m4a"),
+        Uint8Array.from([ 1, 2, 3 ]),
+    );
+
+    try
+    {
+        await fs.symlink(
+            outside,
+            path.join(directory, "main"),
+            process.platform === "win32" ? "junction" : "dir",
+        );
+    }
+    catch (error)
+    {
+        if (error?.code === "EPERM" || error?.code === "EACCES")
+        {
+            context.skip("Creating a test directory link is not permitted");
+            return;
+        }
+        throw error;
+    }
+
+    const music = new CjsToolMusicSource({
+        directory,
+        library: {
+            schema: "carbonenginejs.musicLibrary",
+            schemaVersion: 1,
+            name: "Contained soundtrack",
+            version: "1",
+            playlists: [
+                {
+                    id: "main",
+                    name: "Main",
+                    songs: [
+                        {
+                            id: "001",
+                            name: "Outside",
+                            url: "https://example.invalid/001.m4a",
+                        },
+                    ],
+                },
+            ],
+        },
+    });
+    const playlist = await music.GetPlaylist("main", {
+        urlForSong: () => "http://127.0.0.1/unreachable",
+    });
+
+    assert.equal(playlist.songs[0].available, false);
+    await assert.rejects(
+        music.ResolveSong("main", "001"),
+        error => error?.statusCode === 404,
+    );
 });
 
 test("audio endpoints reject unacceptable, unknown, and invalid ranges", async context =>

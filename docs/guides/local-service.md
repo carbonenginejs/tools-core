@@ -42,6 +42,8 @@ groups are:
 | `/{target}/{build}/audio/library.json` | Complete schema-v2 audio-library document |
 | `/{target}/{build}/audio/id/<mediaID>` | Selected logical sample bytes |
 | `/{target}/{build}/audio/path/<encoded-audio-path>` | One exact registered audio file |
+| `/{target}/{build}/audio/music` | Optional playlist summaries and music endpoints |
+| `/{target}/{build}/audio/music/library` | Installable available-song music library |
 | `/ccp/{build}/resources[/<path>]` | EVE `res:/` file or immediate directory listing |
 | `/eve/{build}/sde/<table>[/<id>]` | Prepared SDE table reads |
 | `/eve/{build}/character[...]` | Character library and identity/LOD queries |
@@ -74,6 +76,21 @@ support private-network preflight. Audio responses support `HEAD`,
 `If-None-Match`, representation negotiation, and a single standard byte range.
 The existing local routes are read-only and unauthenticated, so the default
 listener remains loopback-only.
+
+An optional neutral music library may be mounted explicitly:
+
+```sh
+npm run service -- \
+  --music-library path/to/music-library.json \
+  --music-directory path/to/music-cache
+```
+
+This adds playlist summaries, per-playlist availability, and song byte
+endpoints under `/{target}/{build}/audio/music`. The `/library` child returns
+a runtime-audio music library containing only currently available songs and
+absolute service-owned URLs, so a browser application on another origin may
+install it without rewriting song paths. Only songs named by the validated
+source catalog are reachable.
 
 The authenticated realtime service is a separate composition described in
 [Host realtime services](realtime-service.md). Webhook endpoints do not use

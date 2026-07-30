@@ -5,6 +5,7 @@ import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 import { CjsToolAudioBuilder } from "./CjsToolAudioBuilder.js";
 import { CjsToolAudioSource } from "./CjsToolAudioSource.js";
+import { CjsToolMusicSource } from "./CjsToolMusicSource.js";
 
 const MUSIC_BANK_NAMES = Object.freeze([ "common.bnk", "music.bnk", "music_essential.bnk" ]);
 
@@ -20,14 +21,19 @@ export class CjsToolAudioRepository
 
     #libraries = new Map();
 
+    #music = null;
+
     #targets;
 
+    /** Creates an exact-build audio repository over shared cache and indexes. */
     constructor({
         cache = new CjsToolCache(),
         indexes,
         targets = new CjsToolTargetRegistry(),
         defaultLanguage = null,
         autoPrepare = true,
+        musicLibrary = null,
+        musicDirectory = null,
     } = {})
     {
         if (!(cache instanceof CjsToolCache))
@@ -58,6 +64,18 @@ export class CjsToolAudioRepository
             || defaultLanguage === undefined
             ? null
             : String(defaultLanguage).trim().toLowerCase();
+        if ((musicLibrary === null) !== (musicDirectory === null))
+        {
+            throw new TypeError(
+                "CjsToolAudioRepository musicLibrary and musicDirectory must be supplied together",
+            );
+        }
+        this.#music = musicLibrary === null
+            ? null
+            : new CjsToolMusicSource({
+                library: musicLibrary,
+                directory: musicDirectory,
+            });
         // Auto-preparation is the default: generated artifacts are
         // forward-looking, so a missing library is built from the exact
         // build's own inputs on first request unless explicitly disabled.
@@ -89,6 +107,41 @@ export class CjsToolAudioRepository
         return this.#libraries.get(key);
     }
 
+    /**
+     * Opens only the configured neutral music source and exact target identity.
+     *
+     * This deliberately avoids loading or auto-preparing the Wwise audio
+     * library; playlist browsing must remain a lightweight service operation.
+     */
+    async OpenMusicTarget(target, build)
+    {
+        if (!this.#music)
+        {
+            const missing = new Error("Music library is not configured");
+
+            missing.statusCode = 404;
+            throw missing;
+        }
+
+        const resolvedTarget = this.#targets.RequireLibrary(
+            this.#targets.Resolve({ target }),
+            "audio",
+        );
+        const sourceIdentity = await this.#ResolveBuild(
+            resolvedTarget,
+            build,
+        );
+
+        return Object.freeze({
+            music: this.#music,
+            sourceTarget: resolvedTarget.id,
+            sourceGame: resolvedTarget.game,
+            sourceProvider: resolvedTarget.provider,
+            sourceBuild: sourceIdentity.build,
+        });
+    }
+
+    /** Resolves one requested build reference to an exact indexed identity. */
     async #ResolveBuild(target, build)
     {
         try
@@ -109,6 +162,7 @@ export class CjsToolAudioRepository
         }
     }
 
+    /** Loads and validates one prepared audio library and indexed source. */
     async #Load(target, sourceIdentity)
     {
         let data = null;
@@ -167,6 +221,7 @@ export class CjsToolAudioRepository
             library,
             source,
             defaultLanguage: this.#defaultLanguage,
+            music: this.#music,
         });
     }
 

@@ -79,6 +79,40 @@ are relative to the logical sample, while path ranges are relative to the
 exact file. Successful ranges return `206`, `Content-Range`, and
 `Accept-Ranges: bytes`; invalid or multiple ranges return `416`.
 
+### Optional neutral music routes
+
+```text
+GET  /eve/<build>/audio/music
+HEAD /eve/<build>/audio/music
+GET  /eve/<build>/audio/music/library
+HEAD /eve/<build>/audio/music/library
+GET  /eve/<build>/audio/music/playlists/<playlistID>
+HEAD /eve/<build>/audio/music/playlists/<playlistID>
+GET  /eve/<build>/audio/music/playlists/<playlistID>/songs/<songID>
+HEAD /eve/<build>/audio/music/playlists/<playlistID>/songs/<songID>
+```
+
+The root returns music-library identity plus playlist IDs, names, authors,
+versions, total song counts, currently available song counts, and playlist
+URLs. A playlist response returns its songs with absolute service URLs and an
+`available` flag. A missing local song therefore stays visible as unavailable
+without advertising a successful playback endpoint.
+
+The `/library` response is a directly installable
+`carbonenginejs.musicLibrary` document. Its absolute song URLs point at the
+service, pin the resolved exact build even when the request used a friendly
+build reference, and currently unavailable songs are omitted.
+
+Song `GET` and `HEAD` are restricted to members of the configured,
+runtime-audio-validated catalog. The route never accepts an arbitrary
+filesystem path. Successful song responses expose playlist/song IDs, media
+type, byte length, ETag, and standard single-range support.
+
+The command-line service enables these endpoints only when both
+`--music-library <catalog.json>` and `--music-directory <root>` are supplied.
+Under the directory, an explicit safe relative song `path` wins; otherwise
+the service looks for `<playlistID>/<songID>.<extension>`.
+
 ## Derived resource answers
 
 ```text

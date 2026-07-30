@@ -35,7 +35,13 @@ export class CjsToolAudioSource
         return true;
     }
 
-    constructor({ library, source, defaultLanguage = null } = {})
+    /** Creates a media source over one installed library and indexed source. */
+    constructor({
+        library,
+        source,
+        defaultLanguage = null,
+        music = null,
+    } = {})
     {
         const installed = installAudioLibraryDocument(library);
 
@@ -47,6 +53,20 @@ export class CjsToolAudioSource
         {
             throw new TypeError(
                 "CjsToolAudioSource source must provide Fetch(path) or FetchAudio(path)",
+            );
+        }
+        if (music !== null
+            && [
+                "ListPlaylists",
+                "GetLibrary",
+                "GetPlaylist",
+                "ResolveSong",
+                "ReadSong",
+            ]
+                .some(name => typeof music?.[name] !== "function"))
+        {
+            throw new TypeError(
+                "CjsToolAudioSource music must provide playlist and song reads",
             );
         }
 
@@ -67,6 +87,7 @@ export class CjsToolAudioSource
         this.sourceGame = String(installed.sourceGame ?? source.game ?? "");
         this.sourceProvider = String(installed.sourceProvider ?? source.provider ?? "");
         this.sourceBuild = String(installed.sourceBuild ?? source.build ?? "");
+        this.music = music;
 
         RequireMatchingIdentity("target", installed.sourceTarget, source.target);
         RequireMatchingIdentity("game", installed.sourceGame, source.game);
@@ -267,6 +288,7 @@ export class CjsToolAudioSource
         });
     }
 
+    /** Creates one immutable, source-owned media read selection. */
     #CreateSelection(descriptor, { mediaID, path })
     {
         const selection = Object.freeze({
@@ -285,6 +307,7 @@ export class CjsToolAudioSource
         return selection;
     }
 
+    /** Reads one validated exact record through its indexed source path. */
     async #ReadExactRecord(record)
     {
         if (!record || typeof record !== "object" || Array.isArray(record))

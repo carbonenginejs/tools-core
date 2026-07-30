@@ -37,6 +37,8 @@ const CORS_HEADERS = Object.freeze({
         "X-Carbon-Respath-Insert",
         "X-Carbon-Audio-Media-ID",
         "X-Carbon-Audio-Path",
+        "X-Carbon-Music-Playlist",
+        "X-Carbon-Music-Song",
         "ETag",
     ].join(", "),
 });
@@ -492,6 +494,7 @@ export class CjsToolHttpProxy
         WriteJson(response, 404, { error: "Not found" });
     }
 
+    /** Serves exact-build audio libraries and selected media bytes. */
     async #HandleAudioRoute(request, route, response)
     {
         if (!this.audio)
@@ -501,8 +504,32 @@ export class CjsToolHttpProxy
             return;
         }
 
+        const audioRequest = ParseAudioRequest(
+            route.path,
+            route.encodedPath,
+        );
+
+        if (audioRequest.kind.startsWith("music"))
+        {
+            const audio = typeof this.audio.OpenMusicTarget === "function"
+                ? await this.audio.OpenMusicTarget(
+                    route.target,
+                    route.build,
+                )
+                : await this.audio.OpenTarget(route.target, route.build);
+
+            await this.#HandleMusicRoute(
+                request,
+                route,
+                audioRequest,
+                audio,
+                response,
+            );
+
+            return;
+        }
+
         const audio = await this.audio.OpenTarget(route.target, route.build);
-        const audioRequest = ParseAudioRequest(route.path);
 
         if (audioRequest.kind === "library")
         {
@@ -589,6 +616,162 @@ export class CjsToolHttpProxy
         WriteBytes(response, statusCode, result.bytes, headers);
     }
 
+    /** Serves the optional neutral music catalog and cataloged song bytes. */
+    async #HandleMusicRoute(request, route, musicRequest, audio, response)
+    {
+        const music = audio.music;
+
+        if (!music)
+        {
+            WriteJson(
+                response,
+                404,
+                { error: "Music library is not configured" },
+            );
+
+            return;
+        }
+
+        const sourceTarget = String(
+            audio.sourceTarget || route.target,
+        );
+        const sourceBuild = utils.normalizeExactBuild(
+            audio.sourceBuild || route.build,
+            {
+                message:
+                    "Music routes require a resolved exact source build",
+            },
+        );
+        const baseUrl = `${GetRequestOrigin(request)}`
+            + `/${encodeURIComponent(sourceTarget)}`
+            + `/${encodeURIComponent(sourceBuild)}/audio/music`;
+        const urlForPlaylist = playlistID =>
+            `${baseUrl}/playlists/${encodeURIComponent(playlistID)}`;
+        const urlForSong = (playlistID, songID) =>
+            `${urlForPlaylist(playlistID)}/songs/${encodeURIComponent(songID)}`;
+
+        if (musicRequest.kind === "music")
+        {
+            const library = await music.ListPlaylists({ urlForPlaylist });
+
+            if (request.method === "HEAD")
+            {
+                WriteHead(response, 200, {
+                    "content-type": "application/json; charset=utf-8",
+                });
+
+                return;
+            }
+
+            WriteJson(
+                response,
+                200,
+                library,
+            );
+
+            return;
+        }
+
+        if (musicRequest.kind === "music-library")
+        {
+            const library = await music.GetLibrary({ urlForSong });
+
+            if (request.method === "HEAD")
+            {
+                WriteHead(response, 200, {
+                    "content-type": "application/json; charset=utf-8",
+                });
+
+                return;
+            }
+
+            WriteJson(
+                response,
+                200,
+                library,
+            );
+
+            return;
+        }
+
+        if (musicRequest.kind === "music-playlist")
+        {
+            const playlist = await music.GetPlaylist(
+                musicRequest.playlistID,
+                { urlForSong },
+            );
+
+            if (request.method === "HEAD")
+            {
+                WriteHead(response, 200, {
+                    "content-type": "application/json; charset=utf-8",
+                });
+
+                return;
+            }
+
+            WriteJson(response, 200, playlist);
+            return;
+        }
+
+        const selection = await music.ResolveSong(
+            musicRequest.playlistID,
+            musicRequest.songID,
+        );
+        const range = ParseByteRange(
+            request.headers.range,
+            selection.totalByteLength,
+        );
+        const statusCode = range ? 206 : 200;
+        const headers = {
+            "x-carbon-answer": "music-song",
+            "x-carbon-target": audio.sourceTarget || route.target,
+            "x-carbon-game": audio.sourceGame || "",
+            "x-carbon-provider": audio.sourceProvider || "",
+            "x-carbon-build": audio.sourceBuild || route.build,
+            "x-carbon-music-playlist": selection.playlistID,
+            "x-carbon-music-song": selection.songID,
+            "content-type": selection.mediaType,
+            "content-length":
+                range?.byteLength ?? selection.totalByteLength,
+            "accept-ranges": "bytes",
+            "cache-control": "no-cache",
+            ...(selection.etag ? { etag: selection.etag } : {}),
+            ...(range ? {
+                "content-range":
+                    `bytes ${range.offset}-${range.end}/${selection.totalByteLength}`,
+            } : {}),
+        };
+
+        if (IsNotModified(request, selection.etag))
+        {
+            const {
+                "content-length": _contentLength,
+                "content-range": _contentRange,
+                ...notModifiedHeaders
+            } = headers;
+
+            WriteEmpty(response, 304, notModifiedHeaders);
+
+            return;
+        }
+
+        if (request.method === "HEAD")
+        {
+            WriteHead(response, statusCode, headers);
+
+            return;
+        }
+
+        const result = await music.ReadSong(
+            selection,
+            range ?? {},
+        );
+
+        WriteBytes(response, statusCode, result.bytes, headers);
+    }
+
+    /** Serves one derived index-answer catalog route. */
     async #HandleIndexAnswerRoute(route, response)
     {
         if (route.path)
@@ -626,6 +809,7 @@ export class CjsToolHttpProxy
         WriteJson(response, 200, items, CreateAnswerHeaders(catalog, route.topic));
     }
 
+    /** Serves one SOF-derived index-answer route. */
     async #HandleSofIndexAnswerRoute(request, route, response)
     {
         const segments = String(route.path ?? "").split("/").filter(Boolean);
@@ -866,6 +1050,7 @@ export class CjsToolHttpProxy
         WriteJson(response, 404, { error: "SOF index-answer route not found" });
     }
 
+    /** Opens or reuses one exact-build SOF catalog. */
     async #GetSofCatalog(target, build)
     {
         if (!this.sof)
@@ -908,6 +1093,7 @@ export class CjsToolHttpProxy
         return loading;
     }
 
+    /** Opens or reuses one exact-build derived-answer catalog. */
     async #GetIndexAnswerCatalog(target, build)
     {
         if (!this.indexes || typeof this.indexes.OpenTarget !== "function")
@@ -936,6 +1122,7 @@ export class CjsToolHttpProxy
         return catalog;
     }
 
+    /** Opens or reuses one resolved exact-build index source. */
     async #OpenTargetSource(target, build)
     {
         if (!this.indexes || typeof this.indexes.OpenTarget !== "function")
@@ -985,6 +1172,7 @@ export class CjsToolHttpProxy
         return loading;
     }
 
+    /** Serves one SDE query route. */
     async #HandleSdeRoute(route, url, response)
     {
         if (!this.sde)
@@ -1150,6 +1338,7 @@ export class CjsToolHttpProxy
         });
     }
 
+    /** Serves one SKIN or SKINR library route. */
     async #HandleSkinRoute(route, url, response)
     {
         if (!this.sde)
@@ -1214,6 +1403,7 @@ export class CjsToolHttpProxy
         WriteJson(response, 200, value, CreateSkinHeaders(library, route.topic));
     }
 
+    /** Serves one weapon-library route. */
     async #HandleWeaponRoute(route, url, response)
     {
         if (!this.sde)
@@ -1356,6 +1546,7 @@ export class CjsToolHttpProxy
         WriteJson(response, 404, { error: "Weapons route not found" }, headers);
     }
 
+    /** Serves one character-library or document route. */
     async #HandleCharacterRoute(route, url, response)
     {
         if (!this.characters)
@@ -1509,6 +1700,7 @@ export class CjsToolHttpProxy
         }, headers);
     }
 
+    /** Opens or reuses exact-build SKIN and SKINR libraries. */
     async #GetSkinLibraries(target, build)
     {
         const source = await this.sde.OpenTarget(target, build);
@@ -1533,6 +1725,7 @@ export class CjsToolHttpProxy
         return this.#skinLibraries.get(key);
     }
 
+    /** Opens or reuses one exact-build weapon library. */
     async #GetWeaponLibrary(target, build)
     {
         const source = await this.sde.OpenTarget(target, build);
@@ -1644,6 +1837,7 @@ function MatchTargetRoute(pathname)
             build: decodeURIComponent(match[2]).toLowerCase(),
             topic,
             path: match[4] ? decodeURIComponent(match[4]) : null,
+            encodedPath: match[4] ?? null,
         });
     }
     catch
@@ -1674,7 +1868,7 @@ function AppendSofDnaSearch(route, search)
     }
 }
 
-function ParseAudioRequest(value)
+function ParseAudioRequest(value, encodedValue = null)
 {
     const path = String(value ?? "");
     const separator = path.indexOf("/");
@@ -1712,6 +1906,65 @@ function ParseAudioRequest(value)
         }
 
         return Object.freeze({ kind: "library" });
+    }
+
+    if (kind === "music")
+    {
+        const encodedPath = String(encodedValue ?? value ?? "");
+        const encodedSeparator = encodedPath.indexOf("/");
+        const encodedRequestValue = encodedSeparator === -1
+            ? ""
+            : encodedPath.slice(encodedSeparator + 1);
+        let segments;
+
+        try
+        {
+            segments = encodedRequestValue
+                ? encodedRequestValue.split("/").map(decodeURIComponent)
+                : [];
+        }
+        catch
+        {
+            throw new TypeError(
+                "Audio music route contains invalid URL encoding",
+            );
+        }
+
+        if (!segments.length)
+        {
+            return Object.freeze({ kind: "music" });
+        }
+        if (segments.length === 1
+            && segments[0].toLowerCase() === "library")
+        {
+            return Object.freeze({ kind: "music-library" });
+        }
+        if (segments.length === 2
+            && segments[0].toLowerCase() === "playlists"
+            && segments[1])
+        {
+            return Object.freeze({
+                kind: "music-playlist",
+                playlistID: segments[1],
+            });
+        }
+        if (segments.length === 4
+            && segments[0].toLowerCase() === "playlists"
+            && segments[1]
+            && segments[2].toLowerCase() === "songs"
+            && segments[3])
+        {
+            return Object.freeze({
+                kind: "music-song",
+                playlistID: segments[1],
+                songID: segments[3],
+            });
+        }
+
+        const notFound = new Error("Audio music route not found");
+
+        notFound.statusCode = 404;
+        throw notFound;
     }
 
     const error = new Error("Audio route not found");
@@ -1914,6 +2167,34 @@ function IsLoopback(value)
     return address === "127.0.0.1"
         || address === "::1"
         || address === "::ffff:127.0.0.1";
+}
+
+function GetRequestOrigin(request)
+{
+    const address = String(
+        request.socket?.localAddress ?? "",
+    ).toLowerCase();
+    const normalizedAddress = address === "::ffff:127.0.0.1"
+        ? "127.0.0.1"
+        : address;
+    const port = Number(request.socket?.localPort);
+
+    if (!IsLoopback(normalizedAddress)
+        || !Number.isSafeInteger(port)
+        || port < 1
+        || port > 65535)
+    {
+        throw new TypeError(
+            "Music routes require a valid loopback service socket",
+        );
+    }
+
+    const host = normalizedAddress.includes(":")
+        ? `[${normalizedAddress}]`
+        : normalizedAddress;
+    const protocol = request.socket?.encrypted ? "https" : "http";
+
+    return new URL(`${protocol}://${host}:${port}`).origin;
 }
 
 function CreateAnswerHeaders(catalog, answer, values = {})
