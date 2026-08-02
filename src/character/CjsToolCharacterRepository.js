@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
 
+import { CjsCharacterLibraryManager } from "@carbonenginejs/runtime-character";
 import { CjsToolCache } from "../cache/CjsToolCache.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
-import { CjsToolCharacterLibrary } from "./CjsToolCharacterLibrary.js";
 
 /** Opens exact-build prepared character libraries from the shared tool cache. */
 export class CjsToolCharacterRepository
@@ -17,6 +17,7 @@ export class CjsToolCharacterRepository
 
     #libraries = new Map();
 
+    /** Creates a prepared-library repository with optional cache/build services. */
     constructor({
         cache = new CjsToolCache(),
         indexes = null,
@@ -68,6 +69,7 @@ export class CjsToolCharacterRepository
         return this.#libraries.get(key);
     }
 
+    /** Resolves a friendly or exact request to one exact build. */
     async #ResolveBuild(target, build)
     {
         try
@@ -82,6 +84,7 @@ export class CjsToolCharacterRepository
         }
     }
 
+    /** Loads and installs one direct schema-v5 document. */
     async #Load(target, build)
     {
         const filePath = this.#cache.GetCustomPath({
@@ -89,7 +92,7 @@ export class CjsToolCharacterRepository
             provider: target.provider,
             build,
             name: "character",
-            version: "v1"
+            version: "v5"
         });
         let data;
 
@@ -109,32 +112,32 @@ export class CjsToolCharacterRepository
             throw error;
         }
 
-        const prepared = data
-            && typeof data === "object"
-            && !Array.isArray(data)
-            && data.character
-            && typeof data.character === "object"
-            && !Array.isArray(data.character)
-            && data.character.schema === "carbonenginejs.characterLibrary"
-                ? data.character
-                : data;
+        const prepared = data;
 
         if (!prepared || typeof prepared !== "object" || Array.isArray(prepared))
         {
             throw new TypeError("Prepared character library payload must be an object");
         }
 
-        if (prepared.sourceTarget && prepared.sourceTarget !== target.id)
-        {
-            throw new Error(`Character library target mismatch: ${prepared.sourceTarget}`);
-        }
+        RequireIdentity("target", prepared.sourceTarget, target.id);
+        RequireIdentity("game", prepared.sourceGame, target.game);
+        RequireIdentity("provider", prepared.sourceProvider, target.provider);
+        RequireIdentity("build", prepared.sourceBuild, build);
 
-        if (prepared.sourceBuild && String(prepared.sourceBuild) !== String(build))
-        {
-            throw new Error(`Character library build mismatch: ${prepared.sourceBuild}`);
-        }
-
-        return new CjsToolCharacterLibrary(prepared);
+        return new CjsCharacterLibraryManager().InstallLibrary(prepared);
     }
 
+}
+
+function RequireIdentity(label, actual, expected)
+{
+    if (actual === null || actual === undefined || String(actual).trim() === "")
+    {
+        throw new Error(`Character library is missing source ${label} identity`);
+    }
+
+    if (String(actual).toLowerCase() !== String(expected).toLowerCase())
+    {
+        throw new Error(`Character library ${label} mismatch: ${actual} !== ${expected}`);
+    }
 }

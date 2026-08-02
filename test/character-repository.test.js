@@ -4,42 +4,32 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
+import { CjsToolCache } from "../src/cache/index.js";
 import {
-    CjsToolCache,
-    CjsToolCharacterLibrary,
+    CjsToolCharacter,
+    CjsToolCharacterBuilder,
     CjsToolCharacterRepository,
-} from "../src/index.js";
+} from "../src/character/index.js";
+import { CreateCharacterDocuments } from "./character-library-fixture.js";
 
-test("opens exact and friendly-build character libraries from the shared cache", async context =>
+test("opens exact and friendly schema-v5 libraries from the shared cache", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
     const cache = new CjsToolCache(directory);
-    const data = {
-        schema: "carbonenginejs.characterLibrary",
-        schemaVersion: 1,
+    const values = CjsToolCharacter.build(CreateCharacterDocuments(), {
         sourceTarget: "eve",
-        sourceGame: "Eve",
-        sourceProvider: "ccp",
-        sourceBuild: "3435006",
-        parts: [ {
-            id: "female/hair/types/long_hair",
-            typeID: "9001",
-            name: "Long Hair",
-            sex: "female",
-            category: "hair",
-            path: "hair/long_hair",
-        } ],
-    };
+        sourceBuild: "3450001",
+    });
 
     context.after(() => fs.rm(directory, { force: true, recursive: true }));
-
-    await cache.WriteCustom({
+    await cache.WriteCustomLibrary({
         game: "Eve",
         provider: "ccp",
-        build: "3435006",
+        build: "3450001",
         name: "character",
-        version: "v1",
-    }, { character: data });
+        version: "v5",
+    }, values);
 
     const repository = new CjsToolCharacterRepository({
         cache,
@@ -48,17 +38,17 @@ test("opens exact and friendly-build character libraries from the shared cache",
             {
                 assert.equal(target, "eve");
                 assert.equal(build, "latest");
-
-                return { build: "3435006" };
+                return { build: "3450001" };
             },
         },
     });
-    const exact = await repository.OpenTarget("eve", "3435006");
+    const exact = await repository.OpenTarget("eve", "3450001");
     const friendly = await repository.OpenTarget("eve", "latest");
 
-    assert.ok(exact instanceof CjsToolCharacterLibrary);
-    assert.equal(friendly, exact);
-    assert.equal(exact.GetPartByTypeID(9001).name, "Long Hair");
+    assert.ok(exact instanceof CjsCharacterLibrary);
+    assert.strictEqual(friendly, exact);
+    assert.equal(exact.Get("races", 3).nameID, "1003");
+    assert.equal(exact.ListDocuments().length, 18);
 });
 
 test("reports a missing prepared character library as not found", async context =>
@@ -71,80 +61,135 @@ test("reports a missing prepared character library as not found", async context 
     context.after(() => fs.rm(directory, { force: true, recursive: true }));
 
     await assert.rejects(
-        () => repository.OpenTarget("eve", "3435006"),
-        error => error.statusCode === 404 && /not prepared/u.test(error.message),
+        () => repository.OpenTarget("eve", "3450001"),
+        error => error.statusCode === 404 && /not prepared/u.test(error.message)
     );
 });
 
-test("rejects malformed prepared character-library payloads explicitly", async () =>
+test("rejects the retired character-library envelope", async context =>
 {
-    const cases = [
-        [ "empty object", {} ],
-        [ "null wrapper", { character: null } ],
-        [ "null payload", null ],
-        [ "missing compact sources", {
-            schema: "carbonenginejs.characterLibrary",
-            schemaVersion: 2
-        } ]
-    ];
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
+    const cache = new CjsToolCache(directory);
+    const values = CjsToolCharacter.build(CreateCharacterDocuments(), {
+        sourceTarget: "eve",
+        sourceBuild: "3450001",
+    });
 
-    for (const [ label, payload ] of cases)
-    {
-        const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
-        const cache = new CjsToolCache(directory);
-        const repository = new CjsToolCharacterRepository({ cache });
+    context.after(() => fs.rm(directory, { force: true, recursive: true }));
+    await cache.WriteCustom({
+        game: "Eve",
+        provider: "ccp",
+        build: "3450001",
+        name: "character",
+        version: "v5",
+    }, {
+        sourceTarget: values.sourceTarget,
+        sourceGame: values.sourceGame,
+        sourceProvider: values.sourceProvider,
+        sourceBuild: values.sourceBuild,
+        character: values,
+    });
 
-        try
-        {
-            await cache.WriteCustom({
-                game: "Eve",
-                provider: "ccp",
-                build: "3435006",
-                name: "character",
-                version: "v1",
-            }, payload);
-
-            await assert.rejects(
-                () => repository.OpenTarget("eve", "3435006"),
-                error => error instanceof TypeError && /character library|character-library|partSources/u.test(error.message),
-                label
-            );
-        }
-        finally
-        {
-            await fs.rm(directory, { force: true, recursive: true });
-        }
-    }
+    await assert.rejects(
+        () => new CjsToolCharacterRepository({ cache }).OpenTarget("eve", "3450001"),
+        /schema/u
+    );
 });
 
-test("preserves the prepared character document alongside expanded query values", () =>
+test("requires matching prepared character-library source identity", async context =>
 {
-    const document = {
-        schema: "carbonenginejs.characterLibrary",
-        schemaVersion: 2,
-        sourceBuild: "3435006",
-        partSources: {
-            "female/hair/long_hair": {
-                versions: {
-                    default: {
-                        types: {
-                            "female/hair/types/long_hair": {
-                                typeID: "9001",
-                                name: "Long Hair",
-                            },
-                        },
-                    },
-                },
-            },
-        },
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
+    const cache = new CjsToolCache(directory);
+    const identity = {
+        game: "Eve",
+        provider: "ccp",
+        build: "3450001",
+        name: "character",
+        version: "v5",
     };
-    const library = new CjsToolCharacterLibrary(document);
+    const repository = new CjsToolCharacterRepository({ cache });
 
-    assert.equal(library.GetDocument().schemaVersion, 2);
-    assert.equal(library.GetValues().schemaVersion, 1);
-    assert.equal(library.GetPartByTypeID(9001).name, "Long Hair");
+    context.after(() => fs.rm(directory, { force: true, recursive: true }));
+    await cache.WriteCustom(identity, CjsToolCharacterBuilder.build(
+        CreateCharacterDocuments()
+    ));
+    await assert.rejects(
+        () => repository.OpenTarget("eve", "3450001"),
+        /missing source target identity/u
+    );
 
-    const copy = library.GetDocument();
-    copy.schemaVersion = 99;
-    assert.equal(library.GetDocument().schemaVersion, 2);
+    const mismatched = CjsToolCharacter.build(CreateCharacterDocuments(), {
+        sourceTarget: "eve",
+        sourceBuild: "3450001",
+    });
+
+    mismatched.sourceProvider = "example";
+    await cache.WriteCustom(identity, mismatched);
+    await assert.rejects(
+        () => repository.OpenTarget("eve", "3450001"),
+        /provider mismatch/u
+    );
+});
+
+test("rejected artifacts do not poison repository retry", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
+    const cache = new CjsToolCache(directory);
+    const identity = {
+        game: "Eve",
+        provider: "ccp",
+        build: "3450001",
+        name: "character",
+        version: "v5",
+    };
+    const repository = new CjsToolCharacterRepository({ cache });
+    const invalid = CjsToolCharacter.build(CreateCharacterDocuments(), {
+        sourceTarget: "eve",
+        sourceBuild: "3450002",
+    });
+
+    context.after(() => fs.rm(directory, { force: true, recursive: true }));
+    await cache.WriteCustom(identity, invalid);
+    await assert.rejects(
+        () => repository.OpenTarget("eve", "3450001"),
+        /build mismatch/u
+    );
+
+    const valid = CjsToolCharacter.build(CreateCharacterDocuments(), {
+        sourceTarget: "eve",
+        sourceBuild: "3450001",
+    });
+
+    await cache.WriteCustom(identity, valid);
+    const library = await repository.OpenTarget("eve", "3450001");
+
+    assert.ok(library instanceof CjsCharacterLibrary);
+    assert.equal(library.sourceBuild, "3450001");
+});
+
+test("rejects malformed prepared character-library payloads explicitly", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
+    const cache = new CjsToolCache(directory);
+
+    context.after(() => fs.rm(directory, { force: true, recursive: true }));
+    await cache.WriteCustom({
+        game: "Eve",
+        provider: "ccp",
+        build: "3450001",
+        name: "character",
+        version: "v5",
+    }, {
+        schema: "carbonenginejs.characterLibrary",
+        schemaVersion: 5,
+        sourceTarget: "eve",
+        sourceGame: "Eve",
+        sourceProvider: "ccp",
+        sourceBuild: "3450001",
+    });
+
+    await assert.rejects(
+        () => new CjsToolCharacterRepository({ cache }).OpenTarget("eve", "3450001"),
+        /documents/u
+    );
 });

@@ -159,9 +159,19 @@ export class CjsIndexOverlaySource
         const sourcePaths = new Set(sourceResults.map((item) => item.logicalPath));
         const results = [ ...overrideResults ];
 
-        results.push(...sourceResults.filter((item) => !overridePaths.has(item.logicalPath)));
-        results.push(...fallbackResults.filter((item) =>
-            !overridePaths.has(item.logicalPath) && !sourcePaths.has(item.logicalPath)));
+        // Complete provider indexes are large enough to exceed the JavaScript
+        // argument stack if their entries are spread into push().
+        for (const item of sourceResults)
+        {
+            if (!overridePaths.has(item.logicalPath)) results.push(item);
+        }
+        for (const item of fallbackResults)
+        {
+            if (!overridePaths.has(item.logicalPath) && !sourcePaths.has(item.logicalPath))
+            {
+                results.push(item);
+            }
+        }
 
         return Object.freeze(results.sort((left, right) =>
             left.logicalPath.localeCompare(right.logicalPath)));

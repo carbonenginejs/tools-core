@@ -188,6 +188,7 @@ GET /eve/<sde-build>/sde/<table>?query=<text>
 GET /eve/<sde-build>/sde/<table>?field=groupID&value=25
 GET /eve/<sde-build>/sde/skins?field=types&contains=587
 GET /eve/<sde-build>/sde/resolve?typeID=587&skinID=<skin-id>
+GET /netease/latest/sde[/<table>[/<id>]]
 ```
 
 SDE `latest` resolves independently from app/resource `latest`, and **an SDE
@@ -196,6 +197,12 @@ SDE exports on their own irregular schedule, so the newest available SDE
 routinely trails (or occasionally leads) the live client build. Consumers must
 treat SDE answers as approximately-current reference data keyed by their own
 SDE build identity, not as an attribute of the resource build.
+
+NetEase does not publish a compatible SDE through this service. Its `sde`,
+`skin`, `skinr`, and `weapons` routes therefore use the EVE/CCP SDE source as an
+explicit approximate fallback. Response bodies report the actual `eve` target,
+`ccp` provider, and answering SDE build; they never claim the fallback is a
+NetEase-authored or resource-build-exact dataset.
 
 Because of that, preparation is forward-looking with a staleness fallback:
 
@@ -214,21 +221,13 @@ Because of that, preparation is forward-looking with a staleness fallback:
 
 ```text
 GET /eve/<build>/character
-GET /eve/<build>/character/types/<typeID>?lod=<lod>
-GET /eve/<build>/character/parts/<partID>?lod=<lod>
-GET /eve/<build>/character/lookup?name=<name>
-GET /eve/<build>/character/search?name=<name>
-GET /eve/<build>/character/resolve?name=<name>&lod=<lod>
-GET /eve/<build>/character/<category>?lod=<lod>
-GET /eve/<build>/character/lod/<lod>/types/<typeID>
-GET /eve/<build>/character/lod/<lod>/parts/<partID>
-GET /eve/<build>/character/lod/<lod>/resolve?name=<name>
-GET /eve/<build>/character/lod/<lod>/<category>
+GET /eve/<build>/character/library.json
 ```
 
-`lookup` retains every exact candidate; `search` folds punctuation and spacing;
-`resolve` requires an unambiguous result. `partID` is always present while
-`typeID` remains optional. A selected LOD returns the atomic prepared bundle.
+Both routes return the same complete schema-v5 model-shaped document. The
+runtime-character library owns hydration, document lookup, and graph
+relationships. The HTTP adapter does not expose the retired inferred
+part/name/category/LOD query surface.
 
 ## SKIN and SKINR routes
 

@@ -37,6 +37,9 @@ export class CjsIndexOverlayStore
         const build = utils.normalizeExactBuild(buildValue, {
             message: `Persistent overlays require an exact build: ${buildValue}`,
         });
+        const selectedNames = expected.names === undefined
+            ? null
+            : new Set(normalizeOverlayNames(expected.names));
         const directory = safeJoin(this.directory, "games", target, "overlays");
         let entries;
 
@@ -58,7 +61,8 @@ export class CjsIndexOverlayStore
 
         for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name)))
         {
-            if (!entry.isDirectory() || entry.name.startsWith("."))
+            if (!entry.isDirectory() || entry.name.startsWith(".")
+                || (selectedNames && !selectedNames.has(entry.name)))
             {
                 continue;
             }
@@ -682,6 +686,16 @@ function normalizeOverlayName(value)
     }
 
     return name;
+}
+
+function normalizeOverlayNames(value)
+{
+    if (!Array.isArray(value) || value.length === 0)
+    {
+        throw new TypeError("Persistent overlay names must be a non-empty array");
+    }
+
+    return [ ...new Set(value.map(normalizeOverlayName)) ];
 }
 
 function normalizeOverlayMode(value)

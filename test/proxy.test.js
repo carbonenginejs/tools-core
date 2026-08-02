@@ -9,7 +9,16 @@ import readline from "node:readline";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { CjsToolCharacterLibrary, CjsToolHttpProxy } from "../src/index.js";
+import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
+import {
+    CjsIndexOverlayStore,
+    CjsIndexProviderRegistry,
+    CjsToolHttpProxy,
+    CjsToolIndex,
+    CjsToolTargetRegistry,
+} from "../src/index.js";
+import { CjsToolCharacter } from "../src/character/index.js";
+import { CreateCharacterDocuments } from "./character-library-fixture.js";
 
 const FixtureDirectory = path.dirname(fileURLToPath(import.meta.url));
 
@@ -502,115 +511,27 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
     assert.equal((await resolved.json()).dna, "rifter:minmatar:minmatar");
 });
 
-test("resolves character names and type identities with atomic LOD bundles", async context =>
+test("serves the combined schema-v5 character document", async context =>
 {
-    const partID = "female/hair/hair_long_01/types/hair_long_01";
-    const anonymousPartID = "female/hair/hair_plain/types/hair_plain";
-    const library = new CjsToolCharacterLibrary({
-        schema: "carbonenginejs.characterLibrary",
-        schemaVersion: 2,
+    const values = CjsToolCharacter.build(CreateCharacterDocuments(), {
         sourceTarget: "eve",
-        sourceGame: "Eve",
-        sourceProvider: "ccp",
-        sourceBuild: "3435006",
-        visemeSets: {
-            "female-speech-03": {
-                sex: "female",
-                parameterNode: "Visemes",
-                neutralVisemeID: "x",
-                maskName: "Mouth",
-                maskBoneNames: [ "Jaw" ],
-                visemes: [ {
-                    id: "x",
-                    parameterName: "x",
-                    animationName: "Female_Additive_Face_Default_03",
-                    resourcePath: "res:/character/female_additive_face_default_03.gr2",
-                    minimum: 0,
-                    maximum: 1,
-                    defaultValue: 0,
-                } ],
-            },
-        },
-        partSources: {
-            "female/hair/hair_long_01": {
-                resources: {
-                    configPaths: [
-                        "res:/character/hair_long_01_lod0.black",
-                        "res:/character/hair_long_01_lod1.black",
-                    ],
-                    geometryPaths: [
-                        "res:/character/hair_long_01_lod0.gr2",
-                        "res:/character/hair_long_01_lod1.gr2",
-                    ],
-                    lodBundles: [
-                        {
-                            requestedLod: null,
-                            resolvedLod: 0,
-                            configurationPath: "res:/character/hair_long_01_lod0.black",
-                            geometryPath: "res:/character/hair_long_01_lod0.gr2",
-                            modelFamily: "hairlong01",
-                            fallbackReason: "",
-                        },
-                        {
-                            requestedLod: null,
-                            resolvedLod: 1,
-                            configurationPath: "res:/character/hair_long_01_lod1.black",
-                            geometryPath: "res:/character/hair_long_01_lod1.gr2",
-                            modelFamily: "hairlong01",
-                            fallbackReason: "",
-                        },
-                    ],
-                },
-                versions: {
-                    default: {
-                        types: {
-                            [partID]: {
-                                typeID: "9001",
-                                name: "Long Hair",
-                            },
-                        },
-                    },
-                },
-            },
-            "female/hair/hair_plain": {
-                versions: {
-                    default: {
-                        resources: {
-                            configPaths: [
-                                "res:/character/hair_plain_lod0.black",
-                                "res:/character/hair_plain_lod1.black",
-                            ],
-                            geometryPaths: [
-                                "res:/character/hair_plain_lod0.gr2",
-                                "res:/character/hair_plain_lod1.gr2",
-                            ],
-                            lodBundles: [
-                                {
-                                    requestedLod: null,
-                                    resolvedLod: 0,
-                                    configurationPath: "res:/character/hair_plain_lod0.black",
-                                    geometryPath: "res:/character/hair_plain_lod0.gr2",
-                                    modelFamily: "hairplain",
-                                    fallbackReason: "",
-                                },
-                                {
-                                    requestedLod: null,
-                                    resolvedLod: 1,
-                                    configurationPath: "res:/character/hair_plain_lod1.black",
-                                    geometryPath: "res:/character/hair_plain_lod1.gr2",
-                                    modelFamily: "hairplain",
-                                    fallbackReason: "",
-                                },
-                            ],
-                        },
-                        types: {
-                            [anonymousPartID]: {
-                                name: "Unidentified Hair",
-                            },
-                        },
-                    },
-                },
-            },
+        sourceBuild: "3450001",
+    });
+    const installed = CjsCharacterLibrary.from(values);
+    let exportCount = 0;
+    const library = new Proxy(installed, {
+        get(target, property)
+        {
+            if (property === "GetValues")
+            {
+                return (...args) =>
+                {
+                    exportCount++;
+                    return target.GetValues(...args);
+                };
+            }
+
+            return Reflect.get(target, property, target);
         },
     });
     const proxy = new CjsToolHttpProxy({
@@ -618,7 +539,7 @@ test("resolves character names and type identities with atomic LOD bundles", asy
             async OpenTarget(target, build)
             {
                 assert.equal(target, "eve");
-                assert.equal(build, "3435006");
+                assert.equal(build, "3450001");
 
                 return library;
             },
@@ -634,7 +555,7 @@ test("resolves character names and type identities with atomic LOD bundles", asy
     context.after(() => new Promise(resolve => server.close(resolve)));
 
     const address = server.address();
-    const root = `http://127.0.0.1:${address.port}/eve/3435006/character`;
+    const root = `http://127.0.0.1:${address.port}/eve/3450001/character`;
     const health = await fetch(`http://127.0.0.1:${address.port}/v1/health`);
 
     assert.deepEqual((await health.json()).capabilities, {
@@ -648,101 +569,33 @@ test("resolves character names and type identities with atomic LOD bundles", asy
         sofCatalog: false,
     });
 
-    const wholeLibrary = await (await fetch(root)).json();
+    const response = await fetch(root);
+    const alias = await fetch(`${root}/library.json`);
+    const wholeLibrary = await response.json();
 
-    assert.equal(wholeLibrary.schemaVersion, 2);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("x-carbon-answer"), "character");
+    assert.equal(response.headers.get("x-carbon-target"), "eve");
+    assert.equal(response.headers.get("x-carbon-build"), "3450001");
+    assert.equal(wholeLibrary.schemaVersion, 5);
     assert.equal(wholeLibrary.sourceTarget, "eve");
-    assert.equal(wholeLibrary.partSources["female/hair/hair_long_01"]
-        .versions.default.types[partID].typeID, "9001");
-    assert.equal(wholeLibrary.visemeSets["female-speech-03"].neutralVisemeID, "x");
-    assert.deepEqual(library.GetSourceIdentity(), {
-        sourceTarget: "eve",
-        sourceGame: "Eve",
-        sourceProvider: "ccp",
-        sourceBuild: "3435006",
-    });
+    assert.equal(wholeLibrary.documents.characterResources[0].typeID, "9001");
+    assert.deepEqual(await alias.json(), wholeLibrary);
+    assert.equal(exportCount, 2);
+    const hydrated = CjsCharacterLibrary.from(wholeLibrary);
 
-    const nameOptions = await (await fetch(
-        `${root}/lookup?name=${encodeURIComponent("Long Hair")}`
-    )).json();
-    const searchedOptions = await (await fetch(
-        `${root}/search?name=${encodeURIComponent("long-hair")}`
-    )).json();
-
-    assert.deepEqual(nameOptions, [ {
-        kind: "character",
-        typeID: "9001",
-        partID,
-    } ]);
-    assert.deepEqual(searchedOptions, nameOptions);
-
-    const anonymousOptions = await (await fetch(
-        `${root}/lookup?name=${encodeURIComponent("Unidentified Hair")}`
-    )).json();
-
-    assert.deepEqual(anonymousOptions, [ {
-        kind: "character",
-        typeID: null,
-        partID: anonymousPartID,
-    } ]);
-
-    const anonymous = await fetch(`${root}/parts/${anonymousPartID}?lod=0`);
-    const anonymousPart = await anonymous.json();
-
-    assert.equal(anonymous.status, 200);
-    assert.equal(anonymousPart.id, anonymousPartID);
-    assert.equal(anonymousPart.typeID, null);
-    assert.equal(anonymousPart.lodBundle.resolvedLod, 0);
-
-    const anonymousPathLod = await fetch(`${root}/lod/1/parts/${anonymousPartID}`);
-    assert.equal(anonymousPathLod.status, 200);
-    assert.equal((await anonymousPathLod.json()).lodBundle.resolvedLod, 1);
-
-    const named = await fetch(`${root}/resolve?name=Long%20Hair&lod=0`);
-    const namedPart = await named.json();
-
-    assert.equal(named.status, 200);
-    assert.equal(namedPart.id, partID);
-    assert.equal(namedPart.typeID, "9001");
-    assert.equal(namedPart.lodBundle.requestedLod, 0);
-    assert.equal(namedPart.lodBundle.resolvedLod, 0);
-    assert.match(namedPart.lodBundle.configurationPath, /_lod0\.black$/u);
-    assert.match(namedPart.lodBundle.geometryPath, /_lod0\.gr2$/u);
-
-    const typed = await fetch(`${root}/lod/1/types/9001`);
-    const typedPart = await typed.json();
-
-    assert.equal(typed.status, 200);
-    assert.equal(typedPart.id, partID);
-    assert.equal(typedPart.lodBundle.requestedLod, 1);
-    assert.equal(typedPart.lodBundle.resolvedLod, 1);
-
-    const category = await fetch(`${root}/hair?lod=0`);
-    const categoryBody = await category.json();
-
-    assert.equal(category.status, 200);
-    assert.equal(categoryBody.category, "hair");
-    assert.equal(categoryBody.requestedLod, 0);
-    assert.equal(categoryBody.items[0].typeID, "9001");
-    assert.equal(categoryBody.items[0].lodBundle.resolvedLod, 0);
-
-    const pathNamed = await fetch(`${root}/lod/1/resolve?name=Long%20Hair`);
-    const pathNamedPart = await pathNamed.json();
-
-    assert.equal(pathNamed.status, 200);
-    assert.equal(pathNamedPart.typeID, "9001");
-    assert.equal(pathNamedPart.lodBundle.resolvedLod, 1);
-
-    const missing = await fetch(`${root}/resolve?name=Missing`);
-
-    assert.equal(missing.status, 404);
-    assert.equal((await fetch(`${root}/parts/female/hair/missing`)).status, 404);
-
-    const disagreement = await fetch(`${root}/lod/1/types/9001?lod=0`);
-
-    assert.equal(disagreement.status, 400);
-    assert.match((await disagreement.json()).error, /disagree/u);
-    assert.equal((await fetch(`${root}/lookup?name=Long%20Hair&lod=0`)).status, 400);
+    hydrated.Reindex();
+    assert.strictEqual(
+        hydrated.Get("ancestries", 1).bloodlineID,
+        hydrated.Get("bloodlines", 2)
+    );
+    assert.strictEqual(
+        hydrated.Get("bloodlines", 2).raceID,
+        hydrated.Get("races", 3)
+    );
+    assert.equal((await fetch(`${root}/types/9001`)).status, 404);
+    assert.equal((await fetch(`${root}/lookup?name=Sample`)).status, 404);
+    assert.equal((await fetch(`${root}/lod/0/hair`)).status, 404);
 });
 
 test("serves resource resolution and validated fetch-to-cache requests", async context =>
@@ -1023,6 +876,190 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
         cacheHit: true,
         cachePath: "C:\\cache\\ResFiles\\aa\\content",
     });
+});
+
+test("serves NetEase SDE queries from the explicit EVE fallback identity", async context =>
+{
+    const source = {
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        build: "3435006",
+        Table(name)
+        {
+            assert.equal(name, "groups");
+
+            return {
+                name,
+                async Count()
+                {
+                    return 2;
+                },
+                async Find(field, value, options)
+                {
+                    assert.equal(field, "categoryID");
+                    assert.equal(value, "6");
+                    assert.deepEqual(options, {
+                        limit: "500",
+                        offset: undefined,
+                        contains: false,
+                    });
+
+                    return [ {
+                        table: "groups",
+                        id: "25",
+                        payload: { name: { en: "Frigate" }, categoryID: 6 },
+                    } ];
+                },
+            };
+        },
+    };
+    const proxy = new CjsToolHttpProxy({
+        sde: {
+            async OpenTarget(target, build)
+            {
+                assert.equal(target, "netease");
+                assert.equal(build, "latest");
+
+                return source;
+            },
+        },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const response = await fetch(
+        `http://127.0.0.1:${server.address().port}`
+        + "/netease/latest/sde/groups?field=categoryID&limit=500&value=6",
+    );
+    const body = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(body.target, "eve");
+    assert.equal(body.provider, "ccp");
+    assert.equal(body.build, "3435006");
+    assert.equal(body.table, "groups");
+    assert.equal(body.items[0].payload.name.en, "Frigate");
+    assert.equal(response.headers.get("x-carbon-answer"), "sde");
+    assert.equal(response.headers.get("x-carbon-target"), "eve");
+    assert.equal(response.headers.get("x-carbon-provider"), "ccp");
+    assert.equal(response.headers.get("x-carbon-build"), "3435006");
+});
+
+test("serves the shared browser shader overlay through NetEase resource endpoints", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-proxy-overlay-"));
+    const sourceDirectory = path.join(directory, "source");
+    const overlayStore = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const shaderPath = "graphics/effect.gles2/test.sm_hi";
+    const shaderBytes = Buffer.from("legacy-gles");
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+    await fs.mkdir(path.join(sourceDirectory, "shaders"), { recursive: true });
+    await fs.writeFile(path.join(sourceDirectory, "shaders", "test.sm_hi"), shaderBytes);
+    await overlayStore.Import({
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        name: "legacy-gles",
+        mode: "fallback",
+        builds: [ "*" ],
+        sourceDirectory,
+        entries: [ {
+            logicalPath: `res:/${shaderPath}`,
+            location: "shaders/test.sm_hi",
+        } ],
+    });
+
+    const targets = new CjsToolTargetRegistry([ {
+        id: "eve",
+        game: "Eve",
+        provider: "ccp",
+        client: null,
+        libraries: [],
+        topics: [ "app", "res" ],
+    }, {
+        id: "netease",
+        game: "Eve",
+        provider: "netease",
+        client: null,
+        libraries: [],
+        topics: [ "app", "res" ],
+        overlaySources: [ {
+            target: "eve",
+            names: [ "legacy-gles" ],
+        } ],
+    } ]);
+    const providers = new CjsIndexProviderRegistry([ {
+        game: "Eve",
+        id: "netease",
+        defaultBuildRef: "latest",
+        remote: {
+            metadataBaseUrl: "https://metadata.test",
+            indexBaseUrl: "https://indexes.test",
+            appBaseUrl: "https://app.test",
+            resBaseUrl: "https://res.test",
+        },
+        clients: {},
+    } ]);
+    const responses = {
+        "https://indexes.test/eveonline_88.txt": [
+            "app:/resfileindex.txt",
+            "aa/main",
+            "",
+            "",
+            "",
+            "",
+        ].join(","),
+        "https://app.test/aa/main": "",
+    };
+    const indexes = new CjsToolIndex({
+        targets,
+        providers,
+        overlays: overlayStore,
+        cache: null,
+        fetch: async url =>
+        {
+            if (!(url in responses)) return { ok: false, status: 404 };
+
+            const bytes = Buffer.from(responses[url]);
+
+            return {
+                ok: true,
+                status: 200,
+                async arrayBuffer()
+                {
+                    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+                },
+            };
+        },
+    });
+    const server = new CjsToolHttpProxy({ indexes }).CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const response = await fetch(
+        `http://127.0.0.1:${server.address().port}/netease/88/res/${shaderPath}`,
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), "legacy-gles");
+    assert.equal(response.headers.get("x-carbon-target"), "netease");
+    assert.equal(response.headers.get("x-carbon-provider"), "ccp");
+    assert.equal(response.headers.get("x-carbon-build"), "88");
+    assert.equal(response.headers.get("x-carbon-overlay"), "legacy-gles");
+    assert.equal(response.headers.get("x-carbon-storage-kind"), "persistent-overlay");
 });
 
 test("service launcher emits an unauthenticated loopback bootstrap record", async context =>

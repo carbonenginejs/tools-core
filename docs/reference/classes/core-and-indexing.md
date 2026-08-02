@@ -118,50 +118,30 @@ Shared game-compatible cache for every CarbonEngineJS Node tool.
 <!-- class:CjsToolCharacter -->
 ## `CjsToolCharacter`
 
-Front-facing normalized character-library build tool.
+Front-facing exact-target character-library build tool.
 
 - Export: `@carbonenginejs/tools-core/character`
 - Source: `src/character/CjsToolCharacter.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsToolCharacterAssembler -->
-## `CjsToolCharacterAssembler`
+<!-- class:CjsToolCharacterBuilder -->
+## `CjsToolCharacterBuilder`
 
-Deterministic character catalog and source-reference assembly.
+Node target-policy wrapper around the runtime-owned character builder.
 
 - Export: `@carbonenginejs/tools-core/character`
-- Source: `src/character/CjsToolCharacterAssembler.js`
+- Source: `src/character/CjsToolCharacterBuilder.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsToolCharacterCompiler -->
-## `CjsToolCharacterCompiler`
+<!-- class:CjsToolCharacterCatalogGatherer -->
+## `CjsToolCharacterCatalogGatherer`
 
-Stateless transforms between expanded and compact character-library data.
-
-- Export: `@carbonenginejs/tools-core/character`
-- Source: `src/character/CjsToolCharacterCompiler.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolCharacterLibrary -->
-## `CjsToolCharacterLibrary`
-
-Read-only query API over one prepared character library.
+Gathers declared model-shaped character records from a validated file index.
 
 - Export: `@carbonenginejs/tools-core/character`
-- Source: `src/character/CjsToolCharacterLibrary.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolCharacterNormalizer -->
-## `CjsToolCharacterNormalizer`
-
-Stateless normalization of Carbon character authoring profiles.
-
-- Export: `@carbonenginejs/tools-core/character`
-- Source: `src/character/CjsToolCharacterNormalizer.js`
+- Source: `src/character/CjsToolCharacterCatalogGatherer.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
@@ -172,16 +152,6 @@ Opens exact-build prepared character libraries from the shared tool cache.
 
 - Export: `@carbonenginejs/tools-core/character`
 - Source: `src/character/CjsToolCharacterRepository.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolCharacterSerializer -->
-## `CjsToolCharacterSerializer`
-
-Deterministic character-library JSON serialization.
-
-- Export: `@carbonenginejs/tools-core/character`
-- Source: `src/character/CjsToolCharacterSerializer.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 

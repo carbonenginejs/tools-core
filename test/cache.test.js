@@ -48,7 +48,7 @@ test("uses the shared index, ResFiles, and deterministic custom paths", async ()
         )
     );
     assert.equal(
-        cache.GetCustomPath({ provider: "ccp", build: 3435006, name: "character", version: "v1" }),
+        cache.GetCustomPath({ provider: "ccp", build: 3435006, name: "character", version: "v5" }),
         path.join(
             directory,
             "custom",
@@ -58,7 +58,7 @@ test("uses the shared index, ResFiles, and deterministic custom paths", async ()
             "ccp",
             "builds",
             "3435006",
-            "character_v1.json",
+            "character_v5.json",
         )
     );
     assert.equal(

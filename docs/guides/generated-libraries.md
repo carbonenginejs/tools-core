@@ -26,7 +26,7 @@ Current support is:
 ```powershell
 npm run prepare:sde -- --cache <cache> [--build <exact-build>]
 npm run build:audio -- --index <resfileindex.txt> --cache <cache> --soundbanksinfo <file-or-res-path> --target <eve|frontier> --build <build> [--out <library.json>] [--enrichment <audio-metadata.json>] [--event-media] [--sfx] [--music] [--language <bcp47-tag>]
-npm run build:character -- --index <resfileindex.txt> --cache <cache> --out <library.json> --target eve --build <build>
+npm run build:character -- --documents <documents.json> --catalog-inputs <catalog-inputs.json> --index <resfileindex.txt> --cache <cache> --target eve --build <build> [--out <library.json>]
 npm run build:skins -- --cache <cache> --build <build|latest> [--auto-prepare]
 npm run build:weapons -- --cache <cache> --build <build|latest> [--auto-prepare]
 npm run catalog:shader -- --index <resfileindex.txt> --shader-target frontier-webgl2 --build <build> --out <catalog.json>
@@ -41,10 +41,10 @@ whose decompressed bytes equal the canonical JSON.
 
 ## Library shapes
 
-When `--out` is omitted, the audio builder installs `audio_v2.json` and its
-deterministic gzip sibling into the shared exact-build custom cache. That is
-the preferred location used by `CjsToolAudioRepository` and the local audio
-HTTP routes. Only `audio_v2.json` is accepted. An explicit `--out` remains
+When `--out` is omitted, the audio and character builders install
+`audio_v2.json` or `character_v5.json` and its deterministic gzip sibling into
+the shared exact-build custom cache. Those are the preferred locations used by
+their repositories and local HTTP routes. An explicit `--out` remains
 available for distribution builds and other application-owned publication.
 
 Audio builds join SoundbanksInfo, indexed audio paths, and an optional
@@ -100,11 +100,26 @@ together; `CjsToolAudioSource` accepts schema v2, validates the music
 contract, and resolves prepared or loose media and embedded bank windows
 without making the HTTP adapter understand WEM or BNK codecs.
 
-Character builds preserve CarbonEngineJS part identity, selectable type
-identity, categories, authoring data, and atomic LOD bundles. Prepared
-`recipeLinks` keep each preset entry explicitly resolved, ambiguous, or
-unresolved; the compiler never guesses one candidate from an ambiguous
-authored selection.
+Character builds require source-neutral JSON containing the twelve direct
+document maps. A separate catalog-input manifest declares cached model-shaped
+JSON records and exact part-source candidate arrays. Each profile names its
+target document and indexed logical path; part sources name their record
+identity, metadata relationship, and versioned configuration, geometry, and
+texture candidates. Tools-core neither converts source-specific record shapes
+nor infers records from filenames or folders. It copies declared JSON records,
+preserves candidate order, checks candidates against the caller-selected
+resource index, and delegates the combined schema-v5 document to
+`@carbonenginejs/runtime-character/library-builder`.
+The manifest is required by the command; use an empty JSON object when no
+optional catalog records are available.
+
+The gathered part-source records retain exact configuration, geometry, and
+texture candidate paths. A caller can declare metadata-only sources even when
+no selectable type names them. The producer does not select a model family,
+pair detail levels, infer material or projection links, compile recipe
+selections, or embed external asset bytes. The runtime library hydrates the
+same combined JSON shape; configuration graphs, geometry, images, animations,
+and effects remain resource-manager inputs.
 
 SKIN and SKINR are separate exact-source libraries. SKIN owns developer-authored
 skin/material/type relations; SKINR owns component, slot, ship-tree, and

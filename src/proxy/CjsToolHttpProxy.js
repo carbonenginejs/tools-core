@@ -1183,10 +1183,11 @@ export class CjsToolHttpProxy
         }
 
         const source = await this.sde.OpenTarget(route.target, route.build);
+        const headers = CreateSdeHeaders(source);
 
         if (!route.path)
         {
-            WriteJson(response, 200, await source.Describe());
+            WriteJson(response, 200, await source.Describe(), headers);
 
             return;
         }
@@ -1229,7 +1230,7 @@ export class CjsToolHttpProxy
                 provider: source.provider,
                 build: source.build,
                 ...await source.Resolve(selection),
-            });
+            }, headers);
 
             return;
         }
@@ -1269,7 +1270,7 @@ export class CjsToolHttpProxy
                 provider: source.provider,
                 build: source.build,
                 ...record,
-            });
+            }, headers);
 
             return;
         }
@@ -1335,7 +1336,7 @@ export class CjsToolHttpProxy
                 },
             } : {}),
             items,
-        });
+        }, headers);
     }
 
     /** Serves one SKIN or SKINR library route. */
@@ -1547,7 +1548,7 @@ export class CjsToolHttpProxy
     }
 
     /** Serves one character-library or document route. */
-    async #HandleCharacterRoute(route, url, response)
+    async #HandleCharacterRoute(route, _url, response)
     {
         if (!this.characters)
         {
@@ -1557,147 +1558,18 @@ export class CjsToolHttpProxy
         }
 
         const library = await this.characters.OpenTarget(route.target, route.build);
-        const request = ParseCharacterRequest(route.path, url);
+        const segments = String(route.path ?? "").split("/").filter(Boolean);
         const headers = CreateCharacterHeaders(library, route);
 
-        if (!request.segments.length)
+        if (!segments.length
+            || (segments.length === 1 && segments[0].toLowerCase() === "library.json"))
         {
-            if (request.lod !== null)
-            {
-                throw new TypeError("Character LOD requires a type, name, or category lookup");
-            }
-
-            const document = typeof library.GetDocument === "function"
-                ? library.GetDocument()
-                : library.GetValues();
-
-            WriteJson(response, 200, document, headers);
+            WriteJson(response, 200, library.GetValues({ refs: true }), headers);
 
             return;
         }
 
-        const kind = request.segments[0].toLowerCase();
-
-        if ([ "lookup", "search" ].includes(kind))
-        {
-            if (request.segments.length !== 1)
-            {
-                WriteJson(response, 404, { error: `Character ${kind} route not found` }, headers);
-
-                return;
-            }
-
-            if (request.lod !== null)
-            {
-                throw new TypeError(`Character ${kind} does not select a LOD`);
-            }
-
-            const name = url.searchParams.get("name");
-
-            if (!name)
-            {
-                throw new TypeError(`Character ${kind} requires name`);
-            }
-
-            const candidates = kind === "lookup"
-                ? library.LookupName(name)
-                : library.SearchName(name);
-
-            WriteJson(response, 200, candidates, headers);
-
-            return;
-        }
-
-        if (kind === "resolve")
-        {
-            if (request.segments.length !== 1)
-            {
-                WriteJson(response, 404, { error: "Character resolve route not found" }, headers);
-
-                return;
-            }
-
-            const name = url.searchParams.get("name");
-
-            if (!name)
-            {
-                throw new TypeError("Character resolve requires name");
-            }
-
-            const identity = library.ResolveName(name);
-            const part = library.GetPart(identity.partID);
-
-            WriteJson(response, 200, CreateCharacterPartResponse(library, part, request.lod), headers);
-
-            return;
-        }
-
-        if (kind === "types")
-        {
-            if (request.segments.length !== 2)
-            {
-                WriteJson(response, 404, { error: `Character ${kind} route not found` }, headers);
-
-                return;
-            }
-
-            const part = library.ResolvePart({ typeID: request.segments[1] });
-
-            if (!part)
-            {
-                WriteJson(response, 404, {
-                    error: `Character type not found: ${request.segments[1]}`
-                }, headers);
-
-                return;
-            }
-
-            WriteJson(response, 200, CreateCharacterPartResponse(library, part, request.lod), headers);
-
-            return;
-        }
-
-        if (kind === "parts")
-        {
-            if (request.segments.length < 2)
-            {
-                WriteJson(response, 404, { error: "Character parts route not found" }, headers);
-
-                return;
-            }
-
-            const partID = request.segments.slice(1).join("/");
-            const part = library.GetPart(partID);
-
-            if (!part)
-            {
-                WriteJson(response, 404, {
-                    error: `Character part not found: ${partID}`
-                }, headers);
-
-                return;
-            }
-
-            WriteJson(response, 200, CreateCharacterPartResponse(library, part, request.lod), headers);
-
-            return;
-        }
-
-        const category = request.segments.join("/");
-        const parts = library.GetPartsByCategory(category, { recursive: true });
-
-        if (!parts.length)
-        {
-            WriteJson(response, 404, { error: `Character category not found: ${category}` }, headers);
-
-            return;
-        }
-
-        WriteJson(response, 200, {
-            category,
-            ...(request.lod === null ? {} : { requestedLod: request.lod }),
-            items: parts.map(part => CreateCharacterPartResponse(library, part, request.lod))
-        }, headers);
+        WriteJson(response, 404, { error: "Character route not found" }, headers);
     }
 
     /** Opens or reuses exact-build SKIN and SKINR libraries. */
@@ -2211,6 +2083,17 @@ function CreateAnswerHeaders(catalog, answer, values = {})
     };
 }
 
+function CreateSdeHeaders(source)
+{
+    return {
+        "x-carbon-answer": "sde",
+        "x-carbon-target": source.target,
+        "x-carbon-game": source.game,
+        "x-carbon-provider": source.provider,
+        "x-carbon-build": source.build,
+    };
+}
+
 function CreateSkinHeaders(library, topic)
 {
     return {
@@ -2334,7 +2217,7 @@ function CreateCharacterHeaders(library, route)
 {
     const data = typeof library.GetSourceIdentity === "function"
         ? library.GetSourceIdentity()
-        : library.GetValues();
+        : library;
 
     return {
         "x-carbon-answer": "character",
@@ -2343,66 +2226,6 @@ function CreateCharacterHeaders(library, route)
         "x-carbon-provider": data.sourceProvider || "",
         "x-carbon-build": data.sourceBuild || route.build,
     };
-}
-
-function CreateCharacterPartResponse(library, part, lod)
-{
-    return {
-        ...part,
-        ...(lod === null ? {} : {
-            lodBundle: library.ResolvePartLodBundle(part.id, lod)
-        })
-    };
-}
-
-function ParseCharacterRequest(path, url)
-{
-    const segments = String(path ?? "").split("/").filter(Boolean);
-    let pathLod = null;
-
-    if (segments[0]?.toLowerCase() === "lod")
-    {
-        if (segments.length < 2)
-        {
-            throw new TypeError("Character LOD route requires a level");
-        }
-
-        pathLod = ParseCharacterLod(segments[1]);
-        segments.splice(0, 2);
-    }
-
-    const queryLod = url.searchParams.has("lod")
-        ? ParseCharacterLod(url.searchParams.get("lod"))
-        : null;
-
-    if (pathLod !== null && queryLod !== null && pathLod !== queryLod)
-    {
-        throw new TypeError("Character path and query LOD values disagree");
-    }
-
-    return {
-        segments,
-        lod: pathLod ?? queryLod
-    };
-}
-
-function ParseCharacterLod(value)
-{
-    const text = String(value ?? "");
-
-    if (!/^\d+$/u.test(text))
-    {
-        throw new TypeError(`Character LOD must be a non-negative integer, received ${value}`);
-    }
-
-    const lod = Number(text);
-
-    if (!Number.isSafeInteger(lod))
-    {
-        throw new TypeError(`Character LOD is outside the supported integer range: ${value}`);
-    }
-
-    return lod;
 }
 
 function ReadFormatJson(path, bytes)

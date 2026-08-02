@@ -9,7 +9,6 @@ import {
     CjsIndexOverlayStore,
     CjsToolAudioPrefetch,
     CjsToolAudioRepository,
-    CjsToolCharacterRepository,
     CjsToolIndex,
     CjsToolPrefetch,
     CjsSdeRepository,
@@ -19,6 +18,7 @@ import {
     TOOLS_SERVICE_PROTOCOL,
     TOOLS_SERVICE_PROTOCOL_VERSION,
 } from "../src/index.js";
+import { CjsToolCharacterRepository } from "../src/character/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
 
 const DEFAULT_MAX_PAYLOAD_BYTES = 256 * 1024 * 1024;

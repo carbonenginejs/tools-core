@@ -36,6 +36,37 @@ const Targets = new CjsToolTargetRegistry([ {
     topics: [ "app", "res" ],
 } ]);
 
+const CrossProvider = Object.freeze({
+    ...Provider,
+    id: "alternate",
+    remote: Object.freeze({
+        metadataBaseUrl: "https://alternate-metadata.test",
+        indexBaseUrl: "https://alternate-indexes.test",
+        appBaseUrl: "https://alternate-app.test",
+        resBaseUrl: "https://alternate-res.test",
+    }),
+});
+
+const CrossProviderTargets = new CjsToolTargetRegistry([ {
+    id: "eve",
+    game: "Eve",
+    provider: "test",
+    client: null,
+    libraries: [],
+    topics: [ "app", "res" ],
+}, {
+    id: "netease",
+    game: "Eve",
+    provider: "alternate",
+    client: null,
+    libraries: [],
+    topics: [ "app", "res" ],
+    overlaySources: [ {
+        target: "eve",
+        names: [ "legacy-gles" ],
+    } ],
+} ]);
+
 test("composes persistent overrides and fallbacks around the official res index", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
@@ -165,6 +196,127 @@ test("rejects replacement imports and ignores overlays for incompatible builds",
         game: "Eve",
         provider: "test",
     })).length, 1);
+    assert.deepEqual((await store.OpenTarget("eve", "77", {
+        game: "Eve",
+        provider: "test",
+        names: [ "exact" ],
+    })).map(overlay => overlay.name), [ "exact" ]);
+    assert.deepEqual(await store.OpenTarget("eve", "77", {
+        game: "Eve",
+        provider: "test",
+        names: [ "missing" ],
+    }), []);
+});
+
+test("inherits only explicitly named browser shader overlays across EVE providers", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
+    const sourceDirectory = path.join(directory, "source");
+    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+    await writePayload(sourceDirectory, "shaders/legacy", "legacy-gles");
+    await writePayload(sourceDirectory, "legacy/incarna", "incarna");
+    await store.Import({
+        target: "eve",
+        game: "Eve",
+        provider: "test",
+        name: "legacy-gles",
+        mode: "fallback",
+        builds: [ "*" ],
+        sourceDirectory,
+        entries: [ {
+            logicalPath: "res:/graphics/effect.gles2/test.sm_hi",
+            location: "shaders/legacy",
+        } ],
+    });
+    await store.Import({
+        target: "eve",
+        game: "Eve",
+        provider: "test",
+        name: "incarna",
+        mode: "fallback",
+        builds: [ "*" ],
+        sourceDirectory,
+        entries: [ {
+            logicalPath: "res:/graphics/interior/test.black",
+            location: "legacy/incarna",
+        } ],
+    });
+
+    const tool = new CjsToolIndex({
+        providers: new CjsIndexProviderRegistry([ Provider, CrossProvider ]),
+        targets: CrossProviderTargets,
+        overlays: store,
+        cache: null,
+        fetch: createFetch({
+            "https://alternate-indexes.test/eveonline_88.txt": row(
+                "app:/resfileindex.txt",
+                "aa/main",
+            ),
+            "https://alternate-app.test/aa/main": "",
+        }),
+    });
+    const source = await tool.OpenTarget("netease", "88");
+    const shader = source.Resolve("res:/graphics/effect.gles2/test.sm_hi");
+
+    assert.ok(source instanceof CjsIndexOverlaySource);
+    assert.equal(source.target, "netease");
+    assert.equal(source.provider, "alternate");
+    assert.equal(shader.overlay, "legacy-gles");
+    assert.equal(shader.provider, "test");
+    assert.equal(Buffer.from(await source.Read(shader.logicalPath)).toString(), "legacy-gles");
+    assert.throws(
+        () => source.Resolve("res:/graphics/interior/test.black"),
+        /not found/u,
+    );
+});
+
+test("matches a large composed provider index without overflowing the argument stack", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
+    const sourceDirectory = path.join(directory, "source");
+    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const officialRows = Array.from(
+        { length: 100000 },
+        (_, index) => row(`res:/bulk/${String(index).padStart(6, "0")}.bin`, `bulk/${index}`),
+    ).join("\n");
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+    await writePayload(sourceDirectory, "shaders/legacy", "legacy-gles");
+    await store.Import({
+        target: "eve",
+        game: "Eve",
+        provider: "test",
+        name: "legacy-gles",
+        mode: "fallback",
+        builds: [ "*" ],
+        sourceDirectory,
+        entries: [ {
+            logicalPath: "res:/graphics/effect.gles2/test.sm_hi",
+            location: "shaders/legacy",
+        } ],
+    });
+
+    const tool = new CjsToolIndex({
+        providers: new CjsIndexProviderRegistry([ Provider ]),
+        targets: Targets,
+        overlays: store,
+        cache: null,
+        fetch: createFetch({
+            "https://indexes.test/eveonline_77.txt": row(
+                "app:/resfileindex.txt",
+                "aa/main",
+            ),
+            "https://app.test/aa/main": officialRows,
+        }),
+    });
+    const source = await tool.OpenTarget("eve", "77");
+    const matches = source.Match("res:/**");
+
+    assert.equal(matches.length, 100001);
+    assert.equal(matches[0].logicalPath, "res:/bulk/000000.bin");
+    assert.equal(matches.at(-1).logicalPath, "res:/graphics/effect.gles2/test.sm_hi");
 });
 
 test("transactionally replaces an overlay only when explicitly requested", async context =>

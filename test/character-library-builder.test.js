@@ -5,117 +5,364 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
+import { gunzipSync } from "node:zlib";
 
-test("character builder reads and validates profiles from the shared ResFiles cache", context =>
+import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
+import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
+import { CjsToolCache } from "../src/cache/index.js";
+import {
+    CjsToolCharacterBuilder,
+    CjsToolCharacterCatalogGatherer,
+} from "../src/character/index.js";
+import { CreateCharacterDocuments } from "./character-library-fixture.js";
+
+const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const buildScript = path.join(root, "scripts", "build_character_library.js");
+const typePath = "res:/example/definitions/sample-type.json";
+const metadataPath = "res:/example/definitions/sample-metadata.json";
+const supportMetadataPath = "res:/example/definitions/support-metadata.json";
+const materialPath = "res:/example/definitions/sample-material.json";
+const projectionPath = "res:/example/definitions/sample-projection.json";
+const recipePath = "res:/example/definitions/sample-recipe.json";
+const sampleConfiguration = "res:/example/assets/sample-primary.configuration";
+const sampleFallbackConfiguration = "res:/example/assets/sample-fallback.configuration";
+const sampleGeometry = "res:/example/assets/sample.geometry";
+const sampleTexture = "res:/example/assets/sample.texture";
+const supportConfiguration = "res:/example/assets/support.configuration";
+const supportGeometry = "res:/example/assets/support.geometry";
+
+test("character gathering keeps declared candidates and metadata-only sources", async context =>
 {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-character-tool-"));
-    const cacheDirectory = path.join(directory, "cache");
-    const inputPath = path.join(directory, "resfileindex.txt");
-    const outputPath = path.join(directory, "character-library.json");
-    const identitiesPath = path.join(directory, "character-identities.json");
-    const logicalPath = "res:/graphics/character/global/paperdolllibrary/"
-        + "backgrounds/air_station.yaml";
-    const storagePath = "aa/air_station.yaml";
-    const bytes = Buffer.from(JSON.stringify({
-        scale: 1,
-        path: "res:/ui/texture/classes/air_station.png",
-        offset: [ 0, 0 ],
-        aspect_ratio: 0.61275,
-    }));
-    const checksum = crypto.createHash("md5").update(bytes).digest("hex");
-    const cachePath = path.join(cacheDirectory, "ResFiles", "aa", "air_station.yaml");
-    const typeLogicalPath = "res:/graphics/character/female/paperdoll/"
-        + "hair/hair_long_01/types/hair_long_01.type";
-    const typeStoragePath = "bb/hair_long_01.type";
-    const typeBytes = Buffer.from(JSON.stringify([ "hair/hair_long_01", "", "" ]));
-    const typeChecksum = crypto.createHash("md5").update(typeBytes).digest("hex");
-    const typeCachePath = path.join(cacheDirectory, "ResFiles", "bb", "hair_long_01.type");
-    const metadataLogicalPath = "res:/graphics/character/female/paperdoll/"
-        + "hair/hair_long_01/metadata.yaml";
-    const metadataStoragePath = "cc/hair_long_01_metadata.yaml";
-    const metadataBytes = Buffer.from(JSON.stringify({
-        dependantModifiers: [
-            "dependants/tuck/basic",
-            "dependants/masktuck/tuckmaskmid",
-        ],
-    }));
-    const metadataChecksum = crypto.createHash("md5").update(metadataBytes).digest("hex");
-    const metadataCachePath = path.join(cacheDirectory, "ResFiles", "cc", "hair_long_01_metadata.yaml");
-    const tuckConfigPath = "res:/graphics/character/female/paperdoll/dependants/tuck/basic/tuck.black";
-    const tuckGeometryPath = "res:/graphics/character/female/paperdoll/dependants/tuck/basic/tuck.gr2";
-    const tuckMaskPath = "res:/graphics/character/female/paperdoll/dependants/"
-        + "masktuck/tuckmaskmid/comp_body_m.png";
-    const partID = "female/hair/hair_long_01/types/hair_long_01";
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-character-gatherer-"));
+    const cache = new CjsToolCache(directory);
+    const rows = [];
+    const catalogInputs = CreateCatalogInputs();
 
     context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
-    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
-    fs.mkdirSync(path.dirname(typeCachePath), { recursive: true });
-    fs.mkdirSync(path.dirname(metadataCachePath), { recursive: true });
-    fs.writeFileSync(cachePath, bytes);
-    fs.writeFileSync(typeCachePath, typeBytes);
-    fs.writeFileSync(metadataCachePath, metadataBytes);
-    fs.writeFileSync(
-        inputPath,
-        [
-            `${logicalPath},${storagePath},${checksum},${bytes.byteLength},${bytes.byteLength}`,
-            `${typeLogicalPath},${typeStoragePath},${typeChecksum},${typeBytes.byteLength},${typeBytes.byteLength}`,
-            `${metadataLogicalPath},${metadataStoragePath},${metadataChecksum},${metadataBytes.byteLength},${metadataBytes.byteLength}`,
-            `${tuckConfigPath},dd/tuck.black,,,`,
-            `${tuckGeometryPath},ee/tuck.gr2,,,`,
-            `${tuckMaskPath},ff/comp_body_m.png,,,`,
-            "",
-        ].join("\n"),
-    );
-    fs.writeFileSync(identitiesPath, JSON.stringify({
-        schema: "carbonenginejs.characterPartIdentities",
-        schemaVersion: 1,
-        sourceTarget: "eve",
-        sourceBuild: "3435006",
-        parts: {
-            [partID]: { typeID: "9001", name: "Long Hair" },
-        },
-    }));
 
-    const args = [
-        "scripts/build_character_library.js",
-        "--index", inputPath,
-        "--cache", cacheDirectory,
-        "--out", outputPath,
-        "--target", "eve",
-        "--build", "3435006",
-        "--generated-at", "2026-07-19T00:00:00.000Z",
-        "--identities", identitiesPath,
-    ];
-    const result = spawnSync(process.execPath, args, { encoding: "utf8" });
+    AddProfile(rows, cache, {
+        logicalPath: typePath,
+        location: "a1/sample-type.json",
+        value: {
+            sourcePath: typePath,
+            sex: "female",
+            partPath: "hair/logical-sample",
+            resourceVersion: "v1",
+            colorVariant: "dark",
+            partSource: "female/hair/sample",
+        },
+    });
+    AddProfile(rows, cache, {
+        logicalPath: metadataPath,
+        location: "a2/sample-metadata.json",
+        value: {
+            sourcePath: metadataPath,
+            forcesLooseTop: true,
+            dependentModifiers: [ "accessories/support/base#1.0" ],
+        },
+    });
+    AddProfile(rows, cache, {
+        logicalPath: supportMetadataPath,
+        location: "a3/support-metadata.json",
+        value: {
+            sourcePath: supportMetadataPath,
+            dependentModifiers: [ "accessories/support/base" ],
+        },
+    });
+    AddProfile(rows, cache, {
+        logicalPath: materialPath,
+        location: "a4/sample-material.json",
+        value: {
+            sourcePath: materialPath,
+            colors: [ { value: [ 0.1, 0.2, 0.3, 1 ] } ],
+            specularColors: [ { value: [ 0.4, 0.5, 0.6, 1 ] } ],
+        },
+    });
+    AddProfile(rows, cache, {
+        logicalPath: projectionPath,
+        location: "a5/sample-projection.json",
+        value: {
+            sourcePath: projectionPath,
+            bodyEnabled: true,
+            texturePath: "res:/example/assets/projected.texture",
+        },
+    });
+    AddProfile(rows, cache, {
+        logicalPath: recipePath,
+        location: "a6/sample-recipe.json",
+        value: {
+            sourcePath: recipePath,
+            sex: "female",
+            entries: [ {
+                category: "hair",
+                path: "hair/logical-sample",
+                colors: [ { value: [ 0.2, 0.3, 0.4, 1 ] } ],
+            } ],
+        },
+    });
+
+    AddIndexedPaths(rows, [
+        sampleConfiguration,
+        sampleFallbackConfiguration,
+        sampleGeometry,
+        sampleTexture,
+        supportConfiguration,
+        supportGeometry,
+    ]);
+
+    const index = CjsFileIndex.parseResFileIndex(`${rows.join("\n")}\n`);
+    const gathered = await new CjsToolCharacterCatalogGatherer({ cache }).Gather(
+        index,
+        { sourceBuild: "3450001", ...catalogInputs }
+    );
+    const documents = gathered.documents;
+    const partType = documents.characterPartTypes[typePath];
+    const partSource = documents.characterPartSources["female/hair/sample"];
+    const support = documents.characterPartSources["female/accessories/support/base"];
+
+    assert.equal(partType.partPath, "hair/logical-sample");
+    assert.equal(partType.partSource, "female/hair/sample");
+    assert.equal(partSource.metadata, metadataPath);
+    assert.deepEqual(partSource.versions[0].configurationCandidates, [
+        sampleConfiguration,
+        sampleFallbackConfiguration,
+    ]);
+    assert.deepEqual(partSource.versions[1], {
+        resourceVersion: "v1",
+        configurationCandidates: [],
+        geometryCandidates: [ sampleGeometry ],
+        textureCandidates: [ sampleTexture ],
+    });
+    assert.deepEqual(support.versions[0].configurationCandidates, [
+        supportConfiguration,
+    ]);
+    assert.deepEqual(support.versions[0].geometryCandidates, [ supportGeometry ]);
+    assert.deepEqual(
+        documents.characterMaterialProfiles[materialPath].colors,
+        [ { value: [ 0.1, 0.2, 0.3, 1 ] } ]
+    );
+    assert.equal(gathered.report.catalogs.characterPartSources, 2);
+    assert.equal(gathered.report.candidateResources.partSources, 2);
+    assert.doesNotMatch(JSON.stringify(documents), /lodBundles|modelFamily|recipeLinks/u);
+
+    const combined = CjsToolCharacterBuilder.build({
+        ...CreateCharacterDocuments(),
+        ...documents,
+    });
+    const library = CjsCharacterLibrary.from(combined);
+
+    library.Reindex();
+    assert.strictEqual(
+        library.Get("characterResources", 21).partType,
+        library.Get("characterPartTypes", typePath)
+    );
+
+    const documentsPath = path.join(directory, "documents.json");
+    const catalogInputsPath = path.join(directory, "catalog-inputs.json");
+    const indexPath = path.join(directory, "resfileindex.txt");
+    const outputPath = path.join(directory, "character-library.json");
+
+    fs.writeFileSync(documentsPath, JSON.stringify(CreateCharacterDocuments()));
+    fs.writeFileSync(catalogInputsPath, JSON.stringify(catalogInputs));
+    fs.writeFileSync(indexPath, `${rows.join("\n")}\n`);
+
+    const result = spawnSync(process.execPath, [
+        buildScript,
+        "--documents",
+        documentsPath,
+        "--catalog-inputs",
+        catalogInputsPath,
+        "--index",
+        indexPath,
+        "--cache",
+        directory,
+        "--out",
+        outputPath,
+        "--build",
+        "3450001",
+        "--target",
+        "eve",
+    ], {
+        cwd: root,
+        encoding: "utf8",
+    });
 
     assert.equal(result.status, 0, result.stderr);
+    const jsonBytes = fs.readFileSync(outputPath);
+    const built = JSON.parse(jsonBytes.toString("utf8"));
 
-    const library = JSON.parse(fs.readFileSync(outputPath, "utf8"));
-
-    assert.equal(library.sourceTarget, "eve");
-    assert.equal(library.sourceBuild, "3435006");
-    assert.equal(library.presentation.backgrounds.air_station.scale, 1);
-    assert.deepEqual(
-        library.partSources["female/hair/hair_long_01"].versions.default.types[partID],
-        { typeID: "9001", name: "Long Hair" },
-    );
-    assert.deepEqual(
-        library.partSources["female/dependants/tuck/basic"].resources.configPaths,
-        [ tuckConfigPath ],
-    );
-    assert.deepEqual(
-        library.partSources["female/dependants/tuck/basic"].resources.geometryPaths,
-        [ tuckGeometryPath ],
-    );
-    assert.deepEqual(
-        library.partSources["female/dependants/masktuck/tuckmaskmid"].resources.texturePaths,
-        [ tuckMaskPath ],
-    );
-
-    fs.writeFileSync(cachePath, "{}");
-
-    const invalid = spawnSync(process.execPath, args, { encoding: "utf8" });
-
-    assert.equal(invalid.status, 1);
-    assert.match(invalid.stderr, /size mismatch/);
+    assert.deepEqual(gunzipSync(fs.readFileSync(`${outputPath}.gz`)), jsonBytes);
+    assert.equal(built.schemaVersion, 5);
+    assert.equal(built.documents.characterPartSources.length, 2);
+    assert.equal(JSON.parse(fs.readFileSync(
+        path.join(directory, "character-library.report.json"),
+        "utf8"
+    )).sourceBuild, "3450001");
 });
+
+test("character gathering reports missing and invalid declared inputs", async context =>
+{
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-character-gatherer-"));
+    const cache = new CjsToolCache(directory);
+    const missingCachePath = "res:/example/definitions/missing-cache.json";
+    const corruptPath = "res:/example/definitions/corrupt.json";
+    const corruptBytes = Buffer.from("{}");
+    const corruptLocation = "bb/corrupt.json";
+    const corruptCachePath = cache.GetRemoteFilePath(corruptLocation);
+    const rows = [
+        `${missingCachePath},aa/missing-cache.json,,,,`,
+        [
+            corruptPath,
+            corruptLocation,
+            "00000000000000000000000000000000",
+            corruptBytes.byteLength,
+            corruptBytes.byteLength,
+            "",
+        ].join(","),
+    ];
+
+    context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
+    fs.mkdirSync(path.dirname(corruptCachePath), { recursive: true });
+    fs.writeFileSync(corruptCachePath, corruptBytes);
+
+    const index = CjsFileIndex.parseResFileIndex(`${rows.join("\n")}\n`);
+
+    await assert.rejects(
+        () => new CjsToolCharacterCatalogGatherer({ cache }).Gather(index, {
+            profiles: [
+                {
+                    documentName: "characterPartTypes",
+                    logicalPath: "res:/example/definitions/missing-index.json",
+                },
+                {
+                    documentName: "characterPartMetadata",
+                    logicalPath: missingCachePath,
+                },
+                {
+                    documentName: "characterMaterialProfiles",
+                    logicalPath: corruptPath,
+                },
+            ],
+            partSources: {
+                "female/example": {
+                    sourcePath: "res:/example/assets/example",
+                    sex: "female",
+                    partPath: "example",
+                    versions: [ {
+                        resourceVersion: null,
+                        configurationCandidates: [
+                            "res:/example/assets/missing.configuration",
+                        ],
+                        geometryCandidates: [],
+                        textureCandidates: [],
+                    } ],
+                    metadata: null,
+                },
+            },
+        }),
+        error =>
+        {
+            assert.equal(error.report.missingIndexEntries.length, 2);
+            assert.deepEqual(error.report.missingCacheFiles, [ missingCachePath ]);
+            assert.equal(error.report.errors.length, 1);
+            assert.match(error.report.errors[0].message, /MD5 mismatch/u);
+            return true;
+        }
+    );
+});
+
+function CreateCatalogInputs()
+{
+    return {
+        profiles: [
+            {
+                documentName: "characterPartTypes",
+                logicalPath: typePath,
+            },
+            {
+                documentName: "characterPartMetadata",
+                logicalPath: metadataPath,
+            },
+            {
+                documentName: "characterPartMetadata",
+                logicalPath: supportMetadataPath,
+            },
+            {
+                documentName: "characterMaterialProfiles",
+                logicalPath: materialPath,
+            },
+            {
+                documentName: "characterProjectionProfiles",
+                logicalPath: projectionPath,
+            },
+            {
+                documentName: "characterRecipeProfiles",
+                logicalPath: recipePath,
+            },
+        ],
+        partSources: {
+            "female/hair/sample": {
+                sourcePath: "res:/example/assets/sample",
+                sex: "female",
+                partPath: "hair/sample",
+                versions: [
+                    {
+                        resourceVersion: null,
+                        configurationCandidates: [
+                            sampleConfiguration,
+                            sampleFallbackConfiguration,
+                        ],
+                        geometryCandidates: [],
+                        textureCandidates: [],
+                    },
+                    {
+                        resourceVersion: "v1",
+                        configurationCandidates: [],
+                        geometryCandidates: [ sampleGeometry ],
+                        textureCandidates: [ sampleTexture ],
+                    },
+                ],
+                metadata: metadataPath,
+            },
+            "female/accessories/support/base": {
+                sourcePath: "res:/example/assets/support",
+                sex: "female",
+                partPath: "accessories/support/base",
+                versions: [ {
+                    resourceVersion: null,
+                    configurationCandidates: [ supportConfiguration ],
+                    geometryCandidates: [ supportGeometry ],
+                    textureCandidates: [],
+                } ],
+                metadata: supportMetadataPath,
+            },
+        },
+    };
+}
+
+function AddProfile(rows, cache, { logicalPath, location, value })
+{
+    const bytes = Buffer.from(JSON.stringify(value));
+    const checksum = crypto.createHash("md5").update(bytes).digest("hex");
+    const cachePath = cache.GetRemoteFilePath(location);
+
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, bytes);
+    rows.push([
+        logicalPath,
+        location,
+        checksum,
+        bytes.byteLength,
+        bytes.byteLength,
+        "",
+    ].join(","));
+}
+
+function AddIndexedPaths(rows, paths)
+{
+    for (let index = 0; index < paths.length; index++)
+    {
+        rows.push(`${paths[index]},z${index}/asset,,,,`);
+    }
+}

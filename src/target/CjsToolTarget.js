@@ -25,6 +25,11 @@ export class CjsToolTarget
             : normalizeBuildReference(data.client);
         this.libraries = Object.freeze(normalizeLibraries(data.libraries ?? []));
         this.topics = Object.freeze(normalizeTopics(data.topics ?? []));
+        this.overlaySources = Object.freeze(normalizeOverlaySources(data.overlaySources ?? []));
+        this.topicSources = Object.freeze(normalizeTopicSources(
+            data.topicSources ?? {},
+            this.topics,
+        ));
 
         Object.freeze(this);
     }
@@ -39,6 +44,22 @@ export class CjsToolTarget
     SupportsTopic(value)
     {
         return this.topics.includes(normalizeTopicName(value));
+    }
+
+    /** Resolves the target that supplies one advertised topic. */
+    ResolveTopicSource(value)
+    {
+        const topic = normalizeTopicName(value);
+
+        if (!this.topics.includes(topic))
+        {
+            const error = new Error(`Topic ${topic} is not available for target ${this.id}`);
+
+            error.statusCode = 404;
+            throw error;
+        }
+
+        return this.topicSources[topic] ?? this.id;
     }
 
     /** Creates internal index options for this target. */
@@ -107,6 +128,66 @@ function normalizeTopics(value)
     }
 
     return [...new Set(value.map(normalizeTopicName))].sort();
+}
+
+function normalizeOverlaySources(value)
+{
+    if (!Array.isArray(value))
+    {
+        throw new TypeError("Tool target overlay sources must be an array");
+    }
+
+    const targets = new Set();
+
+    return value.map(item =>
+    {
+        if (!item || typeof item !== "object" || Array.isArray(item))
+        {
+            throw new TypeError("Tool target overlay source must be an object");
+        }
+
+        const target = normalizeTargetId(item.target);
+
+        if (targets.has(target))
+        {
+            throw new TypeError(`Duplicate tool target overlay source: ${target}`);
+        }
+        if (!Array.isArray(item.names) || item.names.length === 0)
+        {
+            throw new TypeError("Tool target overlay source names must be a non-empty array");
+        }
+
+        targets.add(target);
+
+        return Object.freeze({
+            target,
+            names: Object.freeze([...new Set(item.names.map(normalizeProviderId))].sort()),
+        });
+    });
+}
+
+function normalizeTopicSources(value, topics)
+{
+    if (!value || typeof value !== "object" || Array.isArray(value))
+    {
+        throw new TypeError("Tool target topic sources must be an object");
+    }
+
+    const result = {};
+
+    for (const [ topicValue, targetValue ] of Object.entries(value))
+    {
+        const topic = normalizeTopicName(topicValue);
+
+        if (!topics.includes(topic))
+        {
+            throw new TypeError(`Tool target topic source is not advertised: ${topic}`);
+        }
+
+        result[topic] = normalizeTargetId(targetValue);
+    }
+
+    return result;
 }
 
 function normalizeTopicName(value)

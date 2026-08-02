@@ -25,7 +25,7 @@ Generated libraries and databases use:
 <cache>/custom/games/<game>/providers/<provider>/builds/<build>/<name>_<version>.<extension>
 ```
 
-Examples include `character_v1.json`, `skin_v1.json`, `skinr_v1.json`,
+Examples include `character_v5.json`, `skin_v1.json`, `skinr_v1.json`,
 `weapons_v1.json`, and `sde_v1.sqlite`. Existing installations may retain a
 cache root directory named `tool-core`; that storage name is independent of
 the `tools-core` package identity.
@@ -46,6 +46,13 @@ Resolution order is:
 1. generated or override overlays;
 2. the official exact-build index;
 3. fallback overlays.
+
+Targets may explicitly inherit named overlays from another target for shared,
+provider-independent browser assets. The built-in NetEase target inherits only
+EVE's `legacy-gles` fallback so `/netease/<build>/res/graphics/effect.gles2/...`
+can serve the browser shader set while every official resource still comes from
+the NetEase index. It does not inherit EVE's build-specific WebGL2, macOS Metal,
+or Incarna overlays. A target-local overlay with the same name takes precedence.
 
 `local-exact` payloads mirror their public `res:/` path beneath the persistent
 data root. `hash-safe` official and remote payloads retain checksums and may be

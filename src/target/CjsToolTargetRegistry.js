@@ -125,6 +125,14 @@ export class CjsToolTargetRegistry
         return resolved;
     }
 
+    /** Resolves the target that actually supplies an advertised topic. */
+    ResolveTopicSource(target, topic)
+    {
+        const requested = this.RequireTopic(target, topic);
+
+        return this.RequireTopic(requested.ResolveTopicSource(topic), topic);
+    }
+
     List()
     {
         return Object.freeze([...this.#targets.values()]);

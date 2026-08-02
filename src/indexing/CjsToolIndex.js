@@ -145,7 +145,8 @@ export class CjsToolIndex
     /** Opens cached resource access through a short public target alias. */
     async OpenTarget(targetValue, build = "latest", options = {})
     {
-        const indexes = await this.ReadTargetIndexes(targetValue, build, options);
+        const target = this.#targets.Get(targetValue);
+        const indexes = await this.ReadTargetIndexes(target.id, build, options);
         const source = new CjsIndexSource({
             indexes,
             fetch: this.#fetch,
@@ -159,12 +160,40 @@ export class CjsToolIndex
             return source;
         }
 
-        const overlays = await this.#overlays.OpenTarget(source.target, source.build, {
+        const inherited = [];
+
+        for (const overlaySource of target.overlaySources)
+        {
+            const candidates = await this.#overlays.OpenTarget(
+                overlaySource.target,
+                source.build,
+                {
+                    game: source.game,
+                    buildRef: source.buildRef,
+                    client: source.client,
+                    names: overlaySource.names,
+                },
+            );
+            const names = new Set(overlaySource.names);
+
+            inherited.push(...candidates.filter(overlay => names.has(overlay.name)));
+        }
+
+        const native = await this.#overlays.OpenTarget(source.target, source.build, {
             game: source.game,
             provider: source.provider,
             buildRef: source.buildRef,
             client: source.client,
         });
+        const overlaysByName = new Map();
+
+        // Explicit inherited fallbacks are composed first. A target-local
+        // overlay of the same name remains authoritative.
+        for (const overlay of [ ...inherited, ...native ])
+        {
+            overlaysByName.set(overlay.name, overlay);
+        }
+        const overlays = [ ...overlaysByName.values() ];
 
         return overlays.length
             ? new CjsIndexOverlaySource({ source, overlays })

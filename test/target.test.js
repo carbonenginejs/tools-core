@@ -25,6 +25,19 @@ test("maps short public targets to internal source identities", () =>
     assert.deepEqual(frontier.topics, [ "app", "res" ]);
     assert.equal(netease.game, "Eve");
     assert.equal(netease.provider, "netease");
+    assert.deepEqual(netease.topics, [ "app", "res", "sde", "skin", "skinr", "weapons" ]);
+    assert.deepEqual(netease.overlaySources, [ {
+        target: "eve",
+        names: [ "legacy-gles" ],
+    } ]);
+    assert.deepEqual(netease.topicSources, {
+        sde: "eve",
+        skin: "eve",
+        skinr: "eve",
+        weapons: "eve",
+    });
+    assert.equal(targets.ResolveTopicSource("netease", "sde"), eve);
+    assert.equal(targets.ResolveTopicSource("netease", "skin"), eve);
     assert.equal(targets.Find("frontier", "ccp"), frontier);
 });
 

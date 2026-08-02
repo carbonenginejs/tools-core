@@ -53,7 +53,7 @@ export class CjsSdeRepository
      */
     async ResolveTargetBuild(targetValue, buildValue = "latest")
     {
-        const target = this.#targets.RequireTopic(targetValue, "sde");
+        const target = this.#targets.ResolveTopicSource(targetValue, "sde");
         const buildRef = NormalizeBuildReference(buildValue);
         let latest = null;
         let fallback = null;

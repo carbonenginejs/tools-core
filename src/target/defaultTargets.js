@@ -21,6 +21,16 @@ export const DefaultTargetData = Object.freeze([
         provider: "netease",
         client: null,
         libraries: Object.freeze([]),
-        topics: Object.freeze([ "app", "res" ]),
+        topics: Object.freeze([ "app", "res", "sde", "skin", "skinr", "weapons" ]),
+        overlaySources: Object.freeze([ Object.freeze({
+            target: "eve",
+            names: Object.freeze([ "legacy-gles" ]),
+        }) ]),
+        topicSources: Object.freeze({
+            sde: "eve",
+            skin: "eve",
+            skinr: "eve",
+            weapons: "eve",
+        }),
     }),
 ]);

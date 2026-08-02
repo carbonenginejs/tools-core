@@ -1,15 +1,14 @@
-import { CjsToolCharacterAssembler } from "./CjsToolCharacterAssembler.js";
-import { CjsToolCharacterCompiler } from "./CjsToolCharacterCompiler.js";
-import { CjsToolCharacterSerializer } from "./CjsToolCharacterSerializer.js";
+import { CjsToolCharacterBuilder } from "./CjsToolCharacterBuilder.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 
-/** Front-facing normalized character-library build tool. */
+/** Front-facing exact-target character-library build tool. */
 export class CjsToolCharacter
 {
 
     #targets;
 
+    /** Creates a character tool with an optional target registry. */
     constructor({ targets = new CjsToolTargetRegistry() } = {})
     {
         if (!(targets instanceof CjsToolTargetRegistry))
@@ -31,8 +30,8 @@ export class CjsToolCharacter
         }), "character");
     }
 
-    /** Assembles normalized catalogs into the expanded library shape. */
-    Assemble(catalogs = {}, options = {})
+    /** Builds one target-specific schema-v5 combined character library. */
+    Build(documents = {}, options = {})
     {
         const target = this.ResolveTarget({
             target: options.sourceTarget,
@@ -43,7 +42,7 @@ export class CjsToolCharacter
             message: `CjsToolCharacter requires an exact source build: ${options.sourceBuild}`,
         });
 
-        return CjsToolCharacterAssembler.assemble(catalogs, {
+        return CjsToolCharacterBuilder.build(documents, {
             ...options,
             sourceTarget: target.id,
             sourceGame: target.game,
@@ -52,58 +51,10 @@ export class CjsToolCharacter
         }, { targets: this.#targets });
     }
 
-    /** Compiles an expanded library into its canonical compact JSON shape. */
-    Compile(data, options = {})
+    /** Builds through a temporary target-aware character tool. */
+    static build(documents = {}, options = {})
     {
-        const prepared = options.partIdentities
-            ? CjsToolCharacterCompiler.applyPartIdentities(data, options.partIdentities)
-            : data;
-
-        return CjsToolCharacterCompiler.compile(prepared, options);
-    }
-
-    /** Removes source records and source IDs from one freshly assembled library. */
-    OmitSourceProvenance(data)
-    {
-        return CjsToolCharacterCompiler.omitSourceProvenance(data);
-    }
-
-    /** Assembles and compiles one target-specific deterministic library. */
-    Build(catalogs = {}, options = {})
-    {
-        const expanded = this.Assemble(catalogs, options);
-
-        if (options.includeSources !== true)
-        {
-            this.OmitSourceProvenance(expanded);
-        }
-
-        return this.Compile(expanded, {
-            partSourceResources: options.partSourceResources,
-            partIdentities: options.partIdentities,
-        });
-    }
-
-    /** Expands a compact library for runtime hydration or further tooling. */
-    Expand(data)
-    {
-        return CjsToolCharacterCompiler.expand(data);
-    }
-
-    /** Serializes a library with deterministic key ordering. */
-    Stringify(data, options = {})
-    {
-        return CjsToolCharacterSerializer.stringify(data, options);
-    }
-
-    static build(catalogs = {}, options = {})
-    {
-        return new this().Build(catalogs, options);
-    }
-
-    static assemble(catalogs = {}, options = {})
-    {
-        return new this().Assemble(catalogs, options);
+        return new this().Build(documents, options);
     }
 
 }

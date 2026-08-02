@@ -252,7 +252,7 @@ test("auto-prepares over an invalid cached SDE database", async context =>
     }
 });
 
-test("resolves EVE SDE latest independently and rejects unsupported targets", async context =>
+test("resolves EVE SDE latest independently and supplies it to NetEase", async context =>
 {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-sde-repository-"));
     const cache = new CjsToolCache(directory);
@@ -302,7 +302,13 @@ test("resolves EVE SDE latest independently and rejects unsupported targets", as
             typeID: "587",
             skinID: null,
         } ]);
-        assert.equal(latestRequests, 1);
+        const neteaseSource = await repository.OpenTarget("netease", "latest");
+
+        assert.equal(neteaseSource, source);
+        assert.equal(neteaseSource.target, "eve");
+        assert.equal(neteaseSource.provider, "ccp");
+        assert.equal((await neteaseSource.Table("types").Get(587)).payload.name.en, "Rifter");
+        assert.equal(latestRequests, 2);
         await assert.rejects(
             () => repository.OpenTarget("frontier", "latest"),
             /not available for target frontier/,
