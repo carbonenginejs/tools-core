@@ -13,7 +13,7 @@ import { CreateCharacterDocuments } from "./character-library-fixture.js";
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const cli = path.join(root, "bin", "cjs-character-json.js");
 
-test("character JSON CLI writes one deterministic schema-v5 artifact pair", context =>
+test("character JSON CLI writes one deterministic schema-v6 artifact pair", context =>
 {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-character-cli-"));
     const inputPath = path.join(directory, "documents.json");
@@ -48,7 +48,7 @@ test("character JSON CLI writes one deterministic schema-v5 artifact pair", cont
     const library = CjsCharacterLibrary.from(values);
 
     assert.deepEqual(gunzipSync(gzipBytes), jsonBytes);
-    assert.equal(values.schemaVersion, 5);
+    assert.equal(values.schemaVersion, 6);
     assert.equal(values.sourceBuild, "3450001");
     assert.equal(library.ListDocuments().length, 18);
 });

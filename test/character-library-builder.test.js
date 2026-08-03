@@ -128,9 +128,14 @@ test("character gathering keeps declared candidates and metadata-only sources", 
         sampleConfiguration,
         sampleFallbackConfiguration,
     ]);
+    assert.equal(partSource.versions[0].metadata, metadataPath);
     assert.deepEqual(partSource.versions[1], {
         resourceVersion: "v1",
-        configurationCandidates: [],
+        metadata: metadataPath,
+        configurationCandidates: [
+            sampleConfiguration,
+            sampleFallbackConfiguration,
+        ],
         geometryCandidates: [ sampleGeometry ],
         textureCandidates: [ sampleTexture ],
     });
@@ -153,10 +158,20 @@ test("character gathering keeps declared candidates and metadata-only sources", 
     const library = CjsCharacterLibrary.from(combined);
 
     library.Reindex();
+    const hydratedSource = library.Get("characterPartSources", "female/hair/sample");
+
     assert.strictEqual(
         library.Get("characterResources", 21).partType,
         library.Get("characterPartTypes", typePath)
     );
+    assert.strictEqual(
+        hydratedSource.versions[1].metadata,
+        library.Get("characterPartMetadata", metadataPath)
+    );
+    assert.deepEqual(hydratedSource.versions[1].configurationCandidates, [
+        sampleConfiguration,
+        sampleFallbackConfiguration,
+    ]);
 
     const documentsPath = path.join(directory, "documents.json");
     const catalogInputsPath = path.join(directory, "catalog-inputs.json");
@@ -193,7 +208,7 @@ test("character gathering keeps declared candidates and metadata-only sources", 
     const built = JSON.parse(jsonBytes.toString("utf8"));
 
     assert.deepEqual(gunzipSync(fs.readFileSync(`${outputPath}.gz`)), jsonBytes);
-    assert.equal(built.schemaVersion, 5);
+    assert.equal(built.schemaVersion, 6);
     assert.equal(built.documents.characterPartSources.length, 2);
     assert.equal(JSON.parse(fs.readFileSync(
         path.join(directory, "character-library.report.json"),
@@ -318,7 +333,6 @@ function CreateCatalogInputs()
                     },
                     {
                         resourceVersion: "v1",
-                        configurationCandidates: [],
                         geometryCandidates: [ sampleGeometry ],
                         textureCandidates: [ sampleTexture ],
                     },

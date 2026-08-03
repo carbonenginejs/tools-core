@@ -13,8 +13,13 @@ const PROFILE_INPUT_KEYS = new Set([
     "logicalPath",
     "recordID",
 ]);
+const PART_SOURCE_CANDIDATE_FIELDS = [
+    "configurationCandidates",
+    "geometryCandidates",
+    "textureCandidates",
+];
 
-/** Gathers caller-declared, model-shaped character JSON from a file index. */
+/** Gathers declared character JSON and materializes effective part-source versions. */
 export class CjsToolCharacterCatalogGatherer
 {
 
@@ -33,7 +38,7 @@ export class CjsToolCharacterCatalogGatherer
         this.#cache = cache;
     }
 
-    /** Reads declared JSON records and returns the six optional document maps. */
+    /** Reads declared profiles and sparse part sources into six complete document maps. */
     async Gather(index, {
         sourceBuild = null,
         profiles = [],
@@ -84,9 +89,12 @@ export class CjsToolCharacterCatalogGatherer
         {
             try
             {
-                const source = RequireObject(
-                    partSources[recordID],
-                    `Character part source ${recordID}`
+                const source = MaterializePartSource(
+                    RequireObject(
+                        partSources[recordID],
+                        `Character part source ${recordID}`
+                    ),
+                    recordID
                 );
 
                 ValidatePartSourceCandidates(source, index, recordID, report);
@@ -284,6 +292,90 @@ function ValidatePartSourceCandidates(source, index, recordID, report)
             "texture"
         );
     }
+}
+
+function MaterializePartSource(source, recordID)
+{
+    if (!Array.isArray(source.versions))
+    {
+        throw new TypeError(`Character part source ${recordID}.versions must be an array`);
+    }
+
+    const seen = new Set();
+    const versions = source.versions.map((value, versionIndex) =>
+    {
+        const label = `Character part source ${recordID}.versions[${versionIndex}]`;
+        const version = RequireObject(value, label);
+        const resourceVersion = NormalizeResourceVersion(
+            version.resourceVersion,
+            `${label}.resourceVersion`
+        );
+
+        if (seen.has(resourceVersion))
+        {
+            throw new Error(
+                `Character part source ${recordID} contains duplicate resource version `
+                + JSON.stringify(resourceVersion)
+            );
+        }
+
+        seen.add(resourceVersion);
+        return { version, resourceVersion, versionIndex };
+    });
+    const baseline = versions.find(item => item.resourceVersion === null)?.version ?? null;
+
+    return {
+        ...source,
+        versions: versions.map(({ version, resourceVersion, versionIndex }) => ({
+            ...version,
+            resourceVersion,
+            metadata: Object.hasOwn(version, "metadata")
+                ? version.metadata
+                : version !== baseline && baseline && Object.hasOwn(baseline, "metadata")
+                    ? baseline.metadata
+                    : source.metadata ?? null,
+            ...Object.fromEntries(PART_SOURCE_CANDIDATE_FIELDS.map(field => [
+                field,
+                MaterializeCandidateList(
+                    version,
+                    baseline,
+                    field,
+                    `Character part source ${recordID}.versions[${versionIndex}].${field}`
+                )
+            ])),
+        })),
+    };
+}
+
+function MaterializeCandidateList(version, baseline, field, label)
+{
+    const value = Object.hasOwn(version, field)
+        ? version[field]
+        : version !== baseline && baseline && Object.hasOwn(baseline, field)
+            ? baseline[field]
+            : [];
+
+    if (!Array.isArray(value))
+    {
+        throw new TypeError(`${label} must be an array`);
+    }
+
+    return [ ...value ];
+}
+
+function NormalizeResourceVersion(value, label)
+{
+    if (value === null || value === undefined)
+    {
+        return null;
+    }
+
+    if (typeof value !== "string" || !value)
+    {
+        throw new TypeError(`${label} must be null or a non-empty string`);
+    }
+
+    return value;
 }
 
 function ValidateCandidateList(value, index, label, report, countName)

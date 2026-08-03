@@ -17,7 +17,7 @@ Options:
   --documents <file>     Source-neutral JSON containing the direct document maps.
   --catalog-inputs <file>
                          JSON manifest declaring cached model-shaped records
-                         and exact external candidate paths.
+                         and sparse external-candidate authoring records.
   --index <file>         Resource file index for the selected exact build.
   --cache <dir>          Hash-addressed cache root containing indexed inputs.
   --out <file>           Optional JSON output; defaults to the shared custom cache.
@@ -33,9 +33,12 @@ Options:
 The document input may place maps at the root or below "documents". Catalog
 inputs declare "profiles" and "partSources" without relying on filename or
 folder inference. Profile JSON is copied without source-format conversion, and
-candidate order is preserved. This command performs no remote reads and never
+candidate order is preserved. Omitted version candidate fields inherit from
+the single unversioned record; explicit empty arrays remain empty. Effective
+version candidates and metadata are materialized before publication. This
+command performs no remote reads and never
 imports a private source reader. It uses the supplied file index and cache only
-to fold declared JSON definitions and exact external candidates into schema v5.
+to fold declared JSON definitions and exact external candidates into schema v6.
 `;
 
 await Main(process.argv.slice(2)).catch(error =>
@@ -101,7 +104,7 @@ async function Main(argv)
             provider: target.provider,
             build: sourceBuild,
             name: "character",
-            version: "v5",
+            version: "v6",
         }, data, { compact: options.compact });
     const reportPath = path.resolve(options.report || DefaultReportPath(artifact.jsonPath));
     const report = {

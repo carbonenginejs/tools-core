@@ -13,7 +13,7 @@ import {
 } from "../src/character/index.js";
 import { CreateCharacterDocuments } from "./character-library-fixture.js";
 
-test("opens exact and friendly schema-v5 libraries from the shared cache", async context =>
+test("opens exact and friendly schema-v6 libraries from the shared cache", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
     const cache = new CjsToolCache(directory);
@@ -28,7 +28,7 @@ test("opens exact and friendly schema-v5 libraries from the shared cache", async
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v5",
+        version: "v6",
     }, values);
 
     const repository = new CjsToolCharacterRepository({
@@ -81,7 +81,7 @@ test("rejects the retired character-library envelope", async context =>
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v5",
+        version: "v6",
     }, {
         sourceTarget: values.sourceTarget,
         sourceGame: values.sourceGame,
@@ -105,7 +105,7 @@ test("requires matching prepared character-library source identity", async conte
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v5",
+        version: "v6",
     };
     const repository = new CjsToolCharacterRepository({ cache });
 
@@ -140,7 +140,7 @@ test("rejected artifacts do not poison repository retry", async context =>
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v5",
+        version: "v6",
     };
     const repository = new CjsToolCharacterRepository({ cache });
     const invalid = CjsToolCharacter.build(CreateCharacterDocuments(), {
@@ -178,10 +178,10 @@ test("rejects malformed prepared character-library payloads explicitly", async c
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v5",
+        version: "v6",
     }, {
         schema: "carbonenginejs.characterLibrary",
-        schemaVersion: 5,
+        schemaVersion: 6,
         sourceTarget: "eve",
         sourceGame: "Eve",
         sourceProvider: "ccp",

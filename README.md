@@ -51,8 +51,10 @@ and MD5 before they are returned or cached.
 
 Each area is independently importable through a documented package subpath.
 The character subpath gathers caller-selected model-shaped JSON records and
-exact resource candidates, while `@carbonenginejs/runtime-character` owns the
-combined schema-v5 model and hydration contract.
+materializes sparse part-source authoring into complete effective metadata and
+exact resource-candidate inventories, while
+`@carbonenginejs/runtime-character` owns the
+combined schema-v6 model and hydration contract.
 
 ## Documentation
 

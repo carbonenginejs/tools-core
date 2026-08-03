@@ -138,7 +138,7 @@ Node target-policy wrapper around the runtime-owned character builder.
 <!-- class:CjsToolCharacterCatalogGatherer -->
 ## `CjsToolCharacterCatalogGatherer`
 
-Gathers declared model-shaped character records from a validated file index.
+Gathers declared character records and materializes effective part-source versions against a validated file index.
 
 - Export: `@carbonenginejs/tools-core/character`
 - Source: `src/character/CjsToolCharacterCatalogGatherer.js`

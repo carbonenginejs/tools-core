@@ -13,7 +13,7 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | `./audio` | Audio-library preparation, exact-build media reads, and optional neutral music catalogs | `CjsToolAudio`, `CjsToolAudioBuilder`, `CjsToolAudioRepository`, `CjsToolAudioSource`, `CjsToolMusicSource` |
 | `./black` | Indexed Black-to-public-JSON reads | `CjsToolBlack` |
 | `./cache` | Shared cache layout and access | `CjsToolCache` |
-| `./character` | Schema-v5 character-library target policy, source-catalog gathering, and prepared-document loading | `CjsToolCharacter`, `CjsToolCharacterBuilder`, `CjsToolCharacterCatalogGatherer`, `CjsToolCharacterRepository` |
+| `./character` | Schema-v6 character-library target policy, source-catalog gathering, effective version materialization, and prepared-document loading | `CjsToolCharacter`, `CjsToolCharacterBuilder`, `CjsToolCharacterCatalogGatherer`, `CjsToolCharacterRepository` |
 | `./index` | Exact-build app/res indexes, overlays, and validated bytes | `CjsToolIndex`, `CjsIndexOverlayStore` |
 | `./integrations/kick` | Signed Kick webhook normalization | `KickWebhookHandler`, `KickActivityService`, `KickStateService` |
 | `./integrations/twitch` | Twitch OAuth, Helix, IRC/EventSub, chat, activity, and state | Public `Twitch*` classes |

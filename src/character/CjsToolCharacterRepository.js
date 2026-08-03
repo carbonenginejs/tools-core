@@ -84,7 +84,7 @@ export class CjsToolCharacterRepository
         }
     }
 
-    /** Loads and installs one direct schema-v5 document. */
+    /** Loads and installs one direct schema-v6 document. */
     async #Load(target, build)
     {
         const filePath = this.#cache.GetCustomPath({
@@ -92,7 +92,7 @@ export class CjsToolCharacterRepository
             provider: target.provider,
             build,
             name: "character",
-            version: "v5"
+            version: "v6"
         });
         let data;
 

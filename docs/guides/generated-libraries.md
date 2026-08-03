@@ -42,7 +42,7 @@ whose decompressed bytes equal the canonical JSON.
 ## Library shapes
 
 When `--out` is omitted, the audio and character builders install
-`audio_v2.json` or `character_v5.json` and its deterministic gzip sibling into
+`audio_v2.json` or `character_v6.json` and its deterministic gzip sibling into
 the shared exact-build custom cache. Those are the preferred locations used by
 their repositories and local HTTP routes. An explicit `--out` remains
 available for distribution builds and other application-owned publication.
@@ -102,20 +102,25 @@ without making the HTTP adapter understand WEM or BNK codecs.
 
 Character builds require source-neutral JSON containing the twelve direct
 document maps. A separate catalog-input manifest declares cached model-shaped
-JSON records and exact part-source candidate arrays. Each profile names its
-target document and indexed logical path; part sources name their record
-identity, metadata relationship, and versioned configuration, geometry, and
-texture candidates. Tools-core neither converts source-specific record shapes
-nor infers records from filenames or folders. It copies declared JSON records,
+JSON records and sparse part-source authoring inventories. Each profile names
+its target document and indexed logical path; part sources name their record
+identity, baseline metadata relationship, and versioned configuration,
+geometry, and texture candidates. A version may omit one of those candidate
+fields to inherit that role from the single `resourceVersion: null` record;
+an explicit empty array means no candidates. Version metadata uses the same
+field-presence rule. Duplicate resource-version records reject. Tools-core
+neither converts source-specific record shapes nor infers records from
+filenames or folders. It materializes complete effective version records,
 preserves candidate order, checks candidates against the caller-selected
-resource index, and delegates the combined schema-v5 document to
+resource index, and delegates the combined schema-v6 document to
 `@carbonenginejs/runtime-character/library-builder`.
 The manifest is required by the command; use an empty JSON object when no
 optional catalog records are available.
 
 The gathered part-source records retain exact configuration, geometry, and
-texture candidate paths. A caller can declare metadata-only sources even when
-no selectable type names them. The producer does not select a model family,
+texture candidate paths plus effective metadata relationships. A caller can
+declare metadata-only sources even when no selectable type names them. The
+producer does not select a model family,
 pair detail levels, infer material or projection links, compile recipe
 selections, or embed external asset bytes. The runtime library hydrates the
 same combined JSON shape; configuration graphs, geometry, images, animations,

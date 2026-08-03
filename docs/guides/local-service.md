@@ -46,7 +46,7 @@ groups are:
 | `/{target}/{build}/audio/music/library` | Installable available-song music library |
 | `/ccp/{build}/resources[/<path>]` | EVE `res:/` file or immediate directory listing |
 | `/eve/{build}/sde/<table>[/<id>]` | Prepared SDE table reads |
-| `/eve/{build}/character[/library.json]` | Complete schema-v5 character library |
+| `/eve/{build}/character[/library.json]` | Complete schema-v6 character library |
 | `/eve/{build}/skin[...]` | SKIN library sections |
 | `/eve/{build}/skinr[...]` | SKINR library sections |
 | `/eve/{build}/weapons[...]` | Weapon, ammunition, projectile, and group queries |
