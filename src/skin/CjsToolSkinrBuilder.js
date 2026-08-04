@@ -1,3 +1,4 @@
+import factionSlotDefinitions from "../../definitions/skinr-faction-slots-v1-2026-08-05.json" with { type: "json" };
 import {
     compareIds,
     mapRecords,
@@ -36,6 +37,17 @@ export class CjsToolSkinrBuilder
 {
 
     static schema = "carbonenginejs.skinrLibrary";
+
+    /**
+     * Curated SOF-faction slot conversion served as the library's
+     * skinrSlotsToMaterialLayerByFaction section. Index = cosmetic slot by
+     * position (1 primary_nanocoating, 2 secondary_nanocoating,
+     * 3 tertiary_nanocoating, 4 tech_area), value = the mesh material layer
+     * (material1-4) that slot's component feeds. The authored data lives in
+     * definitions/skinr-faction-slots-v1-2026-08-05.json; no source table
+     * carries this conversion.
+     */
+    static skinrSlotsToMaterialLayerByFaction = factionSlotDefinitions.slotsToMaterialLayerByFaction;
 
     static build(options = {})
     {
@@ -162,10 +174,13 @@ export class CjsToolSkinrBuilder
             slotConfigurations,
         );
 
+        const skinrSlotsToMaterialLayerByFaction = this.skinrSlotsToMaterialLayerByFaction;
+
         ValidateReferences({
             componentCategories,
             componentRarities,
             components,
+            skinrSlotsToMaterialLayerByFaction,
             slotCategories,
             slotConfigurations,
             slotNames,
@@ -190,6 +205,7 @@ export class CjsToolSkinrBuilder
                     licenses.sort((left, right) => compareIds(left.componentID, right.componentID)),
                 ]),
             ),
+            skinrSlotsToMaterialLayerByFaction,
             slotCategories,
             slotConfigurations,
             slotNames,
@@ -334,6 +350,20 @@ function ValidateReferences(data)
         for (const slotID of configuration.config)
         {
             requireRecord(data.slots, slotID, "Cosmetic slot");
+        }
+    }
+
+    // Curated data, not table-derived: each faction entry must be a
+    // permutation of the four mesh material layers (1-4), one per cosmetic
+    // slot position.
+    for (const [ factionName, materialLayers ] of Object.entries(data.skinrSlotsToMaterialLayerByFaction))
+    {
+        const unique = new Set(materialLayers);
+
+        if (!Array.isArray(materialLayers) || materialLayers.length !== 4 || unique.size !== 4
+            || materialLayers.some(layer => ![ 1, 2, 3, 4 ].includes(layer)))
+        {
+            throw new Error(`Faction slot conversion for ${factionName} must be a permutation of material layers 1-4`);
         }
     }
 

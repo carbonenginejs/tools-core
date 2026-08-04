@@ -1,0 +1,23 @@
+{
+    "schema": "carbonenginejs.skinrSlotsToMaterialLayerByFaction",
+    "version": 1,
+    "description": "SOF faction name -> mesh material layer per cosmetic slot. Index = cosmetic slot by position (slotNames: 1 primary_nanocoating, 2 secondary_nanocoating, 3 tertiary_nanocoating, 4 tech_area), value = the mesh material layer (material1-4) that slot's component feeds. The pattern material slots are not faction-dependent: slot 6 always feeds patternMaterial1 and slot 8 patternMaterial2. No source table carries this conversion - it is curated per-faction data, validated at build time.",
+    "slotsToMaterialLayerByFaction": {
+        "amarrbase": [ 4, 1, 2, 3 ],
+        "angelbase": [ 1, 2, 4, 3 ],
+        "bloodraider": [ 3, 4, 1, 2 ],
+        "caldaribase": [ 3, 2, 4, 1 ],
+        "deathless": [ 3, 4, 2, 1 ],
+        "gallentebase": [ 4, 3, 1, 2 ],
+        "guristas": [ 3, 4, 2, 1 ],
+        "minmatarbase": [ 4, 3, 2, 1 ],
+        "mordubase": [ 3, 4, 1, 2 ],
+        "orebase": [ 4, 2, 3, 1 ],
+        "sanshabase": [ 3, 4, 1, 2 ],
+        "serpentis": [ 3, 4, 1, 2 ],
+        "soctbase": [ 3, 2, 4, 1 ],
+        "soebase": [ 3, 4, 1, 2 ],
+        "triglavianbase": [ 3, 4, 2, 1 ],
+        "upwell-defence": [ 3, 2, 4, 1 ]
+    }
+}

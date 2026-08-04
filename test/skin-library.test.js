@@ -236,6 +236,16 @@ test("loads both library table sets once from an exact source", async () =>
     assert.equal(calls, 1);
     assert.equal(libraries.skin.skins[10].skinID, 10);
     assert.equal(libraries.skinr.components[53].componentID, 53);
+
+    // Curated faction slot conversion rides the library: every entry maps the
+    // four cosmetic slots onto a permutation of the four material layers.
+    const slotsToLayers = libraries.skinr.skinrSlotsToMaterialLayerByFaction;
+    assert.ok(Object.keys(slotsToLayers).length > 0);
+    for (const materialLayers of Object.values(slotsToLayers))
+    {
+        assert.deepEqual([ ...materialLayers ].sort(), [ 1, 2, 3, 4 ]);
+    }
+    assert.deepEqual(slotsToLayers.amarrbase, [ 4, 1, 2, 3 ]);
 });
 
 test("serves whole libraries and exact matching JSON subtrees", async context =>
@@ -290,4 +300,18 @@ test("serves whole libraries and exact matching JSON subtrees", async context =>
     assert.deepEqual(searchedOptions, fullSkin.names["special ship"]);
     assert.equal(componentResponse.headers.get("x-carbon-build"), "3436472");
     assert.equal((await fetch(`${root}/eve/latest/skinr/components/999`)).status, 404);
+
+    const slotsToLayers = await (await fetch(
+        `${root}/eve/latest/skinr/skinrSlotsToMaterialLayerByFaction`
+    )).json();
+    const amarrSlotsToLayers = await (await fetch(
+        `${root}/eve/latest/skinr/skinrSlotsToMaterialLayerByFaction/amarrbase`
+    )).json();
+
+    assert.deepEqual(slotsToLayers, fullSkinr.skinrSlotsToMaterialLayerByFaction);
+    assert.deepEqual(amarrSlotsToLayers, fullSkinr.skinrSlotsToMaterialLayerByFaction.amarrbase);
+    assert.equal(
+        (await fetch(`${root}/eve/latest/skinr/skinrSlotsToMaterialLayerByFaction/unknownbase`)).status,
+        404,
+    );
 });
