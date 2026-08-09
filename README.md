@@ -54,7 +54,8 @@ The character subpath gathers caller-selected model-shaped JSON records and
 materializes sparse part-source authoring into complete effective metadata and
 exact resource-candidate inventories, while
 `@carbonenginejs/runtime-character` owns the
-combined schema-v6 model and hydration contract.
+combined schema-v8 model and hydration contract. Decoded character definitions
+are retained losslessly; typed catalogs are additive indexes.
 
 ## Documentation
 

@@ -25,6 +25,7 @@ const supportMetadataPath = "res:/example/definitions/support-metadata.json";
 const materialPath = "res:/example/definitions/sample-material.json";
 const projectionPath = "res:/example/definitions/sample-projection.json";
 const recipePath = "res:/example/definitions/sample-recipe.json";
+const rawDefinitionPath = "res:/example/definitions/sample.color";
 const sampleConfiguration = "res:/example/assets/sample-primary.configuration";
 const sampleFallbackConfiguration = "res:/example/assets/sample-fallback.configuration";
 const sampleGeometry = "res:/example/assets/sample.geometry";
@@ -109,6 +110,7 @@ test("character gathering keeps declared candidates and metadata-only sources", 
         sampleTexture,
         supportConfiguration,
         supportGeometry,
+        rawDefinitionPath,
     ]);
 
     const index = CjsFileIndex.parseResFileIndex(`${rows.join("\n")}\n`);
@@ -148,6 +150,12 @@ test("character gathering keeps declared candidates and metadata-only sources", 
         [ { value: [ 0.1, 0.2, 0.3, 1 ] } ]
     );
     assert.equal(gathered.report.catalogs.characterPartSources, 2);
+    assert.deepEqual(documents.characterDefinitions[rawDefinitionPath].values, {
+        colors: [ [ 0.1, 0.2, 0.3, 1 ] ],
+        pattern: "example",
+    });
+    assert.equal(gathered.report.definitionCompilation.retainedDefinitions, 1);
+    assert.equal(gathered.report.definitionCompilation.droppedDefinitions, 0);
     assert.equal(gathered.report.candidateResources.partSources, 2);
     assert.doesNotMatch(JSON.stringify(documents), /lodBundles|modelFamily|recipeLinks/u);
 
@@ -208,7 +216,8 @@ test("character gathering keeps declared candidates and metadata-only sources", 
     const built = JSON.parse(jsonBytes.toString("utf8"));
 
     assert.deepEqual(gunzipSync(fs.readFileSync(`${outputPath}.gz`)), jsonBytes);
-    assert.equal(built.schemaVersion, 6);
+    assert.equal(built.schemaVersion, 8);
+    assert.equal(built.documents.characterDefinitions.length, 1);
     assert.equal(built.documents.characterPartSources.length, 2);
     assert.equal(JSON.parse(fs.readFileSync(
         path.join(directory, "character-library.report.json"),
@@ -290,6 +299,12 @@ test("character gathering reports missing and invalid declared inputs", async co
 function CreateCatalogInputs()
 {
     return {
+        definitions: {
+            [rawDefinitionPath]: {
+                colors: [ [ 0.1, 0.2, 0.3, 1 ] ],
+                pattern: "example",
+            },
+        },
         profiles: [
             {
                 documentName: "characterPartTypes",

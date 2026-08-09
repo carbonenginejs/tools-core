@@ -1,6 +1,6 @@
 {
     "name": "@carbonenginejs/tools-core",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "description": "Node toolchain for CarbonEngineJS acquisition, generated libraries, caches, graph output, and optional HTTP and realtime service hosting.",
     "type": "module",
     "main": "src/index.js",
@@ -87,7 +87,7 @@
     },
     "dependencies": {
         "@carbonenginejs/runtime-audio": "^0.3.0",
-        "@carbonenginejs/runtime-character": "^0.2.0",
+        "@carbonenginejs/runtime-character": "^0.3.0",
         "@carbonenginejs/runtime-resource": "^0.12.0",
         "@carbonenginejs/runtime-sof": "^0.3.1",
         "@carbonenginejs/runtime-trinity": "^0.6.0",

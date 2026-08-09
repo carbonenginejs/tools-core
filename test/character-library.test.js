@@ -7,16 +7,19 @@ import {
     CjsToolCharacter,
     CjsToolCharacterBuilder,
     CjsToolCharacterCatalogGatherer,
+    CjsToolCharacterDefinitionCompiler,
     CjsToolCharacterRepository,
 } from "../src/character/index.js";
 import { CreateCharacterDocuments } from "./character-library-fixture.js";
 
-test("character subpath exposes the schema-v6 producer surface", () =>
+test("character subpath exposes the schema-v8 producer surface", () =>
 {
     assert.equal(typeof CjsToolCharacter, "function");
     assert.equal(typeof CjsToolCharacterBuilder, "function");
     assert.equal(typeof CjsToolCharacterCatalogGatherer, "function");
+    assert.equal(typeof CjsToolCharacterDefinitionCompiler, "function");
     assert.equal(typeof CjsToolCharacterRepository, "function");
+    assert.equal(rootApi.CjsToolCharacterDefinitionCompiler, undefined);
     assert.equal(rootApi.CjsToolCharacter, undefined);
     assert.equal(rootApi.CjsToolCharacterAssembler, undefined);
     assert.equal(rootApi.CjsToolCharacterCompiler, undefined);
@@ -65,12 +68,12 @@ test("target-aware character builds delegate to the runtime-owned schema", () =>
     const library = CjsCharacterLibrary.from(values);
 
     library.Reindex();
-    assert.equal(values.schemaVersion, 6);
+    assert.equal(values.schemaVersion, 8);
     assert.equal(values.sourceTarget, "eve");
     assert.equal(values.sourceGame, "Eve");
     assert.equal(values.sourceProvider, "ccp");
     assert.equal(values.sourceBuild, "3450001");
-    assert.equal(library.ListDocuments().length, 18);
+    assert.equal(library.ListDocuments().length, 19);
     assert.strictEqual(
         library.Get("characterResources", 21).partType,
         library.Get("characterPartTypes", typePath)
@@ -96,7 +99,7 @@ test("unscoped builder remains usable with caller-owned synthetic documents", ()
         sourceBuild: "3450001",
     });
 
-    assert.equal(values.schemaVersion, 6);
+    assert.equal(values.schemaVersion, 8);
     assert.equal(Object.hasOwn(values, "sourceTarget"), false);
     assert.equal(fromInputs.sourceTarget, "eve");
     assert.equal(fromInputs.sourceBuild, "3450001");

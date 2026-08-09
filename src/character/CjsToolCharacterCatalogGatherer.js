@@ -1,7 +1,9 @@
 import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
 import { CjsToolCache } from "../cache/CjsToolCache.js";
+import { CjsToolCharacterDefinitionCompiler } from "./CjsToolCharacterDefinitionCompiler.js";
 
 const PROFILE_DOCUMENTS = new Set([
+    "characterDefinitions",
     "characterPartTypes",
     "characterPartMetadata",
     "characterMaterialProfiles",
@@ -19,7 +21,7 @@ const PART_SOURCE_CANDIDATE_FIELDS = [
     "textureCandidates",
 ];
 
-/** Gathers declared character JSON and materializes effective part-source versions. */
+/** Gathers decoded or declared character JSON and materializes effective part-source versions. */
 export class CjsToolCharacterCatalogGatherer
 {
 
@@ -38,9 +40,12 @@ export class CjsToolCharacterCatalogGatherer
         this.#cache = cache;
     }
 
-    /** Reads declared profiles and sparse part sources into six complete document maps. */
+    /** Reads lossless definitions, declared profiles, and sparse sources into seven document maps. */
     async Gather(index, {
         sourceBuild = null,
+        definitions = null,
+        characterResources = {},
+        characterModifierLocations = {},
         profiles = [],
         partSources = {},
     } = {})
@@ -60,6 +65,54 @@ export class CjsToolCharacterCatalogGatherer
         RequireObject(partSources, "Character catalog partSources");
         const documents = CreateCatalogDocuments();
         const report = CreateReport(index, sourceBuild);
+        const sourceInputs = {};
+
+        if (definitions !== null && definitions !== undefined)
+        {
+            const compiled = CjsToolCharacterDefinitionCompiler.compile(index, {
+                definitions,
+                characterResources,
+                characterModifierLocations,
+                sourceBuild,
+            });
+
+            report.definitionCompilation = compiled.report;
+
+            for (const recordID of Object.keys(compiled.characterDefinitions).sort(Compare))
+            {
+                AddRecord(
+                    documents.characterDefinitions,
+                    recordID,
+                    compiled.characterDefinitions[recordID],
+                    "definition"
+                );
+            }
+
+            for (const recordID of Object.keys(compiled.partTypes).sort(Compare))
+            {
+                AddRecord(
+                    documents.characterPartTypes,
+                    recordID,
+                    compiled.partTypes[recordID],
+                    "part type"
+                );
+            }
+
+            for (const recordID of Object.keys(compiled.partMetadata).sort(Compare))
+            {
+                AddRecord(
+                    documents.characterPartMetadata,
+                    recordID,
+                    compiled.partMetadata[recordID],
+                    "part metadata"
+                );
+            }
+
+            for (const recordID of Object.keys(compiled.partSources).sort(Compare))
+            {
+                sourceInputs[recordID] = compiled.partSources[recordID];
+            }
+        }
 
         for (let profileIndex = 0; profileIndex < profiles.length; profileIndex++)
         {
@@ -87,11 +140,26 @@ export class CjsToolCharacterCatalogGatherer
 
         for (const recordID of Object.keys(partSources).sort(Compare))
         {
+            if (Object.hasOwn(sourceInputs, recordID))
+            {
+                report.errors.push({
+                    input: `partSources.${recordID}`,
+                    path: null,
+                    message: `Duplicate compiled character part source ${JSON.stringify(recordID)}`,
+                });
+                continue;
+            }
+
+            sourceInputs[recordID] = partSources[recordID];
+        }
+
+        for (const recordID of Object.keys(sourceInputs).sort(Compare))
+        {
             try
             {
                 const source = MaterializePartSource(
                     RequireObject(
-                        partSources[recordID],
+                        sourceInputs[recordID],
                         `Character part source ${recordID}`
                     ),
                     recordID
@@ -212,6 +280,7 @@ export class CjsToolCharacterCatalogGatherer
 function CreateCatalogDocuments()
 {
     return {
+        characterDefinitions: {},
         characterPartTypes: {},
         characterPartSources: {},
         characterPartMetadata: {},
@@ -231,6 +300,7 @@ function CreateReport(index, sourceBuild)
             : String(sourceBuild),
         indexedFiles: index.count,
         selectedProfiles: {},
+        definitionCompilation: null,
         missingIndexEntries: [],
         missingCacheFiles: [],
         errors: [],

@@ -84,32 +84,43 @@ export class CjsToolCharacterRepository
         }
     }
 
-    /** Loads and installs one direct schema-v6 document. */
+    /** Loads and installs one direct schema-v8 document, with schema-v7 migration fallback. */
     async #Load(target, build)
     {
-        const filePath = this.#cache.GetCustomPath({
-            game: target.game,
-            provider: target.provider,
-            build,
-            name: "character",
-            version: "v6"
-        });
         let data;
+        let filePath = null;
 
-        try
+        for (const version of [ "v8", "v7" ])
         {
-            data = JSON.parse(await fs.readFile(filePath, "utf8"));
-        }
-        catch (error)
-        {
-            if (error.code === "ENOENT")
+            const candidate = this.#cache.GetCustomPath({
+                game: target.game,
+                provider: target.provider,
+                build,
+                name: "character",
+                version
+            });
+
+            try
             {
-                const missing = new Error(`Character library is not prepared for ${target.id} build ${build}`);
-                missing.statusCode = 404;
-                throw missing;
+                data = JSON.parse(await fs.readFile(candidate, "utf8"));
+                filePath = candidate;
+                break;
             }
+            catch (error)
+            {
+                if (error.code === "ENOENT") continue;
 
-            throw error;
+                throw error;
+            }
+        }
+
+        if (filePath === null)
+        {
+            const missing = new Error(
+                `Character library is not prepared for ${target.id} build ${build}`
+            );
+            missing.statusCode = 404;
+            throw missing;
         }
 
         const prepared = data;

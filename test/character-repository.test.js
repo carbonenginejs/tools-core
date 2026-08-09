@@ -13,7 +13,7 @@ import {
 } from "../src/character/index.js";
 import { CreateCharacterDocuments } from "./character-library-fixture.js";
 
-test("opens exact and friendly schema-v6 libraries from the shared cache", async context =>
+test("opens exact and friendly schema-v8 libraries from the shared cache", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
     const cache = new CjsToolCache(directory);
@@ -28,7 +28,7 @@ test("opens exact and friendly schema-v6 libraries from the shared cache", async
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v6",
+        version: "v8",
     }, values);
 
     const repository = new CjsToolCharacterRepository({
@@ -48,7 +48,7 @@ test("opens exact and friendly schema-v6 libraries from the shared cache", async
     assert.ok(exact instanceof CjsCharacterLibrary);
     assert.strictEqual(friendly, exact);
     assert.equal(exact.Get("races", 3).nameID, "1003");
-    assert.equal(exact.ListDocuments().length, 18);
+    assert.equal(exact.ListDocuments().length, 19);
 });
 
 test("reports a missing prepared character library as not found", async context =>
@@ -81,7 +81,7 @@ test("rejects the retired character-library envelope", async context =>
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v6",
+        version: "v7",
     }, {
         sourceTarget: values.sourceTarget,
         sourceGame: values.sourceGame,
@@ -105,7 +105,7 @@ test("requires matching prepared character-library source identity", async conte
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v6",
+        version: "v7",
     };
     const repository = new CjsToolCharacterRepository({ cache });
 
@@ -140,7 +140,7 @@ test("rejected artifacts do not poison repository retry", async context =>
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v6",
+        version: "v7",
     };
     const repository = new CjsToolCharacterRepository({ cache });
     const invalid = CjsToolCharacter.build(CreateCharacterDocuments(), {
@@ -178,10 +178,10 @@ test("rejects malformed prepared character-library payloads explicitly", async c
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v6",
+        version: "v7",
     }, {
         schema: "carbonenginejs.characterLibrary",
-        schemaVersion: 6,
+        schemaVersion: 7,
         sourceTarget: "eve",
         sourceGame: "Eve",
         sourceProvider: "ccp",

@@ -32,13 +32,15 @@ Options:
 
 The document input may place maps at the root or below "documents". Catalog
 inputs declare "profiles" and "partSources" without relying on filename or
-folder inference. Profile JSON is copied without source-format conversion, and
+folder inference. Every supplied decoded definition is retained losslessly;
+typed definition catalogs are additive indexes over that retained JSON.
+Profile JSON is copied without source-format conversion, and
 candidate order is preserved. Omitted version candidate fields inherit from
 the single unversioned record; explicit empty arrays remain empty. Effective
 version candidates and metadata are materialized before publication. This
 command performs no remote reads and never
 imports a private source reader. It uses the supplied file index and cache only
-to fold declared JSON definitions and exact external candidates into schema v6.
+to fold declared JSON definitions and exact external candidates into schema v8.
 `;
 
 await Main(process.argv.slice(2)).catch(error =>
@@ -80,12 +82,17 @@ async function Main(argv)
     const catalogInputs = ReadCatalogInputs(
         JSON.parse(await fs.readFile(path.resolve(options.catalogInputs), "utf8"))
     );
-    const gathered = await new CjsToolCharacterCatalogGatherer({ cache }).Gather(
-        index,
-        { sourceBuild, ...catalogInputs }
-    );
     const input = ReadDocumentInput(
         JSON.parse(await fs.readFile(path.resolve(options.documents), "utf8"))
+    );
+    const gathered = await new CjsToolCharacterCatalogGatherer({ cache }).Gather(
+        index,
+        {
+            sourceBuild,
+            ...catalogInputs,
+            characterResources: input.characterResources ?? {},
+            characterModifierLocations: input.characterModifierLocations ?? {},
+        }
     );
     const documents = MergeDocuments(input, gathered.documents);
     const data = character.Build(documents, {
@@ -104,7 +111,7 @@ async function Main(argv)
             provider: target.provider,
             build: sourceBuild,
             name: "character",
-            version: "v6",
+            version: "v8",
         }, data, { compact: options.compact });
     const reportPath = path.resolve(options.report || DefaultReportPath(artifact.jsonPath));
     const report = {
@@ -136,7 +143,7 @@ function ReadCatalogInputs(value)
     }
 
     const unknown = Object.keys(value).filter(key =>
-        ![ "profiles", "partSources" ].includes(key));
+        ![ "definitions", "profiles", "partSources" ].includes(key));
 
     if (unknown.length)
     {

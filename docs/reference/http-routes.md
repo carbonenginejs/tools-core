@@ -224,7 +224,7 @@ GET /eve/<build>/character
 GET /eve/<build>/character/library.json
 ```
 
-Both routes return the same complete schema-v6 model-shaped document. The
+Both routes return the same complete schema-v8 model-shaped document. The
 runtime-character library owns hydration, document lookup, and graph
 relationships. The HTTP adapter does not expose the retired inferred
 part/name/category/LOD query surface.

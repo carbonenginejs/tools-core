@@ -42,7 +42,7 @@ whose decompressed bytes equal the canonical JSON.
 ## Library shapes
 
 When `--out` is omitted, the audio and character builders install
-`audio_v2.json` or `character_v6.json` and its deterministic gzip sibling into
+`audio_v2.json` or `character_v8.json` and its deterministic gzip sibling into
 the shared exact-build custom cache. Those are the preferred locations used by
 their repositories and local HTTP routes. An explicit `--out` remains
 available for distribution builds and other application-owned publication.
@@ -101,18 +101,49 @@ contract, and resolves prepared or loose media and embedded bank windows
 without making the HTTP adapter understand WEM or BNK codecs.
 
 Character builds require source-neutral JSON containing the twelve direct
-document maps. A separate catalog-input manifest declares cached model-shaped
-JSON records and sparse part-source authoring inventories. Each profile names
-its target document and indexed logical path; part sources name their record
-identity, baseline metadata relationship, and versioned configuration,
-geometry, and texture candidates. A version may omit one of those candidate
-fields to inherit that role from the single `resourceVersion: null` record;
-an explicit empty array means no candidates. Version metadata uses the same
-field-presence rule. Duplicate resource-version records reject. Tools-core
-neither converts source-specific record shapes nor infers records from
-filenames or folders. It materializes complete effective version records,
-preserves candidate order, checks candidates against the caller-selected
-resource index, and delegates the combined schema-v6 document to
+document maps. A separate catalog-input manifest can provide decoded
+definition values, already model-shaped profiles, sparse part-source authoring
+inventories, or a combination of those inputs. Decoded definitions are keyed
+by their indexed logical paths. Every supplied decoded definition is retained
+losslessly as JSON in `characterDefinitions`; the compiler fails rather than
+silently dropping one. It additionally attempts to recognize exact three- and
+four-value `.type` arrays and joins successful typed projections to the supplied
+`characterResources` document. It reads no source bytes and does not know how
+the JSON was decoded.
+
+An exact `metadata.yaml` definition below a supported sex-specific character
+root receives a second additive projection when its decoded JSON matches the
+public character-part metadata fields. The original definition remains
+unchanged, including the authored `dependantModifiers` spelling. The typed
+`characterPartMetadata` record uses the runtime model's
+`dependentModifiers` spelling, retains the strings in authored order, and
+links to the exact baseline or ordinary `v<number>` owner folder. A metadata
+folder that has no selectable `.type` becomes a metadata-only part source so
+its indexed configuration, geometry, and texture candidates remain available.
+An unknown or malformed metadata shape remains only in
+`characterDefinitions` and is recorded as a non-fatal projection error.
+
+The definition compiler retains the exact decoded value for every indexed
+definition. Its typed `.type` projection retains the fourth value as `bloodlineIDs`
+without assigning availability semantics. It keeps every exact definition
+path and source folder, preserves separate sex-specific part sources when one
+published resource path is shared, and inventories only direct source files
+and ordinary `v<number>` child folders. Configuration, geometry, and image
+paths remain unordered candidates: no model family, LOD pair, texture role, or
+material meaning is inferred. A malformed, newly shaped, or conflicting
+`.type` value remains in `characterDefinitions`; its optional typed projection
+is omitted atomically and recorded in `projectionErrors` instead of aborting
+the retained-source library.
+
+Model-shaped profiles name their target document and indexed logical path;
+part sources name their record identity, baseline metadata relationship, and
+versioned configuration, geometry, and texture candidates. A version may omit
+one of those candidate fields to inherit that role from the single
+`resourceVersion: null` record; an explicit empty array means no candidates.
+Version metadata uses the same field-presence rule. Duplicate resource-version
+records reject. Tools-core materializes complete effective version records,
+checks candidates against the caller-selected resource index, and delegates
+the combined schema-v8 document to
 `@carbonenginejs/runtime-character/library-builder`.
 The manifest is required by the command; use an empty JSON object when no
 optional catalog records are available.
@@ -120,11 +151,30 @@ optional catalog records are available.
 The gathered part-source records retain exact configuration, geometry, and
 texture candidate paths plus effective metadata relationships. A caller can
 declare metadata-only sources even when no selectable type names them. The
+compiler also creates those sources for exact decoded `metadata.yaml` owner
+folders. Schema v8 retains each dependency and occlusion string and adds an
+ordered modifier-reference record beside it. An unsuffixed safe path can link
+to a unique modifier location, an existing part source, or a source folder
+proved by direct indexed candidates. Suffixed values remain opaque, and no
+reference fabricates resource-version or rendering policy. The
 producer does not select a model family,
 pair detail levels, infer material or projection links, compile recipe
 selections, or embed external asset bytes. The runtime library hydrates the
 same combined JSON shape; configuration graphs, geometry, images, animations,
 and effects remain resource-manager inputs.
+
+Programmatic callers may use
+`CjsToolCharacterDefinitionCompiler.compile(index, { definitions,
+characterResources })` directly. `definitions` is an ordinary JSON object
+keyed by resource path; `characterResources` accepts either a keyed document
+map or its record array. The result contains lossless `characterDefinitions`,
+model-shaped `partTypes` and `partMetadata`, sparse `partSources`, and a report
+listing retained, projected, unprojected, and dropped counts alongside
+unlinked definitions, non-fatal typed `projectionErrors`, unresolved resource
+paths, multi-source identities, multi-folder sources, projected metadata, and
+exact candidate counts. Passing the same inputs to
+`CjsToolCharacterCatalogGatherer.Gather()` also materializes the sparse
+versions for immediate library building.
 
 SKIN and SKINR are separate exact-source libraries. SKIN owns developer-authored
 skin/material/type relations; SKINR owns component, slot, ship-tree, and
