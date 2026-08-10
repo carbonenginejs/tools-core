@@ -2151,7 +2151,7 @@ export function deriveExpectedFields(doc, options = {})
     return { fields, methods, fallback: null, meta };
 }
 
-// Enums a class's fields reference through @schema.enum without owning them.
+// Enums a class's fields reference through @type.enum without owning them.
 // Prefer an exact/class-scoped source declaration, then an unambiguous scanner
 // catalog entry, then a bounded shared source vocabulary. No short-name choice
 // is made between distinct scanner declarations.
@@ -2502,9 +2502,16 @@ function handleStatement(stmt, pending, line, fields, methods, helpers)
         const annotation = fieldMatch[2] ? fieldMatch[2].trim() : null;
         const initializer = fieldMatch[3].trim();
 
-        const typeDecorators = pending.filter(d => d.ns === "type" && d.name !== "define");
+        // enum and hideInherited live in the `type` namespace but are not type
+        // KINDS: typeDecorators[0] decides the field's kind, so letting either
+        // in would make a field's type depend on decorator order.
+        const typeDecorators = pending.filter(d => d.ns === "type"
+            && d.name !== "define" && d.name !== "enum" && d.name !== "hideInherited");
         const ioDecorators = pending.filter(d => d.ns === "io");
-        const schemaDecorators = pending.filter(d => d.ns === "schema");
+
+        // Both spellings are read while packages migrate from schema.enum to
+        // type.enum; only type.enum is emitted.
+        const enumDecorators = pending.filter(d => (d.ns === "type" || d.ns === "schema") && d.name === "enum");
 
         const field = {
             name,
@@ -2516,7 +2523,7 @@ function handleStatement(stmt, pending, line, fields, methods, helpers)
             ioNames: ioDecorators.filter(d => d.name !== "notify").map(d => d.name),
             notify: ioDecorators.some(d => d.name === "notify"),
             enumArg: (() => {
-                const enumDecorator = schemaDecorators.find(d => d.name === "enum");
+                const enumDecorator = enumDecorators[0];
                 return enumDecorator && enumDecorator.arg !== undefined ? stripQuotes(enumDecorator.arg) : null;
             })(),
             hasType: typeDecorators.length > 0,
@@ -2942,7 +2949,7 @@ export function compareClass(expected, parsed, options = {})
         // enum meta.
         if (exp.enumType && !act.enumArg)
         {
-            notes.push(`expected @schema.enum("${exp.enumType}")`);
+            notes.push(`expected @type.enum("${exp.enumType}")`);
         }
         else if (exp.enumType && act.enumArg && exp.enumType !== act.enumArg)
         {
@@ -3518,7 +3525,6 @@ export function renderClassFile(expected, options = {})
     const methods = expected.methods || [];
 
     const usesIo = fields.some(field => field.io || field.notify);
-    const usesEnum = fields.some(field => field.enumType);
     const usesMethods = methods.length > 0;
 
     // Enums routed to an external package (e.g. runtime-utils) are imported and
@@ -3542,7 +3548,8 @@ export function renderClassFile(expected, options = {})
     const importNames = ["type"];
     if (usesMethods) importNames.push("carbon", "impl");
     if (usesIo) importNames.push("io");
-    if (usesEnum) importNames.push("schema");
+    // An enum field needs no extra import: type.enum lives in the `type`
+    // namespace, which is always imported.
     importNames.sort();
 
     // Math fields use runtime-utils factories and built-in Float32Array types.
@@ -3616,7 +3623,7 @@ export function renderClassFile(expected, options = {})
         if (field.notify) lines.push("  @io.notify");
         if (field.io) lines.push(`  @io.${field.io}`);
         lines.push(`  @type.${renderTypeDecorator(field)}`);
-        if (field.enumType) lines.push(`  @schema.enum("${field.enumType}")`);
+        if (field.enumType) lines.push(`  @type.enum("${field.enumType}")`);
         lines.push(`  ${renderFieldDecl(field, isJs)}`);
     });
 
@@ -3649,7 +3656,7 @@ export function renderClassFile(expected, options = {})
     });
 
     // Shared enums the fields reference without owning: stamped as class
-    // statics so @schema.enum("X") always resolves via `Constructor[X]`.
+    // statics so @type.enum("X") always resolves via `Constructor[X]`.
     // Import-routed enums are excluded here and aliased from the import below.
     const referencedEnums = (Array.isArray(meta.referencedEnums) ? meta.referencedEnums : [])
         .filter(entry => !seenImportedEnum.has(entry.name));
@@ -3664,7 +3671,7 @@ export function renderClassFile(expected, options = {})
         lines.push("  });");
     });
 
-    // Import-routed enum statics: alias the class-static name (the @schema.enum
+    // Import-routed enum statics: alias the class-static name (the @type.enum
     // key) to the imported vocabulary object.
     importedEnumNames.forEach((enumName, index) =>
     {
