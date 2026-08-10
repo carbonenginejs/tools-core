@@ -49,14 +49,24 @@ builder then redoes all the work it just proved was unnecessary.
 
 ## Nothing needs hashing: the identity is already recorded
 
-EVE resources are content addressed, and the address is the stored file name:
+EVE resources are content addressed, and the address is the stored file name.
+What is verified from source: `CjsIndexOverlayStore.validateContentAddress`
+requires the shape `^([a-f0-9]{16})_([a-f0-9]{32})$`, compares the first group
+against a 64-bit FNV of the logical path, and compares the second against the
+index entry's `checksum`.
 
 ```text
-<shard>/<fnv1-64 of the logical path>_<md5 of the contents>
+<shard>/<16 hex, derived from the logical path>_<32 hex, derived from contents>
 ```
 
-`CjsIndexOverlayStore` validates exactly that shape - `^([a-f0-9]{16})_([a-f0-9]{32})$`
-- and the index entry carries the same md5 again as `checksum`.
+**The exact derivation of each half is not written down anywhere in this
+repository, and the description above is inferred from that one validator.** It
+needs recording properly - from the game's own tooling, not from our reader -
+before anything depends on reproducing an address rather than merely comparing
+one.
+
+Comparing is all staleness needs, and comparing is safe without knowing the
+formula: two builds either carry the same address for a path or they do not.
 
 So the content identity of every file is already written down, twice, before we
 touch anything. **Do not compute digests.** A builder that hashes its inputs is
@@ -83,6 +93,27 @@ The builder's own version still belongs in each artifact, because a change to th
 builder invalidates its output regardless of whether any input moved. Keep it
 distinct from the input identity so it is obvious which of the two forced the
 work.
+
+### Service contract
+
+Deliberately conservative. The service answers over a **span** of builds - from
+the one an artifact was built against, to the one being requested - because a
+consumer may be several builds behind:
+
+- **Complete span, no relevant path changed** → reuse the artifact.
+- **Any relevant path changed** → rebuild the affected output.
+- **Any build or index missing anywhere in the span** → treat everything earlier
+  as changed and rebuild.
+
+The third rule is the one that earns the design. Absence must never present as
+"unchanged": a gap in the retained indexes means we genuinely do not know what
+happened across it, and the only honest answer is to rebuild. Anything softer -
+skipping the missing build, interpolating from the ends - converts missing
+evidence into a confident wrong answer, which is the failure this whole page is
+about.
+
+It also keeps the artifact small. The library records what it was built against;
+the span reasoning lives in the service, so nothing has to embed a file list.
 
 ## Inputs the index does not cover
 
