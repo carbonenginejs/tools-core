@@ -64,6 +64,7 @@ export class CjsToolHttpProxy
         sde = null,
         characters = null,
         audio = null,
+        auth = null,
         maxRequestBytes = 1024 * 1024,
     } = {})
     {
@@ -102,6 +103,16 @@ export class CjsToolHttpProxy
             throw new TypeError("CjsToolHttpProxy audio service must provide OpenTarget(target, build)");
         }
 
+        if (auth !== null
+            && (typeof auth.sso?.BeginLogin !== "function"
+                || typeof auth.sso?.CompleteLogin !== "function"
+                || typeof auth.tokens?.Write !== "function"))
+        {
+            throw new TypeError(
+                "CjsToolHttpProxy auth requires { sso: CjsToolEveSso, tokens: CjsToolTokenFile }",
+            );
+        }
+
         if (indexes === null && sof === null && sde === null
             && characters === null && audio === null)
         {
@@ -120,6 +131,7 @@ export class CjsToolHttpProxy
         this.sde = sde;
         this.characters = characters;
         this.audio = audio;
+        this.auth = auth;
         this.maxRequestBytes = maxRequestBytes;
         this.#answerCatalogs = new Map();
         this.#targetSources = new Map();
@@ -135,6 +147,7 @@ export class CjsToolHttpProxy
             skinr: sde !== null,
             weapons: sde !== null,
             sofCatalog: sof !== null,
+            auth: auth !== null,
         });
         Object.freeze(this);
     }
@@ -181,6 +194,13 @@ export class CjsToolHttpProxy
                 protocolVersion: TOOLS_SERVICE_PROTOCOL_VERSION,
                 capabilities: this.capabilities,
             });
+
+            return;
+        }
+
+        if (request.method === "GET" && url.pathname.startsWith("/v1/auth/esi/"))
+        {
+            await this.#HandleEsiAuthRoute(url, response);
 
             return;
         }
@@ -1340,6 +1360,85 @@ export class CjsToolHttpProxy
     }
 
     /** Serves one SKIN or SKINR library route. */
+    /**
+     * The EVE SSO legs: start a login, receive the redirect, report state.
+     *
+     * Only reachable over loopback, like every route here. That is the whole
+     * access control: there are no sessions and no callers to distinguish, so
+     * anyone who can reach this port is already the operator.
+     *
+     * The token itself is never in a response. `status` reports whether one is
+     * stored, which is all a caller needs to decide whether to send someone
+     * through a login.
+     */
+    async #HandleEsiAuthRoute(url, response)
+    {
+        if (!this.auth)
+        {
+            WriteJson(response, 501, {
+                error: "EVE SSO is not configured; set CJS_ESI_CLIENT_ID",
+            });
+
+            return;
+        }
+
+        const leg = url.pathname.slice("/v1/auth/esi/".length);
+
+        if (leg === "status")
+        {
+            const stored = await this.auth.tokens.Read();
+
+            WriteJson(response, 200, {
+                authenticated: Boolean(stored?.refreshToken),
+                characterId: stored?.characterId ?? null,
+                characterName: stored?.characterName ?? null,
+            });
+
+            return;
+        }
+
+        if (leg === "login")
+        {
+            const { url: authorizeUrl } = this.auth.sso.BeginLogin();
+
+            // A redirect rather than a JSON body: the operator opens this in a
+            // browser, and the browser has to be the thing that visits EVE so
+            // the session cookie and the eventual callback land in one place.
+            WriteEmpty(response, 302, { location: authorizeUrl });
+
+            return;
+        }
+
+        if (leg === "callback")
+        {
+            const error = url.searchParams.get("error");
+
+            if (error)
+            {
+                // EVE's own refusal, e.g. the operator declined. Report the
+                // code, never the description, which is attacker-influenced
+                // text that would land in a browser page.
+                WriteText(response, 400, `EVE SSO refused the login (${SafeCode(error)}).`);
+
+                return;
+            }
+
+            const tokens = await this.auth.sso.CompleteLogin({
+                code: url.searchParams.get("code"),
+                state: url.searchParams.get("state"),
+            });
+
+            await this.auth.tokens.Write({ refreshToken: tokens.refresh_token });
+
+            // Plain text, and deliberately says nothing about the token.
+            WriteText(response, 200, "Signed in. You can close this tab.");
+
+            return;
+        }
+
+        WriteJson(response, 404, { error: "auth route not found" });
+    }
+
     async #HandleSkinRoute(route, url, response)
     {
         if (!this.sde)
@@ -2401,6 +2500,31 @@ function WriteBytes(response, statusCode, value, headers = {})
         ...headers,
     });
     response.end(body);
+}
+
+/** One line of plain text, for the browser leg of an OAuth callback. */
+function WriteText(response, statusCode, text)
+{
+    const body = `${text}\n`;
+
+    response.writeHead(statusCode, {
+        ...CORS_HEADERS,
+        "content-type": "text/plain; charset=utf-8",
+        "content-length": Buffer.byteLength(body),
+    });
+    response.end(body);
+}
+
+/**
+ * Reduces a provider-supplied error code to something safe to render.
+ *
+ * The callback's query is attacker-influenced - anyone can open the callback
+ * url with whatever parameters they like - and the response is HTML-adjacent
+ * text in a browser. Only a short identifier survives.
+ */
+function SafeCode(value)
+{
+    return String(value).replace(/[^a-z0-9_-]/giu, "").slice(0, 40) || "unknown";
 }
 
 function WriteEmpty(response, statusCode, headers = {})
