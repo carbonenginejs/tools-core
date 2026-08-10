@@ -193,9 +193,8 @@ A compatibility window is a legitimate design. Silence is not. Either:
 
 This is the same failure shape as a slot-order fallback producing plausible but
 wrong materials: the output looks like a result, so nothing downstream questions
-it. See `docs/standards/enum-placement.md` in the org documentation repository
-for the general treatment - a fallback that cannot be distinguished from success
-is not a fallback, it is a silent wrong answer.
+it. A fallback that cannot be distinguished from success is not a fallback, it
+is a silent wrong answer.
 
 ## Warm-up
 
