@@ -121,6 +121,29 @@ builder invalidates its output regardless of whether any input moved. Keep it
 distinct from the input identity so it is obvious which of the two forced the
 work.
 
+### Overlays cannot be diffed this way
+
+The whole mechanism rests on the address carrying a content hash. Overlay
+entries frequently do not: a `legacy-gles` row is
+`res:/graphics/...,graphics/...,,,` - a plain path, empty checksum, no content
+identity anywhere. Nothing about that row changes when the file behind it
+changes.
+
+So an overlay is only comparable if it is **hash-safe** - if its entries carry a
+checksum, as `incarna`'s content-addressed rows do. That is detectable per
+overlay rather than assumed: read the checksum field.
+
+For anything else the conservative rule applies, and it is the same rule as a
+missing build: **an input we cannot prove unchanged is treated as changed.** An
+overlay without content identity therefore forces a rebuild of whatever reads
+it. That is the correct answer rather than a limitation to engineer around -
+the alternative is deciding a locally edited file is unchanged because nothing
+recorded that it moved, which is exactly the silent-wrong-answer failure this
+page exists to prevent.
+
+Making an overlay hash-safe is the way out, and it is a change to how overlays
+are written rather than to how they are compared.
+
 ### Service contract
 
 Deliberately conservative. The service answers over a **span** of builds - from
@@ -131,6 +154,8 @@ consumer may be several builds behind:
 - **Any relevant path changed** → rebuild the affected output.
 - **Any build or index missing anywhere in the span** → treat everything earlier
   as changed and rebuild.
+- **Any relevant path served by an overlay that is not hash-safe** → treat it as
+  changed.
 
 The third rule is the one that earns the design. Absence must never present as
 "unchanged": a gap in the retained indexes means we genuinely do not know what
