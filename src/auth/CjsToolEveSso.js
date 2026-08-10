@@ -1,5 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
+import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
+
 const AUTHORIZE_URL = "https://login.eveonline.com/v2/oauth/authorize";
 const TOKEN_URL = "https://login.eveonline.com/v2/oauth/token";
 
@@ -37,15 +39,34 @@ export class CjsToolEveSso
      * @param {Array<String>} [options.scopes]
      * @param {Number} [options.pendingTtlMs] - how long an unfinished login lives
      */
-    constructor({ clientId, callback, scopes = [], pendingTtlMs = 10 * 60 * 1000 } = {})
+    constructor({
+        clientId,
+        callback,
+        scopes = [],
+        pendingTtlMs = 10 * 60 * 1000,
+        fetch: fetchImplementation = globalThis.fetch,
+        requestTimeoutMs = 10000,
+        maxResponseBytes = 64 * 1024,
+    } = {})
     {
         if (!clientId) throw new TypeError("EVE SSO requires a clientId");
         if (!callback) throw new TypeError("EVE SSO requires a callback url");
+
+        if (typeof fetchImplementation !== "function")
+        {
+            throw new TypeError("EVE SSO fetch option must be a function");
+        }
+
+        CjsBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
+        CjsBoundedFetch.normalizeLimit(maxResponseBytes, "maxResponseBytes");
 
         this.clientId = String(clientId);
         this.callback = String(callback);
         this.scopes = [ ...scopes ];
         this.pendingTtlMs = pendingTtlMs;
+        this.fetch = fetchImplementation;
+        this.requestTimeoutMs = requestTimeoutMs;
+        this.maxResponseBytes = maxResponseBytes;
     }
 
     /**
@@ -161,29 +182,39 @@ export class CjsToolEveSso
         return this.#pending.size;
     }
 
+    /**
+     * Bounded, like every other outbound call in this package: a token endpoint
+     * that hangs must not hang the service, and a response that grows must not
+     * be buffered. An unbounded read here is worse than most - the caller is
+     * usually a login the operator is waiting on.
+     */
     async #TokenRequest(params)
     {
-        const response = await fetch(TOKEN_URL, {
+        const limits = {
+            label: `EVE SSO ${params.grant_type}`,
+            timeoutMs: this.requestTimeoutMs,
+            maxBytes: this.maxResponseBytes,
+        };
+
+        const response = await CjsBoundedFetch.request(this.fetch, TOKEN_URL, {
             method: "POST",
             headers: {
                 "content-type": "application/x-www-form-urlencoded",
                 host: "login.eveonline.com",
             },
             body: new URLSearchParams(params).toString(),
-        });
+        }, limits);
 
         if (!response.ok)
         {
-            const body = await response.text().catch(() => "");
-
-            // The body can echo request parameters, so it is truncated and the
-            // grant type is named rather than the parameters themselves.
-            throw new Error(
-                `EVE SSO ${params.grant_type} failed (${response.status}): ${body.slice(0, 200)}`,
-            );
+            // The failure body can echo request parameters, so nothing from it
+            // is interpolated: the grant type and status say what failed, and
+            // the code, verifier and refresh token stay out of the message and
+            // therefore out of the logs.
+            throw new Error(`EVE SSO ${params.grant_type} failed (${response.status})`);
         }
 
-        return response.json();
+        return CjsBoundedFetch.readJson(response, limits);
     }
 
 }

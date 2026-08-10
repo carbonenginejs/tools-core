@@ -121,3 +121,57 @@ test("refresh refuses an empty token instead of calling out with one", async () 
     await assert.rejects(() => MakeSso().Refresh(""), /requires a refresh token/u);
     await assert.rejects(() => MakeSso().Refresh(null), /requires a refresh token/u);
 });
+
+test("token requests are bounded and never echo the request back", async () =>
+{
+    let seen = null;
+    const sso = MakeSso({
+        fetch: async (url, options) =>
+        {
+            seen = { url, options };
+            return {
+                ok: false,
+                status: 400,
+                // A real failure body echoes what was sent.
+                text: async () => JSON.stringify({ error: "invalid_grant", sent: "secret-code" }),
+                json: async () => ({ error: "invalid_grant" }),
+            };
+        },
+    });
+
+    const { state } = sso.BeginLogin();
+
+    await assert.rejects(
+        () => sso.CompleteLogin({ code: "secret-code", state }),
+        error =>
+        {
+            assert.match(error.message, /EVE SSO authorization_code failed \(400\)/u);
+            // The code is the one thing that must never reach a log.
+            assert.ok(!error.message.includes("secret-code"), "the code must not be in the error");
+            return true;
+        },
+    );
+
+    assert.equal(seen.options.method, "POST");
+    assert.ok(seen.options.signal, "the request must carry an abort signal");
+    assert.ok(!String(seen.url).includes("secret-code"), "the code goes in the body, not the url");
+});
+
+test("a successful exchange returns the token response", async () =>
+{
+    const sso = MakeSso({
+        fetch: async () => ({
+            ok: true,
+            status: 200,
+            headers: { get: () => null },
+            json: async () => ({ access_token: "a", refresh_token: "r", expires_in: 1199 }),
+        }),
+    });
+
+    const { state } = sso.BeginLogin();
+    const tokens = await sso.CompleteLogin({ code: "c", state });
+
+    assert.equal(tokens.access_token, "a");
+    assert.equal(tokens.refresh_token, "r");
+    assert.equal(sso.pendingCount, 0, "a completed login is consumed");
+});
