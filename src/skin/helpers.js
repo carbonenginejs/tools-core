@@ -183,6 +183,36 @@ export function projectionAddressMode(value)
     return modes[key];
 }
 
+/**
+ * Converts current projection labels to authored SOF projection types.
+ *
+ * This is the form an EveSOFDataPattern layer stores - `projectionTypeU/V` -
+ * NOT the address mode above. The two are one substitution apart and it is
+ * worth keeping both: consumers assembling a pattern want this one, consumers
+ * setting a sampler want the other.
+ *
+ * Equivalent to composing projectionAddressMode() with ccpwgl's
+ * EveSOFDataPatternLayer.FromAddressMode (4 -> 2, 3 -> 1, else 0), stated
+ * directly so a generated pattern does not have to round-trip through a
+ * vocabulary it never uses.
+ */
+export function projectionType(value)
+{
+    const types = {
+        "clamp-to-border": 2,
+        "clamp-to-edge": 1,
+        repeat: 0,
+    };
+    const key = String(value ?? "").trim().toLowerCase();
+
+    if (!Object.hasOwn(types, key))
+    {
+        throw new Error(`Unsupported SKINR projection type: ${value}`);
+    }
+
+    return types[key];
+}
+
 /** Requires one ID-addressable record used by a generated join. */
 export function requireRecord(records, id, label)
 {
