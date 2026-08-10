@@ -95,9 +95,10 @@ const Tables = Object.freeze({
         2: { _key: 2, name: "secondary_nanocoating" },
         3: { _key: 3, name: "tertiary_nanocoating" },
         4: { _key: 4, name: "tech_area" },
+        // Ids match the shipped SDE, so the fixture cannot teach a wrong order.
         5: { _key: 5, name: "pattern" },
-        6: { _key: 6, name: "secondary_pattern" },
-        7: { _key: 7, name: "pattern_material" },
+        6: { _key: 6, name: "pattern_material" },
+        7: { _key: 7, name: "secondary_pattern" },
         8: { _key: 8, name: "secondary_pattern_material" },
     },
     skinrSlots: {
@@ -493,4 +494,89 @@ test("an unknown pattern blend mode fails the build instead of silently becoming
             `${mode} must be rejected`,
         );
     }
+});
+
+test("serves a generated SOF pattern for a posted SKINR payload", async context =>
+{
+    const source = {
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        build: "3436472",
+        async LoadTables() { return Tables; },
+        // The route resolves the hull DNA itself rather than asking the caller.
+        async Resolve({ typeID }) { return { typeID, dna: "cf1_t1:caldaribase:caldari" }; },
+    };
+    const proxy = new CjsToolHttpProxy({
+        sde: { async OpenTarget() { return source; } },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const root = `http://127.0.0.1:${server.address().port}/eve/latest/skinr/pattern`;
+    const Post = body => fetch(root, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+    });
+
+    const response = await Post({
+        ship_type_id: 100,
+        id: "TEST-SKIN",
+        layout: {
+            pattern_blend_mode: "nested",
+            slots: [
+                { id: 1, configuration: { nanocoating: { id: 53 } } },
+                { id: 5, configuration: { pattern: { id: 54, configuration: {} } } },
+            ],
+        },
+    });
+    const body = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(body.schema, "carbonenginejs.skinrSofPattern");
+    // Type 100 carries factionID 500029, whose conversion sends cosmetic slot 1
+    // to material3 - a slot-order fallback would put it first.
+    assert.equal(body.factionID, 500029);
+    assert.equal(body.dna, "cf1_t1:caldaribase:caldari"
+        + ":mesh?none;none;plasmic_test;none"
+        + ":pattern?test-skin;none;none");
+    assert.equal(body.pattern.layer1.blendMode, "nested");
+    assert.equal(typeof body.pattern.layer1.projectionTypeU, "number");
+
+    // A payload problem is the caller's, not a 500.
+    const badMode = await Post({
+        ship_type_id: 100,
+        id: "X",
+        layout: { pattern_blend_mode: "multiply", slots: [] },
+    });
+    assert.equal(badMode.status, 400);
+    assert.match((await badMode.json()).error, /blend mode/u);
+
+    const noType = await Post({ id: "X", layout: { slots: [] } });
+    assert.equal(noType.status, 400);
+
+    // A hull the SDE cannot resolve is a 404, not a crash.
+    const unresolvable = new CjsToolHttpProxy({
+        sde: { async OpenTarget() { return { ...source, async Resolve() { return null; } }; } },
+    });
+    const other = unresolvable.CreateServer();
+    await new Promise(resolve => other.listen(0, "127.0.0.1", resolve));
+    context.after(() => new Promise(resolve => other.close(resolve)));
+
+    const missing = await fetch(
+        `http://127.0.0.1:${other.address().port}/eve/latest/skinr/pattern`,
+        {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ ship_type_id: 999, id: "X", layout: { slots: [] } }),
+        },
+    );
+    assert.equal(missing.status, 404);
 });

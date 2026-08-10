@@ -3,6 +3,7 @@ import http from "node:http";
 import { CjsToolBlack } from "../black/CjsToolBlack.js";
 import { CjsIndexAnswerCatalog } from "../indexing/CjsIndexAnswerCatalog.js";
 import { CjsToolSkin } from "../skin/CjsToolSkin.js";
+import { CjsToolSkinrPattern } from "../skin/CjsToolSkinrPattern.js";
 import { CjsToolWeapon } from "../weapon/CjsToolWeapon.js";
 import * as utils from "../utils.js";
 
@@ -459,6 +460,15 @@ export class CjsToolHttpProxy
                 build: targetRoute.build,
                 topic: targetRoute.topic,
             });
+
+            return;
+        }
+
+        if (request.method === "POST"
+            && targetRoute?.topic === "skinr"
+            && String(targetRoute.path ?? "").toLowerCase() === "pattern")
+        {
+            await this.#HandleSkinrPatternRoute(request, targetRoute, response);
 
             return;
         }
@@ -1437,6 +1447,72 @@ export class CjsToolHttpProxy
         }
 
         WriteJson(response, 404, { error: "auth route not found" });
+    }
+
+    /**
+     * Generates the SOF pattern and DNA for a posted SKINR payload.
+     *
+     * POST rather than a GET on a skinr id, because the payload is the general
+     * case: a private or unbaked design exists only in the hands of whoever
+     * fetched it, and this service has no session with which to fetch one on a
+     * user's behalf. A GET by id can be added for baked, publicly listed skins -
+     * it is additive, not a replacement.
+     *
+     * The hull DNA is resolved here rather than asked of the caller, since the
+     * SDE that answers it is already open.
+     */
+    async #HandleSkinrPatternRoute(request, route, response)
+    {
+        if (!this.sde)
+        {
+            WriteJson(response, 501, { error: "SDE service is not configured" });
+
+            return;
+        }
+
+        const skin = await ReadJson(request, this.maxRequestBytes);
+        const typeID = skin?.ship_type_id;
+
+        if (typeID === undefined || typeID === null)
+        {
+            throw new TypeError("SKINR pattern generation requires ship_type_id");
+        }
+
+        const source = await this.sde.OpenTarget(route.target, route.build);
+        const resolved = await source.Resolve({ typeID: Number(typeID) });
+        const dna = resolved?.dna;
+
+        if (!dna)
+        {
+            WriteJson(response, 404, { error: `Type ${typeID} has no SOF DNA` });
+
+            return;
+        }
+
+        const libraries = await this.#GetSkinLibraries(route.target, route.build);
+
+        let generated;
+
+        try
+        {
+            generated = CjsToolSkinrPattern.generate({ library: libraries.skinr, skin, dna });
+        }
+        catch (error)
+        {
+            // generate() rejects malformed payloads and vocabulary it does not
+            // recognise - an unknown blend mode, an unusable projection type.
+            // Those are the caller's, so they must not read as 500s.
+            const bad = new TypeError(error.message);
+            bad.statusCode = 400;
+            throw bad;
+        }
+
+        WriteJson(
+            response,
+            200,
+            { schema: CjsToolSkinrPattern.schema, ...generated },
+            CreateSkinHeaders(libraries.skinr, "skinr"),
+        );
     }
 
     async #HandleSkinRoute(route, url, response)
