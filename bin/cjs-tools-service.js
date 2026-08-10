@@ -19,7 +19,7 @@ import {
     TOOLS_SERVICE_PROTOCOL_VERSION,
 } from "../src/index.js";
 import { CjsToolCharacterRepository } from "../src/character/index.js";
-import { CjsToolEveSso, CjsToolTokenFile } from "../src/auth/index.js";
+import { CjsToolEsiClient, CjsToolEveSso, CjsToolTokenFile } from "../src/auth/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
 
 /**
@@ -237,14 +237,14 @@ function CreateEsiAuth(cacheDirectory, port)
         );
     }
 
-    return {
-        sso: new CjsToolEveSso({
-            clientId,
-            callback,
-            scopes: String(process.env.CJS_ESI_SCOPES ?? "").split(/\s+/u).filter(Boolean),
-        }),
-        tokens: new CjsToolTokenFile({ directory: path.join(cacheDirectory, "auth") }),
-    };
+    const sso = new CjsToolEveSso({
+        clientId,
+        callback,
+        scopes: String(process.env.CJS_ESI_SCOPES ?? "").split(/\s+/u).filter(Boolean),
+    });
+    const tokens = new CjsToolTokenFile({ directory: path.join(cacheDirectory, "auth") });
+
+    return { sso, tokens, esi: new CjsToolEsiClient({ sso, tokens }) };
 }
 
 function normalizeHost(value)

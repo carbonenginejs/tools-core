@@ -311,6 +311,17 @@ export class CjsToolHttpProxy
                 return;
             }
 
+            // Before the generic library lookup: `skinr/pattern/<id>` generates
+            // rather than reading a record, and would otherwise be reported as
+            // a missing skinr record named "pattern/<id>".
+            if (targetRoute.topic === "skinr"
+                && String(targetRoute.path ?? "").toLowerCase().startsWith("pattern/"))
+            {
+                await this.#HandleSkinrPatternByIdRoute(targetRoute, response);
+
+                return;
+            }
+
             if ([ "skin", "skinr" ].includes(targetRoute.topic))
             {
                 await this.#HandleSkinRoute(targetRoute, url, response);
@@ -1461,6 +1472,40 @@ export class CjsToolHttpProxy
      * The hull DNA is resolved here rather than asked of the caller, since the
      * SDE that answers it is already open.
      */
+    /**
+     * Generates the pattern for a baked SKINR skin, fetched by id.
+     *
+     * The convenience form of the POST route: a baked skin cannot change, so
+     * fetching it by id is safe to cache and needs no payload from the caller.
+     * Only works for skins this service's token can read - a private design
+     * still has to arrive as a payload, because there is no session here to
+     * fetch one on a user's behalf.
+     */
+    async #HandleSkinrPatternByIdRoute(route, response)
+    {
+        if (!this.auth?.esi)
+        {
+            WriteJson(response, 501, {
+                error: "EVE SSO is not configured; set CJS_ESI_CLIENT_ID and run: npm run login",
+            });
+
+            return;
+        }
+
+        const skinrID = String(route.path ?? "").split("/")[1] ?? "";
+
+        // A skinr id is an opaque hex string, NOT a uuid - the uuid in this API
+        // is the Paragon Hub listing id, a different identifier entirely.
+        if (!/^[a-f0-9]{16,128}$/iu.test(skinrID))
+        {
+            throw new TypeError(`Malformed SKINR id: ${skinrID.slice(0, 32)}`);
+        }
+
+        const skin = await this.auth.esi.Get(`/cosmetics/skinr/${encodeURIComponent(skinrID)}`);
+
+        await this.#WriteSkinrPattern(route, skin, response);
+    }
+
     async #HandleSkinrPatternRoute(request, route, response)
     {
         if (!this.sde)
@@ -1471,6 +1516,20 @@ export class CjsToolHttpProxy
         }
 
         const skin = await ReadJson(request, this.maxRequestBytes);
+
+        await this.#WriteSkinrPattern(route, skin, response);
+    }
+
+    /** Shared tail: resolve the hull, generate, answer. */
+    async #WriteSkinrPattern(route, skin, response)
+    {
+        if (!this.sde)
+        {
+            WriteJson(response, 501, { error: "SDE service is not configured" });
+
+            return;
+        }
+
         const typeID = skin?.ship_type_id;
 
         if (typeID === undefined || typeID === null)
