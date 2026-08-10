@@ -125,9 +125,12 @@ const Tables = Object.freeze({
         100: { _key: 100, elements: [ { _key: 1, _value: 30 } ] },
     },
     types: {
-        100: { _key: 100, groupID: 25, name: { en: "Special ship" }, published: true },
+        // 100 carries a factionID (a faction hull), 101 does not (an empire
+        // hull), and 200 is not a ship at all - the three cases the
+        // typeID -> factionID join has to separate.
+        100: { _key: 100, groupID: 25, name: { en: "Special ship" }, published: true, factionID: 500029 },
         101: { _key: 101, groupID: 25, name: { en: "Default ship" }, published: true },
-        200: { _key: 200, groupID: 99, name: { en: "Not a ship" }, published: true },
+        200: { _key: 200, groupID: 99, name: { en: "Not a ship" }, published: true, factionID: 500003 },
     },
     groups: {
         25: { _key: 25, categoryID: 6, name: { en: "Frigate" } },
@@ -255,6 +258,21 @@ test("loads both library table sets once from an exact source", async () =>
         { slotID: 3, materialID: 2 },
         { slotID: 4, materialID: 3 },
     ]);
+
+    // typeID -> factionID, joined from the SDE types table. This is the only
+    // place a consumer holding a ship_type_id can get one: ESI's type record
+    // carries no faction, so without this the slot conversion above is
+    // unreachable.
+    const typesToFactions = libraries.skinr.typesToFactions;
+    assert.equal(typesToFactions[100], 500029, "a faction hull resolves its factionID");
+    assert.ok(!(101 in typesToFactions), "an empire hull with no factionID is omitted, not null");
+    assert.ok(!(200 in typesToFactions), "a non-ship is excluded even when it carries a factionID");
+    // Every faction a hull claims must have a conversion, or the join is
+    // useless for that hull.
+    for (const factionID of Object.values(typesToFactions))
+    {
+        assert.ok(slotsToLayers[factionID], `factionID ${factionID} has a slot conversion`);
+    }
 });
 
 test("serves whole libraries and exact matching JSON subtrees", async context =>

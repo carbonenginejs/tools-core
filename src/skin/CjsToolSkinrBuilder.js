@@ -183,6 +183,7 @@ export class CjsToolSkinrBuilder
             slotConfigurations,
         );
 
+        const typesToFactions = BuildTypeFactions(tables.types, groups);
         const skinrSlotsToMaterialLayerByFactionId = this.skinrSlotsToMaterialLayerByFactionId;
 
         ValidateReferences({
@@ -224,6 +225,7 @@ export class CjsToolSkinrBuilder
             shipTreeFactions,
             shipTreeGroups,
             typeElements,
+            typesToFactions,
             typesToSlotConfigurations,
         });
     }
@@ -322,6 +324,42 @@ function BuildTypeSlotConfigurations(table, groups, configurations)
         }
 
         result[typeID] = rule.cosmeticSlotConfigurationID;
+    }
+
+    return result;
+}
+
+/**
+ * typeID -> factionID, for every ship type that carries one.
+ *
+ * factionID is an attribute of a typeID in the SDE, so this is a join, not
+ * authored data. It exists because the consumer cannot get it anywhere else:
+ * ESI's /universe/types/{id} carries neither a faction_id field nor a
+ * faction-valued dogma attribute (verified 2026-08-10 against type 85087,
+ * Tholos - 15 top-level fields, 98 dogma attributes, no faction in either).
+ *
+ * Rides the SKINR library because that is what selects a hull's cosmetic-slot
+ * conversion, and it means a consumer holding a ship_type_id needs no second
+ * service to resolve one.
+ *
+ * Ships only (categoryID 6), matching BuildTypeSlotConfigurations - a faction
+ * module's factionID is not this library's business. Types with no factionID
+ * are omitted rather than recorded as null: most types have none, and an
+ * absent key says "no faction" as clearly as a null while keeping the section
+ * to the few thousand that do.
+ */
+function BuildTypeFactions(table, groups)
+{
+    const result = {};
+
+    for (const [ typeID, record ] of tableEntries(table, "types"))
+    {
+        const group = requireRecord(groups, record.groupID, "Type group");
+
+        if (group.categoryID !== 6) continue;
+        if (record.factionID === undefined || record.factionID === null) continue;
+
+        result[typeID] = normalizeId(record.factionID, `type ${typeID} faction`);
     }
 
     return result;
