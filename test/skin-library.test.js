@@ -580,3 +580,56 @@ test("serves a generated SOF pattern for a posted SKINR payload", async context 
     );
     assert.equal(missing.status, 404);
 });
+
+test("pattern slots keep their position: one, the other, both, or neither", () =>
+{
+    const library = CjsToolSkinrBuilder.build(BuildOptions());
+    const Generate = slots => CjsToolSkinrPattern.generate({
+        library,
+        dna: "cf1_t1:caldaribase:caldari",
+        skin: { ship_type_id: 100, id: "P", layout: { slots } },
+    });
+
+    const primary = { id: 5, configuration: { pattern: { id: 54, configuration: {} } } };
+    const primaryMaterial = { id: 6, configuration: { nanocoating: { id: 53 } } };
+    const secondary = { id: 7, configuration: { pattern: { id: 54, configuration: {} } } };
+    const secondaryMaterial = { id: 8, configuration: { nanocoating: { id: 53 } } };
+
+    // Neither.
+    assert.equal(Generate([]).pattern, null, "no pattern slot means no pattern");
+
+    // Primary only: layer2 and patternMaterial2 stay empty.
+    const first = Generate([ primary, primaryMaterial ]);
+    assert.ok(first.pattern.layer1);
+    assert.equal(first.pattern.layer2, null);
+    assert.equal(first.pattern.layer1.materialSource, 4, "primary feeds patternMaterial1");
+    assert.match(first.dna, /:pattern\?p;plasmic_test;none$/u);
+
+    // Secondary only: layer1 stays NULL rather than the secondary sliding up.
+    // Compacting here would put a secondary pattern into PMtl1.
+    const second = Generate([ secondary, secondaryMaterial ]);
+    assert.equal(second.pattern.layer1, null, "a lone secondary must not occupy layer1");
+    assert.ok(second.pattern.layer2);
+    assert.equal(second.pattern.layer2.materialSource, 5, "secondary feeds patternMaterial2");
+    assert.match(second.dna, /:pattern\?p;none;plasmic_test$/u);
+
+    // Both: distinct layers, distinct sources, distinct material positions.
+    const both = Generate([ primary, primaryMaterial, secondary, secondaryMaterial ]);
+    assert.ok(both.pattern.layer1 && both.pattern.layer2);
+    assert.equal(both.pattern.layer1.materialSource, 4);
+    assert.equal(both.pattern.layer2.materialSource, 5);
+    assert.notEqual(
+        both.pattern.layer1.materialSource,
+        both.pattern.layer2.materialSource,
+        "two layers must never claim the same pattern material",
+    );
+    assert.equal(both.pattern.layer1.textureName, "PatternMask1Map");
+    assert.equal(both.pattern.layer2.textureName, "PatternMask2Map");
+    assert.match(both.dna, /:pattern\?p;plasmic_test;plasmic_test$/u);
+
+    // The transforms travel with their own layer.
+    assert.ok(both.pattern.projections[0].transformLayer1);
+    assert.ok(both.pattern.projections[0].transformLayer2);
+    assert.equal(second.pattern.projections[0].transformLayer1, null);
+    assert.ok(second.pattern.projections[0].transformLayer2);
+});
