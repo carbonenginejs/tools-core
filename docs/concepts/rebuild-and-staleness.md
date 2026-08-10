@@ -50,23 +50,40 @@ builder then redoes all the work it just proved was unnecessary.
 ## Nothing needs hashing: the identity is already recorded
 
 EVE resources are content addressed, and the address is the stored file name.
-What is verified from source: `CjsIndexOverlayStore.validateContentAddress`
-requires the shape `^([a-f0-9]{16})_([a-f0-9]{32})$`, compares the first group
-against a 64-bit FNV of the logical path, and compares the second against the
-index entry's `checksum`.
+The authority is `cppctamber/eveResFileIndex`, `src/core/hash.js`:
 
-```text
-<shard>/<16 hex, derived from the logical path>_<32 hex, derived from contents>
+```js
+`${fnv164(prefixedResPath).substring(0, 2)}/${fnv164(prefixedResPath)}_${md5(contents)}`
 ```
 
-**The exact derivation of each half is not written down anywhere in this
-repository, and the description above is inferred from that one validator.** It
-needs recording properly - from the game's own tooling, not from our reader -
-before anything depends on reproducing an address rather than merely comparing
-one.
+- **FNV-1** (multiply then XOR - not FNV-1a), 64-bit, offset
+  `0xcbf29ce484222325`, prime `0x100000001b3`, over the **prefixed** path
+  (`res:/...`).
+- The shard directory is the **first two characters of that same hash**, not a
+  separate value.
+- The second half is a plain md5 of the file contents, which the index also
+  records as the entry's `checksum`.
 
-Comparing is all staleness needs, and comparing is safe without knowing the
-formula: two builds either carry the same address for a path or they do not.
+`CjsIndexOverlayStore.validateContentAddress` checks that shape here.
+
+### Known divergence
+
+Our `fnv1` hashes **UTF-8 bytes** (`Buffer.from(value, "utf8")`); the authority
+hashes **UTF-16 code units** (`str.charCodeAt(i)`). These agree for every ASCII
+path and disagree for anything else:
+
+```text
+res:/textures/cafe.dds   be93fec578ac6c61   be93fec578ac6c61   same
+res:/textures/café.dds   b69fd89d4e12f266   d18d3a77a39ffde5   DIFFER
+```
+
+Harmless while every res path is ASCII, and wrong the day one is not - our
+validator would reject a correctly named resource. The authority is the game's
+naming, so ours is the one that should change.
+
+Comparing addresses is all staleness needs, and comparing is safe regardless:
+two builds either carry the same address for a path or they do not. The formula
+only matters where something **derives** an address rather than reading one.
 
 So the content identity of every file is already written down, twice, before we
 touch anything. **Do not compute digests.** A builder that hashes its inputs is
