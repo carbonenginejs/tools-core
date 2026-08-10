@@ -53,6 +53,8 @@ async function main()
         return;
     }
 
+    LoadLocalEnv(args.env);
+
     const host = normalizeHost(args.host ?? "127.0.0.1");
     // Default to a FIXED port, not an ephemeral one. An OAuth redirect_uri
     // must match its registration exactly, so a port that changes per run can
@@ -215,6 +217,38 @@ function normalizeHost(value)
     return host;
 }
 
+/**
+ * Loads `.env` from the working directory when one is present.
+ *
+ * Already-set environment variables win, so a shell export or a container's
+ * configuration is never overridden by a stale file left in a checkout.
+ *
+ * Absent is normal - the file only carries EVE SSO configuration, which is only
+ * needed while the SKINR endpoints are insider-gated. process.loadEnvFile
+ * arrived in Node 20.12 and this package declares >=18, so an older runtime
+ * simply relies on the environment instead of failing to start.
+ */
+function LoadLocalEnv(file)
+{
+    const target = path.resolve(String(file ?? ".env"));
+
+    if (typeof process.loadEnvFile !== "function") return;
+
+    try
+    {
+        process.loadEnvFile(target);
+    }
+    catch (error)
+    {
+        // A missing file is the normal case and says nothing. Anything else is
+        // worth one line, WITHOUT the contents - this file holds credentials.
+        if (error?.code !== "ENOENT")
+        {
+            process.stderr.write(`Ignoring unreadable env file ${target}\n`);
+        }
+    }
+}
+
 function normalizePort(value)
 {
     const port = Number(value);
@@ -241,6 +275,7 @@ Options:
   --cache <path>            Shared tools cache root
   --data <path>             Persistent local overlay root
   --prefetch [profiles]     Prepare profiles before listening; default: audio
+  --env <path>              Env file to load; default .env in the working directory
   --prefetch-concurrency <number>
                             Parallel resource reads from 1 to 64; default: 4
   --prefetch-refresh        Replace valid cached payloads from the source
