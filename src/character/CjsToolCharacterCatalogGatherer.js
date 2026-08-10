@@ -1,4 +1,6 @@
 import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
+import { CjsPngFormat } from "@carbonenginejs/runtime-resource/formats/png";
+import { CjsCharacterTextureMetadata } from "@carbonenginejs/runtime-character";
 import { CjsToolCache } from "../cache/CjsToolCache.js";
 import { CjsToolCharacterDefinitionCompiler } from "./CjsToolCharacterDefinitionCompiler.js";
 
@@ -27,8 +29,18 @@ export class CjsToolCharacterCatalogGatherer
 
     #cache;
 
-    /** Creates a gatherer backed by an optional shared cache. */
-    constructor({ cache = new CjsToolCache() } = {})
+    #pngFormat;
+
+    #source;
+
+    #sourcePromise;
+
+    /** Creates a gatherer backed by an optional shared cache and indexed source. */
+    constructor({
+        cache = new CjsToolCache(),
+        pngFormat = CjsPngFormat,
+        source = null,
+    } = {})
     {
         if (!(cache instanceof CjsToolCache))
         {
@@ -38,9 +50,26 @@ export class CjsToolCharacterCatalogGatherer
         }
 
         this.#cache = cache;
+        if (!pngFormat || typeof pngFormat.inspect !== "function")
+        {
+            throw new TypeError(
+                "CjsToolCharacterCatalogGatherer pngFormat must expose static inspect(bytes)"
+            );
+        }
+        this.#pngFormat = pngFormat;
+        if (source !== null
+            && typeof source !== "function"
+            && typeof source?.Fetch !== "function")
+        {
+            throw new TypeError(
+                "CjsToolCharacterCatalogGatherer source must provide Fetch(path), be a factory, or be null"
+            );
+        }
+        this.#source = source;
+        this.#sourcePromise = null;
     }
 
-    /** Reads lossless definitions, declared profiles, and sparse sources into seven document maps. */
+    /** Reads lossless definitions, declared profiles, sparse sources, and PNG placement facts. */
     async Gather(index, {
         sourceBuild = null,
         definitions = null,
@@ -66,6 +95,7 @@ export class CjsToolCharacterCatalogGatherer
         const documents = CreateCatalogDocuments();
         const report = CreateReport(index, sourceBuild);
         const sourceInputs = {};
+        const textureMetadataPaths = new Set();
 
         if (definitions !== null && definitions !== undefined)
         {
@@ -166,6 +196,13 @@ export class CjsToolCharacterCatalogGatherer
                 );
 
                 ValidatePartSourceCandidates(source, index, recordID, report);
+                await this.#AddTextureMetadata(
+                    index,
+                    documents,
+                    source,
+                    textureMetadataPaths,
+                    report
+                );
                 AddRecord(
                     documents.characterPartSources,
                     recordID,
@@ -202,6 +239,103 @@ export class CjsToolCharacterCatalogGatherer
 
         report.catalogs = CountCatalogs(documents);
         return { documents, report };
+    }
+
+    /** Adds deduplicated PNG placement metadata for one effective part source. */
+    async #AddTextureMetadata(index, documents, source, seen, report)
+    {
+        for (const version of source.versions)
+        {
+            for (const candidate of version.textureCandidates)
+            {
+                const resource = NormalizeTextureResource(candidate);
+                if (!resource || seen.has(resource.identity)) continue;
+                seen.add(resource.identity);
+
+                const entry = index.Find(resource.pngPath);
+                if (!entry)
+                {
+                    report.textureMetadata.missingIndexEntries.push(resource.pngPath);
+                    continue;
+                }
+                const expected = {
+                    ...(entry.checksum ? { md5: entry.checksum } : {}),
+                    ...(entry.uncompressedSize !== null
+                        ? { size: entry.uncompressedSize }
+                        : {}),
+                };
+                let payload = await this.#cache.ReadRemote(entry.location, expected);
+
+                if (payload)
+                {
+                    report.textureMetadata.cacheHits++;
+                }
+                else if (this.#source)
+                {
+                    const fetched = await (await this.#GetSource()).Fetch(resource.pngPath);
+
+                    if (!fetched?.bytes)
+                    {
+                        throw new Error(
+                            `Indexed character PNG fetch returned no bytes: ${resource.pngPath}`
+                        );
+                    }
+
+                    await this.#cache.WriteRemote(entry.location, fetched.bytes, expected);
+                    payload = { bytes: fetched.bytes };
+                    report.textureMetadata.acquired++;
+                }
+                else
+                {
+                    report.textureMetadata.cacheMisses.push(resource.pngPath);
+                    continue;
+                }
+
+                const { recordID, ...values } = CjsCharacterTextureMetadata.fromPngInspection(
+                    resource.identity,
+                    resource.pngPath,
+                    this.#pngFormat.inspect(payload.bytes)
+                );
+                if (recordID !== resource.identity)
+                {
+                    throw new Error("Character texture metadata identity normalization drifted");
+                }
+                AddRecord(
+                    documents.characterTextureMetadata,
+                    resource.identity,
+                    values,
+                    "texture metadata"
+                );
+                report.textureMetadata.inspected++;
+                if (values.hasPlacementMetadata) report.textureMetadata.withPlacement++;
+                else report.textureMetadata.withoutPlacement.push(resource.identity);
+            }
+        }
+    }
+
+    /** Resolves and retains the configured exact-build resource source. */
+    async #GetSource()
+    {
+        if (!this.#sourcePromise)
+        {
+            this.#sourcePromise = Promise.resolve(
+                typeof this.#source === "function"
+                    ? this.#source()
+                    : this.#source
+            ).then(source =>
+            {
+                if (!source || typeof source.Fetch !== "function")
+                {
+                    throw new TypeError(
+                        "CjsToolCharacterCatalogGatherer source factory must resolve to Fetch(path)"
+                    );
+                }
+
+                return source;
+            });
+        }
+
+        return this.#sourcePromise;
     }
 
     /** Gathers through a temporary character catalog gatherer. */
@@ -287,6 +421,7 @@ function CreateCatalogDocuments()
         characterMaterialProfiles: {},
         characterProjectionProfiles: {},
         characterRecipeProfiles: {},
+        characterTextureMetadata: {},
     };
 }
 
@@ -294,7 +429,7 @@ function CreateReport(index, sourceBuild)
 {
     return {
         schema: "carbonenginejs.characterLibraryBuildReport",
-        schemaVersion: 2,
+        schemaVersion: 3,
         sourceBuild: sourceBuild === null || sourceBuild === undefined
             ? null
             : String(sourceBuild),
@@ -311,7 +446,24 @@ function CreateReport(index, sourceBuild)
             geometry: 0,
             texture: 0,
         },
+        textureMetadata: {
+            inspected: 0,
+            cacheHits: 0,
+            acquired: 0,
+            withPlacement: 0,
+            withoutPlacement: [],
+            cacheMisses: [],
+            missingIndexEntries: [],
+        },
     };
+}
+
+function NormalizeTextureResource(value)
+{
+    const path = String(value ?? "").replace(/\\/gu, "/").toLowerCase();
+    if (!/^res:\/.+\.(?:dds|png)$/u.test(path)) return null;
+    const identity = path.replace(/\.(?:dds|png)$/u, "");
+    return { identity, pngPath: `${identity}.png` };
 }
 
 function ReadJson(bytes, logicalPath)

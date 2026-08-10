@@ -32,6 +32,125 @@ const sampleGeometry = "res:/example/assets/sample.geometry";
 const sampleTexture = "res:/example/assets/sample.texture";
 const supportConfiguration = "res:/example/assets/support.configuration";
 const supportGeometry = "res:/example/assets/support.geometry";
+const placementTexture = "res:/example/assets/placement.png";
+const uncachedPlacementTexture = "res:/example/assets/uncached-placement.dds";
+const uncachedPlacementPng = "res:/example/assets/uncached-placement.png";
+const unavailablePlacementTexture = "res:/example/assets/unavailable-placement.dds";
+
+test("character gathering caches and stores normalized PNG placement metadata", async context =>
+{
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-character-png-"));
+    const cache = new CjsToolCache(directory);
+    const rows = [];
+    const bytes = Buffer.from("png inspection fixture");
+    const acquiredBytes = Buffer.from("acquired png inspection fixture");
+    const requested = [];
+
+    context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
+
+    AddBytes(rows, cache, {
+        logicalPath: placementTexture,
+        location: "d1/placement.png",
+        bytes,
+    });
+    rows.push(`${uncachedPlacementTexture},d2/uncached-placement.dds,,,,`);
+    rows.push(`${uncachedPlacementPng},d4/uncached-placement.png,,,,`);
+    rows.push(`${unavailablePlacementTexture},d3/unavailable-placement.dds,,,,`);
+
+    const index = CjsFileIndex.parseResFileIndex(`${rows.join("\n")}\n`);
+    const pngFormat = {
+        inspect(value)
+        {
+            assert.ok(Buffer.from(value).equals(bytes)
+                || Buffer.from(value).equals(acquiredBytes));
+            return {
+                sourceFormat: "png",
+                width: 1024,
+                height: 2048,
+                offset: { x: 250000, y: -125000, unit: 0 },
+                physicalPixelDimensions: { x: 500000, y: 1000000, unit: 0 },
+            };
+        },
+    };
+    const { documents, report } = await new CjsToolCharacterCatalogGatherer({
+        cache,
+        pngFormat,
+        source: {
+            async Fetch(logicalPath)
+            {
+                requested.push(logicalPath);
+                return { bytes: acquiredBytes, cacheHit: false };
+            },
+        },
+    }).Gather(index, {
+        partSources: {
+            "female/example": {
+                sourcePath: "res:/example/assets/example",
+                sex: "female",
+                partPath: "example",
+                versions: [ {
+                    resourceVersion: null,
+                    configurationCandidates: [],
+                    geometryCandidates: [],
+                    textureCandidates: [
+                        placementTexture,
+                        placementTexture.toUpperCase(),
+                        uncachedPlacementTexture,
+                        unavailablePlacementTexture,
+                    ],
+                } ],
+                metadata: null,
+            },
+        },
+    });
+
+    assert.deepEqual(documents.characterTextureMetadata[
+        "res:/example/assets/placement"
+    ], {
+        sourcePath: placementTexture,
+        sourceFormat: "png",
+        width: 1024,
+        height: 2048,
+        offsetXRaw: 250000,
+        offsetYRaw: -125000,
+        offsetUnit: 0,
+        physicalPixelDimensionsXRaw: 500000,
+        physicalPixelDimensionsYRaw: 1000000,
+        physicalPixelDimensionsUnit: 0,
+        offsetX: 0.25,
+        offsetY: -0.125,
+        extentX: 0.5,
+        extentY: 1,
+        hasOffsetMetadata: true,
+        hasPhysicalPixelDimensionsMetadata: true,
+        hasPlacementMetadata: true,
+        placementEncoding: "png-oFFs-pHYs-millionths",
+        placementPolicy: "ccp-character-atlas-millionths-v1",
+        placementStatus: "experimental-policy",
+    });
+    assert.equal(
+        documents.characterTextureMetadata[
+            "res:/example/assets/uncached-placement"
+        ].sourcePath,
+        uncachedPlacementPng
+    );
+    assert.equal(Object.hasOwn(
+        documents.characterTextureMetadata,
+        uncachedPlacementTexture
+    ), false);
+    assert.equal(report.schemaVersion, 3);
+    assert.equal(report.textureMetadata.inspected, 2);
+    assert.equal(report.textureMetadata.cacheHits, 1);
+    assert.equal(report.textureMetadata.acquired, 1);
+    assert.equal(report.textureMetadata.withPlacement, 2);
+    assert.deepEqual(report.textureMetadata.withoutPlacement, []);
+    assert.deepEqual(report.textureMetadata.cacheMisses, []);
+    assert.deepEqual(report.textureMetadata.missingIndexEntries, [
+        "res:/example/assets/unavailable-placement.png"
+    ]);
+    assert.deepEqual(requested, [ uncachedPlacementPng ]);
+    assert.ok(await cache.ReadRemote("d4/uncached-placement.png"));
+});
 
 test("character gathering keeps declared candidates and metadata-only sources", async context =>
 {
@@ -186,8 +305,8 @@ test("character gathering keeps declared candidates and metadata-only sources", 
     const indexPath = path.join(directory, "resfileindex.txt");
     const outputPath = path.join(directory, "character-library.json");
 
-    fs.writeFileSync(documentsPath, JSON.stringify(CreateCharacterDocuments()));
-    fs.writeFileSync(catalogInputsPath, JSON.stringify(catalogInputs));
+    fs.writeFileSync(documentsPath, JSON.stringify(combined));
+    fs.writeFileSync(catalogInputsPath, "{}");
     fs.writeFileSync(indexPath, `${rows.join("\n")}\n`);
 
     const result = spawnSync(process.execPath, [
@@ -216,7 +335,8 @@ test("character gathering keeps declared candidates and metadata-only sources", 
     const built = JSON.parse(jsonBytes.toString("utf8"));
 
     assert.deepEqual(gunzipSync(fs.readFileSync(`${outputPath}.gz`)), jsonBytes);
-    assert.equal(built.schemaVersion, 8);
+    assert.equal(built.schemaVersion, 9);
+    assert.equal(built.documents.characterTextureMetadata.length, 0);
     assert.equal(built.documents.characterDefinitions.length, 1);
     assert.equal(built.documents.characterPartSources.length, 2);
     assert.equal(JSON.parse(fs.readFileSync(
@@ -373,6 +493,23 @@ function CreateCatalogInputs()
 function AddProfile(rows, cache, { logicalPath, location, value })
 {
     const bytes = Buffer.from(JSON.stringify(value));
+    const checksum = crypto.createHash("md5").update(bytes).digest("hex");
+    const cachePath = cache.GetRemoteFilePath(location);
+
+    fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+    fs.writeFileSync(cachePath, bytes);
+    rows.push([
+        logicalPath,
+        location,
+        checksum,
+        bytes.byteLength,
+        bytes.byteLength,
+        "",
+    ].join(","));
+}
+
+function AddBytes(rows, cache, { logicalPath, location, bytes })
+{
     const checksum = crypto.createHash("md5").update(bytes).digest("hex");
     const cachePath = cache.GetRemoteFilePath(location);
 

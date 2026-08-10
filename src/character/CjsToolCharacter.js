@@ -30,7 +30,7 @@ export class CjsToolCharacter
         }), "character");
     }
 
-    /** Builds one target-specific schema-v8 combined character library. */
+    /** Builds one target-specific schema-v9 combined character library. */
     Build(documents = {}, options = {})
     {
         const target = this.ResolveTarget({

@@ -84,13 +84,13 @@ export class CjsToolCharacterRepository
         }
     }
 
-    /** Loads and installs one direct schema-v8 document, with schema-v7 migration fallback. */
+    /** Loads and installs the newest direct document, with schema-v8/v7 migration fallback. */
     async #Load(target, build)
     {
         let data;
         let filePath = null;
 
-        for (const version of [ "v8", "v7" ])
+        for (const version of [ "v9", "v8", "v7" ])
         {
             const candidate = this.#cache.GetCustomPath({
                 game: target.game,

@@ -12,7 +12,7 @@ import {
 } from "../src/character/index.js";
 import { CreateCharacterDocuments } from "./character-library-fixture.js";
 
-test("character subpath exposes the schema-v8 producer surface", () =>
+test("character subpath exposes the schema-v9 producer surface", () =>
 {
     assert.equal(typeof CjsToolCharacter, "function");
     assert.equal(typeof CjsToolCharacterBuilder, "function");
@@ -68,12 +68,12 @@ test("target-aware character builds delegate to the runtime-owned schema", () =>
     const library = CjsCharacterLibrary.from(values);
 
     library.Reindex();
-    assert.equal(values.schemaVersion, 8);
+    assert.equal(values.schemaVersion, 9);
     assert.equal(values.sourceTarget, "eve");
     assert.equal(values.sourceGame, "Eve");
     assert.equal(values.sourceProvider, "ccp");
     assert.equal(values.sourceBuild, "3450001");
-    assert.equal(library.ListDocuments().length, 19);
+    assert.equal(library.ListDocuments().length, 20);
     assert.strictEqual(
         library.Get("characterResources", 21).partType,
         library.Get("characterPartTypes", typePath)
@@ -99,7 +99,7 @@ test("unscoped builder remains usable with caller-owned synthetic documents", ()
         sourceBuild: "3450001",
     });
 
-    assert.equal(values.schemaVersion, 8);
+    assert.equal(values.schemaVersion, 9);
     assert.equal(Object.hasOwn(values, "sourceTarget"), false);
     assert.equal(fromInputs.sourceTarget, "eve");
     assert.equal(fromInputs.sourceBuild, "3450001");

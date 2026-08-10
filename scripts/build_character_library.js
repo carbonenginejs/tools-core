@@ -1,8 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
 import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
 import { CjsToolCache } from "../src/cache/index.js";
+import { CjsIndexCache, CjsToolIndex } from "../src/indexing/index.js";
 import {
     CjsToolCharacter,
     CjsToolCharacterCatalogGatherer,
@@ -30,7 +32,9 @@ Options:
   --compact              Emit compact library JSON.
   --help, -h             Show this help.
 
-The document input may place maps at the root or below "documents". Catalog
+The document input may be an existing prepared library or place record maps at
+the root or below "documents". A prepared library is hydrated, augmented, and
+serialized without rebuilding its existing graph relationships. Catalog
 inputs declare "profiles" and "partSources" without relying on filename or
 folder inference. Every supplied decoded definition is retained losslessly;
 typed definition catalogs are additive indexes over that retained JSON.
@@ -38,9 +42,10 @@ Profile JSON is copied without source-format conversion, and
 candidate order is preserved. Omitted version candidate fields inherit from
 the single unversioned record; explicit empty arrays remain empty. Effective
 version candidates and metadata are materialized before publication. This
-command performs no remote reads and never
-imports a private source reader. It uses the supplied file index and cache only
-to fold declared JSON definitions and exact external candidates into schema v8.
+command never imports a private source reader. It uses tools-core's normal
+validated exact-build resource source to acquire missing indexed PNG
+representations, then folds their placement metadata into schema v9. DDS paths
+remain the render candidates; PNGs are inspection representations only.
 `;
 
 await Main(process.argv.slice(2)).catch(error =>
@@ -77,31 +82,55 @@ async function Main(argv)
         provider: options.provider,
     });
     const cache = new CjsToolCache(path.resolve(options.cache));
+    const indexes = new CjsToolIndex({
+        cache: new CjsIndexCache({ cache }),
+    });
     const indexPath = path.resolve(options.index);
     const index = CjsFileIndex.decodeResFileIndex(await fs.readFile(indexPath));
     const catalogInputs = ReadCatalogInputs(
         JSON.parse(await fs.readFile(path.resolve(options.catalogInputs), "utf8"))
     );
-    const input = ReadDocumentInput(
-        JSON.parse(await fs.readFile(path.resolve(options.documents), "utf8"))
+    const documentValue = JSON.parse(
+        await fs.readFile(path.resolve(options.documents), "utf8")
     );
-    const gathered = await new CjsToolCharacterCatalogGatherer({ cache }).Gather(
+    const preparedLibrary = IsPreparedLibrary(documentValue)
+        ? CjsCharacterLibrary.from(documentValue)
+        : null;
+    const input = ReadDocumentInput(documentValue);
+    const partSourcesFromInput = catalogInputs.partSources === undefined
+        && Object.keys(input.characterPartSources ?? {}).length > 0;
+    const gathered = await new CjsToolCharacterCatalogGatherer({
+        cache,
+        source: () => indexes.OpenTarget(target.id, sourceBuild),
+    }).Gather(
         index,
         {
             sourceBuild,
             ...catalogInputs,
             characterResources: input.characterResources ?? {},
             characterModifierLocations: input.characterModifierLocations ?? {},
+            partSources: catalogInputs.partSources
+                ?? input.characterPartSources
+                ?? {},
         }
     );
-    const documents = MergeDocuments(input, gathered.documents);
-    const data = character.Build(documents, {
-        sourceTarget: target.id,
-        sourceGame: target.game,
-        sourceProvider: target.provider,
-        sourceBuild,
-        generatedAt: options.generatedAt,
-    });
+    const data = preparedLibrary
+        ? AddPreparedTextureMetadata(preparedLibrary, gathered.documents, {
+            target,
+            sourceBuild,
+        })
+        : character.Build(MergeDocuments(
+            partSourcesFromInput
+                ? { ...input, characterPartSources: {} }
+                : input,
+            gathered.documents
+        ), {
+            sourceTarget: target.id,
+            sourceGame: target.game,
+            sourceProvider: target.provider,
+            sourceBuild,
+            generatedAt: options.generatedAt,
+        });
     const artifact = options.out
         ? await CjsToolLibraryArtifact.write(path.resolve(options.out), data, {
             compact: options.compact,
@@ -111,7 +140,7 @@ async function Main(argv)
             provider: target.provider,
             build: sourceBuild,
             name: "character",
-            version: "v8",
+            version: "v9",
         }, data, { compact: options.compact });
     const reportPath = path.resolve(options.report || DefaultReportPath(artifact.jsonPath));
     const report = {
@@ -167,7 +196,98 @@ function ReadDocumentInput(value)
         throw new TypeError("Character documents must be a JSON object");
     }
 
-    return documents;
+    return Object.fromEntries(Object.entries(documents).map(
+        ([ documentName, records ]) => [
+            documentName,
+            NormalizeDocumentRecords(records, documentName),
+        ]
+    ));
+}
+
+function IsPreparedLibrary(value)
+{
+    return value?.schema === "carbonenginejs.characterLibrary"
+        && value.documents
+        && Object.values(value.documents).every(Array.isArray);
+}
+
+function AddPreparedTextureMetadata(library, gathered, { target, sourceBuild })
+{
+    if (library.sourceTarget && library.sourceTarget !== target.id)
+    {
+        throw new Error(
+            `Prepared character library target ${library.sourceTarget} does not match ${target.id}`
+        );
+    }
+
+    if (library.sourceBuild && String(library.sourceBuild) !== sourceBuild)
+    {
+        throw new Error(
+            `Prepared character library build ${library.sourceBuild} does not match ${sourceBuild}`
+        );
+    }
+
+    for (const recordID of Object.keys(gathered.characterTextureMetadata).sort(Compare))
+    {
+        if (library.Get("characterTextureMetadata", recordID))
+        {
+            throw new Error(
+                `Prepared character library duplicates gathered texture metadata `
+                + JSON.stringify(recordID)
+            );
+        }
+
+        library.Create("characterTextureMetadata", {
+            recordID,
+            ...gathered.characterTextureMetadata[recordID],
+        });
+    }
+
+    return library.GetValues({ refs: true });
+}
+
+function NormalizeDocumentRecords(records, documentName)
+{
+    if (!Array.isArray(records))
+    {
+        return records;
+    }
+
+    const result = {};
+
+    for (let index = 0; index < records.length; index++)
+    {
+        const record = records[index];
+
+        if (!record || typeof record !== "object" || Array.isArray(record))
+        {
+            throw new TypeError(
+                `Character document ${documentName}[${index}] must be an object`
+            );
+        }
+
+        const recordID = record.recordID;
+        if (recordID === undefined || recordID === null || String(recordID) === "")
+        {
+            throw new TypeError(
+                `Character document ${documentName}[${index}] requires recordID`
+            );
+        }
+
+        const key = String(recordID);
+        if (Object.hasOwn(result, key))
+        {
+            throw new Error(
+                `Character document ${documentName} duplicates recordID ${JSON.stringify(key)}`
+            );
+        }
+
+        const { recordID: _recordID, ...values } = record;
+
+        result[key] = values;
+    }
+
+    return result;
 }
 
 function MergeDocuments(input, gathered)

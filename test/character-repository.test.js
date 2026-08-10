@@ -13,7 +13,7 @@ import {
 } from "../src/character/index.js";
 import { CreateCharacterDocuments } from "./character-library-fixture.js";
 
-test("opens exact and friendly schema-v8 libraries from the shared cache", async context =>
+test("opens exact and friendly schema-v9 libraries from the shared cache", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
     const cache = new CjsToolCache(directory);
@@ -28,7 +28,7 @@ test("opens exact and friendly schema-v8 libraries from the shared cache", async
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v8",
+        version: "v9",
     }, values);
 
     const repository = new CjsToolCharacterRepository({
@@ -48,7 +48,7 @@ test("opens exact and friendly schema-v8 libraries from the shared cache", async
     assert.ok(exact instanceof CjsCharacterLibrary);
     assert.strictEqual(friendly, exact);
     assert.equal(exact.Get("races", 3).nameID, "1003");
-    assert.equal(exact.ListDocuments().length, 19);
+    assert.equal(exact.ListDocuments().length, 20);
 });
 
 test("reports a missing prepared character library as not found", async context =>

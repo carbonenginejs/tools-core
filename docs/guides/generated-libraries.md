@@ -42,7 +42,7 @@ whose decompressed bytes equal the canonical JSON.
 ## Library shapes
 
 When `--out` is omitted, the audio and character builders install
-`audio_v2.json` or `character_v8.json` and its deterministic gzip sibling into
+`audio_v2.json` or `character_v9.json` and its deterministic gzip sibling into
 the shared exact-build custom cache. Those are the preferred locations used by
 their repositories and local HTTP routes. An explicit `--out` remains
 available for distribution builds and other application-owned publication.
@@ -143,16 +143,24 @@ one of those candidate fields to inherit that role from the single
 Version metadata uses the same field-presence rule. Duplicate resource-version
 records reject. Tools-core materializes complete effective version records,
 checks candidates against the caller-selected resource index, and delegates
-the combined schema-v8 document to
+the combined schema-v9 document to
 `@carbonenginejs/runtime-character/library-builder`.
 The manifest is required by the command; use an empty JSON object when no
 optional catalog records are available.
+
+The build command also accepts an existing prepared character library as its
+document input. It hydrates the existing graph, adds the gathered metadata
+records through the library's ordinary mutation API, and serializes the same
+graph at the current schema version. When no replacement `partSources`
+manifest is supplied, the existing effective part-source records drive
+texture-metadata gathering. This is the lossless schema migration path; it
+does not recreate relationships or infer source definitions.
 
 The gathered part-source records retain exact configuration, geometry, and
 texture candidate paths plus effective metadata relationships. A caller can
 declare metadata-only sources even when no selectable type names them. The
 compiler also creates those sources for exact decoded `metadata.yaml` owner
-folders. Schema v8 retains each dependency and occlusion string and adds an
+folders. Schema v9 retains each dependency and occlusion string and adds an
 ordered modifier-reference record beside it. An unsuffixed safe path can link
 to a unique modifier location, an existing part source, or a source folder
 proved by direct indexed candidates. Suffixed values remain opaque, and no
@@ -175,6 +183,24 @@ paths, multi-source identities, multi-folder sources, projected metadata, and
 exact candidate counts. Passing the same inputs to
 `CjsToolCharacterCatalogGatherer.Gather()` also materializes the sparse
 versions for immediate library building.
+
+The gatherer examines the exact PNG representation for every `.dds` or `.png`
+texture candidate. The command acquires a missing indexed PNG through
+tools-core's normal exact-build resource source and validated shared `ResFiles`
+cache; it does not add a character-specific downloader. `.dds` and `.png`
+candidates share one extension-neutral metadata identity, and the corresponding
+`.png` is inspected with runtime-resource's `CjsPngFormat.inspect`. Exact raw
+`oFFs`/`pHYs` values and units are retained in `characterTextureMetadata`.
+Normalized millionths values are additive and labelled experimental character
+policy. The original DDS or PNG candidate is never removed or rewritten. A
+PNG representation absent from the selected build remains explicit in the
+build report; a failed indexed acquisition fails publication rather than
+silently producing an incomplete metadata catalog.
+
+Programmatic gatherers accept either an opened exact-build source exposing
+`Fetch(path)` or a lazy source factory. Omitting it keeps the gatherer
+cache-only for offline and synthetic builds; uncached PNGs are then reported
+as cache misses instead of being invented or downloaded through another path.
 
 SKIN and SKINR are separate exact-source libraries. SKIN owns developer-authored
 skin/material/type relations; SKINR owns component, slot, ship-tree, and
