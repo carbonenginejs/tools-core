@@ -66,20 +66,30 @@ The authority is `cppctamber/eveResFileIndex`, `src/core/hash.js`:
 
 `CjsIndexOverlayStore.validateContentAddress` checks that shape here.
 
-### Known divergence
+Verified against real data, not taken on trust: 3329 entries across the incarna,
+legacy-gles and macos-metal overlay indexes, every one of them matching on both
+the 16-hex path hash and the shard-is-the-first-two-characters rule.
 
-Our `fnv1` hashes **UTF-8 bytes** (`Buffer.from(value, "utf8")`); the authority
-hashes **UTF-16 code units** (`str.charCodeAt(i)`). These agree for every ASCII
-path and disagree for anything else:
+### An untestable divergence
+
+Our `fnv1` hashes **UTF-8 bytes** (`Buffer.from(value, "utf8")`); the reference
+hashes **UTF-16 code units** (`str.charCodeAt(i)`). Constructed inputs separate
+them:
 
 ```text
 res:/textures/cafe.dds   be93fec578ac6c61   be93fec578ac6c61   same
 res:/textures/café.dds   b69fd89d4e12f266   d18d3a77a39ffde5   DIFFER
 ```
 
-Harmless while every res path is ASCII, and wrong the day one is not - our
-validator would reject a correctly named resource. The authority is the game's
-naming, so ours is the one that should change.
+**But no real path distinguishes them.** All 3329 entries are ASCII, so both
+implementations score 100%, and the data cannot say which is right. Do not
+"correct" one to match the other on the strength of the other existing - that
+would be picking a winner by authority rather than by evidence, and if the guess
+is wrong it converts a dormant difference into a live one.
+
+Resolve it only with an actual non-ASCII res path, or with the game's own
+implementation. Until then it is a documented unknown, and harmless: staleness
+compares addresses rather than deriving them.
 
 Comparing addresses is all staleness needs, and comparing is safe regardless:
 two builds either carry the same address for a path or they do not. The formula
