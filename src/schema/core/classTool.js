@@ -3658,6 +3658,22 @@ export function renderClassFile(expected, options = {})
     // Shared enums the fields reference without owning: stamped as class
     // statics so @type.enum("X") always resolves via `Constructor[X]`.
     // Import-routed enums are excluded here and aliased from the import below.
+    //
+    // KNOWN DEFECT: this inlines a SECOND frozen object for a vocabulary the
+    // class does not own - the same one renderEnums() writes into the family's
+    // enums.js. That is what minted the 85 duplicate enum identities collapsed
+    // out of runtime-trinity on 2026-08-10 (docs/standards/enum-placement.md),
+    // and a regen over that tree will mint them again.
+    //
+    // The fix is the import route below, which already emits the correct
+    // `static X = <imported>` alias - it just has no default: enumImportMap is
+    // caller-supplied and no caller supplies one. Deriving it needs the enum
+    // catalog to record which module owns each unowned vocabulary, which it
+    // does not; enumCatalogIdentity() carries an owner CLASS or nothing.
+    //
+    // Until then the backstop is consumer-side: runtime-trinity's
+    // enum-statics.test.js fails on any two distinct objects with equal
+    // members, so a regen that reintroduces duplicates cannot pass silently.
     const referencedEnums = (Array.isArray(meta.referencedEnums) ? meta.referencedEnums : [])
         .filter(entry => !seenImportedEnum.has(entry.name));
     referencedEnums.forEach((entry, index) =>
