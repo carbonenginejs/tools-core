@@ -7,6 +7,7 @@ import {
     CjsToolSkinBuilder,
     CjsToolSkinrBuilder,
 } from "../src/index.js";
+import { CjsToolSkinrPattern } from "../src/skin/CjsToolSkinrPattern.js";
 
 const Tables = Object.freeze({
     skins: {
@@ -56,6 +57,19 @@ const Tables = Object.freeze({
             rarity: 2,
             resourceFile: "res:/materials/plasmic_test.red",
         },
+        54: {
+            _key: 54,
+            associatedTypeIds: [],
+            category: 3,
+            name: { en: "Pattern Test" },
+            // Both SDE projection labels, so the emitted layer must show two
+            // different numbers rather than one repeated.
+            projectionTypeU: "clamp-to-edge",
+            projectionTypeV: "repeat",
+            published: true,
+            rarity: 2,
+            resourceFile: "res:/texture/pattern/pattern_test.dds",
+        },
     },
     skinrSlotCategories: {
         1: { _key: 1, name: "Material_slot" },
@@ -79,6 +93,12 @@ const Tables = Object.freeze({
     skinrSlotNames: {
         1: { _key: 1, name: "primary_nanocoating" },
         2: { _key: 2, name: "secondary_nanocoating" },
+        3: { _key: 3, name: "tertiary_nanocoating" },
+        4: { _key: 4, name: "tech_area" },
+        5: { _key: 5, name: "pattern" },
+        6: { _key: 6, name: "secondary_pattern" },
+        7: { _key: 7, name: "pattern_material" },
+        8: { _key: 8, name: "secondary_pattern_material" },
     },
     skinrSlots: {
         1: {
@@ -341,4 +361,101 @@ test("serves whole libraries and exact matching JSON subtrees", async context =>
         (await fetch(`${root}/eve/latest/skinr/skinrSlotsToMaterialLayerByFactionId/999999`)).status,
         404,
     );
+});
+
+test("generates a SOF pattern carrying only SOF field names and value types", () =>
+{
+    const library = CjsToolSkinrBuilder.build(BuildOptions());
+
+    // Type 100 carries factionID 500029, whose conversion is
+    // slot1->material3, slot2->material4, slot3->material2, slot4->material1.
+    const { dna, pattern, factionID } = CjsToolSkinrPattern.generate({
+        library,
+        dna: "cf1_t1:caldaribase:caldari",
+        skin: {
+            ship_type_id: 100,
+            id: "TEST-SKIN",
+            layout: {
+                slots: [
+                    { id: 1, configuration: { nanocoating: { id: 53 } } },
+                    { id: 5, configuration: { pattern: {
+                        id: 54,
+                        configuration: {
+                            projection: { slot1: true },
+                            mirrored: true,
+                            transform: { position: { x: 1, y: 2, z: 3 } },
+                        },
+                    } } },
+                ],
+            },
+        },
+    });
+
+    assert.equal(factionID, 500029, "factionID comes from the library join, not the payload");
+
+    // The primary nanocoating sits in cosmetic slot 1, which this faction feeds
+    // to material3 - NOT material1. A slot-order fallback would put it first.
+    assert.equal(dna, "cf1_t1:caldaribase:caldari"
+        + ":mesh?none;none;plasmic_test;none"
+        + ":pattern?test-skin;none;none");
+
+    // Every emitted field is one an EveSOFDataPattern class declares.
+    assert.deepEqual(Object.keys(pattern).sort(), [ "layer1", "layer2", "name", "projections", "sof6" ]);
+    assert.equal(pattern.name, "test-skin");
+    assert.equal(pattern.layer2, null, "no secondary_pattern slot in the payload");
+
+    // The trap this conversion exists for: the SDE component carries
+    // "clamp-to-edge"/"repeat" as STRINGS under these same two field names.
+    assert.equal(pattern.layer1.projectionTypeU, 1);
+    assert.equal(pattern.layer1.projectionTypeV, 0);
+    assert.equal(typeof pattern.layer1.projectionTypeU, "number");
+    assert.equal(pattern.layer1.textureName, "PatternMask1Map");
+    assert.equal(pattern.layer1.materialSource, 4);
+    assert.equal(pattern.layer1.textureResFilePath, "res:/texture/pattern/pattern_test.dds");
+    assert.equal(pattern.layer1.blendMode, "overlay");
+
+    // projection.slot1 targets cosmetic slot 1, which this faction feeds to
+    // material3 - so mtl3, not mtl1.
+    assert.deepEqual([
+        pattern.layer1.isTargetMtl1, pattern.layer1.isTargetMtl2,
+        pattern.layer1.isTargetMtl3, pattern.layer1.isTargetMtl4,
+    ], [ false, false, true, false ]);
+
+    // One hull projection, transforms as arrays rather than class instances.
+    assert.equal(pattern.projections.length, 1);
+    assert.equal(pattern.projections[0].name, "cf1_t1");
+    assert.deepEqual(pattern.projections[0].transformLayer1, {
+        isMirrored: true,
+        position: [ 1, 2, 3 ],
+        rotation: [ 0, 0, 0, 1 ],
+        scaling: [ 1, 1, 1 ],
+    });
+    assert.equal(pattern.projections[0].transformLayer2, null);
+
+    // Nothing SKINR-flavoured leaks through.
+    const serialized = JSON.stringify(pattern);
+    for (const leak of [ "clamp-to-edge", "clamp-to-border", "addressUMode", "nanocoating", "sofPattern" ])
+    {
+        assert.ok(!serialized.includes(leak), `pattern must not carry ${leak}`);
+    }
+});
+
+test("a hull with no faction falls back to slot order, and a patternless skin has no pattern", () =>
+{
+    const library = CjsToolSkinrBuilder.build(BuildOptions());
+
+    // Type 101 carries no factionID, so cosmetic slot 1 feeds material1.
+    const { dna, pattern, factionID } = CjsToolSkinrPattern.generate({
+        library,
+        dna: "cf1_t1:caldaribase:caldari",
+        skin: {
+            ship_type_id: 101,
+            id: "NO-FACTION",
+            layout: { slots: [ { id: 1, configuration: { nanocoating: { id: 53 } } } ] },
+        },
+    });
+
+    assert.equal(factionID, null);
+    assert.equal(dna, "cf1_t1:caldaribase:caldari:mesh?plasmic_test;none;none;none");
+    assert.equal(pattern, null, "no pattern slot means no pattern to insert");
 });
