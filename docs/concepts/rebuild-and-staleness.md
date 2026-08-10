@@ -3,7 +3,19 @@
 Status: Evolving
 Scope: Every generated library under `<cache>/custom/**` - character, audio, skin, skinr, weapons
 Audience: Anyone changing a builder, a repository, or the service warm-up
-Summary: States why a build number is the wrong rebuild trigger in both directions, what a provenance stamp must carry, and why a silent schema fallback is a defect rather than a convenience.
+Summary: What this package's builders do today, why it is wrong, and what to change. The cross-package rules live in the organization documentation; this page is the local view.
+
+## Where the rules live
+
+The addressing format, the hash-safe/local-exact distinction and the service
+contract are cross-package, and are owned by
+`/docs/architecture/resource-addressing-and-staleness.md` in the organization
+documentation repository. They were established during the 2026-07 index work
+and recorded in `recovery/org-agents/AGENT-FACTS.md:1155-1167` - read the owning
+page before treating anything here as new.
+
+This page is the package-local view: what these builders do today and what to
+change.
 
 ## The rule
 
@@ -49,56 +61,19 @@ builder then redoes all the work it just proved was unnecessary.
 
 ## Nothing needs hashing: the identity is already recorded
 
-EVE resources are content addressed, and the address is the stored file name.
-The authority is `cppctamber/eveResFileIndex`, `src/core/hash.js`:
+EVE resources are content addressed - the stored file name carries an FNV-1 hash
+of the logical path and an md5 of the contents, and the index repeats that md5 as
+the entry's `checksum`. The format, its verification and the one open question
+about it are owned by
+`/docs/architecture/resource-addressing-and-staleness.md`.
 
-```js
-`${fnv164(prefixedResPath).substring(0, 2)}/${fnv164(prefixedResPath)}_${md5(contents)}`
-```
+The consequence for builders here: **do not compute digests.** A builder that
+hashes its inputs is recomputing a number the index handed it, and for audio it
+is reading hundreds of megabytes to derive a value that was already in the file
+name.
 
-- **FNV-1** (multiply then XOR - not FNV-1a), 64-bit, offset
-  `0xcbf29ce484222325`, prime `0x100000001b3`, over the **prefixed** path
-  (`res:/...`).
-- The shard directory is the **first two characters of that same hash**, not a
-  separate value.
-- The second half is a plain md5 of the file contents, which the index also
-  records as the entry's `checksum`.
-
-`CjsIndexOverlayStore.validateContentAddress` checks that shape here.
-
-Verified against real data, not taken on trust: 3329 entries across the incarna,
-legacy-gles and macos-metal overlay indexes, every one of them matching on both
-the 16-hex path hash and the shard-is-the-first-two-characters rule.
-
-### An untestable divergence
-
-Our `fnv1` hashes **UTF-8 bytes** (`Buffer.from(value, "utf8")`); the reference
-hashes **UTF-16 code units** (`str.charCodeAt(i)`). Constructed inputs separate
-them:
-
-```text
-res:/textures/cafe.dds   be93fec578ac6c61   be93fec578ac6c61   same
-res:/textures/café.dds   b69fd89d4e12f266   d18d3a77a39ffde5   DIFFER
-```
-
-**But no real path distinguishes them.** All 3329 entries are ASCII, so both
-implementations score 100%, and the data cannot say which is right. Do not
-"correct" one to match the other on the strength of the other existing - that
-would be picking a winner by authority rather than by evidence, and if the guess
-is wrong it converts a dormant difference into a live one.
-
-Resolve it only with an actual non-ASCII res path, or with the game's own
-implementation. Until then it is a documented unknown, and harmless: staleness
-compares addresses rather than deriving them.
-
-Comparing addresses is all staleness needs, and comparing is safe regardless:
-two builds either carry the same address for a path or they do not. The formula
-only matters where something **derives** an address rather than reading one.
-
-So the content identity of every file is already written down, twice, before we
-touch anything. **Do not compute digests.** A builder that hashes its inputs is
-recomputing a number the index handed it, and for audio it is reading hundreds
-of megabytes to derive a value that was already in the file name.
+`CjsIndexOverlayStore.validateContentAddress` checks the shape;
+`runtime-utils/resfile` derives and parses it.
 
 ## Track builds, not libraries
 
@@ -133,23 +108,17 @@ no content identity - a `legacy-gles` row is
 `res:/graphics/...,graphics/...,,,`, a plain path with an empty checksum - so
 nothing about that row changes when the file behind it changes.
 
-**The distinction already exists in the code: `artifactKind`.** A resolved file
-is either `hash-safe` or `local-exact`:
+**The distinction already exists in the code: `artifactKind`**, `hash-safe`
+versus `local-exact`, set at `CjsIndex.js:223` and
+`CjsIndexOverlayStore.js:496` and surfaced as the `x-carbon-artifact-kind`
+response header. The ownership table is in
+`/docs/architecture/resource-addressing-and-staleness.md`.
 
-| source | artifactKind | comparable |
-| --- | --- | --- |
-| pure build index (`CjsIndex.js`) | `hash-safe` | yes |
-| remote overlay (`CjsIndexOverlayStore.js`) | `hash-safe` | yes |
-| local overlay | `local-exact` | no |
+So the staleness service invents no predicate and sniffs no checksum columns: it
+filters on `artifactKind === "hash-safe"` and treats everything else as changed.
 
-The proxy already surfaces it as the `x-carbon-artifact-kind` response header.
-So the staleness service does not need to invent a predicate or sniff checksum
-fields - it filters on `artifactKind === "hash-safe"` and treats everything else
-as changed.
-
-Until internal indexes are written hash-safe throughout, that means the service
-runs against the **original shipped indexes**, which are hash-safe by
-construction.
+Until internal indexes are written hash-safe throughout, that means running
+against the **original shipped indexes**, which are hash-safe by construction.
 
 So: diff pure builds, and treat anything an overlay supplies as changed. That is
 the same rule as everywhere else here - **an input we cannot prove unchanged is
