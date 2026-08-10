@@ -19,6 +19,7 @@ import {
     TOOLS_SERVICE_PROTOCOL_VERSION,
 } from "../src/index.js";
 import { CjsToolCharacterRepository } from "../src/character/index.js";
+import { CjsToolEveSso, CjsToolTokenFile } from "../src/auth/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
 
 /**
@@ -145,6 +146,7 @@ async function main()
         sde,
         characters,
         audio,
+        auth: CreateEsiAuth(cacheDirectory, port),
     });
     const server = proxy.CreateServer();
 
@@ -203,6 +205,46 @@ async function main()
 
     process.once("SIGINT", close);
     process.once("SIGTERM", close);
+}
+
+/**
+ * Builds the EVE SSO service from the environment, or null when unconfigured.
+ *
+ * Null is the normal state and must stay usable: the login exists only while
+ * the SKINR endpoints are insider-gated, and every other route works without
+ * it. When the gate lifts, unsetting CJS_ESI_CLIENT_ID turns this off with no
+ * other change.
+ *
+ * The refresh token lands in the cache directory, which is gitignored and
+ * already where this service keeps per-install state.
+ */
+function CreateEsiAuth(cacheDirectory, port)
+{
+    const clientId = String(process.env.CJS_ESI_CLIENT_ID ?? "").trim();
+
+    if (!clientId) return null;
+
+    const callback = String(process.env.CJS_ESI_CALLBACK ?? "").trim()
+        || `http://localhost:${port}/v1/auth/esi/callback`;
+
+    // A mismatch here is the single most common SSO failure and EVE reports it
+    // only as a generic invalid_request, so it is worth catching up front.
+    if (!callback.includes(`:${port}/`) && callback.startsWith("http://localhost"))
+    {
+        process.stderr.write(
+            `Warning: CJS_ESI_CALLBACK is ${callback} but this service is on port ${port}. `
+            + "EVE matches the callback exactly, so the login will fail.\n",
+        );
+    }
+
+    return {
+        sso: new CjsToolEveSso({
+            clientId,
+            callback,
+            scopes: String(process.env.CJS_ESI_SCOPES ?? "").split(/\s+/u).filter(Boolean),
+        }),
+        tokens: new CjsToolTokenFile({ directory: path.join(cacheDirectory, "auth") }),
+    };
 }
 
 function normalizeHost(value)
