@@ -1,4 +1,6 @@
-// Opens the EVE login in a browser. The service must already be running.
+// Opens the EVE ONLINE login in a browser. Nothing to do with npm - npm is
+// only the task runner here, which is why the script is named login:eve.
+// The tools service must already be running.
 //
 // Exists because the flow is otherwise "read the docs, find the port, type a
 // url" - which is fine for a test and poor for a person.
@@ -15,7 +17,7 @@ try
 }
 catch
 {
-    process.stderr.write(`No tools service on ${root}. Start one with: npm run service\n`);
+    process.stderr.write(`No tools service on ${root}. Start one with: npm run server\n`);
     process.exit(1);
 }
 

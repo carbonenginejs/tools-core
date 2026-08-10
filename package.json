@@ -67,7 +67,7 @@
     "start": "node bin/cjs-tool-index.js",
     "service": "node bin/cjs-tools-service.js",
     "server": "npm run service",
-    "login": "node scripts/login.js",
+    "login:eve": "node scripts/login.js",
     "prefetch": "node bin/cjs-tools-prefetch.js",
     "prepare:sde": "node bin/cjs-sde-prepare.js",
     "bundle:sof": "node bin/cjs-sof-bundle.js",
