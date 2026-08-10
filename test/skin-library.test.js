@@ -237,15 +237,24 @@ test("loads both library table sets once from an exact source", async () =>
     assert.equal(libraries.skin.skins[10].skinID, 10);
     assert.equal(libraries.skinr.components[53].componentID, 53);
 
-    // Curated faction slot conversion rides the library: every entry maps the
-    // four cosmetic slots onto a permutation of the four material layers.
-    const slotsToLayers = libraries.skinr.skinrSlotsToMaterialLayerByFaction;
+    // Authored faction slot conversion rides the library, keyed by factionID -
+    // an attribute of a typeID, NOT a SOF faction. Every entry maps the four
+    // cosmetic slots onto the four material layers, one to one.
+    const slotsToLayers = libraries.skinr.skinrSlotsToMaterialLayerByFactionId;
     assert.ok(Object.keys(slotsToLayers).length > 0);
-    for (const materialLayers of Object.values(slotsToLayers))
+    for (const [ factionID, pairs ] of Object.entries(slotsToLayers))
     {
-        assert.deepEqual([ ...materialLayers ].sort(), [ 1, 2, 3, 4 ]);
+        assert.match(factionID, /^\d+$/, "faction keys are numeric factionIDs");
+        assert.deepEqual(pairs.map(pair => pair.slotID).sort(), [ 1, 2, 3, 4 ]);
+        assert.deepEqual(pairs.map(pair => pair.materialID).sort(), [ 1, 2, 3, 4 ]);
     }
-    assert.deepEqual(slotsToLayers.amarrbase, [ 4, 1, 2, 3 ]);
+    // 500003 is the entry v1 keyed as "amarrbase"; the values are unchanged.
+    assert.deepEqual(slotsToLayers["500003"], [
+        { slotID: 1, materialID: 4 },
+        { slotID: 2, materialID: 1 },
+        { slotID: 3, materialID: 2 },
+        { slotID: 4, materialID: 3 },
+    ]);
 });
 
 test("serves whole libraries and exact matching JSON subtrees", async context =>
@@ -302,16 +311,16 @@ test("serves whole libraries and exact matching JSON subtrees", async context =>
     assert.equal((await fetch(`${root}/eve/latest/skinr/components/999`)).status, 404);
 
     const slotsToLayers = await (await fetch(
-        `${root}/eve/latest/skinr/skinrSlotsToMaterialLayerByFaction`
+        `${root}/eve/latest/skinr/skinrSlotsToMaterialLayerByFactionId`
     )).json();
     const amarrSlotsToLayers = await (await fetch(
-        `${root}/eve/latest/skinr/skinrSlotsToMaterialLayerByFaction/amarrbase`
+        `${root}/eve/latest/skinr/skinrSlotsToMaterialLayerByFactionId/500003`
     )).json();
 
-    assert.deepEqual(slotsToLayers, fullSkinr.skinrSlotsToMaterialLayerByFaction);
-    assert.deepEqual(amarrSlotsToLayers, fullSkinr.skinrSlotsToMaterialLayerByFaction.amarrbase);
+    assert.deepEqual(slotsToLayers, fullSkinr.skinrSlotsToMaterialLayerByFactionId);
+    assert.deepEqual(amarrSlotsToLayers, fullSkinr.skinrSlotsToMaterialLayerByFactionId["500003"]);
     assert.equal(
-        (await fetch(`${root}/eve/latest/skinr/skinrSlotsToMaterialLayerByFaction/unknownbase`)).status,
+        (await fetch(`${root}/eve/latest/skinr/skinrSlotsToMaterialLayerByFactionId/999999`)).status,
         404,
     );
 });

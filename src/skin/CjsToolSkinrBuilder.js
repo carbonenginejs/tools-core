@@ -1,4 +1,4 @@
-import factionSlotDefinitions from "../../definitions/skinr-faction-slots-v1-2026-08-05.json" with { type: "json" };
+import factionSlotDefinitions from "../../definitions/skinr-faction-slots-v2-2026-08-10.json" with { type: "json" };
 import {
     compareIds,
     mapRecords,
@@ -39,15 +39,24 @@ export class CjsToolSkinrBuilder
     static schema = "carbonenginejs.skinrLibrary";
 
     /**
-     * Curated SOF-faction slot conversion served as the library's
-     * skinrSlotsToMaterialLayerByFaction section. Index = cosmetic slot by
-     * position (1 primary_nanocoating, 2 secondary_nanocoating,
-     * 3 tertiary_nanocoating, 4 tech_area), value = the mesh material layer
-     * (material1-4) that slot's component feeds. The authored data lives in
-     * definitions/skinr-faction-slots-v1-2026-08-05.json; no source table
-     * carries this conversion.
+     * Cosmetic-slot to mesh-material-layer conversion, keyed by factionID and
+     * served as the library's skinrSlotsToMaterialLayerByFactionId section.
+     * slotID is the cosmetic slot (1 primary_nanocoating,
+     * 2 secondary_nanocoating, 3 tertiary_nanocoating, 4 tech_area); materialID
+     * is the mesh material layer (material1-4) that slot's component feeds.
+     *
+     * factionID is an attribute of a typeID and does NOT map to a SOF faction.
+     * v1 of this file was keyed by SOF faction name, which no consumer can
+     * resolve correctly - the values were right, the key was not. The shape
+     * here matches the pending ESI endpoint, so the served table can replace
+     * the authored one without a conversion step.
+     *
+     * The authored copy lives in
+     * definitions/skinr-faction-slots-v2-2026-08-10.json. It is authored
+     * because static data does not carry the conversion - not because no
+     * source for it exists, which is what v1 claimed.
      */
-    static skinrSlotsToMaterialLayerByFaction = factionSlotDefinitions.slotsToMaterialLayerByFaction;
+    static skinrSlotsToMaterialLayerByFactionId = factionSlotDefinitions.slotsToMaterialLayerByFactionId;
 
     static build(options = {})
     {
@@ -174,13 +183,13 @@ export class CjsToolSkinrBuilder
             slotConfigurations,
         );
 
-        const skinrSlotsToMaterialLayerByFaction = this.skinrSlotsToMaterialLayerByFaction;
+        const skinrSlotsToMaterialLayerByFactionId = this.skinrSlotsToMaterialLayerByFactionId;
 
         ValidateReferences({
             componentCategories,
             componentRarities,
             components,
-            skinrSlotsToMaterialLayerByFaction,
+            skinrSlotsToMaterialLayerByFactionId,
             slotCategories,
             slotConfigurations,
             slotNames,
@@ -205,7 +214,7 @@ export class CjsToolSkinrBuilder
                     licenses.sort((left, right) => compareIds(left.componentID, right.componentID)),
                 ]),
             ),
-            skinrSlotsToMaterialLayerByFaction,
+            skinrSlotsToMaterialLayerByFactionId,
             slotCategories,
             slotConfigurations,
             slotNames,
@@ -353,17 +362,21 @@ function ValidateReferences(data)
         }
     }
 
-    // Curated data, not table-derived: each faction entry must be a
-    // permutation of the four mesh material layers (1-4), one per cosmetic
-    // slot position.
-    for (const [ factionName, materialLayers ] of Object.entries(data.skinrSlotsToMaterialLayerByFaction))
+    // Authored data, not table-derived: each faction entry must assign all four
+    // cosmetic slots to all four mesh material layers, one to one. Both halves
+    // are checked - a repeated slotID is as broken as a repeated materialID,
+    // and the positional array this replaced could only ever express the second.
+    for (const [ factionID, pairs ] of Object.entries(data.skinrSlotsToMaterialLayerByFactionId))
     {
-        const unique = new Set(materialLayers);
+        const slotIDs = new Set((pairs || []).map(pair => pair?.slotID));
+        const materialIDs = new Set((pairs || []).map(pair => pair?.materialID));
+        const permutes = set => set.size === 4 && [ 1, 2, 3, 4 ].every(value => set.has(value));
 
-        if (!Array.isArray(materialLayers) || materialLayers.length !== 4 || unique.size !== 4
-            || materialLayers.some(layer => ![ 1, 2, 3, 4 ].includes(layer)))
+        if (!Array.isArray(pairs) || pairs.length !== 4 || !permutes(slotIDs) || !permutes(materialIDs))
         {
-            throw new Error(`Faction slot conversion for ${factionName} must be a permutation of material layers 1-4`);
+            throw new Error(
+                `Faction slot conversion for factionID ${factionID} must map cosmetic slots 1-4 onto material layers 1-4 one to one`,
+            );
         }
     }
 
