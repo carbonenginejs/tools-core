@@ -59,6 +59,7 @@ test("serves health without the removed legacy SOF routes", async context =>
             skinr: false,
             weapons: false,
             sofCatalog: false,
+            auth: false,
         },
     });
 
@@ -462,6 +463,7 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
         skinr: true,
         weapons: true,
         sofCatalog: false,
+        auth: false,
     });
 
     const catalog = await fetch(`${root}/eve/latest/sde`);
@@ -511,7 +513,7 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
     assert.equal((await resolved.json()).dna, "rifter:minmatar:minmatar");
 });
 
-test("serves the combined schema-v8 character document", async context =>
+test("serves the combined schema-v9 character document", async context =>
 {
     const values = CjsToolCharacter.build(CreateCharacterDocuments(), {
         sourceTarget: "eve",
@@ -567,6 +569,7 @@ test("serves the combined schema-v8 character document", async context =>
         skinr: false,
         weapons: false,
         sofCatalog: false,
+        auth: false,
     });
 
     const response = await fetch(root);
@@ -577,7 +580,7 @@ test("serves the combined schema-v8 character document", async context =>
     assert.equal(response.headers.get("x-carbon-answer"), "character");
     assert.equal(response.headers.get("x-carbon-target"), "eve");
     assert.equal(response.headers.get("x-carbon-build"), "3450001");
-    assert.equal(wholeLibrary.schemaVersion, 8);
+    assert.equal(wholeLibrary.schemaVersion, 9);
     assert.equal(wholeLibrary.sourceTarget, "eve");
     assert.equal(wholeLibrary.documents.characterResources[0].typeID, "9001");
     assert.deepEqual(await alias.json(), wholeLibrary);
@@ -746,6 +749,7 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
         skinr: false,
         weapons: false,
         sofCatalog: false,
+        auth: false,
     });
 
     const targetResponse = await fetch(`${root}/targets`, { headers });
@@ -1073,8 +1077,20 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
         cacheDirectory,
         "--data",
         dataDirectory,
+        // Point --env at a path that cannot exist, and blank the variable it
+        // would have set. Without both, this test reports whichever
+        // capabilities the DEVELOPER's .env happens to configure: it passes on
+        // a machine with no EVE client id and fails on one that has logged in,
+        // which is the worst kind of failure to debug.
+        "--env",
+        path.join(os.tmpdir(), "cjs-tools-service-no-such.env"),
+        // Port zero: this test only reads the bootstrap record, and the fixed
+        // default would collide with a service the developer is already running.
+        "--port",
+        "0",
     ], {
         stdio: [ "ignore", "pipe", "pipe" ],
+        env: { ...process.env, CJS_ESI_CLIENT_ID: "" },
     });
     const lines = readline.createInterface({ input: child.stdout });
 
@@ -1107,6 +1123,7 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
         skinr: true,
         weapons: true,
         sofCatalog: true,
+        auth: false,
     });
 
     const health = await fetch(`http://${bootstrap.host}:${bootstrap.port}/v1/health`);
