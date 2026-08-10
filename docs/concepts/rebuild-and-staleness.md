@@ -47,53 +47,53 @@ byte-identical to the build before it. So a per-library digest is barely better
 than a build number: it answers "did anything change" with "yes", and the
 builder then redoes all the work it just proved was unnecessary.
 
-Record **one digest per input file**, and recompute only the outputs whose
-inputs moved:
+## Nothing needs hashing: the identity is already recorded
 
-```json
-{
-  "schema": "carbonenginejs.characterLibrary",
-  "schemaVersion": 9,
-  "sourceTarget": "eve",
-  "sourceGame": "Eve",
-  "sourceProvider": "ccp",
-  "sourceBuild": "3458726",
-  "inputs": {
-    "res:/path/to/a.red": "sha256:...",
-    "res:/path/to/b.red": "sha256:..."
-  }
-}
+EVE resources are content addressed, and the address is the stored file name:
+
+```text
+<shard>/<fnv1-64 of the logical path>_<md5 of the contents>
 ```
 
-The builder's own version belongs in the stamp too, because a change to the
-builder invalidates every output regardless of whether any input moved. Keep it
-separate from the file map so it is obvious which of the two forced the work.
+`CjsIndexOverlayStore` validates exactly that shape - `^([a-f0-9]{16})_([a-f0-9]{32})$`
+- and the index entry carries the same md5 again as `checksum`.
 
-**The index already answers this.** The resfileindex carries a path, size and
-checksum per file, so the set of files that changed between two builds is a diff
-of index rows - no file reads at all. That diff is the work list. A build bump
-with no relevant rows changed is a no-op, which is the common case and currently
-the one that costs the most.
+So the content identity of every file is already written down, twice, before we
+touch anything. **Do not compute digests.** A builder that hashes its inputs is
+recomputing a number the index handed it, and for audio it is reading hundreds
+of megabytes to derive a value that was already in the file name.
 
-A combined digest, if you want one, is derived from the file map as a fast
-"nothing at all changed" short-circuit. It is never the primary record: on a
-mismatch it tells you only that *something* moved, which is exactly the state
-that makes people delete the cache and rebuild everything.
+## Track builds, not libraries
 
-## Hashing cost is not uniform
+The naive fix - each library recording a digest per input file - duplicates the
+same bookkeeping into every builder, and each one recomputes it independently.
 
-**Character is cheap and changes rarely.** The inputs are SDE records and
-authored definitions - small, and read in full during a build anyway. Hash them
-per file. Most builds should touch none of them and do no work at all.
+Retain the **resfileindex per build** instead. Then "what changed between build A
+and build B" is a diff of two indexes by logical path and content address, and it
+answers for every consumer at once. A library's work list is that diff filtered
+to the paths it reads.
 
-**Audio is expensive and mostly static.** Soundbanks approach 400 MiB, and
-reading one to decide whether to re-read it defeats the purpose entirely. Never
-hash bank bytes for staleness: take the checksum the index already records.
+This belongs behind a small service rather than inside any one builder: it is the
+same question for character, audio, skin, skinr and weapons, and the answer
+depends only on the two indexes. A build bump where no relevant address changed
+is then a no-op that costs one index comparison - which is the common case, and
+currently the one that costs the most.
 
-The general rule: **hash the manifest, not the payload**, wherever the manifest
-is authoritative. Fall back to hashing bytes only where nothing upstream records
-what those bytes are - and treat that as a gap in the index rather than a normal
-mode of operation.
+The builder's own version still belongs in each artifact, because a change to the
+builder invalidates its output regardless of whether any input moved. Keep it
+distinct from the input identity so it is obvious which of the two forced the
+work.
+
+## Inputs the index does not cover
+
+The index answers for anything under `res:`. It does not answer for the things
+we author ourselves - definition files in `definitions/`, and the builders'
+own source. Those need their own identity, and they are small enough that
+hashing them costs nothing.
+
+Keep the two apart in the stamp. A change to an authored definition and a change
+to a game resource have different causes and different blast radii, and a single
+merged digest makes them indistinguishable when something rebuilds unexpectedly.
 
 ## Silent fallbacks are defects
 
