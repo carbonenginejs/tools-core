@@ -121,28 +121,60 @@ builder invalidates its output regardless of whether any input moved. Keep it
 distinct from the input identity so it is obvious which of the two forced the
 work.
 
-### Overlays cannot be diffed this way
+### Pure builds only
 
-The whole mechanism rests on the address carrying a content hash. Overlay
-entries frequently do not: a `legacy-gles` row is
-`res:/graphics/...,graphics/...,,,` - a plain path, empty checksum, no content
-identity anywhere. Nothing about that row changes when the file behind it
-changes.
+The service compares **build indexes**, not composed views. Overlays are
+excluded by design rather than handled carefully: they are a local composition
+concern, they vary per machine, and including them would make the answer to
+"did this change between two builds" depend on who is asking.
 
-So an overlay is only comparable if it is **hash-safe** - if its entries carry a
-checksum, as `incarna`'s content-addressed rows do. That is detectable per
-overlay rather than assumed: read the checksum field.
+They also frequently cannot be compared at all. An overlay entry often carries
+no content identity - a `legacy-gles` row is
+`res:/graphics/...,graphics/...,,,`, a plain path with an empty checksum - so
+nothing about that row changes when the file behind it changes.
 
-For anything else the conservative rule applies, and it is the same rule as a
-missing build: **an input we cannot prove unchanged is treated as changed.** An
-overlay without content identity therefore forces a rebuild of whatever reads
-it. That is the correct answer rather than a limitation to engineer around -
-the alternative is deciding a locally edited file is unchanged because nothing
-recorded that it moved, which is exactly the silent-wrong-answer failure this
-page exists to prevent.
+**The distinction already exists in the code: `artifactKind`.** A resolved file
+is either `hash-safe` or `local-exact`:
 
-Making an overlay hash-safe is the way out, and it is a change to how overlays
-are written rather than to how they are compared.
+| source | artifactKind | comparable |
+| --- | --- | --- |
+| pure build index (`CjsIndex.js`) | `hash-safe` | yes |
+| remote overlay (`CjsIndexOverlayStore.js`) | `hash-safe` | yes |
+| local overlay | `local-exact` | no |
+
+The proxy already surfaces it as the `x-carbon-artifact-kind` response header.
+So the staleness service does not need to invent a predicate or sniff checksum
+fields - it filters on `artifactKind === "hash-safe"` and treats everything else
+as changed.
+
+Until internal indexes are written hash-safe throughout, that means the service
+runs against the **original shipped indexes**, which are hash-safe by
+construction.
+
+So: diff pure builds, and treat anything an overlay supplies as changed. That is
+the same rule as everywhere else here - **an input we cannot prove unchanged is
+treated as changed** - and it is the correct answer rather than a limitation to
+engineer around. The alternative is deciding a locally edited file is unchanged
+because nothing recorded that it moved.
+
+### The span is only what we kept
+
+There is no authority to ask what a previous build contained. Old indexes are
+not re-acquirable, so the span is bounded by **what this installation happens to
+have retained**, and a gap in it is permanent - "missing, so rebuild" is a final
+answer, not a retry that a later fetch could improve.
+
+Two consequences worth stating, because they are easy to discover the expensive
+way:
+
+- **Retention is the mechanism.** Pruning old build indexes does not just save
+  disk, it destroys the ability to prove anything was unchanged across the gap,
+  and every consumer on the far side of it rebuilds from then on. They are small
+  next to what they save.
+- **A first run can prove nothing.** An installation with one retained index has
+  no span, so everything rebuilds once. That is correct, and it is worth
+  reporting as "no prior index" rather than as a cache miss, so nobody hunts for
+  a bug in the comparison.
 
 ### Service contract
 
