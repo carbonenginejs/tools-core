@@ -21,6 +21,12 @@ import {
 import { CjsToolCharacterRepository } from "../src/character/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
 
+/**
+ * Fixed so an OAuth redirect_uri can be registered against it. EVE SSO matches
+ * the callback exactly, so an ephemeral port could never appear in one.
+ * Registered callback: http://localhost:5510/v1/auth/esi/callback
+ */
+const DEFAULT_PORT = 5510;
 const DEFAULT_MAX_PAYLOAD_BYTES = 256 * 1024 * 1024;
 const DEFAULT_PREFETCH_MAX_PAYLOAD_BYTES = 512 * 1024 * 1024;
 const DEFAULT_PREFETCH_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
@@ -48,7 +54,11 @@ async function main()
     }
 
     const host = normalizeHost(args.host ?? "127.0.0.1");
-    const port = normalizePort(args.port ?? 0);
+    // Default to a FIXED port, not an ephemeral one. An OAuth redirect_uri
+    // must match its registration exactly, so a port that changes per run can
+    // never be registered. The cost is that a second service fails to bind -
+    // which is the intended behaviour: one at a time, and the collision says so.
+    const port = normalizePort(args.port ?? DEFAULT_PORT);
     const cacheDirectory = path.resolve(String(args.cache ?? path.join(".cache", "tool-core")));
     const dataDirectory = path.resolve(String(
         args.data ?? path.join(packageDirectory, "data.local"),
@@ -138,7 +148,25 @@ async function main()
 
     await new Promise((resolve, reject) =>
     {
-        server.once("error", reject);
+        server.once("error", error =>
+        {
+            // Now the expected collision rather than a rare one: the port is
+            // fixed so a callback can be registered against it, which means a
+            // second service cannot start. Say that, instead of leaving an
+            // EADDRINUSE to be interpreted.
+            if (error?.code === "EADDRINUSE")
+            {
+                reject(new Error(
+                    `Tools service port ${port} is already in use - another instance is `
+                    + "probably running. Run one at a time, or pass --port to use another "
+                    + "(note that an OAuth callback is registered against the default).",
+                ));
+
+                return;
+            }
+
+            reject(error);
+        });
         server.listen(port, host, resolve);
     });
 
@@ -204,12 +232,12 @@ function printHelp()
     process.stdout.write(`CarbonEngineJS tools-core service
 
 Usage:
-  cjs-tools-service [--host 127.0.0.1] [--port 0] [--cache <directory>] [--data <directory>]
+  cjs-tools-service [--host 127.0.0.1] [--port 5510] [--cache <directory>] [--data <directory>]
     [--prefetch audio] [--target eve] [--build latest]
 
 Options:
   --host <address>          Loopback address: 127.0.0.1 or ::1
-  --port <number>           Loopback port; zero selects an available port
+  --port <number>           Loopback port; default 5510, zero selects any free port
   --cache <path>            Shared tools cache root
   --data <path>             Persistent local overlay root
   --prefetch [profiles]     Prepare profiles before listening; default: audio
