@@ -1,4 +1,4 @@
-import { projectionType } from "./helpers.js";
+import { patternBlendMode, projectionType } from "./helpers.js";
 
 /**
  * Builds the SOF pattern and DNA for a SKINR skin payload.
@@ -101,9 +101,11 @@ export class CjsToolSkinrPattern
         let result = `${hullName}:${factionName}:${raceName}`;
         if (mesh.some(value => value !== "none")) result += `:mesh?${mesh.join(";")}`;
 
-        const blendMode = !layout.pattern_blend_mode || layout.pattern_blend_mode === "normal"
-            ? "overlay"
-            : layout.pattern_blend_mode;
+        // Kept as authored rather than folded to "overlay": `normal` IS the
+        // overlay blend, and the runtime resolves both to the same value, so
+        // rewriting it only makes the generated file harder to check against
+        // the payload it came from.
+        const blendMode = patternBlendMode(layout.pattern_blend_mode);
 
         const built = CjsToolSkinrPattern.PatternLayers.map(definition =>
             BuildLayer(definition, { bySlotName, componentIn, blendMode, slotsToLayers }));

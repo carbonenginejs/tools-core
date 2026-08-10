@@ -213,6 +213,42 @@ export function projectionType(value)
     return types[key];
 }
 
+/**
+ * Validates a SKINR pattern blend mode.
+ *
+ * These five are the whole vocabulary a payload may carry, and they are not in
+ * static data - the value is authored, not derived, so there is no table to
+ * check it against at build time. `normal` is the overlay blend.
+ *
+ * They are lowercase and the consuming runtime upper-cases and substitutes
+ * separators before matching, so no rename is needed. What does NOT survive is
+ * anything outside the set: the runtime's lookup falls back to 0 for an
+ * unrecognised string, so an unknown blend mode arrives looking exactly like a
+ * deliberate `normal`. Rejecting it here turns that into a build failure - the
+ * one place it can still be noticed.
+ */
+export function patternBlendMode(value, fallback = "normal")
+{
+    const key = String(value ?? "").trim().toLowerCase();
+
+    if (!key) return fallback;
+
+    const known = new Set([
+        "normal",
+        "subtract",
+        "exclusion",
+        "nested",
+        "nested_inverted",
+    ]);
+
+    if (!known.has(key))
+    {
+        throw new Error(`Unsupported SKINR pattern blend mode: ${value}`);
+    }
+
+    return key;
+}
+
 /** Requires one ID-addressable record used by a generated join. */
 export function requireRecord(records, id, label)
 {

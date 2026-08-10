@@ -412,7 +412,7 @@ test("generates a SOF pattern carrying only SOF field names and value types", ()
     assert.equal(pattern.layer1.textureName, "PatternMask1Map");
     assert.equal(pattern.layer1.materialSource, 4);
     assert.equal(pattern.layer1.textureResFilePath, "res:/texture/pattern/pattern_test.dds");
-    assert.equal(pattern.layer1.blendMode, "overlay");
+    assert.equal(pattern.layer1.blendMode, "normal", "authored blend mode survives; normal IS the overlay blend");
 
     // projection.slot1 targets cosmetic slot 1, which this faction feeds to
     // material3 - so mtl3, not mtl1.
@@ -458,4 +458,39 @@ test("a hull with no faction falls back to slot order, and a patternless skin ha
     assert.equal(factionID, null);
     assert.equal(dna, "cf1_t1:caldaribase:caldari:mesh?plasmic_test;none;none;none");
     assert.equal(pattern, null, "no pattern slot means no pattern to insert");
+});
+
+test("an unknown pattern blend mode fails the build instead of silently becoming normal", () =>
+{
+    const library = CjsToolSkinrBuilder.build(BuildOptions());
+    const skinWith = mode => ({
+        ship_type_id: 100,
+        id: "BLEND",
+        layout: {
+            pattern_blend_mode: mode,
+            slots: [ { id: 5, configuration: { pattern: { id: 54, configuration: {} } } } ],
+        },
+    });
+
+    // The five the payload may carry, all preserved verbatim.
+    for (const mode of [ "normal", "subtract", "exclusion", "nested", "nested_inverted" ])
+    {
+        const { pattern } = CjsToolSkinrPattern.generate({
+            library, dna: "cf1_t1:caldaribase:caldari", skin: skinWith(mode),
+        });
+        assert.equal(pattern.layer1.blendMode, mode);
+    }
+
+    // The consuming runtime maps an unrecognised string to its 0 fallback, so
+    // these would arrive indistinguishable from a deliberate "normal".
+    for (const mode of [ "multiply", "screen", "NESTED-INVERTED", "overlay" ])
+    {
+        assert.throws(
+            () => CjsToolSkinrPattern.generate({
+                library, dna: "cf1_t1:caldaribase:caldari", skin: skinWith(mode),
+            }),
+            /Unsupported SKINR pattern blend mode/u,
+            `${mode} must be rejected`,
+        );
+    }
 });
