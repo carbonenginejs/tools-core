@@ -250,6 +250,8 @@ test("projects exact baseline and version metadata without changing retained YAM
             partSource: "female/dependants/tuck/basic",
         }, {
             authoredValue: "utilityshapes/pushhemshape###0.7",
+            modifierPath: "utilityshapes/pushhemshape",
+            weight: 0.7,
         } ],
         occlusions: [ {
             authoredValue: "bottominner",
@@ -275,6 +277,8 @@ test("projects exact baseline and version metadata without changing retained YAM
     assert.equal(compiled.report.metadataDefinitions, 3);
     assert.equal(compiled.report.partMetadata, 3);
     assert.equal(compiled.report.droppedDefinitions, 0);
+    assert.equal(compiled.report.modifierReferences.utilityShapeTargets, 1);
+    assert.equal(compiled.report.modifierReferences.explicitUtilityShapeWeights, 1);
 
     const gathered = await CjsToolCharacterCatalogGatherer.gather(index, {
         definitions,
@@ -295,6 +299,66 @@ test("projects exact baseline and version metadata without changing retained YAM
             .versions.find(value => value.resourceVersion === "v1").metadata,
         versionMetadataPath
     );
+});
+
+test("types only proved utility dependency weight forms", () =>
+{
+    const metadataPath = "res:/graphics/character/male/paperdoll/bottomouter/example/metadata.yaml";
+    const dependentModifiers = [
+        "utilityshapes/PinchTuckShape",
+        "utilityshapes/ZeroShape###0",
+        "utilityshapes/DoubleShape###2",
+        "utilityshapes/SixShape###6",
+        "utilityshapes/SingleHashShape#0.3",
+        "utilityshapes/BareHashShape#",
+        "utilityshapes/TrailingShape###0.3junk",
+        "dependants/tuck/basic###0.3",
+    ];
+    const occludesModifiers = [
+        "utilityshapes/PinchTuckShape",
+        "utilityshapes/ConditionalShape#0.3",
+    ];
+    const compiled = CjsToolCharacterDefinitionCompiler.compile(
+        CreateIndex([ metadataPath ]),
+        { definitions: { [metadataPath]: { dependentModifiers, occludesModifiers } } }
+    );
+    const metadata = compiled.partMetadata[metadataPath];
+
+    assert.deepEqual(metadata.dependencies.slice(0, 4), [
+        {
+            authoredValue: dependentModifiers[0],
+            modifierPath: "utilityshapes/pinchtuckshape",
+            weight: 1,
+        },
+        {
+            authoredValue: dependentModifiers[1],
+            modifierPath: "utilityshapes/zeroshape",
+            weight: 0,
+        },
+        {
+            authoredValue: dependentModifiers[2],
+            modifierPath: "utilityshapes/doubleshape",
+            weight: 2,
+        },
+        {
+            authoredValue: dependentModifiers[3],
+            modifierPath: "utilityshapes/sixshape",
+            weight: 6,
+        },
+    ]);
+    assert.deepEqual(metadata.dependencies.slice(4), dependentModifiers.slice(4).map(
+        authoredValue => ({ authoredValue })
+    ));
+    assert.deepEqual(metadata.occlusions, [
+        {
+            authoredValue: occludesModifiers[0],
+            modifierPath: "utilityshapes/pinchtuckshape",
+        },
+        { authoredValue: occludesModifiers[1] },
+    ]);
+    assert.equal(compiled.report.modifierReferences.utilityShapeTargets, 4);
+    assert.equal(compiled.report.modifierReferences.explicitUtilityShapeWeights, 3);
+    assert.equal(compiled.report.modifierReferences.suffixed, 5);
 });
 
 test("retains malformed metadata definitions without leaving a typed source", () =>

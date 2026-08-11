@@ -29,8 +29,8 @@ the inputs themselves.
 ## What we do today, and why it is wrong
 
 `CjsToolCharacterRepository` keys a prepared library by
-`game/provider/build/character/<schemaVersion>`, tries `v9`, then `v8`, then
-`v7`, and validates only that the identity fields *inside* the artifact match
+`game/provider/build/character/<schemaVersion>`, tries `v10`, then `v9`, then
+`v8`, then `v7`, and validates only that the identity fields *inside* the artifact match
 what was requested - target, game, provider, build. There is no hash of the
 inputs, no mtime, and no record of what produced it.
 
@@ -181,8 +181,8 @@ merged digest makes them indistinguishable when something rebuilds unexpectedly.
 
 ## Silent fallbacks are defects
 
-The `v9 → v8 → v7` walk returns an older schema when the newest is absent, and
-reports success. If a v9 build failed or was never run, a caller receives v8 and
+The `v10 → v9 → v8 → v7` walk returns an older schema when the newest is absent, and
+reports success. If a v10 build failed or was never run, a caller receives v9 and
 cannot tell.
 
 A compatibility window is a legitimate design. Silence is not. Either:
@@ -222,9 +222,9 @@ Whether a rebuild is actually avoided:
 ```sh
 # Build twice; the second must do no work and must not rewrite the artifact.
 npm run build:character
-stat -c %Y "<cache>/custom/games/Eve/providers/ccp/builds/<build>/character_v9.json"
+stat -c %Y "<cache>/custom/games/Eve/providers/ccp/builds/<build>/character_v10.json"
 npm run build:character
-stat -c %Y "<cache>/custom/games/Eve/providers/ccp/builds/<build>/character_v9.json"
+stat -c %Y "<cache>/custom/games/Eve/providers/ccp/builds/<build>/character_v10.json"
 ```
 
 An unchanged mtime is the property worth asserting in a test, because it is the

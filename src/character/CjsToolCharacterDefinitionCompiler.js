@@ -240,7 +240,7 @@ function CreateReport(index, sourceBuild, characterResourcePaths)
 {
     return {
         schema: "carbonenginejs.characterDefinitionCompileReport",
-        schemaVersion: 4,
+        schemaVersion: 5,
         sourceBuild: sourceBuild === null || sourceBuild === undefined
             ? null
             : String(sourceBuild),
@@ -274,6 +274,8 @@ function CreateReport(index, sourceBuild, characterResourcePaths)
             occlusions: 0,
             partSourceTargets: 0,
             modifierLocationTargets: 0,
+            utilityShapeTargets: 0,
+            explicitUtilityShapeWeights: 0,
             suffixed: 0,
             unresolved: 0,
         },
@@ -789,9 +791,9 @@ function PopulateModifierReferences(
     {
         const owner = ParseMetadataLocation(metadata.sourcePath);
 
-        for (const [ field, countField ] of [
-            [ "dependencies", "dependencies" ],
-            [ "occlusions", "occlusions" ],
+        for (const [ field, countField, dependency ] of [
+            [ "dependencies", "dependencies", true ],
+            [ "occlusions", "occlusions", false ],
         ])
         {
             for (const relation of metadata[field])
@@ -803,7 +805,8 @@ function PopulateModifierReferences(
                     candidateFolders,
                     partSources,
                     modifierLocations,
-                    report
+                    report,
+                    dependency
                 );
             }
         }
@@ -816,32 +819,55 @@ function PopulateModifierReference(
     candidateFolders,
     partSources,
     modifierLocations,
-    report
+    report,
+    dependency
 )
 {
-    if (relation.authoredValue.includes("#"))
+    let utilityShape = false;
+    let modifierPath;
+    const weightedUtility = dependency
+        ? ParseWeightedUtilityDependency(relation.authoredValue)
+        : null;
+
+    if (weightedUtility)
+    {
+        modifierPath = weightedUtility.modifierPath;
+        relation.modifierPath = modifierPath;
+        relation.weight = weightedUtility.weight;
+        utilityShape = true;
+        report.modifierReferences.utilityShapeTargets++;
+        report.modifierReferences.explicitUtilityShapeWeights++;
+    }
+    else if (relation.authoredValue.includes("#"))
     {
         report.modifierReferences.suffixed++;
         report.modifierReferences.unresolved++;
         return;
     }
-
-    let modifierPath;
-
-    try
+    else
     {
-        modifierPath = NormalizePartPath(
-            relation.authoredValue,
-            `Character modifier reference ${JSON.stringify(relation.authoredValue)}`
-        );
-    }
-    catch
-    {
-        report.modifierReferences.unresolved++;
-        return;
+        try
+        {
+            modifierPath = NormalizePartPath(
+                relation.authoredValue,
+                `Character modifier reference ${JSON.stringify(relation.authoredValue)}`
+            );
+        }
+        catch
+        {
+            report.modifierReferences.unresolved++;
+            return;
+        }
+
+        relation.modifierPath = modifierPath;
+        if (dependency && modifierPath.startsWith("utilityshapes/"))
+        {
+            relation.weight = 1;
+            utilityShape = true;
+            report.modifierReferences.utilityShapeTargets++;
+        }
     }
 
-    relation.modifierPath = modifierPath;
     const partSourceID = `${owner.sex}/${modifierPath}`;
     const sourcePath = `${owner.root}${modifierPath}`;
     let partSource = partSources.get(partSourceID);
@@ -872,9 +898,36 @@ function PopulateModifierReference(
         report.modifierReferences.modifierLocationTargets++;
     }
 
-    if (!relation.partSource && !relation.modifierLocation)
+    if (!relation.partSource && !relation.modifierLocation && !utilityShape)
     {
         report.modifierReferences.unresolved++;
+    }
+}
+
+function ParseWeightedUtilityDependency(value)
+{
+    const match = String(value).match(
+        /^(utilityshapes\/.+?)###([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/iu
+    );
+
+    if (!match) return null;
+
+    const weight = Number(match[2]);
+    if (!Number.isFinite(weight)) return null;
+
+    try
+    {
+        return {
+            modifierPath: NormalizePartPath(
+                match[1],
+                `Character utility modifier ${JSON.stringify(value)}`
+            ),
+            weight
+        };
+    }
+    catch
+    {
+        return null;
     }
 }
 

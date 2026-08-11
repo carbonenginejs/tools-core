@@ -143,7 +143,7 @@ one of those candidate fields to inherit that role from the single
 Version metadata uses the same field-presence rule. Duplicate resource-version
 records reject. Tools-core materializes complete effective version records,
 checks candidates against the caller-selected resource index, and delegates
-the combined schema-v9 document to
+the combined schema-v10 document to
 `@carbonenginejs/runtime-character/library-builder`.
 The manifest is required by the command; use an empty JSON object when no
 optional catalog records are available.
