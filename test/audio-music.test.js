@@ -12,6 +12,7 @@ import { CjsToolAudioBuilder } from "../src/audio/index.js";
 const TRACK_ID = 4101;
 const SEGMENT_ID = 4001;
 const PLAYLIST_ID = 4201;
+const MUSIC_SWITCH_ID = 4401;
 const SFX_SOUND_ID = 4301;
 const MEDIA_ID = 900001;
 const ESSENTIAL_MEDIA_ID = 900002;
@@ -64,12 +65,23 @@ function Writer()
             }
             return this;
         },
-        Fill(count)
+        Variable(value)
         {
-            for (let index = 0; index < count; index++)
+            const groups = [ value & 0x7f ];
+            let remaining = Math.floor(value / 128);
+
+            while (remaining)
             {
-                bytes.push(0xaa);
+                groups.unshift((remaining & 0x7f) | 0x80);
+                remaining = Math.floor(remaining / 128);
             }
+
+            bytes.push(...groups);
+            return this;
+        },
+        Append(value)
+        {
+            bytes.push(...value);
             return this;
         },
         Bytes()
@@ -77,6 +89,23 @@ function Writer()
             return new Uint8Array(bytes);
         },
     };
+}
+
+function WriteNodeBase({ overrideBusID = 0, directParentID = 0 } = {})
+{
+    return Writer()
+        .U8(0).U8(0)
+        .U8(0).U8(0)
+        .U32(overrideBusID)
+        .U32(directParentID)
+        .U8(0)
+        .U8(0).U8(0)
+        .U8(0)
+        .U8(0).U32(0)
+        .U8(0).U8(0).U16(0).U8(0).U8(0)
+        .Variable(0).Variable(0)
+        .U16(0)
+        .Bytes();
 }
 
 function WriteNodeTail(writer, children, { stinger = false } = {})
@@ -113,15 +142,17 @@ function CreateTrackPayload(sourceID = MEDIA_ID)
         .U8(1)
         .U32(0)
         .U32(0)
-        .Fill(9)
+        .Append(WriteNodeBase({ directParentID: SEGMENT_ID }))
         .U8(0)
-        .F32(0.1)
+        .S32(-100)
         .Bytes();
 }
 
 function CreateSegmentPayload(childID = TRACK_ID)
 {
-    const writer = Writer().Fill(7);
+    const writer = Writer()
+        .U8(0)
+        .Append(WriteNodeBase({ directParentID: PLAYLIST_ID }));
 
     WriteNodeTail(writer, [ childID ], { stinger: true });
 
@@ -165,7 +196,9 @@ function WriteTransitionRule(writer)
 
 function CreatePlaylistPayload()
 {
-    const writer = Writer().Fill(5);
+    const writer = Writer()
+        .U8(0)
+        .Append(WriteNodeBase());
 
     WriteNodeTail(writer, [ SEGMENT_ID ]);
     WriteTransitionRule(writer);
@@ -182,6 +215,27 @@ function CreatePlaylistPayload()
         .U32(50000)
         .U16(0)
         .U8(0)
+        .U8(0)
+        .Bytes();
+}
+
+function CreateMusicSwitchPayload()
+{
+    const writer = Writer()
+        .U8(0)
+        .Append(WriteNodeBase());
+
+    WriteNodeTail(writer, [ SEGMENT_ID ]);
+    WriteTransitionRule(writer);
+
+    return writer
+        .U8(1)
+        .U32(2)
+        .U32(700)
+        .U32(800)
+        .U8(0)
+        .U8(1)
+        .U32(0)
         .U8(0)
         .Bytes();
 }
@@ -273,6 +327,7 @@ function CreateSyntheticBanks()
         HircObject(11, TRACK_ID, CreateTrackPayload()),
         HircObject(10, SEGMENT_ID, CreateSegmentPayload()),
         HircObject(13, PLAYLIST_ID, CreatePlaylistPayload()),
+        HircObject(12, MUSIC_SWITCH_ID, CreateMusicSwitchPayload()),
     ], {
         id: MEDIA_ID,
         bytes: new TextEncoder().encode("RIFFsynthetic-wem"),
@@ -392,6 +447,7 @@ function CreateInspections(options = {})
         { type: 11, id: TRACK_ID, payload: trackPayload },
         { type: 10, id: SEGMENT_ID, payload: segmentPayload },
         { type: 13, id: PLAYLIST_ID, payload: CreatePlaylistPayload() },
+        { type: 12, id: MUSIC_SWITCH_ID, payload: CreateMusicSwitchPayload() },
     ];
 
     if (knownChildID !== null)
@@ -488,8 +544,8 @@ test("music construction preserves authored node data and projects actions", () 
     assert.deepEqual(graph.eventStops, { music_play: [ PLAYLIST_ID ] });
     assert.deepEqual(graph.switchSetters, {
         music_play: [
-            { kind: "state", groupId: 800, targetId: 801 },
             { kind: "switch", groupId: 700, targetId: 701 },
+            { kind: "state", groupId: 800, targetId: 801 },
         ],
     });
     assert.equal(JSON.stringify(graph), JSON.stringify(CreateGraph()));
@@ -531,11 +587,11 @@ test("music construction rejects incomplete parsing and unresolved references", 
     );
     assert.throws(
         () => CjsToolAudioBuilder.createMusicGraph({
-            inspections: CreateInspections().slice(0, 2),
+            inspections: CreateInspections().slice(1),
             metadata: { Events: {} },
             media: { [MEDIA_ID]: {} },
         }),
-        /requires inspected bank: common\.bnk/u,
+        /requires inspected bank: music\.bnk/u,
     );
 });
 

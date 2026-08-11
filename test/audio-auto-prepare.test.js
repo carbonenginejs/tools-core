@@ -12,6 +12,7 @@ import { CjsSdeRepository } from "../src/sde/index.js";
 const TRACK_ID = 4101;
 const SEGMENT_ID = 4001;
 const PLAYLIST_ID = 4201;
+const MUSIC_SWITCH_ID = 4401;
 const SFX_SOUND_ID = 4301;
 const MEDIA_ID = 900001;
 
@@ -65,12 +66,23 @@ function Writer()
             }
             return this;
         },
-        Fill(count)
+        Variable(value)
         {
-            for (let index = 0; index < count; index++)
+            const groups = [ value & 0x7f ];
+            let remaining = Math.floor(value / 128);
+
+            while (remaining)
             {
-                bytes.push(0xaa);
+                groups.unshift((remaining & 0x7f) | 0x80);
+                remaining = Math.floor(remaining / 128);
             }
+
+            bytes.push(...groups);
+            return this;
+        },
+        Append(value)
+        {
+            bytes.push(...value);
             return this;
         },
         Bytes()
@@ -78,6 +90,23 @@ function Writer()
             return new Uint8Array(bytes);
         },
     };
+}
+
+function WriteNodeBase({ overrideBusID = 0, directParentID = 0 } = {})
+{
+    return Writer()
+        .U8(0).U8(0)
+        .U8(0).U8(0)
+        .U32(overrideBusID)
+        .U32(directParentID)
+        .U8(0)
+        .U8(0).U8(0)
+        .U8(0)
+        .U8(0).U32(0)
+        .U8(0).U8(0).U16(0).U8(0).U8(0)
+        .Variable(0).Variable(0)
+        .U16(0)
+        .Bytes();
 }
 
 function WriteNodeTail(writer, children, { stinger = false } = {})
@@ -114,15 +143,17 @@ function CreateTrackPayload(sourceID = MEDIA_ID)
         .U8(1)
         .U32(0)
         .U32(0)
-        .Fill(9)
+        .Append(WriteNodeBase({ directParentID: SEGMENT_ID }))
         .U8(0)
-        .F32(0.1)
+        .S32(-100)
         .Bytes();
 }
 
 function CreateSegmentPayload(childID = TRACK_ID)
 {
-    const writer = Writer().Fill(7);
+    const writer = Writer()
+        .U8(0)
+        .Append(WriteNodeBase({ directParentID: PLAYLIST_ID }));
 
     WriteNodeTail(writer, [ childID ], { stinger: true });
 
@@ -166,7 +197,9 @@ function WriteTransitionRule(writer)
 
 function CreatePlaylistPayload()
 {
-    const writer = Writer().Fill(5);
+    const writer = Writer()
+        .U8(0)
+        .Append(WriteNodeBase());
 
     WriteNodeTail(writer, [ SEGMENT_ID ]);
     WriteTransitionRule(writer);
@@ -183,6 +216,27 @@ function CreatePlaylistPayload()
         .U32(50000)
         .U16(0)
         .U8(0)
+        .U8(0)
+        .Bytes();
+}
+
+function CreateMusicSwitchPayload()
+{
+    const writer = Writer()
+        .U8(0)
+        .Append(WriteNodeBase());
+
+    WriteNodeTail(writer, [ SEGMENT_ID ]);
+    WriteTransitionRule(writer);
+
+    return writer
+        .U8(1)
+        .U32(2)
+        .U32(700)
+        .U32(800)
+        .U8(0)
+        .U8(1)
+        .U32(0)
         .U8(0)
         .Bytes();
 }
@@ -269,6 +323,7 @@ function CreateSyntheticBanks()
         HircObject(11, TRACK_ID, CreateTrackPayload()),
         HircObject(10, SEGMENT_ID, CreateSegmentPayload()),
         HircObject(13, PLAYLIST_ID, CreatePlaylistPayload()),
+        HircObject(12, MUSIC_SWITCH_ID, CreateMusicSwitchPayload()),
     ], {
         id: MEDIA_ID,
         bytes: new TextEncoder().encode("RIFFsynthetic-wem"),
