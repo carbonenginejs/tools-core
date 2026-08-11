@@ -10,6 +10,7 @@ test("accepts colon, equals, and separate CLI option values", () =>
         "--target:frontier",
         "--build=latest",
         "--all",
+        "--audio-individual-media",
         "--res",
         "staticdata/types.bin",
         "--out:D:\\source-files",
@@ -24,5 +25,6 @@ test("accepts colon, equals, and separate CLI option values", () =>
         res: "staticdata/types.bin",
         out: "D:\\source-files",
         all: true,
+        audioIndividualMedia: true,
     });
 });

@@ -524,6 +524,142 @@ test("audio repository auto-prepares a missing library from indexed inputs", asy
     assert.deepEqual(source.fetched, [], "prepared builds never rebuild");
 });
 
+test("audio repository optionally materializes embedded WEMs as generated resources", async context =>
+{
+    const cacheDirectory = CreateTempDirectory(context, "cjs-audio-individual-");
+    const cache = new CjsToolCache(cacheDirectory);
+    const source = CreateFakeIndexSource(CreateSyntheticBanks());
+    const generated = new Map();
+    let installed = null;
+    let installs = 0;
+    const indexes = {
+        async OpenTarget()
+        {
+            return {
+                Match: source.Match,
+                overlays: installed ? [ {
+                    name: "audio",
+                    storageKind: "generated-cache",
+                    provenance: installed.provenance,
+                } ] : [],
+                async Fetch(logicalPath)
+                {
+                    const entry = generated.get(logicalPath.toLowerCase());
+
+                    if (!entry)
+                    {
+                        return source.Fetch(logicalPath);
+                    }
+
+                    const cached = await cache.ReadRemote(entry.location, {
+                        md5: entry.checksum,
+                        size: entry.uncompressedSize,
+                    });
+
+                    return { bytes: cached.bytes };
+                },
+            };
+        },
+        async ResolveTargetBuild()
+        {
+            throw new Error("exact builds must not resolve remotely");
+        },
+        async InstallGeneratedIndex(options)
+        {
+            installed = options;
+            installs++;
+            for (const entry of options.entries)
+            {
+                generated.set(entry.logicalPath.toLowerCase(), entry);
+            }
+
+            return {
+                name: options.name,
+                rowCount: options.entries.length,
+            };
+        },
+    };
+    const repository = new CjsToolAudioRepository({
+        cache,
+        indexes,
+        materializeMedia: true,
+    });
+    const audio = await repository.OpenTarget("eve", "125");
+    const logicalPath = `res:/audio/bnk/200/0/${MEDIA_ID}.wem`;
+    const direct = audio.library.media[String(MEDIA_ID)];
+    const selection = audio.ResolveMediaByID(String(MEDIA_ID));
+    const exact = audio.ResolveMediaByPath(logicalPath);
+    const result = await audio.Read(selection);
+
+    assert.equal(direct.resPath, logicalPath);
+    assert.equal(direct.sourceID, `embedded:${MEDIA_ID}:200:0`);
+    assert.equal(selection.sourceID, direct.sourceID);
+    assert.equal(exact.path, logicalPath);
+    assert.deepEqual(
+        new Uint8Array(result.bytes),
+        new TextEncoder().encode("RIFFsynthetic-wem"),
+    );
+    assert.equal(installed.name, "audio");
+    assert.equal(installed.build, "125");
+    assert.equal(installed.entries.length, 1);
+    assert.equal(installed.entries[0].logicalPath, logicalPath);
+    assert.match(
+        installed.entries[0].location,
+        /^[a-f0-9]{2}\/[a-f0-9]{16}_[a-f0-9]{32}$/u,
+    );
+    assert.equal(
+        installed.provenance.banks["200:0"].resPath,
+        "res:/audio/music.bnk",
+    );
+    assert.ok(
+        audio.library.embeddedMedia[String(MEDIA_ID)],
+        "the original embedded range remains as a fallback representation",
+    );
+
+    const staleLibrary = structuredClone(audio.library);
+
+    staleLibrary.media[String(MEDIA_ID)] = [
+        staleLibrary.media[String(MEDIA_ID)],
+        {
+            sourceID: `legacy:${MEDIA_ID}`,
+            resPath: `res:/audio/bnk/200/0/${MEDIA_ID + 1}.wem`,
+            storagePath: "aa/legacy_generated_media",
+            checksum: "00000000000000000000000000000000",
+            byteLength: 1,
+            mediaType: "wem",
+            language: "SFX",
+        },
+    ];
+    await cache.WriteCustomLibrary({
+        game: "Eve",
+        provider: "ccp",
+        build: "125",
+        name: "audio",
+        version: "v2",
+    }, staleLibrary);
+    installed.provenance.version = 0;
+    installed.provenance.banks["999:0"] = {
+        bankID: "999",
+        languageID: "0",
+        resPath: "res:/audio/removed.bnk",
+        storagePath: "aa/removed",
+        checksum: "00000000000000000000000000000000",
+    };
+    const refreshed = await new CjsToolAudioRepository({
+        cache,
+        indexes,
+        materializeMedia: true,
+    }).OpenTarget("eve", "125");
+
+    assert.equal(installs, 2, "a stale extractor stamp regenerates the group");
+    assert.equal(installed.provenance.version, 1);
+    assert.equal(
+        Array.isArray(refreshed.library.media[String(MEDIA_ID)]),
+        false,
+        "regeneration removes legacy direct records and avoids duplicates",
+    );
+});
+
 test("audio repository auto-prepares SFX when music banks are incomplete", async context =>
 {
     const cacheDirectory = CreateTempDirectory(context, "cjs-audio-sfx-only-");

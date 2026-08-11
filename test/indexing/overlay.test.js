@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { resFileAddress } from "@carbonenginejs/runtime-utils/resfile";
 
 import {
     CjsIndexOverlaySource,
@@ -414,6 +415,74 @@ test("fetches remote fallback overlays through the disposable shared cache", asy
     assert.equal(
         requests.filter((url) => url === resolution.sourceUrl).length,
         1,
+    );
+});
+
+test("serves exact-build generated index groups from hash-safe cached payloads", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-generated-"));
+    const cache = new CjsIndexCache({ directory: path.join(directory, "cache") });
+    const payload = Buffer.from("generated-audio");
+    const checksum = createHash("md5").update(payload).digest("hex");
+    const logicalPath = "res:/audio/bnk/200/0/900001.wem";
+    const location = resFileAddress(logicalPath, checksum);
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+    await cache.WritePayload("test", "res", location, payload);
+
+    const requests = [];
+    const tool = new CjsToolIndex({
+        providers: new CjsIndexProviderRegistry([ Provider ]),
+        targets: Targets,
+        cache,
+        fetch: createFetch({
+            "https://indexes.test/eveonline_77.txt": row(
+                "app:/resfileindex.txt",
+                "aa/main",
+            ),
+            "https://app.test/aa/main": "",
+        }, requests),
+    });
+
+    await tool.InstallGeneratedIndex({
+        target: "eve",
+        build: "77",
+        name: "audio",
+        entries: [ {
+            logicalPath,
+            location,
+            checksum,
+            uncompressedSize: payload.byteLength,
+            compressedSize: payload.byteLength,
+        } ],
+        provenance: {
+            schema: "carbon.audioBankMedia",
+            version: 1,
+        },
+    });
+
+    const source = await tool.OpenTarget("eve", "77");
+    const resolution = source.Resolve(logicalPath);
+    const result = await source.Fetch(logicalPath);
+
+    assert.ok(source instanceof CjsIndexOverlaySource);
+    assert.deepEqual(source.availableIndexes, [ "main", "audio" ]);
+    assert.equal(resolution.indexName, "audio");
+    assert.equal(resolution.storageKind, "generated-cache");
+    assert.equal(resolution.artifactKind, "hash-safe");
+    assert.equal(resolution.record.location, location);
+    assert.equal(result.cacheHit, true);
+    assert.deepEqual(new Uint8Array(result.bytes), new Uint8Array(payload));
+    assert.deepEqual(requests, [
+        "https://indexes.test/eveonline_77.txt",
+        "https://app.test/aa/main",
+    ]);
+
+    await fs.rm(cache.GetPayloadPath("test", "res", location));
+    await assert.rejects(
+        () => source.Fetch(logicalPath),
+        error => error?.code === "CJS_GENERATED_RESOURCE_UNAVAILABLE"
+            && error?.statusCode === 503,
     );
 });
 

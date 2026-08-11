@@ -2,6 +2,7 @@ import { CjsIndexReader } from "./CjsIndexReader.js";
 import { CjsIndexProviderRegistry } from "./CjsIndexProviderRegistry.js";
 import { CjsIndexOverlaySource } from "./CjsIndexOverlaySource.js";
 import { CjsIndexOverlayStore } from "./CjsIndexOverlayStore.js";
+import { CjsIndexGeneratedStore } from "./CjsIndexGeneratedStore.js";
 import { CjsIndexSource } from "./CjsIndexSource.js";
 import { CjsIndexCache } from "./CjsIndexCache.js";
 import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
@@ -17,6 +18,8 @@ export class CjsToolIndex
     #cache;
 
     #indexes;
+
+    #generated;
 
     #maxPayloadBytes;
 
@@ -67,6 +70,9 @@ export class CjsToolIndex
         this.#cache = cache;
         this.#targets = targets;
         this.#overlays = overlays;
+        this.#generated = cache
+            ? new CjsIndexGeneratedStore({ cache })
+            : null;
         this.#requestTimeoutMs = requestTimeoutMs;
         this.#maxPayloadBytes = maxPayloadBytes;
         this.#indexes = new CjsIndexReader({
@@ -154,15 +160,25 @@ export class CjsToolIndex
             requestTimeoutMs: this.#requestTimeoutMs,
             maxPayloadBytes: this.#maxPayloadBytes,
         });
+        const generated = this.#generated
+            ? await this.#generated.OpenTarget(source.target, source.build, {
+                game: source.game,
+                provider: source.provider,
+                buildRef: source.buildRef,
+                client: source.client,
+            })
+            : [];
 
-        if (!this.#overlays)
+        if (!this.#overlays && generated.length === 0)
         {
             return source;
         }
 
         const inherited = [];
 
-        for (const overlaySource of target.overlaySources)
+        for (const overlaySource of this.#overlays
+            ? target.overlaySources
+            : [])
         {
             const candidates = await this.#overlays.OpenTarget(
                 overlaySource.target,
@@ -179,17 +195,19 @@ export class CjsToolIndex
             inherited.push(...candidates.filter(overlay => names.has(overlay.name)));
         }
 
-        const native = await this.#overlays.OpenTarget(source.target, source.build, {
-            game: source.game,
-            provider: source.provider,
-            buildRef: source.buildRef,
-            client: source.client,
-        });
+        const native = this.#overlays
+            ? await this.#overlays.OpenTarget(source.target, source.build, {
+                game: source.game,
+                provider: source.provider,
+                buildRef: source.buildRef,
+                client: source.client,
+            })
+            : [];
         const overlaysByName = new Map();
 
         // Explicit inherited fallbacks are composed first. A target-local
         // overlay of the same name remains authoritative.
-        for (const overlay of [ ...inherited, ...native ])
+        for (const overlay of [ ...generated, ...inherited, ...native ])
         {
             overlaysByName.set(overlay.name, overlay);
         }
@@ -198,6 +216,26 @@ export class CjsToolIndex
         return overlays.length
             ? new CjsIndexOverlaySource({ source, overlays })
             : source;
+    }
+
+    /** Installs one hash-safe generated index group for an exact target build. */
+    async InstallGeneratedIndex(options = {})
+    {
+        if (!this.#generated)
+        {
+            throw new Error(
+                "Generated indexes require a configured shared cache",
+            );
+        }
+
+        const target = this.#targets.Get(options.target);
+
+        return this.#generated.Install({
+            ...options,
+            target: target.id,
+            game: target.game,
+            provider: target.provider,
+        });
     }
 
     #NormalizeSourceOptions(options)

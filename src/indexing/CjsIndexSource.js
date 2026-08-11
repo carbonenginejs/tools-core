@@ -113,6 +113,50 @@ export class CjsIndexSource
         return this.#FetchResolution(resolution, options);
     }
 
+    /** Reads one external hash-safe declaration from the shared cache only. */
+    async FetchCachedResolution(resolution)
+    {
+        if (!resolution?.record || !resolution?.logicalPath)
+        {
+            throw new TypeError(
+                "Cached resource reads require a resolved declaration",
+            );
+        }
+        if (!this.#cache)
+        {
+            throw CreateUnavailableError(
+                `Generated resource cache is unavailable: ${resolution.logicalPath}`,
+            );
+        }
+
+        const cached = await this.#cache.ReadPayload(
+            this.provider,
+            resolution.root,
+            resolution.record.location,
+        );
+
+        if (!cached)
+        {
+            throw CreateUnavailableError(
+                `Generated resource payload is absent: ${resolution.logicalPath}`,
+            );
+        }
+
+        const bytes = utils.validateResourceBytes(
+            cached.bytes,
+            resolution.record,
+            resolution.logicalPath,
+        );
+
+        return Object.freeze({
+            resolution,
+            bytes: utils.toArrayBuffer(bytes),
+            byteLength: bytes.byteLength,
+            cacheHit: true,
+            cachePath: cached.cachePath,
+        });
+    }
+
     /**
      * Reads one exact file as an ArrayBuffer.
      */
@@ -298,6 +342,16 @@ export class CjsIndexSource
             : maximum;
     }
 
+}
+
+function CreateUnavailableError(message)
+{
+    const error = new Error(message);
+
+    error.code = "CJS_GENERATED_RESOURCE_UNAVAILABLE";
+    error.statusCode = 503;
+
+    return error;
 }
 
 function CreateInflightKey(resolution, options)

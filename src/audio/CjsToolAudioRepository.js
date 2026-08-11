@@ -4,6 +4,7 @@ import { CjsToolCache } from "../cache/CjsToolCache.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 import { CjsToolAudioBuilder } from "./CjsToolAudioBuilder.js";
+import { CjsToolAudioMediaBuilder } from "./CjsToolAudioMediaBuilder.js";
 import { CjsToolAudioSource } from "./CjsToolAudioSource.js";
 import { CjsToolMusicSource } from "./CjsToolMusicSource.js";
 
@@ -23,6 +24,8 @@ export class CjsToolAudioRepository
 
     #music = null;
 
+    #materializeMedia;
+
     #targets;
 
     /** Creates an exact-build audio repository over shared cache and indexes. */
@@ -32,6 +35,7 @@ export class CjsToolAudioRepository
         targets = new CjsToolTargetRegistry(),
         defaultLanguage = null,
         autoPrepare = true,
+        materializeMedia = false,
         musicLibrary = null,
         musicDirectory = null,
     } = {})
@@ -76,6 +80,7 @@ export class CjsToolAudioRepository
                 library: musicLibrary,
                 directory: musicDirectory,
             });
+        this.#materializeMedia = materializeMedia === true;
         // Auto-preparation is the default: generated artifacts are
         // forward-looking, so a missing library is built from the exact
         // build's own inputs on first request unless explicitly disabled.
@@ -202,7 +207,7 @@ export class CjsToolAudioRepository
             throw missing;
         }
 
-        const library = data
+        let library = data
             && typeof data === "object"
             && !Array.isArray(data)
             && data.audio
@@ -211,11 +216,28 @@ export class CjsToolAudioRepository
             && data.audio.schema === "carbonenginejs.audioLibrary"
                 ? data.audio
                 : data;
-        const source = await this.#indexes.OpenTarget(
+        let source = await this.#indexes.OpenTarget(
             target.id,
             sourceIdentity.build,
             { client: sourceIdentity.client ?? undefined },
         );
+
+        if (this.#materializeMedia
+            && HasMaterializableMedia(library)
+            && !CjsToolAudioMediaBuilder.isCurrent(library, source))
+        {
+            library = await this.#MaterializeLibrary(
+                target,
+                sourceIdentity,
+                library,
+                source,
+            );
+            source = await this.#indexes.OpenTarget(
+                target.id,
+                sourceIdentity.build,
+                { client: sourceIdentity.client ?? undefined },
+            );
+        }
 
         return new CjsToolAudioSource({
             library,
@@ -242,6 +264,7 @@ export class CjsToolAudioRepository
             { client: sourceIdentity.client ?? undefined },
         );
         const indexEntries = source.Match("res:/audio/**", { root: "res" })
+            .filter(match => match.storageKind !== "generated-cache")
             .map(match => ({
                 logicalPath: match.record.logicalPath,
                 storagePath: match.record.storagePath,
@@ -267,7 +290,8 @@ export class CjsToolAudioRepository
             .filter(name => name.endsWith(".bnk")));
         const includeMusic = MUSIC_BANK_NAMES.every(name =>
             availableBankNames.has(name));
-        const library = await CjsToolAudioBuilder.buildFromBanks({
+        const loadedBanks = new Map();
+        let library = await CjsToolAudioBuilder.buildFromBanks({
             indexEntries,
             soundbanksInfo,
             enrichment: null,
@@ -279,11 +303,31 @@ export class CjsToolAudioRepository
             sourceProvider: target.provider,
             sourceBuild: sourceIdentity.build,
             generatedAt: new Date().toISOString(),
-            async loadBank(bank)
+            async loadBank(bank, { sourceID })
             {
-                return ToUint8Array((await source.Fetch(bank.resPath)).bytes);
+                const bytes = ToUint8Array(
+                    (await source.Fetch(bank.resPath)).bytes,
+                );
+
+                loadedBanks.set(sourceID, bytes);
+                return bytes;
             },
         }, { targets: this.#targets });
+
+        if (this.#materializeMedia)
+        {
+            library = (await new CjsToolAudioMediaBuilder({
+                cache: this.#cache,
+                indexes: this.#indexes,
+            }).Build({
+                target: target.id,
+                game: target.game,
+                provider: target.provider,
+                build: sourceIdentity.build,
+                library,
+                bankBytes: loadedBanks,
+            })).library;
+        }
 
         await this.#cache.WriteCustomLibrary({
             game: target.game,
@@ -294,6 +338,42 @@ export class CjsToolAudioRepository
         }, library);
 
         return library;
+    }
+
+    /** Materializes an already prepared library without rebuilding its graph. */
+    async #MaterializeLibrary(target, sourceIdentity, library, source)
+    {
+        const loadedBanks = new Map();
+
+        for (const [ sourceID, bank ] of Object.entries(library.banks))
+        {
+            loadedBanks.set(
+                sourceID,
+                ToUint8Array((await source.Fetch(bank.resPath)).bytes),
+            );
+        }
+
+        const materialized = await new CjsToolAudioMediaBuilder({
+            cache: this.#cache,
+            indexes: this.#indexes,
+        }).Build({
+            target: target.id,
+            game: target.game,
+            provider: target.provider,
+            build: sourceIdentity.build,
+            library,
+            bankBytes: loadedBanks,
+        });
+
+        await this.#cache.WriteCustomLibrary({
+            game: target.game,
+            provider: target.provider,
+            build: sourceIdentity.build,
+            name: "audio",
+            version: "v2",
+        }, materialized.library);
+
+        return materialized.library;
     }
 
 }
@@ -311,4 +391,13 @@ function ToUint8Array(value)
     }
 
     return new Uint8Array(value);
+}
+
+function HasMaterializableMedia(library)
+{
+    return Object.values(library?.embeddedMedia ?? {}).some(value =>
+        (Array.isArray(value) ? value : [ value ]).some(record =>
+            [ "wem", "audio/x-wem", "application/x-wem" ].includes(
+                String(record?.mediaType ?? "").trim().toLowerCase(),
+            )));
 }

@@ -1,5 +1,6 @@
 const BooleanOptions = new Set([
     "all",
+    "audio-individual-media",
     "help",
     "indexes",
     "no-audio-auto-prepare",

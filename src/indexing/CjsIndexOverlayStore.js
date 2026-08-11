@@ -492,10 +492,12 @@ export class CjsIndexOverlay
             relativePath: record.relativePath,
             sourceUrl: this.storageKind === "remote-overlay"
                 ? utils.joinUrl(this.baseUrl, record.location)
-                : `local-overlay://${this.target}/${this.name}/${record.location}`,
-            artifactKind: this.storageKind === "remote-overlay"
-                ? "hash-safe"
-                : "local-exact",
+                : this.storageKind === "generated-cache"
+                    ? `generated-cache://${this.target}/${this.name}/${record.location}`
+                    : `local-overlay://${this.target}/${this.name}/${record.location}`,
+            artifactKind: this.storageKind === "persistent-overlay"
+                ? "local-exact"
+                : "hash-safe",
             record,
             indexKind: this.group.kind,
             indexName: this.name,

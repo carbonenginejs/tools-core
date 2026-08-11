@@ -114,6 +114,7 @@ async function main()
         cache: toolCache,
         indexes,
         autoPrepare: args.noAudioAutoPrepare !== true,
+        materializeMedia: args.audioIndividualMedia === true,
         musicLibrary,
         musicDirectory,
     });
@@ -330,6 +331,7 @@ Options:
   --client <client>         Optional prefetch client/build selector
   --no-sde-auto-prepare     Disable default on-request EVE SDE preparation
   --no-audio-auto-prepare   Disable default on-request audio-library builds
+  --audio-individual-media  Materialize embedded WEMs into a generated index
   --music-library <file>    Optional neutral music-library JSON catalog
   --music-directory <dir>   Local root containing catalog playlist/song files
   --help                    Show this help

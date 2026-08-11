@@ -251,6 +251,10 @@ export class CjsIndexOverlaySource
                 CJS_INDEX_EXTERNAL_RESOLUTION,
             );
         }
+        if (overlay.storageKind === "generated-cache")
+        {
+            return this.#source.FetchCachedResolution(resolution);
+        }
 
         const payload = await overlay.Read(resolution.record);
 

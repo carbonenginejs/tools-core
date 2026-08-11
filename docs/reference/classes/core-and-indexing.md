@@ -25,6 +25,16 @@ Node target-policy wrapper around the runtime-audio optional library builder.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
+<!-- class:CjsToolAudioMediaBuilder -->
+## `CjsToolAudioMediaBuilder`
+
+Materializes raw Wwise bank members as a hash-safe generated resource index.
+
+- Export: `@carbonenginejs/tools-core/audio`
+- Source: `src/audio/CjsToolAudioMediaBuilder.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
 <!-- class:CjsToolAudioPrefetch -->
 ## `CjsToolAudioPrefetch`
 
@@ -233,6 +243,16 @@ One immutable appfileindex or resfileindex parsed as an ordered group.
 - Export: `@carbonenginejs/tools-core/index`
 - Source: `src/indexing/CjsIndexGroup.js`
 - Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsIndexGeneratedStore -->
+## `CjsIndexGeneratedStore`
+
+Persists exact-build generated resfileindex groups over shared hash-safe payloads.
+
+- Export: Internal
+- Source: `src/indexing/CjsIndexGeneratedStore.js`
+- Visibility: Internal
 - Kind: CarbonEngineJS
 
 <!-- class:CjsIndexOverlaySource -->

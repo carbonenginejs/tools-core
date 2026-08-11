@@ -10,7 +10,7 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | Subpath | Responsibility | Principal exports |
 | --- | --- | --- |
 | `.` | SDE/SOF composition facade | `CjsToolCore` |
-| `./audio` | Audio-library preparation, exact-build media reads, and optional neutral music catalogs | `CjsToolAudio`, `CjsToolAudioBuilder`, `CjsToolAudioRepository`, `CjsToolAudioSource`, `CjsToolMusicSource` |
+| `./audio` | Audio-library preparation, optional individual BNK media, exact-build media reads, and optional neutral music catalogs | `CjsToolAudio`, `CjsToolAudioBuilder`, `CjsToolAudioMediaBuilder`, `CjsToolAudioRepository`, `CjsToolAudioSource`, `CjsToolMusicSource` |
 | `./black` | Indexed Black-to-public-JSON reads | `CjsToolBlack` |
 | `./cache` | Shared cache layout and access | `CjsToolCache` |
 | `./character` | Schema-v7 character-library target policy, lossless decoded-definition retention, additive typed compilation, source-catalog gathering, effective version materialization, and prepared-document loading | `CjsToolCharacter`, `CjsToolCharacterBuilder`, `CjsToolCharacterCatalogGatherer`, `CjsToolCharacterDefinitionCompiler`, `CjsToolCharacterRepository` |

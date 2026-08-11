@@ -100,6 +100,22 @@ together; `CjsToolAudioSource` accepts schema v2, validates the music
 contract, and resolves prepared or loose media and embedded bank windows
 without making the HTTP adapter understand WEM or BNK codecs.
 
+### Optional individual bank media
+
+`CjsToolAudioRepository` accepts `materializeMedia: true`. During preparation
+it copies each extractable embedded WEM window into the shared content-addressed
+cache and installs a hash-safe exact-build `audio` resfileindex group. Generated
+members use
+`res:/audio/bnk/<bankID>/<languageID>/<mediaID>.wem`; the installed library
+retains the original embedded-bank range as a fallback while preferring the
+individual source. Non-WEM DIDX members remain embedded.
+
+The generated group records source-bank paths, content addresses, identities,
+and the media-generator version. A changed bank address or generator version
+regenerates the affected group. Generated paths are fallback declarations and
+cannot replace an official resource with the same path. The local service
+exposes this opt-in as `--audio-individual-media`.
+
 Character builds require source-neutral JSON containing the twelve direct
 document maps. A separate catalog-input manifest can provide decoded
 definition values, already model-shaped profiles, sparse part-source authoring
