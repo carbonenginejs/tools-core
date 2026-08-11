@@ -1,6 +1,6 @@
 {
   "name": "@carbonenginejs/tools-core",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Node toolchain for CarbonEngineJS acquisition, generated libraries, caches, graph output, and optional HTTP and realtime service hosting.",
   "type": "module",
   "main": "src/index.js",
@@ -92,9 +92,9 @@
     "@carbonenginejs/runtime-character": "^0.3.1",
     "@carbonenginejs/runtime-resource": "^0.16.0",
     "@carbonenginejs/runtime-sof": "^0.3.1",
-    "@carbonenginejs/runtime-trinity": "^0.6.0",
+    "@carbonenginejs/runtime-trinity": "^0.11.0",
     "@carbonenginejs/runtime-utils": "^0.1.0",
-    "@carbonenginejs/tools-browser": "^0.1.0",
+    "@carbonenginejs/tools-browser": "^0.1.3",
     "better-sqlite3": "^11.10.0",
     "unzipper": "^0.12.5",
     "ws": "^8.21.1"
