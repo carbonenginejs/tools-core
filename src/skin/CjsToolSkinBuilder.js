@@ -124,6 +124,19 @@ function BuildNameIndex(typeTable, skins)
                 kind: "type",
                 typeID,
                 skinID: null,
+                // The graphic, because it is what separates a thing that can be
+                // DRAWN from a thing that merely has a name. The types table is
+                // most of this index by row count and most of it is apparel,
+                // minerals and skill books - none of which resolve to DNA, and
+                // none of which a consumer can tell apart from a hull without
+                // this. A name search that offers them looks broken in a way
+                // only the click reveals.
+                //
+                // Null is kept rather than the row dropped: this index answers
+                // "what is called that", and a type with no model is still a
+                // real answer to a name. Which of them to OFFER is the
+                // consumer's call, and this is what lets it make one.
+                graphicID: type.graphicID ?? null,
             });
         }
     }

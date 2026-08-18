@@ -149,8 +149,8 @@ const Tables = Object.freeze({
         // 100 carries a factionID (a faction hull), 101 does not (an empire
         // hull), and 200 is not a ship at all - the three cases the
         // typeID -> factionID join has to separate.
-        100: { _key: 100, groupID: 25, name: { en: "Special ship" }, published: true, factionID: 500029 },
-        101: { _key: 101, groupID: 25, name: { en: "Default ship" }, published: true },
+        100: { _key: 100, groupID: 25, name: { en: "Special ship" }, published: true, factionID: 500029, graphicID: 46 },
+        101: { _key: 101, groupID: 25, name: { en: "Default ship" }, published: true, graphicID: 47 },
         200: { _key: 200, groupID: 99, name: { en: "Not a ship" }, published: true, factionID: 500003 },
     },
     groups: {
@@ -194,9 +194,20 @@ test("builds API-shaped developer SKIN maps and reverse indexes", () =>
     assert.equal(library.skinMaterialSets[1000].patternMaterial1, "pattern-primary");
     assert.equal(library.skinMaterialSets[1000].custommaterial1, undefined);
     assert.deepEqual(library.names["special ship"], [ {
+        graphicID: 46,
         kind: "type",
         skinID: null,
         typeID: 100,
+    } ]);
+    // The whole point of carrying it: a consumer offering names to a reader can
+    // tell a thing that can be DRAWN from a thing that merely has a name. Most
+    // of this index is apparel, minerals and skill books, and nothing else in
+    // the document separates them from hulls.
+    assert.deepEqual(library.names["not a ship"], [ {
+        graphicID: null,
+        kind: "type",
+        skinID: null,
+        typeID: 200,
     } ]);
     assert.deepEqual(library.names.first, [
         { kind: "skin", skinID: 10, typeID: 1 },
