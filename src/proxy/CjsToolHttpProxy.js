@@ -1,16 +1,51 @@
+import fs from "node:fs/promises";
 import http from "node:http";
 
+import { CjsToolEveSso } from "../auth/CjsToolEveSso.js";
 import { CjsToolBlack } from "../black/CjsToolBlack.js";
 import { CjsIndexAnswerCatalog } from "../indexing/CjsIndexAnswerCatalog.js";
 import { CjsToolSkin } from "../skin/CjsToolSkin.js";
 import { CjsToolSkinrPattern } from "../skin/CjsToolSkinrPattern.js";
 import { CjsToolWeapon } from "../weapon/CjsToolWeapon.js";
+import { CjsToolMap } from "../map/CjsToolMap.js";
+import { CjsToolDogma, DOGMA_SECTIONS, NormalizeTypeID } from "../dogma/CjsToolDogma.js";
+import { CjsToolDogmaProfile } from "../dogma/CjsToolDogmaProfile.js";
+import { CjsToolIndustry } from "../industry/CjsToolIndustry.js";
+import { CjsToolTypes } from "../types/CjsToolTypes.js";
+import { CjsToolFitting } from "../fitting/CjsToolFitting.js";
+import { CjsToolSkills } from "../skills/CjsToolSkills.js";
+import { FITTING_SLOTS } from "../fitting/CjsToolFittingCodec.js";
+import { CjsToolLocalisation, ReadGuessedNames, ReadManualNames } from "../localisation/CjsToolLocalisation.js";
+import { ReadDerivation } from "../sde/CjsSdeDerivations.js";
 import * as utils from "../utils.js";
 
 export const TOOLS_SERVICE_PROTOCOL = "carbon.tools";
 export const TOOLS_SERVICE_PROTOCOL_VERSION = 1;
-const CORS_HEADERS = Object.freeze({
-    "access-control-allow-origin": "*",
+/**
+ * Who may read these answers from a browser.
+ *
+ * `*` is the right default for what this normally is: a tool on a developer's
+ * own machine, answering a page served from a different port, where every
+ * request is cross-origin by construction and there is nothing to protect.
+ *
+ * It is the wrong answer for the one place this is also deployed — a public
+ * droplet behind a public site, where `*` invites any page anywhere to pull
+ * EVE resources through it, on its bandwidth and its warmed cache. There the
+ * origin is set to the site's own, and the site's own pages do not need it at
+ * all, since they are same-origin and never consult CORS.
+ *
+ * `CJS_TOOL_ALLOW_ORIGIN=none` omits the headers entirely. Worth saying
+ * plainly: none of this is access control. It governs what a *browser* lets a
+ * page read and stops nothing that is not a browser, so it is an
+ * advertisement, not a lock — rate limiting is the part that protects the
+ * service.
+ */
+const ALLOW_ORIGIN = process.env.CJS_TOOL_ALLOW_ORIGIN ?? "*";
+
+// Spread into three responses, so an empty object is how "send none" is said —
+// there is no branch at the call sites to keep in step.
+const CORS_HEADERS = ALLOW_ORIGIN === "none" ? Object.freeze({}) : Object.freeze({
+    "access-control-allow-origin": ALLOW_ORIGIN,
     "access-control-allow-methods": "GET, HEAD, POST, OPTIONS",
     "access-control-allow-headers": [
         "Accept",
@@ -58,11 +93,28 @@ export class CjsToolHttpProxy
 
     #weaponLibraries;
 
+    #maps;
+
+    #dogmas;
+
+    #types;
+
+    #industries;
+
+    #localisations;
+
+    #fittings;
+
+    #skills;
+
     /** Creates a versioned loopback adapter over optional resource and SOF services. */
     constructor({
         indexes = null,
         sof = null,
         sde = null,
+        skinrStore = null,
+        plexRate = null,
+        identity = null,
         characters = null,
         audio = null,
         auth = null,
@@ -104,6 +156,21 @@ export class CjsToolHttpProxy
             throw new TypeError("CjsToolHttpProxy audio service must provide OpenTarget(target, build)");
         }
 
+        if (skinrStore !== null && typeof skinrStore.ListCards !== "function")
+        {
+            throw new TypeError("CjsToolHttpProxy SKINR store must provide ListCards()");
+        }
+
+        if (plexRate !== null && typeof plexRate.Read !== "function")
+        {
+            throw new TypeError("CjsToolHttpProxy PLEX rate must provide Read()");
+        }
+
+        if (identity !== null && typeof identity.Character !== "function")
+        {
+            throw new TypeError("CjsToolHttpProxy identity service must provide Character()");
+        }
+
         if (auth !== null
             && (typeof auth.sso?.BeginLogin !== "function"
                 || typeof auth.sso?.CompleteLogin !== "function"
@@ -130,6 +197,13 @@ export class CjsToolHttpProxy
         this.indexes = indexes;
         this.sof = sof;
         this.sde = sde;
+        // A harvested store, injected rather than opened here: this class does no
+        // file discovery, and a service without a harvest simply answers 501.
+        this.skinrStore = skinrStore;
+        // A live market reading, injected like every other service here.
+        this.plexRate = plexRate;
+        // Public character identity: names and affiliation, no scope needed.
+        this.identity = identity;
         this.characters = characters;
         this.audio = audio;
         this.auth = auth;
@@ -139,14 +213,30 @@ export class CjsToolHttpProxy
         this.#sofCatalogs = new Map();
         this.#skinLibraries = new Map();
         this.#weaponLibraries = new Map();
+        this.#maps = new Map();
+        this.#dogmas = new Map();
+        this.#types = new Map();
+        this.#industries = new Map();
+        this.#localisations = new Map();
+        this.#fittings = new Map();
+        this.#skills = new Map();
         this.capabilities = Object.freeze({
             resources: indexes !== null,
             audio: audio !== null,
             character: characters !== null,
             sde: sde !== null,
+            dna: sde !== null,
             skin: sde !== null,
             skinr: sde !== null,
+            skinrStore: skinrStore !== null,
+            plexRate: plexRate !== null,
+            identity: identity !== null,
             weapons: sde !== null,
+            map: sde !== null,
+            dogma: sde !== null,
+            industry: sde !== null,
+            fitting: sde !== null,
+            skills: sde !== null,
             sofCatalog: sof !== null,
             auth: auth !== null,
         });
@@ -206,6 +296,85 @@ export class CjsToolHttpProxy
             return;
         }
 
+        // Harvested SKINR designs and listings.
+        //
+        // Under `/v1/` rather than a target route because neither is
+        // build-scoped: a design exists independently of any client build, and a
+        // listing is an observation with its own timestamp. And deliberately
+        // UNAUTHENTICATED - the harvest already spent this service's own token,
+        // which is the whole point of harvesting rather than proxying. If a
+        // public read here ever demands a visitor's token, the layering has gone
+        // wrong.
+        if (request.method === "GET" && url.pathname.startsWith("/v1/skinr"))
+        {
+            await this.#HandleSkinrStoreRoute(url, response);
+
+            return;
+        }
+
+        // Public character identity. Under `/v1/` for the same reason as the
+        // SKINR store: who somebody is has nothing to do with a client build.
+        if (request.method === "GET" && url.pathname.startsWith("/v1/identity/characters/"))
+        {
+            if (!this.identity)
+            {
+                WriteJson(response, 501, { error: "No identity service configured" });
+
+                return;
+            }
+
+            const id = url.pathname.slice("/v1/identity/characters/".length);
+
+            if (!/^\d+$/u.test(id))
+            {
+                throw new TypeError(`Malformed character id: ${id.slice(0, 32)}`);
+            }
+
+            const answer = await this.identity.Character(id);
+
+            if (!answer)
+            {
+                // The id resolved to something that is not a character. Not an
+                // outage, and not an empty character - a different thing entirely.
+                WriteJson(response, 404, { error: `Not a character: ${id}` });
+
+                return;
+            }
+
+            WriteJson(response, 200, answer);
+
+            return;
+        }
+
+        // The PLEX reference price. Under `/v1/` because a live market figure is
+        // not an attribute of a client build - putting it on a build route would
+        // make it cacheable-forever alongside resources that genuinely are.
+        if (request.method === "GET" && url.pathname === "/v1/market/plex")
+        {
+            if (!this.plexRate)
+            {
+                WriteJson(response, 501, { error: "No market rate service configured" });
+
+                return;
+            }
+
+            const rate = await this.plexRate.Read();
+
+            if (!rate)
+            {
+                // Never read, and the refresh failed. Not zero, and not a
+                // guessed rate: a consumer must be able to tell "we do not know"
+                // from "it is worth this much".
+                WriteJson(response, 503, { error: "PLEX price is not available yet" });
+
+                return;
+            }
+
+            WriteJson(response, 200, rate);
+
+            return;
+        }
+
         if (request.method === "GET" && url.pathname === "/targets")
         {
             if (!this.indexes || typeof this.indexes.ListTargets !== "function")
@@ -220,26 +389,34 @@ export class CjsToolHttpProxy
             return;
         }
 
-        const buildRoute = MatchBuildRoute(url.pathname);
+        // `/{target}/metadata` — the target-shaped form of the clients route.
+        //
+        // A target is the identity; provider, game and client are things it has.
+        // Addressing by `game + provider` needed two keys to reach one answer,
+        // and separated the four targets only by accident: Eve+ccp,
+        // Frontier+ccp, Eve+serenity and Eve+infinity happen to be distinct
+        // pairs, and nothing enforced that they would stay so.
+        const metadataRoute = MatchMetadataRoute(url.pathname);
 
-        if (request.method === "GET" && buildRoute)
+        if (request.method === "GET" && metadataRoute)
         {
-            if (!this.indexes || typeof this.indexes.ResolveBuild !== "function")
+            if (!this.indexes || typeof this.indexes.DescribeTarget !== "function")
             {
-                WriteJson(response, 501, { error: "Build service is not configured" });
+                WriteJson(response, 501, { error: "Target service is not configured" });
 
                 return;
             }
 
-            const client = url.searchParams.get("client") ?? undefined;
-            const build = await this.indexes.ResolveBuild({
-                game: buildRoute.game,
-                provider: buildRoute.provider,
-                build: buildRoute.build,
-                client,
-            });
-
-            WriteJson(response, 200, build);
+            try
+            {
+                WriteJson(response, 200, await this.indexes.DescribeTarget(metadataRoute.target));
+            }
+            catch (error)
+            {
+                WriteJson(response, error.code === "CJS_TOOL_TARGET_UNKNOWN" ? 404 : 500, {
+                    error: error.message,
+                });
+            }
 
             return;
         }
@@ -300,6 +477,55 @@ export class CjsToolHttpProxy
             if (targetRoute.topic === "sde")
             {
                 await this.#HandleSdeRoute(targetRoute, url, response);
+
+                return;
+            }
+
+            if (targetRoute.topic === "dna")
+            {
+                await this.#HandleDnaRoute(targetRoute, url, response);
+
+                return;
+            }
+
+            if (targetRoute.topic === "map")
+            {
+                await this.#HandleMapRoute(targetRoute, url, response);
+
+                return;
+            }
+
+            if (targetRoute.topic === "types")
+            {
+                await this.#HandleTypesRoute(targetRoute, url, response);
+
+                return;
+            }
+
+            if (targetRoute.topic === "dogma")
+            {
+                await this.#HandleDogmaRoute(targetRoute, url, null, response);
+
+                return;
+            }
+
+            if (targetRoute.topic === "industry")
+            {
+                await this.#HandleIndustryRoute(targetRoute, url, response);
+
+                return;
+            }
+
+            if (targetRoute.topic === "fitting")
+            {
+                await this.#HandleFittingRoute(targetRoute, url, null, response);
+
+                return;
+            }
+
+            if (targetRoute.topic === "skills")
+            {
+                await this.#HandleSkillsRoute(targetRoute, url, response);
 
                 return;
             }
@@ -374,12 +600,18 @@ export class CjsToolHttpProxy
 
             if (targetRoute.topic === null || targetRoute.topic === "build")
             {
-                const build = await this.indexes.ResolveTargetBuild(
+                // `?client=` picks between the clients a provider publishes —
+                // tranquility or singularity on the `eve` target, serenity or
+                // infinity on theirs. Without passing it through, this
+                // route answered every client with the target's default and
+                // said so in the response, which is worse than refusing: a
+                // caller asking for singularity was told it had singularity
+                // and handed tranquility's build.
+                WriteJson(response, 200, await this.#ResolveBuilds(
                     targetRoute.target,
                     targetRoute.build,
-                );
-
-                WriteJson(response, 200, build);
+                    url.searchParams.get("client") ?? undefined,
+                ));
 
                 return;
             }
@@ -465,6 +697,22 @@ export class CjsToolHttpProxy
                 return;
             }
 
+            // An unknown topic on an unknown target is not an unconfigured
+            // topic, it is a path that means nothing. Reported as 404 so a
+            // leftover URL from a removed route family — which parses as
+            // target "games", topic "providers" — reads as gone rather than as
+            // a service this build happens not to have.
+            const known = typeof this.indexes?.ListTargets === "function"
+                ? this.indexes.ListTargets().some(entry => entry.id === targetRoute.target)
+                : true;
+
+            if (!known)
+            {
+                WriteJson(response, 404, { error: `Unknown target "${targetRoute.target}"` });
+
+                return;
+            }
+
             WriteJson(response, 501, {
                 error: `Target topic is not configured: ${targetRoute.topic}`,
                 target: targetRoute.target,
@@ -480,6 +728,42 @@ export class CjsToolHttpProxy
             && String(targetRoute.path ?? "").toLowerCase() === "pattern")
         {
             await this.#HandleSkinrPatternRoute(request, targetRoute, response);
+
+            return;
+        }
+
+        // Evaluation is a POST because a complete skill map is thousands of
+        // characters and does not belong in a query string. It mutates nothing:
+        // the same body always answers the same way for a given build.
+        if (request.method === "POST" && targetRoute?.topic === "dogma")
+        {
+            const body = await ReadJson(request, this.maxRequestBytes);
+
+            await this.#HandleDogmaRoute(targetRoute, url, body ?? {}, response);
+
+            return;
+        }
+
+        // A fit is pasted, so it arrives as a body: EFT text is multi-line and
+        // a chat link carries angle brackets, neither of which belongs in a
+        // query string. Nothing is stored - the same text always parses the
+        // same way for a given build.
+        if (request.method === "POST" && targetRoute?.topic === "fitting")
+        {
+            const body = await ReadJson(request, this.maxRequestBytes);
+
+            await this.#HandleFittingRoute(targetRoute, url, body ?? {}, response);
+
+            return;
+        }
+
+        // A long plan does not fit a query string, and a caller assembling one
+        // from a fitting has dozens of ids.
+        if (request.method === "POST" && targetRoute?.topic === "skills")
+        {
+            const body = await ReadJson(request, this.maxRequestBytes);
+
+            await this.#HandleSkillsRoute(targetRoute, url, response, body ?? {});
 
             return;
         }
@@ -931,6 +1215,10 @@ export class CjsToolHttpProxy
         {
             const subTopic = segments.length === 3 ? String(segments[2]).toLowerCase() : "";
 
+            // The selector is a path segment, not `?format=`: a SOF DNA route
+            // folds its whole search string back into the DNA (see
+            // AppendSofDnaSearch), so a query parameter would be read as part
+            // of the DNA and the lookup would 404.
             if (segments.length < 2
                 || segments.length > 3
                 || (segments.length === 3 && subTopic !== "visibilitygroups"))
@@ -988,9 +1276,12 @@ export class CjsToolHttpProxy
                 return;
             }
 
-            const document = await catalog.BuildDocumentAsync(dna);
+            // Values are the only HTTP boundary: the answer is valid CjsModel
+            // input, so a consumer rebuilds with `RootClass.from(values)` and
+            // needs no document hydrator.
+            const built = await catalog.BuildValuesAsync(dna);
 
-            if (document === null)
+            if (built === null)
             {
                 WriteJson(response, 404, {
                     error: "SOF DNA selection could not be built",
@@ -999,7 +1290,7 @@ export class CjsToolHttpProxy
                 return;
             }
 
-            WriteJson(response, 200, document, headers);
+            WriteJson(response, 200, built, headers);
 
             return;
         }
@@ -1019,6 +1310,34 @@ export class CjsToolHttpProxy
             materials: "GetMaterial",
             layouts: "GetLayout",
         };
+
+        // `?detail=true` returns the records rather than just their names.
+        //
+        // Every consumer that shows a collection needs the records: a browser
+        // sorting materials by appearance, a picker grouping them by gloss, a
+        // market view drawing a swatch. Without this each of them fetches the
+        // name list and then one request per name — 1149 round trips for the
+        // materials — to rebuild something this service already holds in memory.
+        // The records are small and the answer is per exact build, so it is
+        // immutable and cached like any other.
+        if (segments.length === 1
+            && Object.hasOwn(collectionMethods, topic)
+            && Object.hasOwn(detailMethods, topic)
+            && new URL(request.url, "http://tools-core.local")
+                .searchParams.get("detail") === "true")
+        {
+            const catalog = await this.#GetSofCatalog(route.target, route.build);
+            const records = {};
+
+            for (const name of catalog[collectionMethods[topic]]())
+            {
+                records[name] = catalog[detailMethods[topic]](name);
+            }
+
+            WriteJson(response, 200, records, CreateAnswerHeaders(catalog, `sof-${topic}`));
+
+            return;
+        }
 
         if (segments.length === 1 && Object.hasOwn(collectionMethods, topic))
         {
@@ -1089,6 +1408,112 @@ export class CjsToolHttpProxy
         }
 
         WriteJson(response, 404, { error: "SOF index-answer route not found" });
+    }
+
+    /**
+     * Resolves one build reference into the exact build of every data facet.
+     *
+     * "latest" is not one answer. This service serves two independently
+     * published bodies of data, and they carry different build numbers: the
+     * resource build, whose file index addresses every resource, comes from the
+     * target's binaries metadata; the SDE, which backs the `sde`, `skin`,
+     * `skinr`, and `weapons` topics, moves on a schedule of its own and
+     * normally trails the resource build for a window after each patch.
+     *
+     * Reporting only one of them is what makes this dangerous, because the
+     * number is indistinguishable from the other once a caller holds it. Carry
+     * an SDE build onto a resource route and this service dutifully acquires a
+     * whole second resource build — another file index, another `data.black`,
+     * another SOF catalog, cold, beside the warm one. Carry a resource build
+     * onto an SDE route and it goes looking for an SDE that may not exist.
+     *
+     * So the answer names both, and the caller pins each request to the facet
+     * that serves it. There is deliberately no alias that collapses the two
+     * back into one number: an alias would have to pick a loser, and pinning
+     * resources to the SDE's build causes exactly the second-catalog problem it
+     * would be trying to avoid. Later facets are added here, not worked around
+     * by consumers.
+     */
+    async #ResolveBuilds(target, build, client = undefined)
+    {
+        const resources = await this.indexes.ResolveTargetBuild(target, build, { client });
+
+        if (!this.sde || typeof this.sde.ResolveTargetBuild !== "function")
+        {
+            return {
+                ...resources,
+                builds: {
+                    resources: resources.build,
+                    resourcesReason: resources.reason ?? null,
+                    observedLatest: resources.observedLatest ?? null,
+                    sde: null,
+                    // Distinguishable from "unreachable" and from "nothing
+                    // prepared", which a bare null made identical.
+                    sdeReason: "no-sde-service",
+                },
+            };
+        }
+
+        // The same reference, asked of the other facet — including a pinned
+        // build, which is the common case. This does not check that an SDE
+        // exists for it and must not: the SDE repository already answers a
+        // build with no SDE of its own from the newest available one, and
+        // reports the build that actually answered. Second-guessing that here
+        // would replace a working fallback with a guess.
+        // Every answer says why, including this one. The resolvers already
+        // produce a reason - `source` on both, `borrowedFrom` on the SDE - and
+        // this method used to discard all of it and `.catch(() => null)` the
+        // rest, which made "unreachable", "nothing prepared" and "no SDE
+        // service" one indistinguishable null.
+        const sde = await this.sde
+            // A lookup route reports what it can. If the SDE channel is
+            // unreachable and nothing is prepared to fall back to, the resource
+            // half of the answer is still true and still useful.
+            .ResolveTargetBuild(target, build)
+            .then(resolution =>
+            {
+                const clamped = ClampSdeBuild(resolution.build, resources.build);
+
+                // `source` means two different things depending on who filled
+                // it in: a reason token from the index resolver, and the URL it
+                // read from in the SDE archive. A URL is not a reason, so it is
+                // reported as one — `url` — and the reason names the channel.
+                const url = IsUrl(resolution.source) ? resolution.source : null;
+
+                return {
+                    build: clamped,
+                    url,
+                    // Clamping is a decision about the answer, so it is named
+                    // rather than left to be inferred from two numbers.
+                    //
+                    // `?? null` rather than leaving it undefined: an absent key
+                    // serialises away, and a field that vanishes when nobody
+                    // set it is exactly the silence this is meant to remove.
+                    // Null says "no reason given", which is itself an answer.
+                    reason: clamped === resolution.build
+                        ? (url ? "latest-export-channel" : resolution.source ?? null)
+                        : "clamped-to-resources",
+                    borrowedFrom: resolution.borrowedFrom ?? null,
+                    releaseDate: resolution.releaseDate ?? null,
+                };
+            })
+            .catch(error => ({ build: null, reason: "unavailable", error: error?.message ?? String(error) }));
+
+        return {
+            ...resources,
+            builds: {
+                resources: resources.build,
+                // The reason the resource half carries, from the policy layer.
+                resourcesReason: resources.reason ?? null,
+                observedLatest: resources.observedLatest ?? null,
+                sde: sde.build,
+                sdeReason: sde.reason,
+                ...(sde.url ? { sdeSource: sde.url } : {}),
+                ...(sde.borrowedFrom ? { sdeBorrowedFrom: sde.borrowedFrom } : {}),
+                ...(sde.releaseDate ? { sdeReleased: sde.releaseDate } : {}),
+                ...(sde.error ? { sdeError: sde.error } : {}),
+            },
+        };
     }
 
     /** Opens or reuses one exact-build SOF catalog. */
@@ -1213,6 +1638,165 @@ export class CjsToolHttpProxy
         return loading;
     }
 
+    /** Serves the harvested SKINR store: cards, facets, and one design. */
+    async #HandleSkinrStoreRoute(url, response)
+    {
+        if (!this.skinrStore)
+        {
+            WriteJson(response, 501, {
+                error: "No harvested SKINR store; run: node bin/cjs-skinr-harvest.js",
+            });
+
+            return;
+        }
+
+        const segments = url.pathname.slice("/v1/skinr".length).split("/").filter(Boolean);
+        const leaf = (segments[0] ?? "").toLowerCase();
+
+        if (!segments.length)
+        {
+            WriteJson(response, 200, this.skinrStore.Describe());
+
+            return;
+        }
+
+        if (leaf === "facets" && segments.length === 1)
+        {
+            WriteJson(response, 200, this.skinrStore.Facets());
+
+            return;
+        }
+
+        if (leaf === "cards" && segments.length === 1)
+        {
+            const read = name => url.searchParams.get(name) ?? undefined;
+
+            WriteJson(response, 200, this.skinrStore.ListCards({
+                limit: read("limit"),
+                offset: read("offset"),
+                shipTypeId: read("shipTypeId"),
+                tier: read("tier"),
+                currency: read("currency"),
+                state: read("state"),
+                creatorId: read("creatorId"),
+                search: read("search"),
+                sort: read("sort"),
+            }));
+
+            return;
+        }
+
+        if (leaf === "designs" && segments.length === 2)
+        {
+            // Normalized by default: tagged unions and arrays are the shape a
+            // consumer should read. `?form=raw` answers with the design exactly
+            // as ESI sent it, which is what the pattern generator takes.
+            const raw = String(url.searchParams.get("form") ?? "").toLowerCase() === "raw";
+            const answer = raw
+                ? this.skinrStore.GetDesignPayload(segments[1])
+                : this.skinrStore.GetDesign(segments[1]);
+
+            if (!answer)
+            {
+                WriteJson(response, 404, { error: `SKINR design not harvested: ${segments[1]}` });
+
+                return;
+            }
+
+            WriteJson(response, 200, answer);
+
+            return;
+        }
+
+        if (leaf === "listings" && segments.length === 2)
+        {
+            WriteJson(response, 200, { listingId: segments[1], history: this.skinrStore.ListingHistory(segments[1]) });
+
+            return;
+        }
+
+        WriteJson(response, 404, { error: "SKINR store route not found" });
+    }
+
+    /**
+     * The DNA topic: a selection to the DNA it produces, and the inverse.
+     *
+     * Neither of these is a table lookup, which is why they are not under
+     * `sde`. They read the same tables every other composed topic does, and a
+     * consumer asking "what is this ship's DNA" should not have to know that
+     * the answer happens to be derived from the SDE.
+     */
+    async #HandleDnaRoute(route, url, response)
+    {
+        if (!this.sde)
+        {
+            WriteJson(response, 501, { error: "SDE service is not configured" });
+
+            return;
+        }
+
+        const segments = String(route.path ?? "").split("/").filter(Boolean);
+        const verb = segments.length === 1 ? segments[0].toLowerCase() : null;
+
+        if (verb !== "resolve" && verb !== "search")
+        {
+            WriteJson(response, 404, { error: "DNA route not found" });
+
+            return;
+        }
+
+        const source = await this.sde.OpenTarget(route.target, route.build);
+        const headers = CreateSdeHeaders(source);
+        const identity = {
+            target: source.target,
+            game: source.game,
+            provider: source.provider,
+            build: source.build,
+        };
+
+        if (verb === "search")
+        {
+            // The query travels as a parameter rather than a path segment: it
+            // carries colons and semicolons, which a path would force every
+            // caller to encode. `resolve` takes its selection the same way for
+            // the same reason.
+            const query = url.searchParams.get("q") ?? url.searchParams.get("dna") ?? "";
+
+            if (!query.trim())
+            {
+                throw new TypeError("DNA search requires q");
+            }
+
+            WriteJson(response, 200, {
+                ...identity,
+                ...await source.QueryDna(query, {
+                    limit: url.searchParams.get("limit") ?? undefined,
+                }),
+            }, headers);
+
+            return;
+        }
+
+        const selection = Object.fromEntries([
+            "name",
+            "typeID",
+            "graphicID",
+            "skinID",
+        ].map(name => [ name, url.searchParams.get(name) ]).filter(([, value ]) => value));
+
+        if (!Object.keys(selection).length)
+        {
+            throw new TypeError(
+                "DNA resolve requires name, typeID, graphicID, or skinID",
+            );
+        }
+
+        WriteJson(response, 200, {
+            ...identity,
+            ...await source.Resolve(selection),
+        }, headers);
+    }
+
     /** Serves one SDE query route. */
     async #HandleSdeRoute(route, url, response)
     {
@@ -1242,40 +1826,9 @@ export class CjsToolHttpProxy
             return;
         }
 
-        if (segments[0] === "resolve")
-        {
-            if (segments.length !== 1)
-            {
-                WriteJson(response, 404, { error: "SDE resolve route not found" });
-
-                return;
-            }
-
-            const selection = Object.fromEntries([
-                "name",
-                "typeID",
-                "graphicID",
-                "skinID",
-            ].map(name => [ name, url.searchParams.get(name) ]).filter(([, value ]) => value));
-
-            if (!Object.keys(selection).length)
-            {
-                throw new TypeError(
-                    "SDE resolve requires name, typeID, graphicID, or skinID",
-                );
-            }
-
-            WriteJson(response, 200, {
-                target: source.target,
-                game: source.game,
-                provider: source.provider,
-                build: source.build,
-                ...await source.Resolve(selection),
-            }, headers);
-
-            return;
-        }
-
+        // `resolve` and `dna` used to live here. They were never tables, and
+        // they are the questions consumers actually ask, so they moved to the
+        // `dna` topic — `sde` is inspection of the SDE itself.
         const table = source.Table(segments[0]);
         const rowCount = await table.Count();
 
@@ -1418,6 +1971,159 @@ export class CjsToolHttpProxy
             return;
         }
 
+        // The SKINR licences this service's OWN token belongs to.
+        //
+        // LICENCES, not designs. Verified 2026-08-11: this endpoint lists only
+        // skins that have actually been BUILT - its records carry `activated`
+        // and `unactivated` counts, which is ownership vocabulary. A design
+        // saved in game but not yet built appears nowhere in ESI, under any
+        // scope. If you are here looking for "my unpublished skin", stop: the
+        // only route to one is POSTing its payload to /skinr/pattern, because
+        // the payload exists solely in the hands of whoever exported it.
+        //
+        // There is deliberately no character_id parameter. tools-core has no
+        // session and cannot prove a caller is anybody, so "whose licences?"
+        // has exactly one answerable value: the character the stored token was
+        // issued for. Accepting an id would turn a route that is safe by
+        // construction into one that is safe only while nobody points it at a
+        // stranger. It lives under /v1/auth/esi/ rather than the target routes
+        // for the same reason - it is a property of this session, not of a
+        // game build.
+        if (leg === "skinr")
+        {
+            const stored = await this.auth.tokens.Read();
+
+            // Same guards as every other character-scoped leg. A token stored
+            // before identity capture existed still works for everything else,
+            // so that case says what to do rather than failing as if the
+            // session were broken.
+            if (!RequireEsiSession(stored, response)) return;
+
+            const owned = await this.auth.esi.Get(
+                `/characters/${stored.characterId}/cosmetics/skinr`,
+            );
+
+            WriteJson(response, 200, {
+                characterId: stored.characterId,
+                characterName: stored.characterName ?? null,
+                licenses: owned?.licenses ?? [],
+            });
+
+            return;
+        }
+
+        if (leg === "fittings")
+        {
+            const stored = await this.auth.tokens.Read();
+            const session = RequireEsiSession(stored, response, FITTINGS_SCOPE);
+
+            if (!session) return;
+
+            let saved;
+
+            try
+            {
+                saved = await this.auth.esi.Get(`/characters/${stored.characterId}/fittings`);
+            }
+            catch (error)
+            {
+                // A 403 here means the grant does not cover fittings - the
+                // operator authorized before the scope was configured. That is
+                // a different instruction from "upstream is down", so it gets a
+                // different status and its own message.
+                if (error?.upstreamStatus === 403)
+                {
+                    WriteJson(response, 403, {
+                        error: `Stored session lacks ${FITTINGS_SCOPE}. Sign in again: npm run login:eve`,
+                        scope: FITTINGS_SCOPE,
+                    });
+
+                    return;
+                }
+
+                WriteJson(response, error?.statusCode === 404 ? 404 : 502, {
+                    error: `Could not read fittings from ESI (${error?.upstreamStatus ?? "no response"})`,
+                });
+
+                return;
+            }
+
+            WriteJson(response, 200, {
+                characterId: stored.characterId,
+                characterName: stored.characterName ?? null,
+                // ESI's snake_case is converted at this boundary and nowhere
+                // else, so nothing downstream has to know which provider the
+                // fitting came from.
+                fittings: (Array.isArray(saved) ? saved : []).map(NormalizeEsiFitting),
+            });
+
+            return;
+        }
+
+        // The trained skills of the character this service's OWN token belongs
+        // to. Same shape of guarantee as the other character-scoped legs: no
+        // character_id parameter, because tools-core has no session and cannot
+        // prove a caller is anybody, so "whose skills?" has exactly one
+        // answerable value.
+        //
+        // ESI returns levels and skill points per skill; the skill itself is a
+        // typeID, so a consumer wanting names joins it against `types` rather
+        // than being handed text it cannot verify.
+        if (leg === "skills")
+        {
+            const stored = await this.auth.tokens.Read();
+            const session = RequireEsiSession(stored, response, SKILLS_SCOPE);
+
+            if (!session) return;
+
+            let trained;
+
+            try
+            {
+                trained = await this.auth.esi.Get(`/characters/${stored.characterId}/skills`);
+            }
+            catch (error)
+            {
+                // A 403 means the grant predates the scope being configured -
+                // a different instruction from "upstream is down", so it gets
+                // its own status and message.
+                if (error?.upstreamStatus === 403)
+                {
+                    WriteJson(response, 403, {
+                        error: `Stored session lacks ${SKILLS_SCOPE}. Sign in again: npm run login:eve`,
+                        scope: SKILLS_SCOPE,
+                    });
+
+                    return;
+                }
+
+                WriteJson(response, error?.statusCode === 404 ? 404 : 502, {
+                    error: `Could not read skills from ESI (${error?.upstreamStatus ?? "no response"})`,
+                });
+
+                return;
+            }
+
+            // ESI's snake_case is converted at this boundary and nowhere else,
+            // matching what the fittings leg does with its own payload.
+            const skills = Array.isArray(trained?.skills) ? trained.skills : [];
+
+            WriteJson(response, 200, {
+                characterId: stored.characterId,
+                characterName: stored.characterName ?? null,
+                totalSkillPoints: trained?.total_sp ?? null,
+                unallocatedSkillPoints: trained?.unallocated_sp ?? null,
+                skills: skills.map(skill => ({
+                    typeID: Number(skill.skill_id),
+                    activeSkillLevel: skill.active_skill_level ?? null,
+                    trainedSkillLevel: skill.trained_skill_level ?? null,
+                    skillPoints: skill.skillpoints_in_skill ?? null,
+                })),
+            });
+
+            return;
+        }
+
         if (leg === "login")
         {
             const { url: authorizeUrl } = this.auth.sso.BeginLogin();
@@ -1449,7 +2155,16 @@ export class CjsToolHttpProxy
                 state: url.searchParams.get("state"),
             });
 
-            await this.auth.tokens.Write({ refreshToken: tokens.refresh_token });
+            // The character rides along with the token. It is needed to call
+            // character-scoped ESI routes need it, and a login is the only
+            // moment it is available - a refresh response carries the same
+            // claims, but there is no reason to wait for one.
+            await this.auth.tokens.Write({
+                refreshToken: tokens.refresh_token,
+                accessToken: tokens.access_token,
+                expiresAt: Date.now() + (Number(tokens.expires_in) || 0) * 1000,
+                ...(CjsToolEveSso.describeToken(tokens.access_token) ?? {}),
+            });
 
             // Plain text, and deliberately says nothing about the token.
             WriteText(response, 200, "Signed in. You can close this tab.");
@@ -1832,6 +2547,561 @@ export class CjsToolHttpProxy
     }
 
     /** Opens or reuses one exact-build weapon library. */
+    /**
+     * Serves one map route.
+     *
+     * The surface is flat-addressable with nesting offered for navigation:
+     *
+     *   /map                                     counts and index provenance
+     *   /map/search?q=&kind=&limit=              names, ranked
+     *   /map/regions                             all 114
+     *   /map/regions/{id}                        one, with its nebula
+     *   /map/regions/{id}/constellations
+     *   /map/constellations/{id}
+     *   /map/constellations/{id}/systems
+     *   /map/systems/{id}                        with star and derived scene
+     *   /map/systems/{id}/celestials?kind=       everything in the system
+     *   /map/systems/{id}/{kind}                 one kind of it
+     *   /map/celestials/{id}                     any celestial, any kind
+     *
+     * `/map/systems/{id}/planets` and friends are the same answer as the
+     * `celestials` route filtered to one kind, rather than a second code path,
+     * so a kind cannot be correct in one form and wrong in the other.
+     */
+    async #HandleMapRoute(route, url, response)
+    {
+        if (!this.sde)
+        {
+            WriteJson(response, 501, { error: "SDE service is not configured" });
+
+            return;
+        }
+
+        const source = await this.sde.OpenTarget(route.target, route.build);
+        const map = this.#GetMap(source);
+        const headers = CreateSdeHeaders(source);
+        const segments = String(route.path ?? "").split("/").filter(Boolean);
+
+        if (!segments.length)
+        {
+            WriteJson(response, 200, await map.Describe(), headers);
+
+            return;
+        }
+
+        const collection = segments[0].toLowerCase();
+
+        if (collection === "search")
+        {
+            const query = url.searchParams.get("q") ?? url.searchParams.get("query");
+
+            if (!query || !String(query).trim())
+            {
+                throw new TypeError("Map search requires q");
+            }
+
+            WriteJson(response, 200, await map.Search(query, {
+                limit: url.searchParams.get("limit") ?? undefined,
+                kinds: url.searchParams.get("kind") ?? undefined,
+                language: url.searchParams.get("lang") ?? undefined,
+                expand: url.searchParams.get("expand") ?? undefined
+            }), headers);
+
+            return;
+        }
+
+        const answer = await this.#ResolveMapRoute(map, collection, segments, url);
+
+        if (answer === undefined)
+        {
+            WriteJson(response, 404, { error: `Map route not found: ${segments.join("/")}` }, headers);
+
+            return;
+        }
+
+        if (answer === null)
+        {
+            WriteJson(response, 404, {
+                error: `Map record not found: ${segments.join("/")}`,
+                target: source.target,
+                build: source.build
+            }, headers);
+
+            return;
+        }
+
+        WriteJson(response, 200, answer, headers);
+    }
+
+    /**
+     * Maps one parsed route to one map answer.
+     *
+     * `undefined` means the route does not exist, `null` means it exists and
+     * the record does not. Collapsing the two would report a typo in a
+     * collection name as a missing system, which sends the reader looking at
+     * their data instead of their url.
+     */
+    async #ResolveMapRoute(map, collection, segments, url)
+    {
+        const id = segments[1];
+        const leaf = segments[2]?.toLowerCase();
+        // Published names are localised in the export's eight languages; the
+        // words a celestial name is composed FROM are not. See CjsToolMap.
+        const options = {
+            language: url.searchParams.get("lang") ?? undefined,
+            // Nothing derived unless asked for: the default answer is the
+            // static data export and only the export. See EXPAND_GROUPS.
+            expand: url.searchParams.get("expand") ?? undefined
+        };
+
+        if (segments.length > 3) return undefined;
+
+        if (collection === "regions")
+        {
+            if (segments.length === 1) return map.Regions(options);
+            if (segments.length === 2) return map.Region(id, options);
+            if (leaf === "constellations") return map.RegionConstellations(id, options);
+
+            return undefined;
+        }
+
+        if (collection === "constellations")
+        {
+            if (segments.length === 2) return map.Constellation(id, options);
+            if (leaf === "systems") return map.ConstellationSystems(id, options);
+
+            return undefined;
+        }
+
+        if (collection === "systems")
+        {
+            if (segments.length === 2) return map.System(id, options);
+
+            if (leaf === "celestials")
+            {
+                return map.SystemCelestials(id, {
+                    ...options,
+                    kinds: url.searchParams.get("kind") ?? undefined
+                });
+            }
+
+            const kind = MAP_SYSTEM_COLLECTIONS[leaf];
+
+            if (!kind) return undefined;
+
+            const answer = await map.SystemCelestials(id, { ...options, kinds: [ kind ] });
+
+            return answer === null ? null : answer.celestials[kind] ?? [];
+        }
+
+        if (collection === "celestials" && segments.length === 2)
+        {
+            return map.Celestial(id, options);
+        }
+
+        return undefined;
+    }
+
+    /**
+     * The dogma topic.
+     *
+     * `body` is null for the GET form and an object for the POST form, which is
+     * the only difference between them: a GET evaluates the published values
+     * with no skills, a POST evaluates the same type against a supplied profile.
+     */
+    async #HandleDogmaRoute(route, url, body, response)
+    {
+        if (!this.sde)
+        {
+            WriteJson(response, 501, { error: "SDE service is not configured" });
+
+            return;
+        }
+
+        const source = await this.sde.OpenTarget(route.target, route.build);
+        const dogma = await this.#GetDogma(source);
+        const headers = CreateSdeHeaders(source);
+        const segments = String(route.path ?? "").split("/").filter(Boolean);
+        const language = url.searchParams.get("lang") ?? undefined;
+
+        if (!segments.length && !body)
+        {
+            WriteJson(response, 200, { ...dogma.Identity(), sections: Object.keys(DOGMA_SECTIONS) }, headers);
+
+            return;
+        }
+
+        const evaluate = body
+            ? { typeID: body.typeID, profile: body.profile ?? {}, sections: body.sections }
+            : ReadDogmaPath(segments, url);
+
+        if (!evaluate)
+        {
+            WriteJson(response, 404, { error: "Dogma route not found" });
+
+            return;
+        }
+
+        const result = await dogma.Evaluate(
+            NormalizeTypeID(evaluate.typeID),
+            CjsToolDogmaProfile.normalize(evaluate.profile ?? {}),
+            { sections: evaluate.sections, language }
+        );
+
+        if (!result)
+        {
+            WriteJson(response, 404, { error: "Type not found" });
+
+            return;
+        }
+
+        WriteJson(response, 200, result, headers);
+    }
+
+    /** The industry topic: the public recipe for one type. */
+    async #HandleIndustryRoute(route, url, response)
+    {
+        if (!this.sde)
+        {
+            WriteJson(response, 501, { error: "SDE service is not configured" });
+
+            return;
+        }
+
+        const source = await this.sde.OpenTarget(route.target, route.build);
+        const industry = await this.#GetIndustry(source);
+        const headers = CreateSdeHeaders(source);
+        const segments = String(route.path ?? "").split("/").filter(Boolean);
+
+        if (segments.length !== 2 || segments[0].toLowerCase() !== "types")
+        {
+            WriteJson(response, 404, { error: "Industry route not found" });
+
+            return;
+        }
+
+        const result = await industry.Type(
+            NormalizeTypeID(segments[1]),
+            { language: url.searchParams.get("lang") ?? undefined }
+        );
+
+        if (!result)
+        {
+            WriteJson(response, 404, { error: "Type not found" });
+
+            return;
+        }
+
+        WriteJson(response, 200, result, headers);
+    }
+
+    /**
+     * The fitting topic.
+     *
+     * `GET /fitting` describes it; `POST /fitting/parse` reads pasted text. The
+     * answer is the normalized record plus every wire form, so a caller that
+     * pasted EFT can hand back a chat link without a second call.
+     */
+    async #HandleFittingRoute(route, url, body, response)
+    {
+        if (!this.sde)
+        {
+            WriteJson(response, 501, { error: "SDE service is not configured" });
+
+            return;
+        }
+
+        const source = await this.sde.OpenTarget(route.target, route.build);
+        const fitting = this.#GetFitting(source);
+        const headers = CreateSdeHeaders(source);
+        const segments = String(route.path ?? "").split("/").filter(Boolean);
+        const language = url.searchParams.get("lang") ?? undefined;
+
+        if (!segments.length && !body)
+        {
+            WriteJson(response, 200, {
+                ...fitting.Identity(),
+                formats: [ "eft", "dna", "chatLink" ],
+                slots: FITTING_SLOTS,
+            }, headers);
+
+            return;
+        }
+
+        if (segments[0]?.toLowerCase() !== "parse" || segments.length !== 1)
+        {
+            WriteJson(response, 404, { error: "Fitting route not found" });
+
+            return;
+        }
+
+        if (!body)
+        {
+            WriteJson(response, 405, { error: "Parsing a fitting requires POST" });
+
+            return;
+        }
+
+        // An ESI fitting arrives as a record rather than as text, and normalizes
+        // through the same path so every source produces one shape.
+        const parsed = body.fitting
+            ? await fitting.FromEsi(body.fitting, { language })
+            : await fitting.Parse(body.text ?? body.fit ?? "", { language });
+
+        WriteJson(response, 200, parsed, headers);
+    }
+
+    /**
+     * The skills topic.
+     *
+     * `/skills/types/{id}` answers what a thing needs trained;
+     * `/skills/{id}` answers what a skill costs and what it unlocks. Both are
+     * published data, so neither needs authorization and both work on the
+     * NetEase targets, which have no ESI at all.
+     */
+    async #HandleSkillsRoute(route, url, response, body = null)
+    {
+        if (!this.sde)
+        {
+            WriteJson(response, 501, { error: "SDE service is not configured" });
+
+            return;
+        }
+
+        const source = await this.sde.OpenTarget(route.target, route.build);
+        const skills = this.#GetSkills(source);
+        const headers = CreateSdeHeaders(source);
+        const segments = String(route.path ?? "").split("/").filter(Boolean);
+        const language = url.searchParams.get("lang") ?? undefined;
+
+        if (!segments.length)
+        {
+            WriteJson(response, 200, {
+                ...skills.Identity(),
+                routes: [ "types/{typeID}", "{skillTypeID}", "plan?skills=<id,id>" ],
+            }, headers);
+
+            return;
+        }
+
+        // Before the single-segment case, which would otherwise read "plan" as
+        // a skill identifier and answer 404 for a route that exists.
+        if (segments[0].toLowerCase() === "plan" && segments.length === 1)
+        {
+            const targets = SkillPlanTargets(url.searchParams.get("skills") ?? body?.skills);
+
+            if (!targets.length)
+            {
+                WriteJson(response, 400, {
+                    error: "Skill plan requires one or more skill ids: ?skills=<id,id> or a JSON body",
+                });
+
+                return;
+            }
+
+            const plan = await skills.Plan(targets, { language });
+
+            if (!plan)
+            {
+                WriteJson(response, 404, { error: "No requested skill exists in this build" }, headers);
+
+                return;
+            }
+
+            WriteJson(response, 200, plan, headers);
+
+            return;
+        }
+
+        const answer = segments[0].toLowerCase() === "types" && segments.length === 2
+            ? await skills.Requirements(NormalizeTypeID(segments[1]), { language })
+            : segments.length === 1
+                ? await skills.Skill(NormalizeTypeID(segments[0]), { language })
+                : undefined;
+
+        if (answer === undefined)
+        {
+            WriteJson(response, 404, { error: "Skills route not found" });
+
+            return;
+        }
+
+        if (!answer)
+        {
+            WriteJson(response, 404, { error: "Type not found" });
+
+            return;
+        }
+
+        WriteJson(response, 200, answer, headers);
+    }
+
+    /** One `CjsToolSkills` per open build, holding its reverse index. */
+    #GetSkills(source)
+    {
+        const key = [ source.target, source.game, source.provider, source.build ].join("\0");
+
+        if (!this.#skills.has(key)) this.#skills.set(key, new CjsToolSkills(source));
+
+        return this.#skills.get(key);
+    }
+
+    /** One `CjsToolFitting` per open build, holding its name and slot indexes. */
+    #GetFitting(source)
+    {
+        const key = [ source.target, source.game, source.provider, source.build ].join(" ");
+
+        if (!this.#fittings.has(key)) this.#fittings.set(key, new CjsToolFitting(source));
+
+        return this.#fittings.get(key);
+    }
+
+    /** One `CjsToolDogma` per open build, holding its attribute catalog. */
+    /**
+     * Serves one composed type.
+     *
+     * `sde/types/{id}` still answers with the published row and goes on meaning
+     * exactly that. This route is the composed answer: the same identity plus
+     * the fields the published export does not carry, which is where a reading
+     * of ours belongs rather than inside a route that claims to be the export.
+     */
+    async #HandleTypesRoute(route, url, response)
+    {
+        if (!this.sde)
+        {
+            WriteJson(response, 501, { error: "SDE service is not configured" });
+
+            return;
+        }
+
+        const source = await this.sde.OpenTarget(route.target, route.build);
+        const headers = CreateSdeHeaders(source);
+        const segments = String(route.path ?? "").split("/").filter(Boolean);
+        const types = await this.#GetTypes(source);
+
+        if (!segments.length)
+        {
+            WriteJson(response, 200, types.Identity(), headers);
+
+            return;
+        }
+
+        const leaf = segments.length === 2 ? segments[1].toLowerCase() : null;
+        const composed = { variations: "Variations", traits: "Traits", mastery: "Mastery" };
+
+        if (segments.length > 2 || (leaf !== null && !composed[leaf]))
+        {
+            WriteJson(response, 404, { error: "Types route not found" });
+
+            return;
+        }
+
+        const typeID = NormalizeTypeID(segments[0]);
+        const options = { language: url.searchParams.get("lang") ?? undefined };
+        const answer = typeID === null
+            ? null
+            : await types[leaf ? composed[leaf] : "Answer"](typeID, options);
+
+        if (!answer)
+        {
+            WriteJson(response, 404, { error: `Type not found: ${segments[0]}` }, headers);
+
+            return;
+        }
+
+        WriteJson(response, 200, answer, headers);
+    }
+
+    /** One `CjsToolTypes` per open build. */
+    async #GetTypes(source)
+    {
+        const key = [ source.target, source.game, source.provider, source.build ].join(" ");
+
+        if (!this.#types.has(key))
+        {
+            this.#types.set(key, new CjsToolTypes(source, { localisation: await this.#GetLocalisation(source) }));
+        }
+
+        return this.#types.get(key);
+    }
+
+    async #GetDogma(source)
+    {
+        const key = [ source.target, source.game, source.provider, source.build ].join("\0");
+
+        if (!this.#dogmas.has(key))
+        {
+            this.#dogmas.set(key, new CjsToolDogma(source, { localisation: await this.#GetLocalisation(source) }));
+        }
+
+        return this.#dogmas.get(key);
+    }
+
+    /** One `CjsToolIndustry` per open build, holding its product index. */
+    async #GetIndustry(source)
+    {
+        const key = [ source.target, source.game, source.provider, source.build ].join("\0");
+
+        if (!this.#industries.has(key))
+        {
+            this.#industries.set(key, new CjsToolIndustry(source, { localisation: await this.#GetLocalisation(source) }));
+        }
+
+        return this.#industries.get(key);
+    }
+
+    /**
+     * English names for an export that carries none.
+     *
+     * Only the NetEase targets need this, and only they pay for it: the
+     * reference export is opened once per target and skipped entirely when the
+     * export already has English of its own. A reference that cannot be opened
+     * is not fatal - the topic still answers, in the language it has.
+     */
+    async #GetLocalisation(source)
+    {
+        if (source.target === ENGLISH_REFERENCE_TARGET) return null;
+
+        const key = [ source.target, source.build ].join("\0");
+
+        if (this.#localisations.has(key)) return this.#localisations.get(key);
+
+        let localisation = null;
+
+        try
+        {
+            const reference = await this.sde.OpenTarget(ENGLISH_REFERENCE_TARGET, "latest");
+            // Machine-composed names, when the cross-export pass has run for
+            // this build. Absent is the normal case and costs only the guesses.
+            const file = typeof source.DatabaseFile === "function" ? source.DatabaseFile() : null;
+            const guessed = file ? await ReadDerivation(file, "englishNames") : null;
+
+            localisation = new CjsToolLocalisation(source, {
+                reference,
+                manual: ReadManualNames(await ReadManualNameFile()),
+                guesses: ReadGuessedNames(guessed)
+            });
+        }
+        catch
+        {
+            localisation = null;
+        }
+
+        this.#localisations.set(key, localisation);
+
+        return localisation;
+    }
+
+    /** One `CjsToolMap` per open build, holding its skeleton and index. */
+    #GetMap(source)
+    {
+        const key = [ source.target, source.game, source.provider, source.build ].join("\0");
+
+        if (!this.#maps.has(key)) this.#maps.set(key, new CjsToolMap(source));
+
+        return this.#maps.get(key);
+    }
+
     async #GetWeaponLibrary(target, build)
     {
         const source = await this.sde.OpenTarget(target, build);
@@ -1897,28 +3167,41 @@ function RequireResourceRequest(value)
     };
 }
 
-function MatchBuildRoute(pathname)
+/**
+ * Matches the provider-clients route.
+ *
+ * Sits beside the build route deliberately: a client name exists to resolve a
+ * build, so the place that lists clients is the place that reports their
+ * builds. Nothing downstream should be carrying the name itself.
+ *
+ * @param {string} pathname Request path.
+ * @returns {object|null} Route parts, or null.
+ */
+/**
+ * `/{target}/metadata`.
+ *
+ * Matched before the generic target route, which would otherwise read
+ * `metadata` as a build reference.
+ */
+/** Whether a value is a URL rather than a reason token. */
+function IsUrl(value)
 {
-    const match = pathname.match(
-        /^\/games\/([^/]+)\/providers\/([^/]+)\/builds\/([^/]+)$/iu,
-    );
+    return typeof value === "string" && /^https?:///u.test(value);
+}
 
-    if (!match)
-    {
-        return null;
-    }
+function MatchMetadataRoute(pathname)
+{
+    const match = pathname.match(/^\/([^/]+)\/metadata(?:\.json)?$/iu);
+
+    if (!match) return null;
 
     try
     {
-        return Object.freeze({
-            game: decodeURIComponent(match[1]),
-            provider: decodeURIComponent(match[2]),
-            build: decodeURIComponent(match[3]),
-        });
+        return Object.freeze({ target: decodeURIComponent(match[1]).toLowerCase() });
     }
     catch
     {
-        throw new TypeError("Build route contains invalid URL encoding");
+        throw new TypeError("Metadata route contains invalid URL encoding");
     }
 }
 
@@ -1939,7 +3222,11 @@ function MatchTargetRoute(pathname)
         const topic = match[3] ? decodeURIComponent(match[3]).toLowerCase() : null;
 
         return Object.freeze({
-            target: requestedTarget === "ccp" ? "eve" : requestedTarget,
+            // No `ccp -> eve` alias. A provider is not an address: it says who
+            // controls the data, and one provider serves two targets here
+            // (Frontier is ccp's as well), so the alias only ever meant "eve"
+            // by convention. Removed with the provider-shaped routes.
+            target: requestedTarget,
             build: decodeURIComponent(match[2]).toLowerCase(),
             topic,
             path: match[4] ? decodeURIComponent(match[4]) : null,
@@ -2317,6 +3604,26 @@ function CreateAnswerHeaders(catalog, answer, values = {})
     };
 }
 
+/**
+ * The plural route segment for each celestial kind.
+ *
+ * Written out rather than pluralised by rule, because "asteroidBelt" does not
+ * pluralise the way the others do and a rule that gets it wrong produces a
+ * route that 404s for one kind only.
+ */
+const MAP_SYSTEM_COLLECTIONS = Object.freeze({
+    stars: "star",
+    planets: "planet",
+    moons: "moon",
+    belts: "asteroidBelt",
+    asteroidbelts: "asteroidBelt",
+    stations: "station",
+    stargates: "stargate",
+    // The name a player uses. Kept as an alias rather than the canonical form,
+    // since the export, the client and every other tool say stargate.
+    jumpgates: "stargate"
+});
+
 function CreateSdeHeaders(source)
 {
     return {
@@ -2504,6 +3811,28 @@ function RequireSofDna(value)
     return dna;
 }
 
+/**
+ * Holds the pair to its one rule: the SDE is never newer than the resources.
+ *
+ * The export channel usually trails the client, but it does not have to, and a
+ * pair with the export ahead is the broken one — it names types whose resources
+ * do not exist yet, so a lookup succeeds and the model behind it 404s. Trailing
+ * can only omit.
+ *
+ * Naming the resource build as the ceiling is also the whole fallback: asking
+ * the SDE repository for that build means "the export at or below it", which is
+ * exactly what it does — probe that build, and trail to the newest prepared one
+ * at or below it when there is no export of its own. Build numbers cannot be
+ * enumerated on either side, so walking back through candidates is not an
+ * option; handing the ceiling to the side that can probe is.
+ */
+function ClampSdeBuild(sdeBuild, resourceBuild)
+{
+    const sde = String(sdeBuild);
+
+    return Number(sde) > Number(resourceBuild) ? String(resourceBuild) : sde;
+}
+
 function RetainNewest(cache, limit)
 {
     while (cache.size > limit)
@@ -2587,6 +3916,154 @@ async function ReadJson(request, maxBytes)
         wrapped.statusCode = 400;
         throw wrapped;
     }
+}
+
+/** What ESI requires before it will list a character's saved fittings. */
+/**
+ * Skill identifiers from a query string or a JSON body.
+ *
+ * Identifiers only. A level was accepted here once and it was noise: a skill's
+ * prerequisites are fixed on the skill and do not vary with the level being
+ * trained to, so the parameter could only ever be ignored. Objects carrying one
+ * are still read, so a caller that sends `{ typeID }` is not punished for it.
+ */
+function SkillPlanTargets(value)
+{
+    const raw = Array.isArray(value)
+        ? value
+        : String(value ?? "").split(/[\s,]+/u);
+
+    const ids = [];
+
+    for (const entry of raw)
+    {
+        // "3327:5" is tolerated and the level discarded, because that shape was
+        // published briefly and a stale caller should still get an answer.
+        const id = Number(typeof entry === "object" && entry !== null
+            ? entry.typeID
+            : String(entry ?? "").split(":")[0]);
+
+        if (Number.isSafeInteger(id) && id > 0 && !ids.includes(id)) ids.push(id);
+    }
+
+    return ids;
+}
+
+export const FITTINGS_SCOPE = "esi-fittings.read_fittings.v1";
+export const SKILLS_SCOPE = "esi-skills.read_skills.v1";
+
+/**
+ * The states a character-scoped route has to tell apart before it calls ESI.
+ *
+ * Writes the response and returns false when the session cannot answer, so each
+ * leg reads as one guard rather than four. `scope` is checked only when the
+ * stored token recorded what it was granted: tokens written before that was
+ * captured have no list, and refusing those would break a working session over
+ * missing bookkeeping - so an absent list falls through and ESI decides.
+ */
+function RequireEsiSession(stored, response, scope = null)
+{
+    if (!stored?.refreshToken)
+    {
+        WriteJson(response, 401, { error: "Not signed in to EVE. Run: npm run login:eve" });
+
+        return false;
+    }
+
+    if (!stored.characterId)
+    {
+        WriteJson(response, 409, {
+            error: "Stored session has no character. Sign in again: npm run login:eve",
+        });
+
+        return false;
+    }
+
+    if (scope && Array.isArray(stored.scopes) && stored.scopes.length && !stored.scopes.includes(scope))
+    {
+        WriteJson(response, 403, {
+            error: `Stored session lacks ${scope}. Add it to CJS_ESI_SCOPES and sign in again: npm run login:eve`,
+            scope,
+        });
+
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * One ESI fitting, in the shape everything downstream uses.
+ *
+ * `items` keeps ESI's `flag` because it is the only published statement of
+ * where the pilot actually had each module, which neither EFT nor fitting DNA
+ * carries.
+ */
+function NormalizeEsiFitting(fitting)
+{
+    return {
+        fittingID: fitting?.fitting_id ?? null,
+        name: fitting?.name ?? null,
+        description: fitting?.description ?? "",
+        shipTypeID: fitting?.ship_type_id ?? null,
+        items: (fitting?.items ?? []).map(item => ({
+            typeID: item?.type_id ?? null,
+            flag: item?.flag ?? null,
+            quantity: item?.quantity ?? null,
+        })),
+    };
+}
+
+/**
+ * The export English names are borrowed from when an export has none.
+ *
+ * CCP's, because it is the only one that publishes English at all, and because
+ * the NetEase exports are derived from the same type IDs — which is what makes
+ * the crosswalk checkable rather than a guess.
+ */
+export const ENGLISH_REFERENCE_TARGET = "eve";
+
+/** The hand-written names, read once and reused. */
+let manualNameFile;
+
+async function ReadManualNameFile()
+{
+    if (manualNameFile !== undefined) return manualNameFile;
+
+    try
+    {
+        const location = new URL("../localisation/en.json", import.meta.url);
+
+        manualNameFile = JSON.parse(await fs.readFile(location, "utf8"));
+    }
+    catch
+    {
+        // A missing or unreadable file means no manual names, not a broken
+        // service: everything the crosswalk can name is still named.
+        manualNameFile = {};
+    }
+
+    return manualNameFile;
+}
+
+/**
+ * The GET form of a dogma request: `/dogma/types/{typeID}`.
+ *
+ * There is no way to supply skills here, and that is the point - a GET is the
+ * published hull, cacheable by URL alone. Returns undefined when the path is
+ * not one this topic serves.
+ */
+function ReadDogmaPath(segments, url)
+{
+    if (segments.length !== 2 || segments[0].toLowerCase() !== "types") return undefined;
+
+    const sections = url.searchParams.get("sections");
+
+    return {
+        typeID: segments[1],
+        profile: { mode: "none" },
+        sections: sections ? sections.split(",").map(entry => entry.trim()).filter(Boolean) : undefined
+    };
 }
 
 function WriteError(response, error)

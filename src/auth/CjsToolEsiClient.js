@@ -23,12 +23,18 @@ export class CjsToolEsiClient
      * @param {Object} options
      * @param {CjsToolEveSso} options.sso - performs the refresh
      * @param {Object} options.tokens - CjsToolTokenFile, or anything with Read/Write
-     * @param {String} [options.compatibilityDate] - REQUIRED by every ESI route
+     * @param {String} [options.compatibilityDate] - REQUIRED by every ESI route,
+     *   and it must be a date that has already PASSED. It is a pin, not a
+     *   version ceiling: ESI answers as the routes behaved on that date, so a
+     *   far-future placeholder does not mean "newest" - it is rejected outright
+     *   with `400 Compatibility date is in the future`, on every route, for
+     *   every id. Move this deliberately, when the schema it pins has been
+     *   re-read.
      */
     constructor({
         sso,
         tokens,
-        compatibilityDate = "2099-01-01",
+        compatibilityDate = "2026-08-01",
         root = ESI_ROOT,
         fetch: fetchImplementation = globalThis.fetch,
         requestTimeoutMs = 20000,
@@ -79,7 +85,14 @@ export class CjsToolEsiClient
         if (!response.ok)
         {
             const error = new Error(`ESI ${path} failed (${response.status})`);
+
             error.statusCode = response.status === 404 ? 404 : 502;
+            // What ESI actually said, kept beside the status this service will
+            // answer with. Without it a 403 - the grant exists but does not
+            // cover this endpoint - is indistinguishable from an outage, and a
+            // caller told "upstream failed" will retry forever instead of
+            // asking the operator to authorize again.
+            error.upstreamStatus = response.status;
             throw error;
         }
 
@@ -144,10 +157,18 @@ export class CjsToolEsiClient
     async #Refresh(refreshToken)
     {
         const tokens = await this.sso.Refresh(refreshToken);
+        const stored = await this.tokens.Read();
 
+        // Write() REPLACES the record, so anything not restated here is lost.
+        // The identity fields are the ones that bite: they are only written at
+        // login, so dropping them on the first refresh would leave a signed-in
+        // session that no longer knows whose it is - and the character-scoped
+        // routes would start failing an hour after a login that worked.
+        //
         // The ROTATED refresh token replaces the old one. Keeping the old one
         // strands the session at the next refresh.
         await this.tokens.Write({
+            ...stored,
             refreshToken: tokens.refresh_token ?? refreshToken,
             accessToken: tokens.access_token,
             expiresAt: Date.now() + (Number(tokens.expires_in) || 0) * 1000,

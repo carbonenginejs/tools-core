@@ -102,6 +102,61 @@ export class CjsToolEveSso
     }
 
     /**
+     * Reads the character out of an EVE access token.
+     *
+     * The token is a JWT and its `sub` claim is `CHARACTER:EVE:<id>`. The
+     * signature is deliberately NOT verified, and that is safe here for a
+     * specific reason rather than by convenience: nothing downstream makes a
+     * trust decision on this value. It labels the operator's own session and
+     * fills the `character_id` path parameter of a call that ESI authorises
+     * against the bearer token itself - a wrong id gets a 403, never somebody
+     * else's data. The token also arrives over TLS from the token endpoint, so
+     * it is not attacker-supplied in the first place.
+     *
+     * Verifying it properly would mean fetching and rotating EVE's JWKS, which
+     * buys nothing given the above.
+     *
+     * @param {String} accessToken
+     * @returns {{characterId: Number, characterName: String, scopes: Array<String>}|null}
+     *   null when the token is not a JWT or carries no character
+     */
+    static describeToken(accessToken)
+    {
+        const payload = String(accessToken ?? "").split(".")[1];
+
+        if (!payload) return null;
+
+        let claims;
+
+        try
+        {
+            claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+        }
+        catch
+        {
+            // A token we cannot read is not an error: identity is a label, and
+            // every call still works without it.
+            return null;
+        }
+
+        const subject = /^CHARACTER:EVE:(\d+)$/u.exec(String(claims?.sub ?? ""));
+
+        if (!subject) return null;
+
+        return {
+            characterId: Number(subject[1]),
+            characterName: typeof claims.name === "string" ? claims.name : null,
+            // What the grant actually covers. EVE puts it in `scp`, as a string
+            // for a single scope and an array for several. Capturing it is what
+            // lets a route answer "this token has no fittings access" without
+            // calling ESI and reading a 403 back - the difference between
+            // telling the operator to authorize again and telling them the
+            // service is broken.
+            scopes: ReadScopes(claims.scp),
+        };
+    }
+
+    /**
      * Claims a pending login by state, exactly once.
      *
      * Single use and constant-time compared. A replayed state is the shape a
@@ -228,4 +283,21 @@ function Equal(left, right)
     if (a.length !== b.length) return false;
 
     return timingSafeEqual(a, b);
+}
+
+/**
+ * The scopes a token was granted.
+ *
+ * EVE writes `scp` as a bare string when one scope was granted and as an array
+ * when several were, so a reader that assumes either shape is wrong half the
+ * time. An absent claim yields an empty list, which reads as "granted nothing"
+ * - correct for a token issued with no scopes at all, which is what tools-core
+ * has used until now.
+ */
+function ReadScopes(claim)
+{
+    if (Array.isArray(claim)) return claim.map(entry => String(entry));
+    if (typeof claim === "string" && claim) return [ claim ];
+
+    return [];
 }

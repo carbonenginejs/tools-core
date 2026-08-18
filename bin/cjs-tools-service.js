@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 import {
     CjsIndexCache,
     CjsIndexOverlayStore,
@@ -19,8 +19,14 @@ import {
     TOOLS_SERVICE_PROTOCOL_VERSION,
 } from "../src/index.js";
 import { CjsToolCharacterRepository } from "../src/character/index.js";
+import { CjsToolSkinrStore } from "../src/skin/index.js";
+import { CjsToolPlexRate } from "../src/market/index.js";
+import { CjsToolPublicIdentity } from "../src/identity/index.js";
 import { CjsToolEsiClient, CjsToolEveSso, CjsToolTokenFile } from "../src/auth/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
+import { resolveCacheRoot } from "../src/cache/resolveCacheRoot.js";
+import { resolveDataRoot } from "../src/cache/resolveDataRoot.js";
+import { LoadToolEnv } from "../src/env.js";
 
 /**
  * Fixed so an OAuth redirect_uri can be registered against it. EVE SSO matches
@@ -46,7 +52,6 @@ catch (error)
 async function main()
 {
     const args = parseArguments(process.argv.slice(2));
-    const packageDirectory = fileURLToPath(new URL("..", import.meta.url));
 
     if (args.help)
     {
@@ -54,7 +59,7 @@ async function main()
         return;
     }
 
-    LoadLocalEnv(args.env);
+    LoadToolEnv(args.env);
 
     const host = normalizeHost(args.host ?? "127.0.0.1");
     // Default to a FIXED port, not an ephemeral one. An OAuth redirect_uri
@@ -62,10 +67,8 @@ async function main()
     // never be registered. The cost is that a second service fails to bind -
     // which is the intended behaviour: one at a time, and the collision says so.
     const port = normalizePort(args.port ?? DEFAULT_PORT);
-    const cacheDirectory = path.resolve(String(args.cache ?? path.join(".cache", "tool-core")));
-    const dataDirectory = path.resolve(String(
-        args.data ?? path.join(packageDirectory, "data.local"),
-    ));
+    const cacheDirectory = resolveCacheRoot(args.cache);
+    const dataDirectory = resolveDataRoot(args.data);
     const toolCache = new CjsToolCache(cacheDirectory);
     const prefetchEnabled = args.prefetch !== undefined;
     // Auto-preparation (the default) performs prefetch-grade acquisition on
@@ -141,13 +144,21 @@ async function main()
         );
     }
 
+    const auth = CreateEsiAuth(dataDirectory, port);
     const proxy = new CjsToolHttpProxy({
         indexes,
         sof,
         sde,
         characters,
         audio,
-        auth: CreateEsiAuth(cacheDirectory, port),
+        auth,
+        skinrStore: OpenSkinrStore(dataDirectory),
+        // The market reading goes through ESI like everything else, so it exists
+        // only while a session does.
+        plexRate: auth ? new CjsToolPlexRate({ esi: auth.esi }) : null,
+        // Names, corporations and alliances. Public routes, but they still go
+        // through ESI, so like the rate this exists only while a session does.
+        identity: auth ? new CjsToolPublicIdentity({ esi: auth.esi }) : null,
     });
     const server = proxy.CreateServer();
 
@@ -219,7 +230,33 @@ async function main()
  * The refresh token lands in the cache directory, which is gitignored and
  * already where this service keeps per-install state.
  */
-function CreateEsiAuth(cacheDirectory, port)
+/**
+ * The harvested SKINR store, or null when nothing has been harvested.
+ *
+ * Null rather than an empty store: the routes then answer 501 naming the command
+ * to run, where an empty 200 would say the Paragon Hub has nothing in it. Those
+ * are different claims and only one of them is ever true.
+ */
+function OpenSkinrStore(dataDirectory)
+{
+    // The RESOLVED data root, not the default. `--data` moves the durable store,
+    // and resolving again here would ignore it — which is how a test with its own
+    // temp root ends up reading the operator's real harvest.
+    const file = CjsToolSkinrStore.file(dataDirectory);
+
+    try
+    {
+        return existsSync(file) ? CjsToolSkinrStore.open({ file }) : null;
+    }
+    catch (error)
+    {
+        process.stderr.write(`Warning: SKINR store at ${file} could not be opened: ${error.message}\n`);
+
+        return null;
+    }
+}
+
+function CreateEsiAuth(dataDirectory, port)
 {
     const clientId = String(process.env.CJS_ESI_CLIENT_ID ?? "").trim();
 
@@ -243,7 +280,9 @@ function CreateEsiAuth(cacheDirectory, port)
         callback,
         scopes: String(process.env.CJS_ESI_SCOPES ?? "").split(/\s+/u).filter(Boolean),
     });
-    const tokens = new CjsToolTokenFile({ directory: path.join(cacheDirectory, "auth") });
+    // The durable root, not the cache. A refresh token cannot be re-acquired by
+    // downloading - only by signing in again - so it must survive a cache clean.
+    const tokens = new CjsToolTokenFile({ directory: path.join(dataDirectory, "auth") });
 
     return { sso, tokens, esi: new CjsToolEsiClient({ sso, tokens }) };
 }
@@ -258,38 +297,6 @@ function normalizeHost(value)
     }
 
     return host;
-}
-
-/**
- * Loads `.env` from the working directory when one is present.
- *
- * Already-set environment variables win, so a shell export or a container's
- * configuration is never overridden by a stale file left in a checkout.
- *
- * Absent is normal - the file only carries EVE SSO configuration, which is only
- * needed while the SKINR endpoints are insider-gated. process.loadEnvFile
- * arrived in Node 20.12 and this package declares >=18, so an older runtime
- * simply relies on the environment instead of failing to start.
- */
-function LoadLocalEnv(file)
-{
-    const target = path.resolve(String(file ?? ".env"));
-
-    if (typeof process.loadEnvFile !== "function") return;
-
-    try
-    {
-        process.loadEnvFile(target);
-    }
-    catch (error)
-    {
-        // A missing file is the normal case and says nothing. Anything else is
-        // worth one line, WITHOUT the contents - this file holds credentials.
-        if (error?.code !== "ENOENT")
-        {
-            process.stderr.write(`Ignoring unreadable env file ${target}\n`);
-        }
-    }
 }
 
 function normalizePort(value)

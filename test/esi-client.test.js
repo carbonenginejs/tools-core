@@ -47,8 +47,30 @@ test("every request carries the compatibility date and a bearer", async () =>
     assert.deepEqual(await client.Get("/cosmetics/skinr/abc"), { id: "x" });
     assert.equal(seen.url, "https://esi.evetech.net/cosmetics/skinr/abc");
     // ESI rejects the call outright without this, so it is not optional.
-    assert.equal(seen.options.headers["x-compatibility-date"], "2099-01-01");
+    assert.equal(seen.options.headers["x-compatibility-date"], "2026-08-01");
     assert.equal(seen.options.headers.authorization, "Bearer a1");
+});
+
+test("the default compatibility date is one that has already passed", async () =>
+{
+    let seen = null;
+    const client = new CjsToolEsiClient({
+        sso: Sso(async () => ({ access_token: "a1", refresh_token: "r2", expires_in: 1199 })),
+        tokens: MakeTokens({ refreshToken: "r1" }),
+        fetch: async (url, options) => { seen = { url, options }; return Ok({}); },
+    });
+
+    await client.Get("/x");
+
+    // A compatibility date is a PIN, and ESI reads it literally: a far-future
+    // placeholder does not mean "newest schema", it is a 400 on every route for
+    // every id. That shipped once and cost a whole feature - character names
+    // resolved for nobody - because nothing local could tell the difference
+    // between "upstream is unhappy" and "we asked an impossible question".
+    const pinned = Date.parse(`${seen.options.headers["x-compatibility-date"]}T00:00:00Z`);
+
+    assert.ok(Number.isFinite(pinned), "the compatibility date must be a real date");
+    assert.ok(pinned < Date.now(), "the compatibility date must be in the past");
 });
 
 test("a rotated refresh token is persisted, not dropped", async () =>
@@ -130,4 +152,35 @@ test("a 404 stays a 404 rather than becoming a gateway error", async () =>
         assert.equal(error.statusCode, 404);
         return true;
     });
+});
+
+test("a refresh preserves the stored identity", async () =>
+{
+    // Write() REPLACES the record, so a refresh that restates only the token
+    // fields silently drops the character. The failure that causes is not an
+    // error: the session stays signed in and the character-scoped routes start
+    // refusing about an hour after a login that worked.
+    const tokens = MakeTokens({
+        refreshToken: "r-1",
+        characterId: 96057971,
+        characterName: "Pilot",
+    });
+
+    const client = new CjsToolEsiClient({
+        sso: Sso(async () => ({
+            access_token: "a-2",
+            refresh_token: "r-2",
+            expires_in: 1200,
+        })),
+        tokens,
+        fetch: async () => Ok({ ok: true }),
+    });
+
+    await client.Get("/cosmetics/skinr/abc");
+
+    const stored = tokens.writes.at(-1);
+
+    assert.equal(stored.refreshToken, "r-2", "the rotated token must replace the old one");
+    assert.equal(stored.characterId, 96057971, "identity must survive a refresh");
+    assert.equal(stored.characterName, "Pilot");
 });

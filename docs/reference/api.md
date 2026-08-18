@@ -18,6 +18,7 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | `./integrations/kick` | Signed Kick webhook normalization | `KickWebhookHandler`, `KickActivityService`, `KickStateService` |
 | `./integrations/twitch` | Twitch OAuth, Helix, IRC/EventSub, chat, activity, and state | Public `Twitch*` classes |
 | `./library` | Canonical JSON and deterministic gzip artifacts | `CjsToolLibraryArtifact` |
+| `./map` | Region/constellation/system/celestial documents, composed names, stargate orientation, and derived per-system lighting | `CjsToolMap`, `BuildMapIndex`, `BlackbodyColor`, `StargateDirection` |
 | `./prefetch` | Exact-build cache preparation from explicit resource profiles | `CjsToolPrefetch` |
 | `./proxy` | Optional local query/resource HTTP adapter | `CjsToolHttpProxy` |
 | `./realtime` | Protocol constants and validation | `CjsRealtimeProtocol`, `CjsRealtimeError` |

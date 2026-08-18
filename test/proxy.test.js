@@ -55,9 +55,18 @@ test("serves health without the removed legacy SOF routes", async context =>
             audio: false,
             character: false,
             sde: false,
+            dna: false,
             skin: false,
             skinr: false,
+            skinrStore: false,
+            plexRate: false,
+            identity: false,
             weapons: false,
+            map: false,
+            dogma: false,
+            industry: false,
+            fitting: false,
+            skills: false,
             sofCatalog: false,
             auth: false,
         },
@@ -76,11 +85,10 @@ test("serves health without the removed legacy SOF routes", async context =>
     }
 });
 
-test("serves exact-build GPU-free SOF catalogs and DNA documents", async context =>
+test("serves exact-build GPU-free SOF catalogs and DNA model values", async context =>
 {
     let openTargetCount = 0;
     let openSofCount = 0;
-    let valuesCount = 0;
     const builtDna = [];
     const source = {
         target: "eve",
@@ -147,17 +155,12 @@ test("serves exact-build GPU-free SOF catalogs and DNA documents", async context
                 sets: [],
             };
         },
-        async BuildDocumentAsync(dna)
+        async BuildValuesAsync(dna)
         {
             builtDna.push(dna);
             if (dna.includes(":unbuildable")) return null;
 
-            return { schema: "carbon.document", dna };
-        },
-        BuildValues()
-        {
-            valuesCount++;
-            throw new Error("SOF values hydration was not expected");
+            return { _type: "EveShip2", dna };
         },
     };
     const proxy = new CjsToolHttpProxy({
@@ -264,10 +267,12 @@ test("serves exact-build GPU-free SOF catalogs and DNA documents", async context
 
     assert.equal(literal.status, 200);
     assert.equal(encoded.status, 200);
-    assert.equal((await literal.json()).schema, "carbon.document");
-    assert.equal((await encoded.json()).schema, "carbon.document");
+    assert.equal((await literal.json())._type, "EveShip2");
+    assert.equal((await encoded.json())._type, "EveShip2");
     assert.deepEqual(builtDna, [ literalDna, literalDna ]);
-    assert.equal(valuesCount, 0);
+    assert.equal((await fetch(
+        `${root}/dna/ab1_t1:amarrbase:amarr/document`,
+    )).status, 400);
 
     assert.equal((await fetch(`${root}/hulls/missing`)).status, 404);
     assert.equal((await fetch(`${root}/hulls/missing/patterns`)).status, 404);
@@ -392,9 +397,21 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
                 dna: "rifter:minmatar:minmatar",
             };
         },
+        async QueryDna(query, options)
+        {
+            assert.equal(query, "rifter");
+            assert.deepEqual(options, { limit: "40" });
+
+            return { query, total: 1, truncated: false, matches: [ { dna: "rifter:minmatar:minmatar" } ] };
+        },
         Table(name)
         {
-            assert.equal(name, "types");
+            // A name this fixture does not carry answers as a missing table,
+            // which is how the retired `sde/resolve` spelling now 404s.
+            if (name !== "types")
+            {
+                return { name, async Count() { return null; } };
+            }
 
             return {
                 name,
@@ -459,9 +476,18 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
         audio: false,
         character: false,
         sde: true,
+        dna: true,
         skin: true,
         skinr: true,
+        skinrStore: false,
+        plexRate: false,
+        identity: false,
         weapons: true,
+        map: true,
+        dogma: true,
+        industry: true,
+        fitting: true,
+        skills: true,
         sofCatalog: false,
         auth: false,
     });
@@ -507,10 +533,22 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
     });
     assert.equal(filteredBody.items[0].id, "587");
 
-    const resolved = await fetch(`${root}/eve/latest/sde/resolve?typeID=587`);
+    // `resolve` is a question, not a table, so it is not under `sde` — and the
+    // old spelling must be gone rather than quietly aliased.
+    const resolved = await fetch(`${root}/eve/latest/dna/resolve?typeID=587`);
 
     assert.equal(resolved.status, 200);
     assert.equal((await resolved.json()).dna, "rifter:minmatar:minmatar");
+
+    const searched = await fetch(`${root}/eve/latest/dna/search?q=rifter&limit=40`);
+
+    assert.equal(searched.status, 200);
+    assert.equal((await searched.json()).matches[0].dna, "rifter:minmatar:minmatar");
+
+    for (const retired of [ "sde/resolve?typeID=587", "sde/dna?q=rifter" ])
+    {
+        assert.equal((await fetch(`${root}/eve/latest/${retired}`)).status, 404);
+    }
 });
 
 test("serves the combined schema-v9 character document", async context =>
@@ -565,9 +603,18 @@ test("serves the combined schema-v9 character document", async context =>
         audio: false,
         character: true,
         sde: false,
+        dna: false,
         skin: false,
         skinr: false,
+        skinrStore: false,
+        plexRate: false,
+        identity: false,
         weapons: false,
+        map: false,
+        dogma: false,
+        industry: false,
+        fitting: false,
+        skills: false,
         sofCatalog: false,
         auth: false,
     });
@@ -745,9 +792,18 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
         audio: false,
         character: false,
         sde: false,
+        dna: false,
         skin: false,
         skinr: false,
+        skinrStore: false,
+        plexRate: false,
+        identity: false,
         weapons: false,
+        map: false,
+        dogma: false,
+        industry: false,
+        fitting: false,
+        skills: false,
         sofCatalog: false,
         auth: false,
     });
@@ -776,18 +832,6 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
         ],
     });
 
-    const latest = await fetch(`${root}/games/eve/providers/ccp/builds/latest`, { headers });
-
-    assert.equal(latest.status, 200);
-    assert.deepEqual(await latest.json(), {
-        game: "Eve",
-        provider: "ccp",
-        buildRef: "latest",
-        build: "3435006",
-        client: "tranquility",
-        source: "latest-remote-metadata",
-    });
-
     const shortLatest = await fetch(`${root}/eve/latest/build`, { headers });
 
     assert.equal(shortLatest.status, 200);
@@ -799,6 +843,18 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
         build: "3435006",
         client: "tranquility",
         source: "latest-remote-metadata",
+        // No SDE service is wired into this proxy, so the facet is reported as
+        // absent rather than omitted: a consumer reads the same shape either way.
+        builds: {
+            resources: "3435006",
+            // This proxy is built on a stub index rather than CjsToolIndex, so
+            // no policy ran and there is nothing to attribute. Null is the
+            // honest answer: "nobody said", not "newest observed".
+            resourcesReason: null,
+            observedLatest: null,
+            sde: null,
+            sdeReason: "no-sde-service",
+        },
     });
 
     const shortRes = await fetch(`${root}/eve/latest/res`, { headers });
@@ -882,7 +938,7 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
     });
 });
 
-test("serves NetEase SDE queries from the explicit EVE fallback identity", async context =>
+test("serves `netease` SDE queries from the explicit EVE fallback identity", async context =>
 {
     const source = {
         target: "eve",
@@ -956,7 +1012,7 @@ test("serves NetEase SDE queries from the explicit EVE fallback identity", async
     assert.equal(response.headers.get("x-carbon-build"), "3435006");
 });
 
-test("serves the shared browser shader overlay through NetEase resource endpoints", async context =>
+test("serves the shared browser shader overlay through `netease` resource endpoints", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-proxy-overlay-"));
     const sourceDirectory = path.join(directory, "source");
@@ -1119,9 +1175,18 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
         audio: true,
         character: true,
         sde: true,
+        dna: true,
         skin: true,
         skinr: true,
+        skinrStore: false,
+        plexRate: false,
+        identity: false,
         weapons: true,
+        map: true,
+        dogma: true,
+        industry: true,
+        fitting: true,
+        skills: true,
         sofCatalog: true,
         auth: false,
     });
@@ -1319,4 +1384,279 @@ test("serves a Black resource as parsed JSON through ?format=json", async contex
     );
 
     assert.equal(unsupportedResource.status, 415);
+});
+
+
+test("resolves a build reference into one exact build per data facet", async context =>
+{
+    // The client build and the SDE build are deliberately
+    // different here: that gap is the whole point of the facet map, and a
+    // fixture where they agree would pass no matter which one the code read.
+    const clientBuild = "3466501";
+    const sdeBuild = "3458726";
+    const sdeRequests = [];
+    const proxy = new CjsToolHttpProxy({
+        indexes: {
+            Open() {},
+            async ResolveTargetBuild(target, build)
+            {
+                return {
+                    target,
+                    game: "Eve",
+                    provider: "ccp",
+                    buildRef: build,
+                    build: build === "latest" ? clientBuild : build,
+                    client: "tranquility",
+                    source: build === "latest" ? "latest-remote-metadata" : "exact",
+                };
+            },
+        },
+        sde: {
+            async OpenTarget()
+            {
+                throw new Error("The build route must not open an SDE");
+            },
+            async ResolveTargetBuild(target, build)
+            {
+                sdeRequests.push(build);
+
+                return {
+                    target,
+                    game: "Eve",
+                    provider: "ccp",
+                    build: build === "latest" ? sdeBuild : build,
+                };
+            },
+        },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const root = `http://127.0.0.1:${server.address().port}`;
+
+    assert.deepEqual(await (await fetch(`${root}/eve/latest/build`)).json(), {
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        buildRef: "latest",
+        build: clientBuild,
+        client: "tranquility",
+        source: "latest-remote-metadata",
+        builds: {
+            resources: clientBuild,
+            resourcesReason: null,
+            observedLatest: null,
+            sde: sdeBuild,
+            sdeReason: null,
+        },
+    });
+
+    // A pinned build is asked of both facets, not special-cased. Whether an
+    // SDE exists for that exact build is not this route's question: the SDE
+    // repository answers a build with no SDE of its own from the newest
+    // available one, and its response names the build that answered.
+    assert.deepEqual(await (await fetch(`${root}/eve/${clientBuild}/build`)).json(), {
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        buildRef: clientBuild,
+        build: clientBuild,
+        client: "tranquility",
+        source: "exact",
+        builds: {
+            resources: clientBuild,
+            resourcesReason: null,
+            observedLatest: null,
+            sde: clientBuild,
+            sdeReason: null,
+        },
+    });
+
+    assert.deepEqual(sdeRequests, [ "latest", clientBuild ]);
+});
+
+test("never pairs an SDE build newer than the resource build", async context =>
+{
+    // The SDE channel usually trails the client build. It does not have to, and
+    // this is the direction that breaks: an SDE from ahead names types whose
+    // resources do not exist yet, so a lookup resolves and the model 404s.
+    const clientBuild = "3466501";
+    const aheadSdeBuild = "3470000";
+    const proxy = new CjsToolHttpProxy({
+        indexes: {
+            Open() {},
+            async ResolveTargetBuild(target, build)
+            {
+                return {
+                    target,
+                    game: "Eve",
+                    provider: "ccp",
+                    buildRef: build,
+                    build: build === "latest" ? clientBuild : build,
+                    client: "tranquility",
+                    source: "latest-remote-metadata",
+                };
+            },
+        },
+        sde: {
+            async OpenTarget()
+            {
+                throw new Error("The build route must not open an SDE");
+            },
+            async ResolveTargetBuild()
+            {
+                return { game: "Eve", provider: "ccp", build: aheadSdeBuild };
+            },
+        },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const root = `http://127.0.0.1:${server.address().port}`;
+
+    // Clamped to the resource build, which is also the fallback instruction:
+    // asking the SDE repository for that build means "the SDE at or below
+    // it", and it trails to the newest prepared one when there is none.
+    assert.deepEqual((await (await fetch(`${root}/eve/latest/build`)).json()).builds, {
+        resources: clientBuild,
+        resourcesReason: null,
+        observedLatest: null,
+        sde: clientBuild,
+        // Named rather than left to be inferred from two equal numbers.
+        sdeReason: "clamped-to-resources",
+    });
+
+    // A pinned build is a ceiling for the same reason.
+    assert.deepEqual((await (await fetch(`${root}/eve/3440000/build`)).json()).builds, {
+        resources: "3440000",
+        resourcesReason: null,
+        observedLatest: null,
+        sde: "3440000",
+        sdeReason: "clamped-to-resources",
+    });
+});
+
+test("still answers the resource facet when the SDE channel is unreachable", async context =>
+{
+    const proxy = new CjsToolHttpProxy({
+        indexes: {
+            Open() {},
+            async ResolveTargetBuild(target, build)
+            {
+                return {
+                    target,
+                    game: "Eve",
+                    provider: "ccp",
+                    buildRef: build,
+                    build: "3466501",
+                    client: "tranquility",
+                    source: "latest-remote-metadata",
+                };
+            },
+        },
+        sde: {
+            async OpenTarget()
+            {
+                throw new Error("The build route must not open an SDE");
+            },
+            async ResolveTargetBuild()
+            {
+                throw new Error("SDE channel unreachable and nothing prepared");
+            },
+        },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const response = await fetch(
+        `http://127.0.0.1:${server.address().port}/eve/latest/build`,
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).builds, {
+        resources: "3466501",
+        resourcesReason: null,
+        observedLatest: null,
+        sde: null,
+        // "Unreachable" is not "nothing prepared", and neither is "no SDE
+        // service". All three were one indistinguishable null before.
+        sdeReason: "unavailable",
+        sdeError: "SDE channel unreachable and nothing prepared",
+    });
+});
+
+test("describes a target and its clients, always as an array", async context =>
+{
+    const calls = [];
+    const proxy = new CjsToolHttpProxy({
+        indexes: {
+            Open() {},
+            async DescribeTarget(target)
+            {
+                calls.push(target);
+
+                if (target === "nobody")
+                {
+                    const error = new TypeError(`Unknown target "${target}"`);
+
+                    error.code = "CJS_TOOL_TARGET_UNKNOWN";
+                    throw error;
+                }
+
+                return {
+                    target,
+                    provider: "serenity",
+                    game: "Eve",
+                    clients: [ { id: "serenity", token: null, build: "3466054", error: null } ]
+                };
+            }
+        }
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const root = `http://127.0.0.1:${server.address().port}`;
+    const response = await fetch(`${root}/serenity/metadata`);
+
+    assert.equal(response.status, 200);
+
+    const body = await response.json();
+
+    // A single-client target still answers with an array. Collapsing it to a
+    // bare object would make every caller handle two shapes, and the one-client
+    // case - serenity, infinity, and ccp under Frontier - is the common one.
+    assert.equal(body.target, "serenity");
+    assert.ok(Array.isArray(body.clients));
+    assert.equal(body.clients.length, 1);
+    assert.equal(body.clients[0].build, "3466054");
+    assert.deepEqual(calls, [ "serenity" ]);
+
+    // An unknown target is the caller's mistake, not a fault here.
+    const missing = await fetch(`${root}/nobody/metadata`);
+
+    assert.equal(missing.status, 404);
 });
