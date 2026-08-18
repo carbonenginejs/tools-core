@@ -21,7 +21,7 @@ import {
 import { CjsToolCharacterRepository } from "../src/character/index.js";
 import { CjsToolSkinrStore } from "../src/skin/index.js";
 import { CjsToolPlexRate } from "../src/market/index.js";
-import { CjsToolPublicIdentity } from "../src/identity/index.js";
+import { CjsToolPublicEsi, CjsToolPublicIdentity } from "../src/identity/index.js";
 import { CjsToolEsiClient, CjsToolEveSso, CjsToolTokenFile } from "../src/auth/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
 import { resolveCacheRoot } from "../src/cache/resolveCacheRoot.js";
@@ -158,7 +158,20 @@ async function main()
         plexRate: auth ? new CjsToolPlexRate({ esi: auth.esi }) : null,
         // Names, corporations and alliances. Public routes, but they still go
         // through ESI, so like the rate this exists only while a session does.
-        identity: auth ? new CjsToolPublicIdentity({ esi: auth.esi }) : null,
+        // Names and affiliation for anybody, signed in or not. The routes it
+        // reads are public, so a deployment with no ESI login still answers -
+        // it used to return 501 and every character on the page read UNKNOWN
+        // CAPSULEER. The authenticated client is preferred when there is one,
+        // because a token raises the shared rate limit.
+        // Always the TOKENLESS reader. The routes it needs are public, and
+        // preferring the authenticated client whenever one exists made the
+        // feature worse rather than better: a deployment with a client id but no
+        // stored login has an ESI client that refuses every call with "Not
+        // signed in to EVE", where the public one simply answers. A token would
+        // only raise the shared rate limit, which is not worth a route that
+        // fails closed on the deployment most likely to have no login — a
+        // server nobody has signed in on.
+        identity: new CjsToolPublicIdentity({ esi: new CjsToolPublicEsi() }),
     });
     const server = proxy.CreateServer();
 
