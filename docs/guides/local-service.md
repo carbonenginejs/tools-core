@@ -36,6 +36,7 @@ groups are:
 | Route | Result |
 | --- | --- |
 | `/targets` | Audited target and capability list |
+| `/{target}/metadata` | What a target is — provider, game, and each client's current build |
 | `/{target}/latest/build` | Exact current app/resource build |
 | `/{target}/{build}/app/<path>` | Validated app-index bytes |
 | `/{target}/{build}/res/<path>` | Validated resource bytes |
@@ -44,14 +45,16 @@ groups are:
 | `/{target}/{build}/audio/path/<encoded-audio-path>` | One exact registered audio file |
 | `/{target}/{build}/audio/music` | Optional playlist summaries and music endpoints |
 | `/{target}/{build}/audio/music/library` | Installable available-song music library |
-| `/ccp/{build}/resources[/<path>]` | EVE `res:/` file or immediate directory listing |
-| `/eve/{build}/sde/<table>[/<id>]` | Prepared SDE table reads |
-| `/eve/{build}/character[/library.json]` | Complete schema-v9 character library |
+| `/{target}/{build}/resources[/<path>]` | EVE `res:/` file or immediate directory listing |
+| `/eve/{build}/sde/<table>[/<id>]` | Prepared SDE table reads — inspection, not a consumer surface |
+| `/eve/{build}/dna/resolve?typeID=&skinID=` | A type and skin to the SOF DNA they produce |
+| `/eve/{build}/dna/search?q=<term>` | A DNA, or any part of one, to the ships and skins that produce it |
+| `/eve/{build}/character[/library.json]` | Complete schema-v10 character library |
 | `/eve/{build}/skin[...]` | SKIN library sections |
 | `/eve/{build}/skinr[...]` | SKINR library sections |
 | `/eve/{build}/weapons[...]` | Weapon, ammunition, projectile, and group queries |
 | `/eve/{build}/sof/{catalog}[...]` | GPU-free runtime-sof catalog collections and details |
-| `/eve/{build}/sof/dna/<dna>` | GPU-free runtime-sof `carbon.document` |
+| `/eve/{build}/sof/dna/<dna>` | GPU-free runtime-sof model-values graph |
 
 Specialized billboard, nebula, cube, and hull resource-path-insert routes
 provide derived answers that are not plain directory enumeration. Response
@@ -59,7 +62,7 @@ headers expose the exact resolved build even when the request uses `latest`.
 The target/build SOF routes use the same exact resource source, decode
 `data.black` once per retained build, and pass the complete resource-file list
 to runtime-sof for resPathInsert existence checks. They return runtime-sof's
-catalog projections and document JSON without runtime-trinity hydration.
+catalog projections and model-values JSON without runtime-trinity hydration.
 
 See the [local HTTP route reference](../reference/http-routes.md) for the
 complete implemented route families and query semantics.
@@ -117,5 +120,5 @@ the exact build's own indexed inputs. Pass `--no-sde-auto-prepare` or
 
 An SDE `latest` reference resolves independently from the app/resource build,
 and the SDE is never guaranteed to match the current remote game build; when a
-newer export cannot be acquired the service answers from the newest prepared
+newer SDE cannot be acquired the service answers from the newest prepared
 database it has. See the SDE section of the local HTTP route reference.

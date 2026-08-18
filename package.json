@@ -10,10 +10,17 @@
     "./black": "./src/black/index.js",
     "./cache": "./src/cache/index.js",
     "./character": "./src/character/index.js",
+    "./dogma": "./src/dogma/index.js",
+    "./fitting": "./src/fitting/index.js",
+    "./identity": "./src/identity/index.js",
     "./index": "./src/indexing/index.js",
+    "./industry": "./src/industry/index.js",
     "./integrations/kick": "./src/integrations/kick/index.js",
     "./integrations/twitch": "./src/integrations/twitch/index.js",
     "./library": "./src/library/index.js",
+    "./localisation": "./src/localisation/index.js",
+    "./map": "./src/map/index.js",
+    "./market": "./src/market/index.js",
     "./prefetch": "./src/prefetch/index.js",
     "./proxy": "./src/proxy/index.js",
     "./realtime": "./src/realtime/index.js",
@@ -23,15 +30,16 @@
     "./realtime/server": "./src/realtime/server/index.js",
     "./realtime/websocket": "./src/realtime/websocket/index.js",
     "./schema": "./src/schema/index.js",
-    "./service": "./src/service/index.js",
     "./sde": "./src/sde/index.js",
+    "./service": "./src/service/index.js",
     "./shader": "./src/shader/index.js",
+    "./skills": "./src/skills/index.js",
     "./skin": "./src/skin/index.js",
     "./sof": "./src/sof/index.js",
     "./target": "./src/target/index.js",
-    "./webhook": "./src/webhook/index.js",
+    "./utils": "./src/utils.js",
     "./weapon": "./src/weapon/index.js",
-    "./utils": "./src/utils.js"
+    "./webhook": "./src/webhook/index.js"
   },
   "bin": {
     "cjs-index": "bin/cjs-tool-index.js",
@@ -47,7 +55,8 @@
     "cjs-carbon-class": "bin/cjs-carbon-class.js",
     "carbon-schema": "bin/cjs-carbon-schema.js",
     "cjs-carbon-schema": "bin/cjs-carbon-schema.js",
-    "cjs-sof-bundle": "bin/cjs-sof-bundle.js"
+    "cjs-sof-bundle": "bin/cjs-sof-bundle.js",
+    "cjs-localisation-gaps": "bin/cjs-localisation-gaps.js"
   },
   "files": [
     "bin/",
@@ -64,6 +73,7 @@
     "node": ">=18"
   },
   "scripts": {
+    "prepublishOnly": "node -e \"console.error(\\\"@carbonenginejs/tools-core is on a temporary publish hold. This guard is the only thing left holding it - lift it deliberately, by removing this prepublishOnly script from package.json.\\\"); process.exit(1)\"",
     "start": "node bin/cjs-tool-index.js",
     "service": "node bin/cjs-tools-service.js",
     "server": "npm run service",
@@ -90,7 +100,7 @@
   "dependencies": {
     "@carbonenginejs/runtime-audio": "^0.3.0",
     "@carbonenginejs/runtime-character": "^0.3.1",
-    "@carbonenginejs/runtime-resource": "^0.16.0",
+    "@carbonenginejs/runtime-resource": "^0.19.0",
     "@carbonenginejs/runtime-sof": "^0.3.1",
     "@carbonenginejs/runtime-trinity": "^0.11.0",
     "@carbonenginejs/runtime-utils": "^0.1.0",

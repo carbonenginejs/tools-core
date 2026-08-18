@@ -18,7 +18,7 @@ Tools-core owns:
 
 - provider/build resolution and validated app/resource index acquisition;
 - the shared exact-build cache and persistent resource overlays;
-- prepared EVE Static Data Export (SDE) databases and Node-side generated
+- prepared exact-build SDE databases and Node-side generated
   library orchestration;
 - schema scanning and class-emission tooling;
 - Node HTTP, WebSocket, webhook, credential, filesystem-watch, and command-line

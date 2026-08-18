@@ -49,6 +49,8 @@ format/runtime packages
 - [Run the local service](guides/local-service.md)
 - [Host realtime services](guides/realtime-service.md)
 - [Configure Twitch and Kick](guides/provider-integrations.md)
+- [Release this package](guides/releasing.md) — **read before pushing**: this
+  repository is public and its history accumulates while pushing is paused
 
 ## Documentation map
 

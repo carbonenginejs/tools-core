@@ -124,18 +124,26 @@ async function LintJavaScript(file, lintErrors)
             lintErrors.push(`${relativeFile}:${index + 1}: opening brace must use Allman layout`);
         }
 
-        const method = line.match(/^    (?:(static)\s+)?(?:async\s+)?(?:get\s+|set\s+)?(#?[A-Za-z_$][A-Za-z0-9_$]*)\s*\(/u);
+        const method = line.match(/^    (?:(static)\s+)?(?:async\s+)?(get\s+|set\s+)?(#?[A-Za-z_$][A-Za-z0-9_$]*)\s*\(/u);
 
-        if (method && !controlNames.has(method[2]))
+        if (method && !controlNames.has(method[3]))
         {
             const isStatic = method[1] === "static";
-            const name = method[2].replace(/^#/u, "");
+            // An accessor is read and written as a property — `authority.policy`,
+            // never `authority.Policy()` — so it takes the data-property rule
+            // rather than the instance-method one. The keyword used to be
+            // stripped before the check, which asked for PascalCase and made
+            // every correctly-named getter an error.
+            const isAccessor = Boolean(method[2]);
+            const name = method[3].replace(/^#/u, "");
 
-            if (isStatic && !/^[a-z]/u.test(name))
+            if ((isStatic || isAccessor) && !/^[a-z]/u.test(name))
             {
-                lintErrors.push(`${relativeFile}:${index + 1}: static helper must use lower camel case: ${name}`);
+                const kind = isAccessor ? "accessor" : "static helper";
+
+                lintErrors.push(`${relativeFile}:${index + 1}: ${kind} must use lower camel case: ${name}`);
             }
-            else if (!isStatic && ![ "constructor", "toJSON", "toString", "valueOf" ].includes(name) && !/^[A-Z]/u.test(name))
+            else if (!isStatic && !isAccessor && ![ "constructor", "toJSON", "toString", "valueOf" ].includes(name) && !/^[A-Z]/u.test(name))
             {
                 lintErrors.push(`${relativeFile}:${index + 1}: instance method must use PascalCase: ${name}`);
             }

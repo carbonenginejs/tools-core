@@ -28,7 +28,7 @@ Thin in-memory join layer for prepared EVE SDE identity tables.
 <!-- class:CjsSdeArchive -->
 ## `CjsSdeArchive`
 
-Acquires exact-build CCP JSONL archives and prepares CjsSde input tables.
+Acquires exact-build published JSONL archives and prepares CjsSde input tables.
 
 - Export: `@carbonenginejs/tools-core/sde`
 - Source: `src/sde/CjsSdeArchive.js`
@@ -38,17 +38,21 @@ Acquires exact-build CCP JSONL archives and prepares CjsSde input tables.
 <!-- class:CjsSdeDatabase -->
 ## `CjsSdeDatabase`
 
-Exact-build SQLite store for every table in an official EVE SDE archive.
+Exact-build SQLite store for every table in an SDE.
 
 - Export: `@carbonenginejs/tools-core/sde`
 - Source: `src/sde/CjsSdeDatabase.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
+- Notes: `Import` writes the database from an official JSONL archive;
+  `ImportTables` writes the same database from already-decoded tables, for a
+  target with no published SDE. Both record the `target`, `game` and
+  `provider` the data came from, defaulting to the official identity.
 
 <!-- class:CjsSdeTable -->
 ## `CjsSdeTable`
 
-Minimal paginated interface over one official EVE SDE table.
+Minimal paginated interface over one SDE table.
 
 - Export: `@carbonenginejs/tools-core/sde`
 - Source: `src/sde/CjsSdeDatabase.js`
@@ -62,6 +66,63 @@ Resolves target/build SDE requests to exact cached SQLite databases.
 
 - Export: `@carbonenginejs/tools-core/sde`
 - Source: `src/sde/CjsSdeRepository.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsSdeDerivations -->
+## `CjsSdeDerivations`
+
+Tables computed from an SDE rather than shipped in one.
+
+A derived table is a pure function of the rows an import just wrote, so it
+belongs to the SDE rather than to its source: the register runs
+after both `CjsSdeDatabase.Import` and `ImportTables` commit, which is the one
+point both import paths traverse. Artifacts are written beside the `.sqlite` as
+`<name>_v<version>.json`, never into `sde_rows`, where a computed table would be
+indistinguishable from imported data. Adding one is an entry in the
+register. Currently: the DNA reverse index.
+
+- Exports: `RunDerivations`, `DerivationPath`, `ListDerivations`
+- Export: `@carbonenginejs/tools-core/sde`
+- Source: `src/sde/CjsSdeDerivations.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolMap -->
+## `CjsToolMap`
+
+Composes New Eden as addressable documents: regions, constellations, systems, and the celestials in them.
+
+Served by `GET /{target}/{build}/map`.
+
+Query-backed rather than library-backed, unlike `skin` and `weapons`: the map is
+481000 celestials, so only the navigational tables and the computed `mapIndex`
+are held in memory and the rest is answered from SQLite through the locality
+indexes in `CjsSdeQueryIndexes`. Composes what the SDE does not ship —
+celestial names, stargate orientation, and a per-system key light derived from
+the star — and reports `postProcess` as `null` because nothing in the SDE names one.
+
+Positions are float64 metres and every answer carries a `frame` declaring that.
+`localPosition`, relative to the body a celestial orbits, is the float32-safe
+form; see the route reference for the measured error at each scale.
+
+- Exports: `CjsToolMap`, `CELESTIAL_TABLES`, `MAP_FRAME`
+- Export: `@carbonenginejs/tools-core/map`
+- Source: `src/map/CjsToolMap.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsSdeDnaIndex -->
+## `CjsSdeDnaIndex`
+
+The inverse of DNA resolution: which ships and skins produce a given DNA, or any
+part of one. Served by `GET /{target}/{build}/dna/search?q=`. The index shape and
+matching rules are settled in the organization documentation,
+`contracts/dna-reverse-index.md`.
+
+- Exports: `BuildDnaIndex`, `QueryDnaIndex`, `SplitDna`
+- Export: `@carbonenginejs/tools-core/sde`
+- Source: `src/sde/CjsSdeDnaIndex.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
