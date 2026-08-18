@@ -1,0 +1,57 @@
+{
+  "_readme": [
+    "Hand-written English names for types that exist only on one target.",
+    "",
+    "Everything a target shares with the reference source is named automatically",
+    "by type ID - see src/localisation/CjsToolLocalisation.js for how that",
+    "identity is corroborated. This file is only for the remainder, where no",
+    "source anywhere carries an English name: 1995 published types on Serenity",
+    "and 6299 on Infinity, with 27% of Infinity's shared with Serenity, which is",
+    "why one file serves both.",
+    "",
+    "Keys are type IDs as strings. A bare string is accepted as shorthand for",
+    "{ \"en\": \"...\" }. Generate a template with:",
+    "",
+    "  node bin/cjs-localisation-gaps.js --target infinity --format template",
+    "",
+    "A name written here is reported to consumers with source \"manual\", so it is",
+    "never confused with a published one. Leave a note saying how it was",
+    "derived - an unexplained translation cannot be checked by the next person."
+  ],
+
+  "75993": {
+    "en": "Humpback",
+    "zh": "座头鲸级",
+    "note": "ORE hull orecs2_t2. Confirmed from the decal on the model itself, which reads Humpback - the strongest evidence available for a hull no source names in English."
+  },
+
+  "78589": {
+    "en": "Gabriel",
+    "zh": "加百列级",
+    "note": "Angel Cartel hull angcol_t1. The target's own English table."
+  },
+
+  "84925": {
+    "en": "Xolotl",
+    "zh": "索洛托尔级",
+    "note": "Mordu's Legion hull morcol1_t1. The target's own English table - the Aztec god, which the transliteration suo-luo-tuo-er carries and no reading of ours recovered."
+  },
+
+  "86485": {
+    "en": "Stellian",
+    "zh": "斯特利亚级",
+    "note": "Sisters of EVE hull soefaux1_t1. The target's own English table, agreeing with the operator."
+  },
+
+  "89107": {
+    "en": "Crescent",
+    "zh": "血月级",
+    "note": "Colossus-group hull acol1_t1. The target's own English table. The Chinese reads blood moon and the operator gave that name in good faith, but that table says Crescent, which outranks any reading of the Chinese."
+  },
+
+  "91901": {
+    "en": "Physeter",
+    "zh": "抹香鲸级",
+    "note": "ORE hull orecol1_t1. The target's own English table - Physeter is the sperm whale genus, so this is the sperm whale and 75993 Humpback is the other, exactly as the Chinese distinguishes them."
+  }
+}
