@@ -8,6 +8,8 @@ export class CjsSde
 
     #graphics;
 
+    #groups;
+
     #skins;
 
     #skinMaterials;
@@ -33,6 +35,7 @@ export class CjsSde
         this.#skinLicenses = ToRecordMap(data.skinLicenses);
         this.#materialSets = ToRecordMap(data.materialSets);
         this.#graphicMaterialSets = ToRecordMap(data.graphicMaterialSets);
+        this.#groups = ToRecordMap(data.groups);
         this.#typesByName = IndexTypeNames(this.#types);
         this.#skinsByName = IndexSkinNames(this.#skins);
     }
@@ -41,6 +44,12 @@ export class CjsSde
     GetType(typeID)
     {
         return this.#types.get(NormalizeId(typeID)) ?? null;
+    }
+
+    /** Returns one group record or null. Absent when the source omits groups. */
+    GetGroup(groupID)
+    {
+        return groupID == null ? null : this.#groups.get(NormalizeId(groupID)) ?? null;
     }
 
     /** Returns one graphic record or null. */
@@ -99,6 +108,36 @@ export class CjsSde
         return Object.freeze([ ...this.#types.values() ]
             .filter(record => NormalizeOptionalId(GetFirst(record, "graphicID", "graphicId")) === expected)
             .sort(CompareRecordId));
+    }
+
+    /**
+     * Every skin record, in insertion order.
+     *
+     * For a caller that has to visit all of them once — the DNA reverse index —
+     * rather than ask about one. Exposed as an iterator so the whole table is
+     * not copied to be walked.
+     */
+    * Skins()
+    {
+        yield* this.#skins.values();
+    }
+
+    /** Every skin licence record, for the same reason. */
+    * SkinLicenses()
+    {
+        yield* this.#skinLicenses.values();
+    }
+
+    /** Every graphic record, for the same reason. */
+    * Graphics()
+    {
+        yield* this.#graphics.values();
+    }
+
+    /** Every type record, for the same reason. */
+    * Types()
+    {
+        yield* this.#types.values();
     }
 
     /** Resolves an exact case-insensitive type name, rejecting ambiguity. */

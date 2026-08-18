@@ -23,12 +23,18 @@ const PREPARED_TABLES = Object.freeze([
     "skinMaterials",
     "skinLicenses",
     "materialSets",
-    "graphicMaterialSets"
+    "graphicMaterialSets",
+    "groups"
 ]);
 
-const REQUIRED_TABLES = Object.freeze(PREPARED_TABLES.filter(name => name !== "materialSets"));
+// `groups` is optional for the same reason `materialSets` is: it is wanted by
+// one consumer — the DNA index, to tell a ship from an NPC entity sharing its
+// hull — and a source without it should still prepare rather than fail.
+const OPTIONAL_TABLES = Object.freeze([ "materialSets", "groups" ]);
 
-/** Acquires exact-build CCP JSONL archives and prepares CjsSde input tables. */
+const REQUIRED_TABLES = Object.freeze(PREPARED_TABLES.filter(name => !OPTIONAL_TABLES.includes(name)));
+
+/** Acquires exact-build JSONL archives and prepares CjsSde input tables. */
 export class CjsSdeArchive
 {
 
@@ -72,7 +78,7 @@ export class CjsSdeArchive
         }
     }
 
-    /** Resolves CCP's latest metadata to one exact numeric SDE build. */
+    /** Resolves the archive's latest metadata to one exact numeric SDE build. */
     async ResolveLatest()
     {
         const now = Number(this.#now());
@@ -123,7 +129,7 @@ export class CjsSdeArchive
         });
     }
 
-    /** Downloads and prepares the official archive for one exact numeric build. */
+    /** Downloads and prepares the acquired archive for one exact numeric build. */
     async Prepare(options = {})
     {
         const build = utils.normalizeExactBuildNumber(options.build, {
@@ -142,7 +148,7 @@ export class CjsSdeArchive
         });
     }
 
-    /** Downloads every official table into one exact-build SQLite database. */
+    /** Downloads every acquired table into one exact-build SQLite database. */
     async PrepareDatabase(options = {})
     {
         const build = utils.normalizeExactBuildNumber(options.build, {

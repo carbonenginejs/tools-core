@@ -57,8 +57,12 @@ test("resolves latest once and prepares exact-build CjsSde tables", async () =>
         "skinMaterials",
         "skinLicenses",
         "materialSets",
-        "graphicMaterialSets"
+        "graphicMaterialSets",
+        "groups"
     ]);
+    // Optional like `materialSets`: an archive without it still prepares, which
+    // is what keeps a source lacking the table from failing outright.
+    assert.deepEqual(Object.keys(prepared.groups), []);
     assert.equal(
         sde.ResolveDna({ typeID: 587, skinID: 9001 }),
         "rifter:angel:minmatar:pattern?stripes;red;black"
@@ -252,7 +256,7 @@ test("auto-prepares over an invalid cached SDE database", async context =>
     }
 });
 
-test("resolves EVE SDE latest independently and supplies it to NetEase", async context =>
+test("resolves EVE SDE latest and refuses it to targets with no SDE of their own", async context =>
 {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-sde-repository-"));
     const cache = new CjsToolCache(directory);
@@ -302,17 +306,23 @@ test("resolves EVE SDE latest independently and supplies it to NetEase", async c
             typeID: "587",
             skinID: null,
         } ]);
-        const neteaseSource = await repository.OpenTarget("netease", "latest");
-
-        assert.equal(neteaseSource, source);
-        assert.equal(neteaseSource.target, "eve");
-        assert.equal(neteaseSource.provider, "ccp");
-        assert.equal((await neteaseSource.Table("types").Get(587)).payload.name.en, "Rifter");
-        assert.equal(latestRequests, 2);
-        await assert.rejects(
-            () => repository.OpenTarget("frontier", "latest"),
-            /not available for target frontier/,
-        );
+        // The zh-primary targets used to be answered by this very source, and the
+        // borrow was invisible to the caller. They are separate providers now
+        // and declare no `sde` topic, so they refuse for the same reason
+        // Frontier does: content flows from Tranquility to them and not back,
+        // and each carries SKINs Tranquility never receives — so EVE's SDE
+        // is not a stand-in for theirs, it is a different answer.
+        assert.equal(latestRequests, 1);
+        // Each refuses in its own words, and both name the target rather than
+        // quietly answering as EVE.
+        for (const [ target, reason ] of [
+            [ "serenity", /serenity has no acquisition channel/ ],
+            [ "infinity", /infinity has no acquisition channel/ ],
+            [ "frontier", /not available for target frontier/ ],
+        ])
+        {
+            await assert.rejects(() => repository.OpenTarget(target, "latest"), reason);
+        }
     }
     finally
     {
@@ -332,7 +342,7 @@ test("SDE preparation CLI documents its exact-build cache artifact", () =>
     assert.match(result.stdout, /exact numeric build/);
     assert.match(
         result.stdout,
-        /custom\/games\/eve\/providers\/ccp\/builds\/<build>\/sde_<version>\.sqlite/,
+        /custom\/targets\/eve\/builds\/<build>\/sde_<version>\.sqlite/,
     );
 });
 

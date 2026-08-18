@@ -1,4 +1,6 @@
 export { CjsSde } from "./CjsSde.js";
+export { BuildDnaIndex, QueryDnaIndex } from "./CjsSdeDnaIndex.js";
+export { DerivationPath, ListDerivations, ReadDerivation, RunDerivations, WriteDerivation } from "./CjsSdeDerivations.js";
 export { CjsSdeArchive, CJS_SDE_PREPARED_TABLES } from "./CjsSdeArchive.js";
 export {
     CjsSdeDatabase,

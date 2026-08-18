@@ -6,6 +6,8 @@ import { Readable } from "node:stream";
 import Database from "better-sqlite3";
 import unzipper from "unzipper";
 import * as utils from "../utils.js";
+import { RunDerivations } from "./CjsSdeDerivations.js";
+import { CreateQueryIndexes, HasQueryIndexes } from "./CjsSdeQueryIndexes.js";
 
 const DATABASE_SCHEMA = "carbon.sde.sqlite";
 const DATABASE_VERSION = 1;
@@ -41,6 +43,39 @@ export class CjsSdeDatabase
         try
         {
             await result.#Verify();
+
+            return result;
+        }
+        catch (error)
+        {
+            await result.Close();
+            throw error;
+        }
+    }
+
+    /**
+     * Reopens a prepared database writable and recomputes what is derived.
+     *
+     * The rows are not touched — this rebuilds only the query indexes and the
+     * derivation artifacts, both of which are functions of rows already
+     * committed. It exists because those two things change on our schedule
+     * rather than the source's: a new derivation, or a corrected one, would
+     * otherwise mean re-acquiring an archive that has not changed to recover
+     * an answer already computable from what is on disk.
+     *
+     * @param {String} filePath
+     * @returns {Promise<CjsSdeDatabase>} open and writable; the caller closes it
+     */
+    static async refresh(filePath)
+    {
+        const database = OpenDatabase(filePath, { readOnly: false });
+        const result = new this(database, filePath, false);
+
+        try
+        {
+            await result.#Verify();
+            result.#Index();
+            await result.#Derive();
 
             return result;
         }
@@ -148,12 +183,192 @@ export class CjsSdeDatabase
             throw error;
         }
 
+        // After the commit, never inside it. A derived table is computed from
+        // rows that are already durable, and it is written as a file beside the
+        // database rather than into it — so it cannot be rolled back with an
+        // import, and cannot be mistaken for something the source shipped.
+        this.#Index();
+        await this.#Derive();
+
         tables.sort((left, right) => left.name.localeCompare(right.name, "en"));
 
         return Object.freeze({
             ...metadata,
             tables: Object.freeze(tables),
         });
+    }
+
+    /**
+     * Replaces the current contents from already-decoded tables.
+     *
+     * This is the same database `Import` writes, reached without a JSONL ZIP,
+     * for a target with no acquirable archive, whose tables are assembled by
+     * hand instead. Input is `{ tableName: { recordId: record } }` — the
+     * shape `LoadTables` returns and `CjsSde` consumes — so a build is a
+     * round trip rather than a second format.
+     *
+     * Record identities come from the caller's keys and are stored verbatim,
+     * because an assembled record does not always carry its own key.
+     */
+    async ImportTables(tables, options = {})
+    {
+        if (this.#readOnly)
+        {
+            throw new Error("Cannot import tables into a read-only database");
+        }
+
+        if (!tables || typeof tables !== "object" || Array.isArray(tables))
+        {
+            throw new TypeError("SDE table import requires an object of tables");
+        }
+
+        const metadata = NormalizeImportMetadata(options);
+        const entries = Object.entries(tables).filter(([ , records ]) => records !== undefined);
+
+        if (!entries.length)
+        {
+            throw new Error("SDE table import requires at least one table");
+        }
+
+        const imported = [];
+
+        await Run(this.#database, "BEGIN IMMEDIATE");
+
+        try
+        {
+            await Run(this.#database, "DELETE FROM sde_rows");
+            await Run(this.#database, "DELETE FROM sde_tables");
+            await Run(this.#database, "DELETE FROM sde_metadata");
+
+            for (const [ rawName, records ] of entries)
+            {
+                const name = NormalizeTableName(rawName);
+                const rowCount = await this.#ImportRecords(name, records);
+
+                imported.push(Object.freeze({ name, rowCount }));
+            }
+
+            for (const [ key, value ] of Object.entries(metadata))
+            {
+                await Run(
+                    this.#database,
+                    "INSERT INTO sde_metadata (key, value) VALUES (?, ?)",
+                    [ key, JSON.stringify(value) ],
+                );
+            }
+
+            await Run(this.#database, "COMMIT");
+        }
+        catch (error)
+        {
+            try
+            {
+                Run(this.#database, "ROLLBACK");
+            }
+            catch
+            {
+                // Preserve the original import failure.
+            }
+
+            throw error;
+        }
+
+        // After the commit, never inside it. A derived table is computed from
+        // rows that are already durable, and it is written as a file beside the
+        // database rather than into it — so it cannot be rolled back with an
+        // import, and cannot be mistaken for something the source shipped.
+        this.#Index();
+        await this.#Derive();
+
+        imported.sort((left, right) => left.name.localeCompare(right.name, "en"));
+
+        return Object.freeze({
+            ...metadata,
+            tables: Object.freeze(imported),
+        });
+    }
+
+    /**
+     * Rebuilds the derived tables for whatever this database now holds.
+     *
+     * Both importers call it, which is the point: an SDE is an SDE whoever
+     * produced it, so there is one derivation rather than one per source.
+     * Reported through `onDerivationWarning` rather than thrown —
+     * see `CjsSdeDerivations`.
+     */
+    /**
+     * Creates the map topic's locality indexes for whatever this database holds.
+     *
+     * After the commit and before the derivations, because a derivation reads
+     * rows back and there is no reason to make it do so unindexed. Synchronous
+     * and unguarded: this runs only on the import path, where the handle is
+     * writable by construction and a failure to index is a failure to prepare.
+     * The already-prepared case is `UpgradeQueryIndexes`, which has to be far
+     * more careful.
+     */
+    #Index()
+    {
+        return CreateQueryIndexes(this.#database);
+    }
+
+    /** Whether this database carries every locality index its tables call for. */
+    HasQueryIndexes()
+    {
+        return HasQueryIndexes(this.#database);
+    }
+
+    /**
+     * Adds the locality indexes to a database prepared before they existed.
+     *
+     * Separate from `open` and from `#Index`, and it takes a path rather than a
+     * handle, because the serving handle is deliberately read-only: the map
+     * topic must not be able to write to the database it reads. So this opens its
+     * own writable handle, does the one write, and closes it.
+     *
+     * Best-effort by design. The file may be on a read-only mount, or another
+     * process may hold it — and in every one of those cases the correct
+     * behaviour is to serve slowly rather than to refuse to serve. The caller
+     * gets the error to log; it does not get an exception to propagate.
+     *
+     * @param {String} filePath
+     * @returns {{ created: Array<String>, error: Error|null }}
+     */
+    static upgradeQueryIndexes(filePath)
+    {
+        let database = null;
+
+        try
+        {
+            database = OpenDatabase(filePath, { readOnly: false });
+
+            return { created: CreateQueryIndexes(database), error: null };
+        }
+        catch (error)
+        {
+            return { created: [], error };
+        }
+        finally
+        {
+            try
+            {
+                if (database) CloseDatabase(database);
+            }
+            catch
+            {
+                // Closing a handle we already failed to use adds nothing.
+            }
+        }
+    }
+
+    async #Derive()
+    {
+        const written = await RunDerivations(this, {
+            onWarning: (message) => this.onDerivationWarning?.(message)
+        });
+
+        this.derived = written;
+
+        return written;
     }
 
     /** Returns exact source metadata and the complete table catalog. */
@@ -364,6 +579,58 @@ export class CjsSdeDatabase
         return rowCount;
     }
 
+    async #ImportRecords(tableName, records)
+    {
+        const rows = records instanceof Map
+            ? [ ...records.entries() ]
+            : Object.entries(records ?? {});
+
+        await Run(
+            this.#database,
+            "INSERT INTO sde_tables (name, row_count) VALUES (?, 0)",
+            [ tableName ],
+        );
+
+        const statement = await Prepare(this.#database, `
+            INSERT INTO sde_rows (table_name, record_id, search_name, payload)
+            VALUES (?, ?, ?, ?)
+        `);
+        let rowCount = 0;
+
+        try
+        {
+            for (const [ key, record ] of rows)
+            {
+                if (!record || typeof record !== "object" || Array.isArray(record))
+                {
+                    throw new TypeError(
+                        `SDE record ${key} in ${tableName} must be an object`,
+                    );
+                }
+
+                StatementRun(statement, [
+                    tableName,
+                    NormalizeRecordId(key),
+                    SearchName(record),
+                    JSON.stringify(record),
+                ]);
+                rowCount += 1;
+            }
+        }
+        finally
+        {
+            await Finalize(statement);
+        }
+
+        await Run(
+            this.#database,
+            "UPDATE sde_tables SET row_count = ? WHERE name = ?",
+            [ rowCount, tableName ],
+        );
+
+        return rowCount;
+    }
+
 }
 
 /** Minimal paginated interface over one official EVE SDE table. */
@@ -450,16 +717,31 @@ export class CjsSdeTable
         const expected = NormalizeFilterValue(value);
         const { limit, offset } = NormalizePage(options);
         const contains = options.contains === true;
+
+        // The scalar path writes the JSON path into the SQL as a literal while
+        // the value stays bound. That is not a shortcut, it is the whole reason
+        // the locality indexes in `CjsSdeQueryIndexes` do anything: SQLite
+        // matches an index on an expression *syntactically*, and a bound
+        // parameter is not the literal the index was built on. With the path
+        // bound, every one of those indexes is created, occupies disk, and is
+        // never once used — the planner silently falls back to a full scan of
+        // the table's JSON, which is exactly the 640ms it was meant to remove.
+        //
+        // Safe because `NormalizeJsonPath` admits only /^[A-Za-z_][A-Za-z0-9_]*$/
+        // segments and throws on anything else, so the interpolated text cannot
+        // carry a quote. The value, which is caller data, is still a parameter.
         const predicate = contains
             ? "EXISTS (SELECT 1 FROM json_each(sde_rows.payload, ?) AS item "
                 + "WHERE CAST(item.value AS TEXT) = ?)"
-            : "CAST(json_extract(payload, ?) AS TEXT) = ?";
+            : `CAST(json_extract(payload, '${jsonPath}') AS TEXT) = ?`;
         const rows = await All(
             this.#database,
             "SELECT record_id AS id, payload FROM sde_rows "
                 + `WHERE table_name = ? AND ${predicate} `
                 + `ORDER BY ${RECORD_ORDER} LIMIT ? OFFSET ?`,
-            [ this.name, jsonPath, expected, limit, offset ],
+            contains
+                ? [ this.name, jsonPath, expected, limit, offset ]
+                : [ this.name, expected, limit, offset ],
         );
 
         return Object.freeze(rows.map(row => SerializeRow(this.name, row)));
@@ -473,12 +755,18 @@ function NormalizeImportMetadata(options)
         message: `Invalid exact SDE build "${options.build}"`,
     });
 
+    // The acquirable archive belongs to one provider alone, so those remain the
+    // defaults. A target without one builds the same database from data
+    // assembled by hand and must be able to say so: a database labelled
+    // `eve`/`ccp` while holding another provider's records is indistinguishable
+    // from the real thing on disk, and the cache path is keyed by game and
+    // provider.
     return Object.freeze({
         schema: DATABASE_SCHEMA,
         version: DATABASE_VERSION,
-        target: "eve",
-        game: "Eve",
-        provider: "ccp",
+        target: NormalizeOptionalText(options.target) ?? "eve",
+        game: NormalizeOptionalText(options.game) ?? "Eve",
+        provider: NormalizeOptionalText(options.provider) ?? "ccp",
         build,
         releaseDate: NormalizeOptionalText(options.releaseDate),
         source: NormalizeSource(options.source),
