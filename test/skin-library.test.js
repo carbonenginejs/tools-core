@@ -239,6 +239,28 @@ test("builds normalized SKINR joins while preserving authored resources", () =>
     ]);
 });
 
+test("builds SKINR without the ship-tree tables, which no consumer reads", () =>
+{
+    // Required by accident rather than intent: each was passed straight to
+    // mapRecords, so an absent one arrived as undefined and threw about its
+    // type. Nothing reads them, and the generated SDEs do not carry them, so the
+    // requirement blocked Serenity and Infinity entirely.
+    const options = BuildOptions();
+    const { shipTreeElements, shipTreeFactions, shipTreeGroups, typeElements, ...tables }
+        = options.tables;
+    const library = CjsToolSkin.buildSkinr({ ...options, tables });
+
+    // The library still builds, and the sections are present and empty rather
+    // than missing - a consumer reads the same shape either way.
+    assert.deepEqual(library.shipTreeElements, {});
+    assert.deepEqual(library.shipTreeGroups, {});
+    assert.deepEqual(library.typeElements, {});
+
+    // And the parts anyone actually reads are unaffected.
+    assert.equal(library.components[53].componentCategoryID, 3);
+    assert.equal(library.typesToSlotConfigurations[100], 3);
+});
+
 test("loads both library table sets once from an exact source", async () =>
 {
     let calls = 0;

@@ -53,7 +53,7 @@ export class CjsToolSkinrBuilder
      *
      * The authored copy lives in
      * definitions/skinr-faction-slots-v2-2026-08-10.json. It is authored
-     * because static data does not carry the conversion - not because no
+     * because the SDE does not carry the conversion - not because no
      * source for it exists, which is what v1 claimed.
      */
     static skinrSlotsToMaterialLayerByFactionId = factionSlotDefinitions.slotsToMaterialLayerByFactionId;
@@ -143,19 +143,33 @@ export class CjsToolSkinrBuilder
                 tierThresholds: normalizePairs(record._value, "tier", "threshold"),
             }),
         );
+        // The four ship-tree tables are OPTIONAL. Decided 2026-08-15.
+        //
+        // They were required by accident rather than by intent: each was passed
+        // straight to `mapRecords`, so an absent one arrived as `undefined` and
+        // threw out of `tableEntries` with a message about its type. Nothing in
+        // the organization reads them — they are mapped, cross-validated, written
+        // into the payload, and never consumed — while `materialSets` and
+        // `groups` were already optional for exactly that reason.
+        //
+        // The cost of the accident was real: a manually generated SDE covers 11
+        // of the 15 tables this builder lists and no source carries these four,
+        // so the SKINR library could not be built for Serenity or Infinity at
+        // all.
+        // They are still emitted when present, so nothing that has them changes.
         const shipTreeElements = mapRecords(
-            tables.shipTreeElements,
+            tables.shipTreeElements ?? {},
             "shipTreeElements",
             "shipTreeElementID",
         );
         const shipTreeFactions = mapRecords(
-            tables.shipTreeFactions,
+            tables.shipTreeFactions ?? {},
             "shipTreeFactions",
             "factionID",
             NormalizeShipTreeRecord,
         );
         const shipTreeGroups = mapRecords(
-            tables.shipTreeGroups,
+            tables.shipTreeGroups ?? {},
             "shipTreeGroups",
             "shipTreeGroupID",
             (record, id) => ({
@@ -165,7 +179,7 @@ export class CjsToolSkinrBuilder
             }),
         );
         const typeElements = mapRecords(
-            tables.typeElements,
+            tables.typeElements ?? {},
             "typeElements",
             "typeID",
             record => ({

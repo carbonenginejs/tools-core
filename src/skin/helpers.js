@@ -217,7 +217,7 @@ export function projectionType(value)
  * Validates a SKINR pattern blend mode.
  *
  * These five are the whole vocabulary a payload may carry, and they are not in
- * static data - the value is authored, not derived, so there is no table to
+ * the SDE - the value is authored, not derived, so there is no table to
  * check it against at build time. `normal` is the overlay blend.
  *
  * They are lowercase and the consuming runtime upper-cases and substitutes

@@ -13,8 +13,8 @@ import { patternBlendMode, projectionType } from "./helpers.js";
  * hydrates it. No runtime classes cross this boundary, so the emitter has no
  * dependency on a SOF runtime and the result is cacheable and diffable.
  *
- * `applicationGroups` is deliberately absent. It is real CCP structure, but a
- * generated skin targets exactly one hull and needs no per-area-type variation,
+ * `applicationGroups` is deliberately absent. It is real upstream structure,
+ * but a generated skin targets exactly one hull and needs no per-area-type variation,
  * and nothing in the consuming runtime reads the field.
  */
 export class CjsToolSkinrPattern
