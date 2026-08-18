@@ -67,7 +67,7 @@ export class CjsIndexGroup
 }
 
 /**
- * Parses complete CCP-style index text without reordering its resources.
+ * Parses complete index text without reordering its resources.
  */
 export function parseIndexGroup(text, options = {})
 {

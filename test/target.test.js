@@ -8,7 +8,8 @@ test("maps short public targets to internal source identities", () =>
     const targets = new CjsToolTargetRegistry();
     const eve = targets.Get("EVE");
     const frontier = targets.Get("frontier");
-    const netease = targets.Get("netease");
+    const serenity = targets.Get("serenity");
+    const infinity = targets.Get("infinity");
 
     assert.deepEqual(eve.toJSON(), {
         id: "eve",
@@ -16,28 +17,34 @@ test("maps short public targets to internal source identities", () =>
         provider: "ccp",
         client: "tranquility",
         libraries: [ "audio", "character", "shader", "skin", "skinr", "weapons" ],
-        topics: [ "app", "res", "sde", "skin", "skinr", "weapons" ],
+        topics: [ "app", "map", "res", "sde", "skin", "skinr", "types", "weapons" ],
     });
     assert.equal(frontier.game, "Frontier");
     assert.equal(frontier.provider, "ccp");
     assert.equal(frontier.client, "stillness");
     assert.deepEqual(frontier.libraries, [ "audio", "shader" ]);
     assert.deepEqual(frontier.topics, [ "app", "res" ]);
-    assert.equal(netease.game, "Eve");
-    assert.equal(netease.provider, "netease");
-    assert.deepEqual(netease.topics, [ "app", "res", "sde", "skin", "skinr", "weapons" ]);
-    assert.deepEqual(netease.overlaySources, [ {
-        target: "eve",
-        names: [ "legacy-gles" ],
-    } ]);
-    assert.deepEqual(netease.topicSources, {
-        sde: "eve",
-        skin: "eve",
-        skinr: "eve",
-        weapons: "eve",
-    });
-    assert.equal(targets.ResolveTopicSource("netease", "sde"), eve);
-    assert.equal(targets.ResolveTopicSource("netease", "skin"), eve);
+    // Two Chinese targets on two providers, each naming exactly one client.
+    // The single `netease` target they replace named none, so `latest` on it
+    // resolved to whichever of two different games had the higher build.
+    for (const [ target, id ] of [ [ serenity, "serenity" ], [ infinity, "infinity" ] ])
+    {
+        assert.equal(target.game, "Eve");
+        assert.equal(target.provider, id);
+        assert.equal(target.client, id);
+        assert.deepEqual(target.overlaySources, [ {
+            target: "eve",
+            names: [ "legacy-gles" ],
+        } ]);
+        // The topics stand — they are what this target may serve once an
+        // externally generated or custom SDE is supplied. What is gone is the
+        // sources map, so `sde` now resolves to the target itself rather than
+        // to EVE, and a request it cannot answer fails instead of being
+        // answered by somebody else's data.
+        assert.deepEqual(target.topics, [ "app", "map", "res", "sde", "skin", "skinr", "types", "weapons" ]);
+        assert.deepEqual(target.topicSources, {});
+        assert.equal(targets.ResolveTopicSource(id, "sde"), target);
+    }
     assert.equal(targets.Find("frontier", "ccp"), frontier);
 });
 

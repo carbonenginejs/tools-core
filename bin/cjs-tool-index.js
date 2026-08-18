@@ -13,6 +13,8 @@ import {
     hasPathWildcard,
 } from "../src/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
+import { LoadToolEnv } from "../src/env.js";
+import { resolveCacheRoot } from "../src/cache/resolveCacheRoot.js";
 
 try
 {
@@ -27,6 +29,8 @@ catch (error)
 async function main()
 {
     const args = parseArguments(process.argv.slice(2));
+
+    LoadToolEnv(args.env);
     const command = getCommand(args);
 
     if (command === "help")

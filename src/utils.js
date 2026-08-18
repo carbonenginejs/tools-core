@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { NextCheckDelay } from "./build/CjsBuildSchedule.js";
+
 export function isExactBuild(value)
 {
     return /^\d+$/u.test(String(value ?? "").trim());
@@ -108,40 +110,17 @@ export function toArrayBuffer(bytes)
 }
 
 /**
- * Returns the cache lifetime for EVE latest-build metadata.
- * CCP's normal deployment window is approximately 09:00-12:00 UTC
- * (22:00-01:00 NZDT), so polling is frequent only inside that window.
+ * Returns how long an observation of the latest build stays good.
+ *
+ * The rule now lives in `src/build/CjsBuildSchedule.js`, which the build
+ * authority owns; this stays as the name two callers already use.
+ *
+ * It moved so the build authority owns it, not because it was wrong: 09:00-12:00
+ * UTC bracketed the real window, which is 11:00-12:00 EVE time (UTC).
  */
 export function getEveLatestBuildCacheTTL(value = Date.now())
 {
-    const now = Number(value);
-
-    if (!Number.isFinite(now))
-    {
-        throw new TypeError(`Invalid latest-build cache time: ${value}`);
-    }
-
-    const date = new Date(now);
-    const hour = date.getUTCHours();
-
-    if (hour >= 9 && hour < 12)
-    {
-        return 5 * 60 * 1000;
-    }
-
-    let nextWindow = Date.UTC(
-        date.getUTCFullYear(),
-        date.getUTCMonth(),
-        date.getUTCDate(),
-        9,
-    );
-
-    if (nextWindow <= now)
-    {
-        nextWindow += 24 * 60 * 60 * 1000;
-    }
-
-    return nextWindow - now;
+    return NextCheckDelay({ now: Number(value) });
 }
 
 /** Converts a plain generated JSON tree to upstream-style snake_case keys. */

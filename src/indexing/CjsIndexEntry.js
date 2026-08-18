@@ -48,7 +48,7 @@ export class CjsIndexEntry
         this.rawLine = rawLine ?? null;
         this.columns = Object.freeze([...columns]);
 
-        // CCP-oriented aliases retained for callers that use index terminology.
+        // Legacy aliases retained for callers that use index terminology.
         this.storagePath = this.location;
         this.md5 = this.checksum;
         this.size = this.uncompressedSize;
@@ -68,7 +68,7 @@ export class CjsIndexEntry
 }
 
 /**
- * Parses one two-to-six-column CCP-style index row.
+ * Parses one two-to-six-column index row.
  */
 export function parseIndexEntry(line, lineNumber = 1, defaultRoot = "res")
 {

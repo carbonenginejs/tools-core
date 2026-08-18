@@ -8,7 +8,7 @@ import {
     parseFileIndexLine,
 } from "../../src/index.js";
 
-test("parses CCP columns into an immutable index entry", () =>
+test("parses index columns into an immutable index entry", () =>
 {
     const line = "res:/Graphics/Foo.red,AA/source,0123456789abcdef0123456789abcdef,42,21,1";
     const resource = parseFileIndexLine(line, 7);

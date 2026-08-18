@@ -118,7 +118,10 @@ test("resolves latest inside the requested client only", async () =>
 test("caches latest metadata and refreshes it after the deployment-window TTL", async () =>
 {
     const requests = [];
-    let now = Date.parse("2026-07-20T10:00:00Z");
+    // Inside the publish window (11:00-12:00 UTC, which is EVE time), where the
+    // interval is five minutes. Outside it the resolver waits hours, which is
+    // the whole point of the schedule.
+    let now = Date.parse("2026-07-20T11:10:00Z");
     const provider = new CjsIndexProvider({ ...Provider, id: "ccp" });
     const resolver = new CjsIndexBuildResolver({
         now: () => now,
@@ -206,21 +209,31 @@ test("bounds streamed resource payloads before cache validation", async () =>
     );
 });
 
-test("built-in latest is not a client alias and NetEase tq is not a client", () =>
+test("built-in latest is not a client alias and a Chinese provider owns exactly one client", () =>
 {
     const ccp = new CjsIndexProvider(DefaultProviderData.find(
         (provider) => provider.game === "Eve" && provider.id === "ccp",
     ));
-    const netease = new CjsIndexProvider(DefaultProviderData.find((provider) => provider.id === "netease"));
+    const infinity = new CjsIndexProvider(DefaultProviderData.find(
+        (provider) => provider.id === "infinity",
+    ));
+    const serenity = new CjsIndexProvider(DefaultProviderData.find(
+        (provider) => provider.id === "serenity",
+    ));
 
     assert.equal(ccp.ResolveClient("latest"), null);
     assert.equal(ccp.ResolveClient("tq").id, "tranquility");
-    assert.equal(netease.ResolveClient("latest"), null);
-    assert.equal(netease.ResolveClient("tq"), null);
-    assert.equal(netease.ResolveClient("infinity").id, "infinity");
+    assert.equal(infinity.ResolveClient("latest"), null);
+    assert.equal(infinity.ResolveClient("tq"), null);
+    assert.equal(infinity.ResolveClient("infinity").id, "infinity");
+    // The split is the assertion: neither Chinese provider can answer for the
+    // other, so `latest` on one can never resolve to the other's build.
+    assert.equal(infinity.ResolveClient("serenity"), null);
+    assert.equal(serenity.ResolveClient("infinity"), null);
+    assert.equal(serenity.ResolveClient("serenity").id, "serenity");
 });
 
-test("registers CCP independently for Eve and Frontier and resolves Frontier latest metadata", async () =>
+test("registers one provider independently for Eve and Frontier and resolves Frontier latest metadata", async () =>
 {
     const registry = new CjsIndexProviderRegistry();
     const eve = registry.Get("ccp", "Eve");

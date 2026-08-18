@@ -38,18 +38,31 @@ test("shares object and optional-string normalization contracts", () =>
     assert.equal(optionalString(12), "12");
 });
 
-test("polls latest-build metadata only during the daily deployment window", () =>
+test("polls latest-build metadata only around the daily publish window", () =>
 {
+    // Resources publish at 11:00-12:00 EVE time, which is UTC.
     assert.equal(
-        getEveLatestBuildCacheTTL(Date.parse("2026-07-20T10:00:00Z")),
+        getEveLatestBuildCacheTTL(Date.parse("2026-07-20T11:30:00Z")),
         5 * 60 * 1000,
     );
+
+    // Outside it the wait is capped at twelve hours rather than running to the
+    // next window. That cap is the mid-day check: it is the only thing that
+    // catches a republish outside the window, which is the one case upstream
+    // does not follow its own schedule.
+    assert.equal(
+        getEveLatestBuildCacheTTL(Date.parse("2026-07-20T18:00:00Z")),
+        12 * 60 * 60 * 1000,
+    );
+
+    // Close enough that the window is nearer than the cap.
+    assert.equal(
+        getEveLatestBuildCacheTTL(Date.parse("2026-07-20T10:00:00Z")),
+        60 * 60 * 1000,
+    );
+    // Just past the window: the next one is 23 hours away, so the cap decides.
     assert.equal(
         getEveLatestBuildCacheTTL(Date.parse("2026-07-20T12:00:00Z")),
-        21 * 60 * 60 * 1000,
-    );
-    assert.equal(
-        getEveLatestBuildCacheTTL(Date.parse("2026-07-20T08:59:00Z")),
-        60 * 1000,
+        12 * 60 * 60 * 1000,
     );
 });

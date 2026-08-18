@@ -7,6 +7,9 @@ import { CjsIndexSource } from "./CjsIndexSource.js";
 import { CjsIndexCache } from "./CjsIndexCache.js";
 import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
+import { CjsBuildPolicy } from "../build/CjsBuildPolicy.js";
+import { CjsBuildObservations } from "../build/CjsBuildObservations.js";
+import { resolveDataRoot } from "../cache/resolveDataRoot.js";
 import * as utils from "../utils.js";
 
 /** Facade for complete indexes and cached remote app/res file retrieval. */
@@ -27,7 +30,13 @@ export class CjsToolIndex
 
     #requestTimeoutMs;
 
+    #providers;
+
     #targets;
+
+    // Private fields are not affected by Object.freeze, so this can be filled
+    // lazily on a frozen instance.
+    #policy;
 
     /** Creates the standalone source service with a local cache by default. */
     constructor({
@@ -68,6 +77,7 @@ export class CjsToolIndex
 
         this.#fetch = fetch;
         this.#cache = cache;
+        this.#providers = providers;
         this.#targets = targets;
         this.#overlays = overlays;
         this.#generated = cache
@@ -100,18 +110,205 @@ export class CjsToolIndex
     /** Lists public target aliases and their audited library capabilities. */
     ListTargets()
     {
-        return this.#targets.List();
+        return this.#targets.List().map(target =>
+        {
+            // Each target names one default client but a provider publishes
+            // several, and a consumer offering a choice has no other way to
+            // learn what they are — the alternative is a hardcoded list that
+            // silently drifts from this registry.
+            //
+            // The token rides along because it is not derivable: tranquility's
+            // is TQ and singularity's is SISI, and the daily metadata file is
+            // `eveclient_<TOKEN>.json`, case sensitive, so `eveclient_tq.json`
+            // is a 404. Anything fetching that file needs the token, not the
+            // name it was listed under.
+            const provider = this.#providers.Has(target.provider, target.game)
+                ? this.#providers.Get(target.provider, target.game)
+                : null;
+
+            return utils.freezeData({
+                ...target,
+                clients: Object.entries(provider?.clients ?? {}).map(([ id, client ]) => ({
+                    id,
+                    token: client.metadataToken ?? null,
+                })),
+            });
+        });
     }
 
-    /** Resolves a short public target and build without opening file indexes. */
+    /**
+     * Lists a provider's clients and the build each is currently on.
+     *
+     * A client name and `latest` exist to answer "which build" — that is all
+     * they are for, and this is the route that asks. Everything downstream
+     * should carry the resolved number instead, because a client name means
+     * something different tomorrow and an SDE labelled with one cannot be
+     * matched to the resources it was built from.
+     *
+     * **Always an array, whatever the count.** Most providers here have exactly
+     * one client — `serenity`, `infinity`, and `ccp` under Frontier — and a
+     * shape that collapses to a bare object for those forces every caller to
+     * handle two shapes, which is how the single-client case ends up untested.
+     *
+     * One client failing to resolve does not fail the request. Each entry
+     * carries its own `error` instead, because a provider is often asked about
+     * precisely when one of its clients is unreachable, and an all-or-nothing
+     * answer hides the ones that are fine.
+     *
+     * @param {object} [options] Lookup options.
+     * @param {string} [options.game] Game name; defaults to the registry's.
+     * @param {string} [options.provider] Provider id; defaults to the registry's.
+     * @returns {Promise<object>} Game, provider, and the client array.
+     */
+    /**
+     * Everything a target is, addressed by the one key that identifies it.
+     *
+     * `target` is the identity; `provider` says who controls the data, `game`
+     * groups related sources, and a client exists only to produce a build
+     * number. Answering by target rather than by `game + provider` removes a
+     * pair that is unique today only because it was made so by hand — nothing
+     * in the registry enforces it, while a duplicate target id throws.
+     *
+     * @param {String} target
+     * @returns {Promise<Object>} `{ target, provider, game, clients }`
+     */
+    async DescribeTarget(target)
+    {
+        const entry = this.#targets.List().find(candidate => candidate.id === String(target).toLowerCase());
+
+        if (!entry)
+        {
+            const error = new TypeError(`Unknown target "${target}"`);
+
+            error.code = "CJS_TOOL_TARGET_UNKNOWN";
+            throw error;
+        }
+
+        const { clients } = await this.ListClients({ game: entry.game, provider: entry.provider });
+
+        return utils.freezeData({
+            target: entry.id,
+            provider: entry.provider,
+            game: entry.game,
+            clients,
+        });
+    }
+
+    async ListClients(options = {})
+    {
+        const game = options.game ?? this.#providers.defaultGame;
+        const providerId = options.provider ?? this.#providers.defaultProvider;
+
+        if (!this.#providers.Has(providerId, game))
+        {
+            const error = new TypeError(`Unknown provider "${providerId}" for game "${game}"`);
+
+            error.code = "CJS_TOOL_PROVIDER_UNKNOWN";
+            throw error;
+        }
+
+        const provider = this.#providers.Get(providerId, game);
+        const clients = await Promise.all(
+            Object.entries(provider.clients ?? {}).map(async ([ id, client ]) =>
+            {
+                try
+                {
+                    const resolved = await this.ResolveBuild({
+                        game,
+                        provider: providerId,
+                        build: "latest",
+                        client: id,
+                    });
+
+                    return {
+                        id,
+                        // Not derivable from the name: tranquility's is TQ and
+                        // the metadata file is case sensitive.
+                        token: client.metadataToken ?? null,
+                        build: resolved?.build ?? null,
+                        error: null,
+                    };
+                }
+                catch (error)
+                {
+                    return { id, token: client.metadataToken ?? null, build: null, error: error.message };
+                }
+            }),
+        );
+
+        return utils.freezeData({ game, provider: providerId, clients });
+    }
+
+    /**
+     * Resolves a short public target and build without opening file indexes.
+     *
+     * The answer carries **why** it is that build. An exact build is its own
+     * reason and policy is not consulted: the caller named it, and a pin that
+     * overrode an explicit request would make an exact build mean "probably".
+     * An alias is a question, and the policy answers it.
+     */
     async ResolveTargetBuild(targetValue, build = "latest", options = {})
     {
         const target = this.#targets.Get(targetValue);
-
-        return this.ResolveBuild(target.CreateIndexOptions({
+        const resolution = await this.ResolveBuild(target.CreateIndexOptions({
             build,
             client: options.client ?? target.client,
         }));
+
+        if (utils.isExactBuild(build)) return resolution;
+
+        // Observed before policy is applied: the log records what upstream had,
+        // never what we chose to serve. A pin must not be able to rewrite
+        // history, or "is that build missing, or refused?" stops being
+        // answerable from the record.
+        //
+        // Best effort. A read-only data root or a full disk should not fail a
+        // resolution that has already succeeded.
+        try
+        {
+            const observations = await CjsBuildObservations.read(resolveDataRoot());
+
+            await observations.Record({
+                target: target.id,
+                facet: "resources",
+                build: resolution.build,
+                source: resolution.source ?? null,
+                url: resolution.metadataUrl ?? null,
+            });
+        }
+        catch
+        {
+            // Recording is not the caller's business.
+        }
+
+        const policy = await this.#GetPolicy();
+        const decided = policy.Decide({
+            target: target.id,
+            facet: "resources",
+            observedLatest: resolution.build,
+        });
+
+        return utils.freezeData({
+            ...resolution,
+            build: decided.build ?? resolution.build,
+            reason: decided.reason,
+            observedLatest: decided.observedLatest,
+            ...(decided.note ? { policyNote: decided.note, policySince: decided.since } : {}),
+        });
+    }
+
+    /**
+     * The operator's pins and holds, read once per process.
+     *
+     * Cached because a policy file is edited by a person between runs, not
+     * during one, and re-reading it per resolution would put a file read in
+     * front of every request to save an operator a restart.
+     */
+    async #GetPolicy()
+    {
+        this.#policy ??= CjsBuildPolicy.read(resolveDataRoot());
+
+        return this.#policy;
     }
 
     /** Reads the complete provider/build app/res index graph. */

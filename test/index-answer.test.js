@@ -106,7 +106,7 @@ test("serves build answers with exact-build identity", async context =>
     const root = `http://127.0.0.1:${address.port}/eve/latest`;
     const billboards = await fetch(`${root}/billboards`);
     const horizontalBanners = await fetch(
-        `http://127.0.0.1:${address.port}/ccp/latest/resources/texture/sprite/banners`,
+        `http://127.0.0.1:${address.port}/eve/latest/resources/texture/sprite/banners`,
     );
     const nebulas = await fetch(`${root}/nebulas`);
     const cubes = await fetch(`${root}/cubes`);

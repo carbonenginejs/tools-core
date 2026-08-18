@@ -174,7 +174,11 @@ export class CjsIndexAnswerCatalog
             }
         }
 
-        inserts.delete("base");
+        // `none` is Carbon's word for "no insert", so a folder of that name
+        // could never be asked for and listing it would offer a choice that
+        // does nothing. `base` was removed here too and should not have been:
+        // it is not a Carbon concept, so it is an ordinary folder name and a
+        // hull shipping one deserves to have it listed.
         inserts.delete("none");
 
         const result = Object.freeze([...inserts].sort((left, right) => left.localeCompare(right)));
@@ -213,7 +217,17 @@ export class CjsIndexAnswerCatalog
 
             const originalPath = normalizeLogicalPath(path);
 
-            if ([ "base", "none" ].includes(insertName)
+            // `none` only. It is the one value Carbon gives meaning to — a DNA
+            // `respathinsert=none` clears whatever the faction asked for — and
+            // it is therefore the one value that cannot also name a folder.
+            //
+            // `base` used to be here beside it, and was ours. Carbon has never
+            // heard of it, so a hull that genuinely shipped a `base/` insert
+            // folder was unaskable through this route for no reason anyone
+            // could have found. Nothing else changes by removing it: an insert
+            // naming a folder that does not exist already falls back to the
+            // original path.
+            if (insertName === "none"
                 || !originalPath.startsWith("res:/")
                 || HasIgnoredEffectFolder(originalPath))
             {

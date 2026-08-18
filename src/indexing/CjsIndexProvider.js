@@ -70,7 +70,7 @@ export class CjsIndexProvider
                     id,
                     {
                         metadataToken: client.metadataToken,
-                        aliases: client.aliases,
+                        localFolder: client.localFolder,
                     },
                 ]),
             ),
@@ -197,19 +197,35 @@ function normalizeClients(value)
             throw new TypeError(`Provider client ${id} requires metadataToken`);
         }
 
-        const aliases = Object.freeze([...new Set(
-            Array.from(rawClient.aliases ?? [], normalizeBuildReference),
-        )]);
+        // The folder this client installs into, under whatever root the
+        // launcher was pointed at: `<clientRoot>/tq/`, `<clientRoot>/sisi/`.
+        // That is where its `resfileindex.txt` sits, so anything reading an
+        // installed client rather than downloading from the CDN needs it.
+        //
+        // Derived from the metadata token, because in every case anyone here
+        // has installed it *is* the token in lower case: TQ/tq, SISI/sisi,
+        // STILLNESS/stillness. That equivalence is also why the field this
+        // replaces was inert — it was declared as `aliases: ["tq"]`, extra
+        // spellings of the client name, while `references` already derived
+        // `tq` from the token. The same fact stated twice from two sides, so
+        // the list resolved nothing that would not resolve without it.
+        //
+        // Overridable, not assumed. Three cases are not a rule, the tokens are
+        // already case-sensitive in a way nothing predicts, and a wrong folder
+        // reads an installation that is not there. A client that breaks the
+        // convention says so here and costs one line.
+        const localFolder = normalizeOptionalString(rawClient.localFolder)
+            ?? metadataToken.toLowerCase();
         const references = Object.freeze([...new Set([
             id,
             metadataToken.toLowerCase(),
-            ...aliases,
+            ...(localFolder ? [ normalizeBuildReference(localFolder) ] : []),
         ])]);
 
         clients.set(id, Object.freeze({
             id,
             metadataToken,
-            aliases,
+            localFolder,
             references,
         }));
     }

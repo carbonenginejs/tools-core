@@ -12,6 +12,8 @@ import {
     CjsToolPrefetch,
 } from "../src/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
+import { LoadToolEnv } from "../src/env.js";
+import { resolveCacheRoot } from "../src/cache/resolveCacheRoot.js";
 
 const DEFAULT_MAX_PAYLOAD_BYTES = 512 * 1024 * 1024;
 const DEFAULT_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
@@ -29,6 +31,8 @@ catch (error)
 async function main()
 {
     const args = parseArguments(process.argv.slice(2));
+
+    LoadToolEnv(args.env);
 
     if (args.help)
     {
