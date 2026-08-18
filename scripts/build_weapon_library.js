@@ -7,6 +7,7 @@
 import { CjsToolCache } from "../src/cache/index.js";
 import { CjsSdeRepository } from "../src/sde/index.js";
 import { CjsToolWeapon } from "../src/weapon/index.js";
+import { LoadToolEnv } from "../src/env.js";
 
 function ParseArguments(argv)
 {
@@ -63,6 +64,10 @@ async function Main(argv)
 
         return 0;
     }
+
+    // The cache root can come from .env, so it has to be loaded before any
+    // cache is constructed - resolveCacheRoot reads the environment, not a file.
+    LoadToolEnv(options.env);
 
     const cache = options.cache === undefined
         ? new CjsToolCache()

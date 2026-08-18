@@ -2,6 +2,7 @@ import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
 import { CjsPngFormat } from "@carbonenginejs/runtime-resource/formats/png";
 import { CjsCharacterTextureMetadata } from "@carbonenginejs/runtime-character";
 import { CjsToolCache } from "../cache/CjsToolCache.js";
+import { CjsToolBlack } from "../black/CjsToolBlack.js";
 import { CjsToolCharacterDefinitionCompiler } from "./CjsToolCharacterDefinitionCompiler.js";
 
 const PROFILE_DOCUMENTS = new Set([
@@ -29,6 +30,8 @@ export class CjsToolCharacterCatalogGatherer
 
     #cache;
 
+    #blackReader;
+
     #pngFormat;
 
     #source;
@@ -37,6 +40,7 @@ export class CjsToolCharacterCatalogGatherer
 
     /** Creates a gatherer backed by an optional shared cache and indexed source. */
     constructor({
+        blackReader = CjsToolBlack,
         cache = new CjsToolCache(),
         pngFormat = CjsPngFormat,
         source = null,
@@ -50,6 +54,13 @@ export class CjsToolCharacterCatalogGatherer
         }
 
         this.#cache = cache;
+        if (!blackReader || typeof blackReader.readJson !== "function")
+        {
+            throw new TypeError(
+                "CjsToolCharacterCatalogGatherer blackReader must expose readJson(bytes)"
+            );
+        }
+        this.#blackReader = blackReader;
         if (!pngFormat || typeof pngFormat.inspect !== "function")
         {
             throw new TypeError(
@@ -196,6 +207,7 @@ export class CjsToolCharacterCatalogGatherer
                 );
 
                 ValidatePartSourceCandidates(source, index, recordID, report);
+                await this.#AddModelBundles(index, source, report);
                 await this.#AddTextureMetadata(
                     index,
                     documents,
@@ -239,6 +251,106 @@ export class CjsToolCharacterCatalogGatherer
 
         report.catalogs = CountCatalogs(documents);
         return { documents, report };
+    }
+
+    /** Retains exact configuration-to-geometry relationships decoded from Black. */
+    async #AddModelBundles(index, source, report)
+    {
+        for (const version of source.versions)
+        {
+            const bundles = [];
+            for (const configurationPath of version.configurationCandidates)
+            {
+                if (!/\.black$/iu.test(configurationPath)) continue;
+                const entry = index.Find(configurationPath);
+                if (!entry) continue;
+                const expected = {
+                    ...(entry.checksum ? { md5: entry.checksum } : {}),
+                    ...(entry.uncompressedSize !== null
+                        ? { size: entry.uncompressedSize }
+                        : {}),
+                };
+                let payload = await this.#cache.ReadRemote(entry.location, expected);
+                if (payload)
+                {
+                    report.modelBundles.cacheHits++;
+                }
+                else if (this.#source)
+                {
+                    const fetched = await (await this.#GetSource()).Fetch(configurationPath);
+                    if (!fetched?.bytes)
+                    {
+                        report.modelBundles.deferred.push({
+                            configurationPath,
+                            reason: "configuration-fetch-returned-no-bytes",
+                        });
+                        continue;
+                    }
+                    await this.#cache.WriteRemote(entry.location, fetched.bytes, expected);
+                    payload = { bytes: fetched.bytes };
+                    report.modelBundles.acquired++;
+                }
+                else
+                {
+                    report.modelBundles.cacheMisses.push(configurationPath);
+                    continue;
+                }
+
+                try
+                {
+                    const decoded = this.#blackReader.readJson(payload.bytes);
+                    const authoredPaths = CollectConfiguredGeometryPaths(decoded);
+                    if (authoredPaths.length !== 1)
+                    {
+                        report.modelBundles.deferred.push({
+                            configurationPath,
+                            reason: authoredPaths.length
+                                ? "configuration-geometry-paths-diverge"
+                                : "configuration-geometry-path-unavailable",
+                        });
+                        continue;
+                    }
+                    const authoredPath = NormalizeLogicalPath(authoredPaths[0]);
+                    const matches = version.geometryCandidates.filter(candidate =>
+                        NormalizeLogicalPath(candidate) === authoredPath);
+                    if (matches.length !== 1)
+                    {
+                        report.modelBundles.deferred.push({
+                            configurationPath,
+                            geometryPath: authoredPaths[0],
+                            reason: matches.length
+                                ? "configuration-geometry-candidate-ambiguous"
+                                : "configuration-geometry-outside-candidate-inventory",
+                        });
+                        continue;
+                    }
+                    const lod = ResolveModelBundleLod(configurationPath, matches[0]);
+                    const modelFamily = ResolveModelBundleFamily(configurationPath, matches[0]);
+                    bundles.push({
+                        configurationPath,
+                        geometryPath: matches[0],
+                        ...(lod === null ? {} : {
+                            lod,
+                            lodOrigin: "matching-terminal-lod"
+                        }),
+                        ...(modelFamily === null ? {} : {
+                            modelFamily,
+                            modelFamilyOrigin: "matching-paired-resource-stem"
+                        })
+                    });
+                    report.modelBundles.verified++;
+                }
+                catch (error)
+                {
+                    report.modelBundles.deferred.push({
+                        configurationPath,
+                        reason: `configuration-decode-failed: ${error.message}`,
+                    });
+                }
+            }
+            if (bundles.length) version.modelBundles = bundles;
+            else delete version.modelBundles;
+        }
     }
 
     /** Adds deduplicated PNG placement metadata for one effective part source. */
@@ -429,7 +541,7 @@ function CreateReport(index, sourceBuild)
 {
     return {
         schema: "carbonenginejs.characterLibraryBuildReport",
-        schemaVersion: 3,
+        schemaVersion: 4,
         sourceBuild: sourceBuild === null || sourceBuild === undefined
             ? null
             : String(sourceBuild),
@@ -455,7 +567,58 @@ function CreateReport(index, sourceBuild)
             cacheMisses: [],
             missingIndexEntries: [],
         },
+        modelBundles: {
+            verified: 0,
+            cacheHits: 0,
+            acquired: 0,
+            cacheMisses: [],
+            deferred: [],
+        },
     };
+}
+
+function CollectConfiguredGeometryPaths(decoded)
+{
+    const root = decoded?.object ?? decoded;
+    const paths = new Set();
+    for (const mesh of root?.meshes ?? [])
+    {
+        const value = String(mesh?.geometryResPath ?? "").trim();
+        if (value) paths.add(value);
+    }
+    return [ ...paths ];
+}
+
+function ResolveModelBundleLod(configurationPath, geometryPath)
+{
+    const configuration = String(configurationPath ?? "")
+        .match(/_lod(\d+)\.black$/iu);
+    const geometry = String(geometryPath ?? "")
+        .match(/_lod(\d+)\.gr2$/iu);
+    if (!configuration || !geometry || configuration[1] !== geometry[1]) return null;
+    const lod = Number(configuration[1]);
+    return Number.isSafeInteger(lod) ? lod : null;
+}
+
+function ResolveModelBundleFamily(configurationPath, geometryPath)
+{
+    const configuration = NormalizeModelFamilyPath(configurationPath, ".black");
+    const geometry = NormalizeModelFamilyPath(geometryPath, ".gr2");
+    return configuration && configuration === geometry ? configuration : null;
+}
+
+function NormalizeModelFamilyPath(value, extension)
+{
+    const leaf = String(value ?? "").replaceAll("\\", "/").split("/").at(-1);
+    if (!leaf.toLowerCase().endsWith(extension)) return null;
+    const stem = leaf.slice(0, -extension.length).replace(/_lod\d+$/iu, "");
+    const family = stem.toLowerCase().replace(/[^a-z0-9]+/gu, "");
+    return family || null;
+}
+
+function NormalizeLogicalPath(value)
+{
+    return String(value ?? "").trim().replace(/\\/gu, "/").toLowerCase();
 }
 
 function NormalizeTextureResource(value)

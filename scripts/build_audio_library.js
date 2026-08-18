@@ -20,6 +20,7 @@ import {
     CjsToolAudioSource,
 } from "../src/audio/index.js";
 import { CjsToolCache } from "../src/cache/index.js";
+import { LoadToolEnv } from "../src/env.js";
 import { CjsToolLibraryArtifact } from "../src/library/index.js";
 import * as utils from "../src/utils.js";
 
@@ -106,6 +107,10 @@ async function Main(argv)
 
     const indexText = fs.readFileSync(path.resolve(options.index), "utf8");
     const indexEntries = CjsToolAudioBuilder.parseIndexEntries(indexText);
+    // The cache root can come from .env, so it has to be loaded before any
+    // cache is constructed - resolveCacheRoot reads the environment, not a file.
+    LoadToolEnv(options.env);
+
     const cache = new CjsToolCache(options.cache);
 
     // The SoundbanksInfo argument is a local file path; when given a res:/

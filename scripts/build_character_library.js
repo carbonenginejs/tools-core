@@ -11,6 +11,7 @@ import {
 } from "../src/character/index.js";
 import { CjsToolLibraryArtifact } from "../src/library/index.js";
 import * as utils from "../src/utils.js";
+import { LoadToolEnv } from "../src/env.js";
 
 const HELP = `Usage:
   node scripts/build_character_library.js --documents <documents.json> --catalog-inputs <catalog-inputs.json> --index <resfileindex.txt> --cache <cache-dir> --build <id> [--out <library.json>]
@@ -33,8 +34,10 @@ Options:
   --help, -h             Show this help.
 
 The document input may be an existing prepared library or place record maps at
-the root or below "documents". A prepared library is hydrated, augmented, and
-serialized without rebuilding its existing graph relationships. Catalog
+the root or below "documents". A prepared library is hydrated, its retained
+definitions are recompiled, and only newly discovered catalog records are
+added before serialization. Existing records and graph relationships are not
+replaced or removed. Catalog
 inputs declare "profiles" and "partSources" without relying on filename or
 folder inference. Every supplied decoded definition is retained losslessly;
 typed definition catalogs are additive indexes over that retained JSON.
@@ -44,8 +47,8 @@ the single unversioned record; explicit empty arrays remain empty. Effective
 version candidates and metadata are materialized before publication. This
 command never imports a private source reader. It uses tools-core's normal
 validated exact-build resource source to acquire missing indexed PNG
-representations, then folds their placement metadata into schema v9. DDS paths
-remain the render candidates; PNGs are inspection representations only.
+representations, then folds their placement metadata into the prepared schema.
+DDS paths remain the render candidates; PNGs are inspection representations only.
 `;
 
 await Main(process.argv.slice(2)).catch(error =>
@@ -81,6 +84,10 @@ async function Main(argv)
         game: options.game,
         provider: options.provider,
     });
+    // The cache root can come from .env, so it has to be loaded before any
+    // cache is constructed - resolveCacheRoot reads the environment, not a file.
+    LoadToolEnv(options.env);
+
     const cache = new CjsToolCache(path.resolve(options.cache));
     const indexes = new CjsToolIndex({
         cache: new CjsIndexCache({ cache }),
@@ -96,7 +103,13 @@ async function Main(argv)
     const preparedLibrary = IsPreparedLibrary(documentValue)
         ? CjsCharacterLibrary.from(documentValue)
         : null;
-    const input = ReadDocumentInput(documentValue);
+    const input = preparedLibrary
+        ? ReadPreparedCompilerInput(documentValue.documents)
+        : ReadDocumentInput(documentValue);
+    const definitions = catalogInputs.definitions
+        ?? (preparedLibrary
+            ? ExtractPreparedDefinitions(input.characterDefinitions ?? {})
+            : null);
     const partSourcesFromInput = catalogInputs.partSources === undefined
         && Object.keys(input.characterPartSources ?? {}).length > 0;
     const gathered = await new CjsToolCharacterCatalogGatherer({
@@ -107,6 +120,7 @@ async function Main(argv)
         {
             sourceBuild,
             ...catalogInputs,
+            definitions,
             characterResources: input.characterResources ?? {},
             characterModifierLocations: input.characterModifierLocations ?? {},
             partSources: catalogInputs.partSources
@@ -114,11 +128,14 @@ async function Main(argv)
                 ?? {},
         }
     );
-    const data = preparedLibrary
-        ? AddPreparedTextureMetadata(preparedLibrary, gathered.documents, {
+    const preparedResult = preparedLibrary
+        ? AddPreparedCatalogAdditions(preparedLibrary, gathered.documents, {
             target,
             sourceBuild,
         })
+        : null;
+    const data = preparedResult
+        ? preparedResult.data
         : character.Build(MergeDocuments(
             partSourcesFromInput
                 ? { ...input, characterPartSources: {} }
@@ -152,6 +169,7 @@ async function Main(argv)
         output: artifact.jsonPath,
         jsonBytes: artifact.jsonBytes,
         gzipBytes: artifact.gzipBytes,
+        preparedAdditions: preparedResult?.additions ?? null,
         documents: Object.fromEntries(Object.entries(data.documents).map(
             ([ name, records ]) => [ name, records.length ]
         )),
@@ -204,6 +222,44 @@ function ReadDocumentInput(value)
     ));
 }
 
+function ReadPreparedCompilerInput(documents)
+{
+    const result = {
+        characterDefinitions: {},
+        characterResources: {},
+        characterModifierLocations: {},
+        characterPartSources: {},
+    };
+
+    for (const documentName of [
+        "characterDefinitions",
+        "characterResources",
+        "characterModifierLocations",
+    ])
+    {
+        const records = documents?.[documentName];
+
+        if (!Array.isArray(records))
+        {
+            throw new TypeError(
+                `Prepared character library requires array ${JSON.stringify(documentName)}`
+            );
+        }
+
+        for (const record of records)
+        {
+            if (!record || typeof record !== "object" || Array.isArray(record)) continue;
+            if (record.recordID === undefined || record.recordID === null) continue;
+
+            const recordID = String(record.recordID);
+            const { recordID: _recordID, ...values } = record;
+            result[documentName][recordID] = values;
+        }
+    }
+
+    return result;
+}
+
 function IsPreparedLibrary(value)
 {
     return value?.schema === "carbonenginejs.characterLibrary"
@@ -211,7 +267,7 @@ function IsPreparedLibrary(value)
         && Object.values(value.documents).every(Array.isArray);
 }
 
-function AddPreparedTextureMetadata(library, gathered, { target, sourceBuild })
+function AddPreparedCatalogAdditions(library, gathered, { target, sourceBuild })
 {
     if (library.sourceTarget && library.sourceTarget !== target.id)
     {
@@ -227,23 +283,55 @@ function AddPreparedTextureMetadata(library, gathered, { target, sourceBuild })
         );
     }
 
-    for (const recordID of Object.keys(gathered.characterTextureMetadata).sort(Compare))
+    const additions = {};
+
+    for (const documentName of Object.keys(gathered).sort(Compare))
     {
-        if (library.Get("characterTextureMetadata", recordID))
+        let added = 0;
+        for (const recordID of Object.keys(gathered[documentName]).sort(Compare))
         {
-            throw new Error(
-                `Prepared character library duplicates gathered texture metadata `
-                + JSON.stringify(recordID)
+            if (library.Get(documentName, recordID)) continue;
+
+            library.Create(documentName, {
+                recordID,
+                ...gathered[documentName][recordID],
+            });
+            added++;
+        }
+        if (added) additions[documentName] = added;
+    }
+
+    return {
+        data: library.GetValues({ refs: true }),
+        additions,
+    };
+}
+
+function ExtractPreparedDefinitions(records)
+{
+    const definitions = {};
+
+    for (const recordID of Object.keys(records).sort(Compare))
+    {
+        const record = records[recordID];
+
+        if (!record || typeof record !== "object" || Array.isArray(record))
+        {
+            throw new TypeError(
+                `Prepared character definition ${JSON.stringify(recordID)} must be an object`
+            );
+        }
+        if (!Object.hasOwn(record, "values"))
+        {
+            throw new TypeError(
+                `Prepared character definition ${JSON.stringify(recordID)} requires values`
             );
         }
 
-        library.Create("characterTextureMetadata", {
-            recordID,
-            ...gathered.characterTextureMetadata[recordID],
-        });
+        definitions[recordID] = record.values;
     }
 
-    return library.GetValues({ refs: true });
+    return definitions;
 }
 
 function NormalizeDocumentRecords(records, documentName)

@@ -499,10 +499,8 @@ test("audio repository auto-prepares a missing library from indexed inputs", asy
     const installedPath = path.join(
         cacheDirectory,
         "custom",
-        "games",
-        "Eve",
-        "providers",
-        "ccp",
+        "targets",
+        "eve",
         "builds",
         "123",
         "audio_v2.json",
@@ -720,10 +718,8 @@ test("sde repository defaults to auto-prepare and falls back to the newest prepa
     const buildsDirectory = path.join(
         cacheDirectory,
         "custom",
-        "games",
-        "Eve",
-        "providers",
-        "ccp",
+        "targets",
+        "eve",
         "builds",
     );
 

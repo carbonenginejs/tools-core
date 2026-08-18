@@ -37,6 +37,123 @@ const uncachedPlacementTexture = "res:/example/assets/uncached-placement.dds";
 const uncachedPlacementPng = "res:/example/assets/uncached-placement.png";
 const unavailablePlacementTexture = "res:/example/assets/unavailable-placement.dds";
 
+test("character gathering retains decoded configuration geometry relationships", async context =>
+{
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-character-model-bundle-"));
+    const cache = new CjsToolCache(directory);
+    const configurationPath = "res:/example/hair/hair_lod0.black";
+    const geometryPath = "res:/example/hair/hair_lod0.gr2";
+    const otherGeometryPath = "res:/example/hair/hair.gr2";
+    const bytes = Buffer.from("decoded configuration fixture");
+    context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
+
+    const index = CjsFileIndex.parseResFileIndex([
+        `${configurationPath},aa/model/configuration.black,,,,`,
+        `${geometryPath},bb/model/hair_lod0.gr2,,,,`,
+        `${otherGeometryPath},cc/model/hair.gr2,,,,`,
+    ].join("\n"));
+    const { documents, report } = await new CjsToolCharacterCatalogGatherer({
+        blackReader: {
+            readJson(value)
+            {
+                assert.deepEqual(Buffer.from(value), bytes);
+                return { object: { meshes: [ { geometryResPath: geometryPath } ] } };
+            },
+        },
+        cache,
+        source: {
+            async Fetch(logicalPath)
+            {
+                assert.equal(logicalPath, configurationPath);
+                return { bytes };
+            },
+        },
+    }).Gather(index, {
+        partSources: {
+            "female/hair/example": {
+                sourcePath: "res:/example/hair",
+                sex: "female",
+                partPath: "hair/example",
+                versions: [ {
+                    resourceVersion: null,
+                    configurationCandidates: [ configurationPath ],
+                    geometryCandidates: [ otherGeometryPath, geometryPath ],
+                    textureCandidates: [],
+                } ],
+                metadata: null,
+            },
+        },
+    });
+
+    const version = documents.characterPartSources["female/hair/example"].versions[0];
+    assert.deepEqual(version.modelBundles, [ {
+        configurationPath,
+        geometryPath,
+        lod: 0,
+        lodOrigin: "matching-terminal-lod",
+        modelFamily: "hair",
+        modelFamilyOrigin: "matching-paired-resource-stem"
+    } ]);
+    assert.deepEqual(version.geometryCandidates, [ otherGeometryPath, geometryPath ]);
+    assert.equal(report.modelBundles.verified, 1);
+    assert.equal(report.modelBundles.acquired, 1);
+});
+
+test("character gathering does not label a model bundle when paired LOD identities disagree", async context =>
+{
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-character-model-lod-"));
+    const cache = new CjsToolCache(directory);
+    const configurationPath = "res:/example/hair/hair_lod0.black";
+    const geometryPath = "res:/example/hair/hair_lod1.gr2";
+    const bytes = Buffer.from("decoded mismatched LOD fixture");
+    context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
+
+    const index = CjsFileIndex.parseResFileIndex([
+        `${configurationPath},aa/model/configuration.black,,,,`,
+        `${geometryPath},bb/model/hair_lod1.gr2,,,,`,
+    ].join("\n"));
+    const { documents } = await new CjsToolCharacterCatalogGatherer({
+        blackReader: {
+            readJson()
+            {
+                return { object: { meshes: [ { geometryResPath: geometryPath } ] } };
+            },
+        },
+        cache,
+        source: {
+            async Fetch()
+            {
+                return { bytes };
+            },
+        },
+    }).Gather(index, {
+        partSources: {
+            "female/hair/example": {
+                sourcePath: "res:/example/hair",
+                sex: "female",
+                partPath: "hair/example",
+                versions: [ {
+                    resourceVersion: null,
+                    configurationCandidates: [ configurationPath ],
+                    geometryCandidates: [ geometryPath ],
+                    textureCandidates: [],
+                } ],
+                metadata: null,
+            },
+        },
+    });
+
+    assert.deepEqual(
+        documents.characterPartSources["female/hair/example"].versions[0].modelBundles,
+        [ {
+            configurationPath,
+            geometryPath,
+            modelFamily: "hair",
+            modelFamilyOrigin: "matching-paired-resource-stem"
+        } ]
+    );
+});
+
 test("character gathering caches and stores normalized PNG placement metadata", async context =>
 {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-character-png-"));
@@ -138,7 +255,7 @@ test("character gathering caches and stores normalized PNG placement metadata", 
         documents.characterTextureMetadata,
         uncachedPlacementTexture
     ), false);
-    assert.equal(report.schemaVersion, 3);
+    assert.equal(report.schemaVersion, 4);
     assert.equal(report.textureMetadata.inspected, 2);
     assert.equal(report.textureMetadata.cacheHits, 1);
     assert.equal(report.textureMetadata.acquired, 1);

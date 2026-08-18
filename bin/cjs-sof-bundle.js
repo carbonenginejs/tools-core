@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { CjsIndexCache, CjsToolIndex } from "../src/indexing/index.js";
 import { CjsToolSofBundle, CjsToolSofRepository } from "../src/sof/index.js";
+import { LoadToolEnv } from "../src/env.js";
 
 const HELP = `Usage:
   cjs-sof-bundle --dna <dna> --out <directory> [options]
@@ -79,6 +80,9 @@ async function Main(argv)
     if (!options.dna) throw new Error("--dna is required");
 
     if (!options.out) throw new Error("--out is required");
+
+    // Loaded before the index, whose cache root can come from .env.
+    LoadToolEnv(options.env);
 
     const root = path.resolve(options.out);
     const index = new CjsToolIndex(options.cache

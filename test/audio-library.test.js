@@ -74,8 +74,8 @@ test("CjsToolAudio is the target-aware front-facing audio builder", () =>
   assert.throws(() => CjsToolAudio.build({
     indexEntries: [],
     soundbanksInfo: SOUNDBANKS_INFO,
-    sourceTarget: "netease"
-  }), /does not support target netease/);
+    sourceTarget: "serenity"
+  }), /does not support target serenity/);
 });
 
 
@@ -125,7 +125,7 @@ test("audio CLI reads and validates logical inputs from the shared ResFiles cach
   const installed = spawnSync(process.execPath, installedArgs, { encoding: "utf8" });
   const installedPath = path.join(
     cacheDirectory,
-    "custom", "games", "eve", "providers", "ccp", "builds", "3435006",
+    "custom", "targets", "eve", "builds", "3435006",
     "audio_v2.json",
   );
 
@@ -321,7 +321,7 @@ test("audio builder supports audited Frontier inputs and rejects unaudited targe
   assert.throws(() => CjsToolAudioBuilder.build({
     indexEntries: CjsToolAudioBuilder.parseIndexEntries(INDEX_TEXT),
     soundbanksInfo: SOUNDBANKS_INFO,
-    sourceTarget: "netease",
+    sourceTarget: "serenity",
     sourceBuild: "3438337"
-  }), /does not support target netease/);
+  }), /does not support target serenity/);
 });

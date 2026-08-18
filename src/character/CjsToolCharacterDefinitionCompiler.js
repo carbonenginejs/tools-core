@@ -276,6 +276,7 @@ function CreateReport(index, sourceBuild, characterResourcePaths)
             modifierLocationTargets: 0,
             utilityShapeTargets: 0,
             explicitUtilityShapeWeights: 0,
+            weightedPartDependencies: 0,
             suffixed: 0,
             unresolved: 0,
         },
@@ -825,18 +826,25 @@ function PopulateModifierReference(
 {
     let utilityShape = false;
     let modifierPath;
-    const weightedUtility = dependency
-        ? ParseWeightedUtilityDependency(relation.authoredValue)
+    const weightedDependency = dependency
+        ? ParseWeightedDependency(relation.authoredValue)
         : null;
 
-    if (weightedUtility)
+    if (weightedDependency)
     {
-        modifierPath = weightedUtility.modifierPath;
+        modifierPath = weightedDependency.modifierPath;
         relation.modifierPath = modifierPath;
-        relation.weight = weightedUtility.weight;
-        utilityShape = true;
-        report.modifierReferences.utilityShapeTargets++;
-        report.modifierReferences.explicitUtilityShapeWeights++;
+        relation.weight = weightedDependency.weight;
+        utilityShape = modifierPath.startsWith("utilityshapes/");
+        if (utilityShape)
+        {
+            report.modifierReferences.utilityShapeTargets++;
+            report.modifierReferences.explicitUtilityShapeWeights++;
+        }
+        else
+        {
+            report.modifierReferences.weightedPartDependencies++;
+        }
     }
     else if (relation.authoredValue.includes("#"))
     {
@@ -904,10 +912,10 @@ function PopulateModifierReference(
     }
 }
 
-function ParseWeightedUtilityDependency(value)
+function ParseWeightedDependency(value)
 {
     const match = String(value).match(
-        /^(utilityshapes\/.+?)###([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/iu
+        /^(.+?)###([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/u
     );
 
     if (!match) return null;
@@ -920,7 +928,7 @@ function ParseWeightedUtilityDependency(value)
         return {
             modifierPath: NormalizePartPath(
                 match[1],
-                `Character utility modifier ${JSON.stringify(value)}`
+                `Character weighted modifier ${JSON.stringify(value)}`
             ),
             weight
         };

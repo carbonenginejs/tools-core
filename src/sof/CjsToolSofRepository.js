@@ -211,6 +211,45 @@ export class CjsToolSofCatalog
         return document;
     }
 
+    /**
+     * Builds the recommended SOF boundary: one plain model-values graph that is
+     * directly valid `CjsModel` input.
+     *
+     * The document form this sits beside is not. It addresses shared nodes with
+     * `{ $ref: id }` into a flat node table, and nothing in the model or values
+     * path reads `$ref` at all — the values contract spells a back-reference
+     * `{ _ref }` alongside `_id` and `_type`. A consumer handed the document
+     * therefore cannot rebuild from it without a hydrator, which is the round
+     * trip this method exists to remove.
+     *
+     * No class registry is supplied or needed. runtime-sof emits JSON, so this
+     * route resolves no class names and imports no graph library; a consumer
+     * that wants objects builds them from the answer with
+     * `RootClass.from(values)` against its own classes.
+     */
+    async BuildValuesAsync(dna, options = {})
+    {
+        const value = RequireDna(dna);
+        const values = typeof this.#sof.BuildValuesFromDNAAsync === "function"
+            ? await this.#sof.BuildValuesFromDNAAsync(value, options)
+            : this.#sof.BuildValuesFromDNA(value, options);
+
+        if (values === null)
+        {
+            return null;
+        }
+
+        if (!values || typeof values !== "object" || Array.isArray(values)
+            || values.schema === "carbon.document")
+        {
+            throw new TypeError(
+                "runtime-sof must return a plain model-values graph or null",
+            );
+        }
+
+        return values;
+    }
+
 }
 
 function RequireSource(source)

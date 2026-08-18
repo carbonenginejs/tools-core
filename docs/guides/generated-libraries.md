@@ -13,7 +13,7 @@ different targets or builds must not be combined.
 
 Current support is:
 
-| Library | EVE | Frontier | NetEase |
+| Library | EVE | Frontier | Serenity / Infinity |
 | --- | --- | --- | --- |
 | Audio | Supported | Supported | Not audited |
 | Character | Supported | Not audited | Not audited |
@@ -38,6 +38,67 @@ The SDE import is transactional and stores every archive table in one
 exact-build SQLite database. SKIN, SKINR, and weapon builders consume that
 prepared database. Generated JSON libraries have deterministic gzip siblings
 whose decompressed bytes equal the canonical JSON.
+
+## Targets whose SDE you have to generate first
+
+`eve` acquires its SDE, and `prepare:sde` fetches it. **`serenity` and
+`infinity` have no published SDE**, so for those targets an SDE exists only
+because someone generated one, and everything on this page then works the same
+way against it. Generating one is not this package's job and belongs to the
+tooling that owns it; this package consumes the result and asks nothing about
+how it was produced.
+
+Whatever produced it, write it into the shared cache and every command below
+finds it:
+
+```
+<cache>/custom/targets/<target>/builds/<build>/sde_v1.sqlite
+```
+
+### Then the libraries
+
+```powershell
+npm run build:skins -- --target serenity
+npm run build:weapons -- --target serenity
+```
+
+**Neither `--cache` nor `--build` is needed, and both are better left off.** The
+cache root comes from `CJS_TOOL_CACHE` in `.env`, and the build is read from the
+database the tool opens rather than asserted by the caller — so it cannot
+disagree with the SDE it was built from. `--build latest` on a generated
+target means *the newest SDE prepared on disk for this target*, not the newest
+client build.
+
+Audited for the generated-SDE targets as of 2026-08-16: **skin, skinr and
+weapons**. `audio`, `character` and `shader` are not — none is SDE-backed, and
+the character readers pin one build's contents. `defaultTargets.js` enforces
+that, so an unaudited builder refuses rather than producing something plausible.
+
+### When to run them
+
+**When the artifact you need is not there.** These builders are not incremental:
+each rebuilds and overwrites its output every time, so re-running is safe but not
+free, and there is nothing to re-run after a build that already produced what you
+want.
+
+Derivations behave differently and more carefully. `prepare:sde` writes them
+beside the database — `dnaIndex_v2.json` is the reverse lookup from a DNA string
+back to its parts — and each one **declares the tables it needs and is skipped,
+with a warning, when the SDE lacks them**. A partial SDE therefore degrades
+to fewer derivations rather than failing, or writing an empty artifact over a
+good one. `dnaIndex` needs `types`, `graphics`, `skins`, `skinMaterials` and
+`skinLicenses`; `mapIndex` needs `mapSolarSystems` and `mapStargates`.
+
+`npm run prepare:sde -- --refresh` recomputes derivations for a database already
+on disk, rather than re-acquiring or regenerating the SDE.
+
+### The one trap worth naming
+
+**`--cache .cache` is not the cache root.** The root is `.cache/tool-core`, so a
+plausible-looking argument silently builds a parallel empty tree, and the tool
+then reports `No serenity SDE is prepared` — which reads as missing data rather
+than a wrong path. Leaving `--cache` off avoids the whole class of mistake, which
+is why the entry points read `.env`.
 
 ## Library shapes
 
@@ -145,7 +206,7 @@ without assigning availability semantics. It keeps every exact definition
 path and source folder, preserves separate sex-specific part sources when one
 published resource path is shared, and inventories only direct source files
 and ordinary `v<number>` child folders. Configuration, geometry, and image
-paths remain unordered candidates: no model family, LOD pair, texture role, or
+paths remain unordered candidates: no model family, LOD selection, texture role, or
 material meaning is inferred. A malformed, newly shaped, or conflicting
 `.type` value remains in `characterDefinitions`; its optional typed projection
 is omitted atomically and recorded in `projectionErrors` instead of aborting
@@ -158,7 +219,17 @@ one of those candidate fields to inherit that role from the single
 `resourceVersion: null` record; an explicit empty array means no candidates.
 Version metadata uses the same field-presence rule. Duplicate resource-version
 records reject. Tools-core materializes complete effective version records,
-checks candidates against the caller-selected resource index, and delegates
+checks candidates against the caller-selected resource index, and decodes
+available Black configurations to retain each unique authored mesh geometry
+relationship as a model bundle. The bundle must point back into the same
+version's retained geometry inventory; all candidates remain present. When the
+paired configuration and geometry paths carry the same terminal `_lod<number>`
+identity, the producer also retains that derived number with
+`lodOrigin: "matching-terminal-lod"`. This labels a selectable relation without
+choosing it or inventing a nearest-detail fallback. Matching normalized paired
+resource stems are retained separately as `modelFamily`, with
+`modelFamilyOrigin: "matching-paired-resource-stem"`; the producer still does
+not choose among families. Tools-core then delegates
 the combined schema-v10 document to
 `@carbonenginejs/runtime-character/library-builder`.
 The manifest is required by the command; use an empty JSON object when no
@@ -182,7 +253,7 @@ to a unique modifier location, an existing part source, or a source folder
 proved by direct indexed candidates. Suffixed values remain opaque, and no
 reference fabricates resource-version or rendering policy. The
 producer does not select a model family,
-pair detail levels, infer material or projection links, compile recipe
+infer material or projection links, compile recipe
 selections, or embed external asset bytes. The runtime library hydrates the
 same combined JSON shape; configuration graphs, geometry, images, animations,
 and effects remain resource-manager inputs.
@@ -247,8 +318,15 @@ const sde = new CjsSde(await database.LoadTables([
     "skinLicenses",
     "materialSets",
     "graphicMaterialSets",
+    "groups",
 ]));
 ```
+
+`materialSets` and `groups` are **optional**: an SDE lacking either still
+prepares rather than failing, because each is wanted by one consumer rather than
+by the resolution everything shares. `groups` carries `categoryID`, which is what
+separates a ship from its blueprints and from the NPC entities flying the same
+hull.
 
 The root `CjsToolCore` facade may then resolve identity to SOF DNA.
 `BuildSofValues()` returns the recommended plain runtime model values;

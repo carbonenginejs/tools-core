@@ -301,7 +301,7 @@ test("projects exact baseline and version metadata without changing retained YAM
     );
 });
 
-test("types only proved utility dependency weight forms", () =>
+test("types proved utility and part dependency weight forms", () =>
 {
     const metadataPath = "res:/graphics/character/male/paperdoll/bottomouter/example/metadata.yaml";
     const dependentModifiers = [
@@ -346,9 +346,14 @@ test("types only proved utility dependency weight forms", () =>
             weight: 6,
         },
     ]);
-    assert.deepEqual(metadata.dependencies.slice(4), dependentModifiers.slice(4).map(
+    assert.deepEqual(metadata.dependencies.slice(4, 7), dependentModifiers.slice(4, 7).map(
         authoredValue => ({ authoredValue })
     ));
+    assert.deepEqual(metadata.dependencies[7], {
+        authoredValue: dependentModifiers[7],
+        modifierPath: "dependants/tuck/basic",
+        weight: 0.3,
+    });
     assert.deepEqual(metadata.occlusions, [
         {
             authoredValue: occludesModifiers[0],
@@ -358,7 +363,35 @@ test("types only proved utility dependency weight forms", () =>
     ]);
     assert.equal(compiled.report.modifierReferences.utilityShapeTargets, 4);
     assert.equal(compiled.report.modifierReferences.explicitUtilityShapeWeights, 3);
-    assert.equal(compiled.report.modifierReferences.suffixed, 5);
+    assert.equal(compiled.report.modifierReferences.weightedPartDependencies, 1);
+    assert.equal(compiled.report.modifierReferences.suffixed, 4);
+});
+
+test("projects an exact weighted non-utility dependency into a part source", () =>
+{
+    const metadataPath = "res:/graphics/character/female/paperdoll/makeup/eyeliner/example/metadata.yaml";
+    const eyelashTexture = "res:/graphics/character/female/paperdoll/makeup/eyelashes/eyelashes_02/colorize_head_l_4k.png";
+    const authoredValue = "makeup/eyelashes/eyelashes_02###0.4";
+    const compiled = CjsToolCharacterDefinitionCompiler.compile(
+        CreateIndex([ metadataPath, eyelashTexture ]),
+        {
+            definitions: {
+                [metadataPath]: { dependentModifiers: [ authoredValue ] }
+            }
+        }
+    );
+    const metadata = compiled.partMetadata[metadataPath];
+    const source = compiled.partSources["female/makeup/eyelashes/eyelashes_02"];
+
+    assert.deepEqual(metadata.dependencies, [ {
+        authoredValue,
+        modifierPath: "makeup/eyelashes/eyelashes_02",
+        partSource: "female/makeup/eyelashes/eyelashes_02",
+        weight: 0.4,
+    } ]);
+    assert.deepEqual(source.versions[0].textureCandidates, [ eyelashTexture ]);
+    assert.equal(compiled.report.modifierReferences.weightedPartDependencies, 1);
+    assert.equal(compiled.report.modifierReferences.partSourceTargets, 1);
 });
 
 test("retains malformed metadata definitions without leaving a typed source", () =>
