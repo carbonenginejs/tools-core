@@ -51,3 +51,11 @@ agents/
 review/
 _review/
 /DECORATOR-TODOS.md
+/CLAUDE.md
+
+# Private manually-run tools
+/private/
+
+# The lockfile resolves sibling packages by path (file:../runtime-resource and
+# friends), so it publishes this machine's layout and is unusable anywhere else.
+/package-lock.json

@@ -5,12 +5,35 @@ Scope: `@carbonenginejs/tools-core/cache` and `@carbonenginejs/tools-core/index`
 Audience: Integrators and build operators  
 Summary: Defines exact-build cache identity, generated artifact locations, and overlay precedence.
 
-## Cache layout
+## Where the cache lives
 
-Exact-build indexes retain game and provider identity:
+The root is resolved in one order, by every tool:
 
 ```text
-<cache>/games/<game>/providers/<provider>/builds/<build>/indexes/<file-name>
+explicit argument (--cache, or the constructor)  ->  CJS_TOOL_CACHE  ->  .cache/tool-core
+```
+
+`CJS_TOOL_CACHE` may be set in the environment or in `.env`, which every tool
+loads — from the working directory first, then from the package — so a setting
+made once keeps working when a tool is run from somewhere else. A variable
+already in the environment always wins over the file. `.env.example` documents
+it; `.env` is gitignored and not published.
+
+**Set it.** The last resort is `.cache/tool-core` under the *working directory*,
+which follows the shell around: a tool run from another directory does not find
+the cache and re-downloads everything, which reads as a slow network rather than
+a cache miss. One value, one store — resource files are addressed by content, so
+every target shares them and a second store is pure duplication.
+
+## Cache layout
+
+Exact-build indexes are keyed by **target**. Target is the identity; provider,
+game and client are things a target has. Before 2026-08-15 the key was
+`game + provider`, which separated the four targets only by accident and is why
+`cjs-tools-cache-migrate` exists:
+
+```text
+<cache>/targets/<target>/builds/<build>/indexes/<file-name>
 ```
 
 Indexed payloads use the game-compatible content-addressed layout:
@@ -22,7 +45,7 @@ Indexed payloads use the game-compatible content-addressed layout:
 Generated libraries and databases use:
 
 ```text
-<cache>/custom/games/<game>/providers/<provider>/builds/<build>/<name>_<version>.<extension>
+<cache>/custom/targets/<target>/builds/<build>/<name>_<version>.<extension>
 ```
 
 Examples include `character_v9.json`, `skin_v1.json`, `skinr_v1.json`,
@@ -54,10 +77,10 @@ Resolution order is:
 3. hash-safe generated groups and fallback overlays.
 
 Targets may explicitly inherit named overlays from another target for shared,
-provider-independent browser assets. The built-in NetEase target inherits only
+provider-independent browser assets. The built-in `netease` target inherits only
 EVE's `legacy-gles` fallback so `/netease/<build>/res/graphics/effect.gles2/...`
 can serve the browser shader set while every official resource still comes from
-the NetEase index. It does not inherit EVE's build-specific WebGL2, macOS Metal,
+the `netease` index. It does not inherit EVE's build-specific WebGL2, macOS Metal,
 or Incarna overlays. A target-local overlay with the same name takes precedence.
 
 `local-exact` payloads mirror their public `res:/` path beneath the persistent
@@ -65,6 +88,41 @@ data root. `hash-safe` official and remote payloads retain checksums and may be
 downloaded through the shared cache. Generated groups are also `hash-safe`,
 but their payloads are cache-only: an absent generated payload fails rather
 than falling through to the provider CDN.
+
+## Maintaining a cache
+
+Two commands. Both **report only unless `--apply` is given**, because deleting
+and moving are the whole point and the default has to be the safe one.
+
+```sh
+node bin/cjs-tools-cache-migrate.js            # old layout -> targets/<target>/
+node bin/cjs-tools-cache-prune.js --keep-latest 2
+```
+
+**`cjs-tools-cache-migrate`** moves `games/<game>/providers/<provider>/builds/…`
+to `targets/<target>/builds/…`. `ResFiles` never moves — it is content-addressed
+and carries no identity — so a migration costs no downloads. Directories are
+renamed rather than copied, so an interrupted run leaves each one either moved
+or not, and re-running finishes it. A `game + provider` pair the registry does
+not know is reported and left alone rather than being filed under a guess.
+
+**`cjs-tools-cache-prune`** keeps the builds worth keeping and removes what no
+kept build references. Three rules it will not break:
+
+- **Every target is protected, always.** Resource files are shared, so a file
+  Serenity needs may be one Tranquility never mentions. `--target` narrows which
+  builds are *pinned*, never which targets are protected.
+- **It fails closed.** An index that cannot be read aborts the run: a target that
+  is unreachable is not a target with no files, and pruning against a short
+  keep-set does not prune, it wipes.
+- **Prepared SDEs are held, not pruned.** They are the expensive
+  artifact, and which of them are worth keeping is a policy question that
+  belongs to the build authority rather than to a `--keep-latest` count meant
+  for resource builds. The run says how many it is holding.
+
+Most files survive any prune: the store is content-addressed and consecutive
+builds differ by little, so the reclaimable space is per-build sidecars rather
+than resources.
 
 ## Constraints
 

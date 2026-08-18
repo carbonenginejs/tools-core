@@ -222,9 +222,9 @@ Whether a rebuild is actually avoided:
 ```sh
 # Build twice; the second must do no work and must not rewrite the artifact.
 npm run build:character
-stat -c %Y "<cache>/custom/games/Eve/providers/ccp/builds/<build>/character_v10.json"
+stat -c %Y "<cache>/custom/targets/eve/builds/<build>/character_v10.json"
 npm run build:character
-stat -c %Y "<cache>/custom/games/Eve/providers/ccp/builds/<build>/character_v10.json"
+stat -c %Y "<cache>/custom/targets/eve/builds/<build>/character_v10.json"
 ```
 
 An unchanged mtime is the property worth asserting in a test, because it is the
