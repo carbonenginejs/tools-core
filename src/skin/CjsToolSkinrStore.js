@@ -389,9 +389,16 @@ export class CjsToolSkinrStore
         const cards = this.#database.prepare(
             "SELECT o.listing_id, o.skinr_id, o.seller_id, o.quantity, o.state, "
             + "o.price_kind, o.price_value, o.created, o.observed_at, o.payload AS listing, "
-            + "d.name, d.line, d.ship_type_id, d.tier_level, d.creator_id "
+            + "d.name, d.line, d.ship_type_id, d.tier_level, d.creator_id, "
+            // The people, named. A consumer grouping by capsuleer had only ids
+            // and resolved them one at a time by selecting a row, so a group
+            // heading read FINDING CAPSULEER until somebody happened to click
+            // that seller — and every row nobody clicked stayed that way.
+            + "cc.name AS creator_name, cs.name AS seller_name "
             + "FROM skinr_listing_observations o "
             + "LEFT JOIN skinr_designs d ON d.skinr_id = o.skinr_id "
+            + "LEFT JOIN skinr_characters cc ON cc.character_id = d.creator_id "
+            + "LEFT JOIN skinr_characters cs ON cs.character_id = o.seller_id "
             + `WHERE ${clause} ORDER BY ${SortOrder(options.sort)} LIMIT :limit OFFSET :offset`
         ).all({ ...parameters, limit: NormalizeLimit(options.limit ?? 60), offset: Math.max(0, Math.trunc(Number(options.offset)) || 0) });
 
@@ -409,6 +416,10 @@ export class CjsToolSkinrStore
                 created: row.created,
                 expires: JSON.parse(row.listing)?.expires ?? null,
                 observedAt: row.observed_at,
+                // Named where the backfill has reached them. Absent rather than
+                // null so a consumer can tell "not resolved yet" from "has no
+                // name", and so a row keeps whatever it can show meanwhile.
+                ...(row.seller_name ? { sellerName: row.seller_name } : {}),
                 // Absent, not null-filled: this listing names a design we have
                 // not fetched, which is different from a design without a name.
                 ...(row.name === null && row.ship_type_id === null ? {} : {
@@ -417,6 +428,7 @@ export class CjsToolSkinrStore
                     shipTypeId: row.ship_type_id,
                     tierLevel: row.tier_level,
                     creatorId: row.creator_id,
+                    ...(row.creator_name ? { creatorName: row.creator_name } : {}),
                 }),
             })),
         };

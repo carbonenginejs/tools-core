@@ -370,7 +370,23 @@ export class CjsToolHttpProxy
                 return;
             }
 
-            WriteJson(response, 200, rate);
+            // Cacheable for what is left of the reading's life.
+            //
+            // The service already refreshes hourly and hands every caller the
+            // same reading, but each page load still asked for it — so a busy
+            // hour was thousands of requests for one number that changed once.
+            // Told how long it stays true, a browser and the CDN in front of it
+            // stop asking, and the figure they hold is the same one the service
+            // would have answered with.
+            //
+            // The REMAINING life, not the full hour: a reading taken 59 minutes
+            // ago is nearly stale, and caching it for another hour would show a
+            // two-hour-old rate as current. `observedAt` is on the answer either
+            // way, so a consumer can always see how old it is.
+            const age = Math.max(0, Math.floor((Date.now() - Date.parse(rate.observedAt)) / 1000));
+            const remaining = Math.max(60, (rate.ttlSeconds ?? 3600) - age);
+
+            WriteJson(response, 200, rate, { "cache-control": `public, max-age=${remaining}` });
 
             return;
         }

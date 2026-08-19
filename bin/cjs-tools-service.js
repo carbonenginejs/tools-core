@@ -153,16 +153,12 @@ async function main()
         audio,
         auth,
         skinrStore: OpenSkinrStore(dataDirectory),
-        // The market reading goes through ESI like everything else, so it exists
-        // only while a session does.
-        plexRate: auth ? new CjsToolPlexRate({ esi: auth.esi }) : null,
-        // Names, corporations and alliances. Public routes, but they still go
-        // through ESI, so like the rate this exists only while a session does.
-        // Names and affiliation for anybody, signed in or not. The routes it
-        // reads are public, so a deployment with no ESI login still answers -
-        // it used to return 501 and every character on the page read UNKNOWN
-        // CAPSULEER. The authenticated client is preferred when there is one,
-        // because a token raises the shared rate limit.
+        // Tokenless, like identity: `/markets/prices` is public, so the PLEX
+        // reference works on a deployment nobody has signed in on. Requiring a
+        // login meant the live site answered 503 and the hub lost BOTH figures -
+        // the estimate and the price it sits beside - while a developer with a
+        // token saw them fine.
+        plexRate: new CjsToolPlexRate({ esi: new CjsToolPublicEsi() }),
         // Always the TOKENLESS reader. The routes it needs are public, and
         // preferring the authenticated client whenever one exists made the
         // feature worse rather than better: a deployment with a client id but no

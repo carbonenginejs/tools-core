@@ -1179,7 +1179,12 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
         skin: true,
         skinr: true,
         skinrStore: false,
-        plexRate: false,
+        // True unauthenticated for the same reason identity is: `/markets/prices`
+        // needs no scope, so the PLEX reference answers on a server nobody has
+        // signed in on. It read `false` while the rate was built only alongside
+        // an ESI login, which is why the live hub lost both its ISK and PLEX
+        // figures while a developer with a token saw them fine.
+        plexRate: true,
         // True even unauthenticated, and that is the point of this line: the
         // routes public identity reads need no scope, so a server nobody has
         // signed in on still answers who a character is. It read `false` while
