@@ -24,6 +24,7 @@ import path from "node:path";
 import process from "node:process";
 
 import { CjsToolEsiClient, CjsToolEveSso, CjsToolTokenFile } from "../src/auth/index.js";
+import { CjsToolPublicEsi } from "../src/identity/index.js";
 import { CjsToolSkinrDesigns, CjsToolSkinrStore } from "../src/skin/index.js";
 import { resolveDataRoot } from "../src/cache/resolveDataRoot.js";
 import { LoadToolEnv } from "../src/env.js";
@@ -45,15 +46,23 @@ const sso = new CjsToolEveSso({
     callback: String(process.env.CJS_ESI_CALLBACK ?? "").trim(),
     scopes: String(process.env.CJS_ESI_SCOPES ?? "").split(/\s+/u).filter(Boolean),
 });
-const esi = new CjsToolEsiClient({ sso, tokens, compatibilityDate: options.compatibilityDate });
-const designs = new CjsToolSkinrDesigns({ esi });
 const session = await tokens.Read();
 
-if (!session?.refreshToken)
-{
-    process.stderr.write("Not signed in to EVE. Start the service and run: npm run login\n");
-    process.exit(2);
-}
+// A token is preferred and not required.
+//
+// The Paragon Hub routes are public - measured, not assumed:
+// `/paragon-hub/skinr` and `/cosmetics/skinr/{id}` both answer 200 with no
+// Authorization header. Demanding a login anyway is what made a scheduled
+// harvest impossible on a server nobody has signed in on, which is exactly
+// where one wants to run.
+//
+// Signed in, the authenticated client is used: a token raises the shared
+// rate limit, and a harvest walking thirty pages is the caller most likely
+// to want that headroom.
+const esi = session?.refreshToken
+    ? new CjsToolEsiClient({ sso, tokens, compatibilityDate: options.compatibilityDate })
+    : new CjsToolPublicEsi({ compatibilityDate: options.compatibilityDate });
+const designs = new CjsToolSkinrDesigns({ esi });
 
 // One timestamp for the whole run. Every listing seen in this pass was seen in
 // the same pass, and stamping each page separately would make one harvest look
@@ -67,7 +76,9 @@ let listings = 0;
 let appended = 0;
 let cursor = options.before;
 
-process.stdout.write(`SKINR harvest as ${session.characterName ?? session.characterId} at ${observedAt}\n`);
+process.stdout.write(`SKINR harvest ${session?.refreshToken
+    ? `as ${session.characterName ?? session.characterId}`
+    : "unauthenticated"} at ${observedAt}\n`);
 if (store) process.stdout.write(`store ${store.filePath}\n`);
 
 try
@@ -173,7 +184,7 @@ function ReadOptions(argv)
         // The client's own default is a far-future date, which ESI reads as the
         // newest view. Overridable because pinning it is how a schema change is
         // caught deliberately rather than in production.
-        compatibilityDate: read("compatibility-date") ?? "2026-08-01",
+        compatibilityDate: read("compatibility-date") ?? "2026-08-18",
         refresh: argv.includes("--refresh"),
         dryRun: argv.includes("--dry-run"),
     };

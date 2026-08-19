@@ -34,7 +34,7 @@ export class CjsToolEsiClient
     constructor({
         sso,
         tokens,
-        compatibilityDate = "2026-08-01",
+        compatibilityDate = "2026-08-18",
         root = ESI_ROOT,
         fetch: fetchImplementation = globalThis.fetch,
         requestTimeoutMs = 20000,

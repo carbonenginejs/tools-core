@@ -47,7 +47,7 @@ test("every request carries the compatibility date and a bearer", async () =>
     assert.deepEqual(await client.Get("/cosmetics/skinr/abc"), { id: "x" });
     assert.equal(seen.url, "https://esi.evetech.net/cosmetics/skinr/abc");
     // ESI rejects the call outright without this, so it is not optional.
-    assert.equal(seen.options.headers["x-compatibility-date"], "2026-08-01");
+    assert.equal(seen.options.headers["x-compatibility-date"], "2026-08-18");
     assert.equal(seen.options.headers.authorization, "Bearer a1");
 });
 
