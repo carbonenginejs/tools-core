@@ -1180,7 +1180,12 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
         skinr: true,
         skinrStore: false,
         plexRate: false,
-        identity: false,
+        // True even unauthenticated, and that is the point of this line: the
+        // routes public identity reads need no scope, so a server nobody has
+        // signed in on still answers who a character is. It read `false` while
+        // the service built identity only alongside an ESI login, which is how
+        // the live site showed UNKNOWN CAPSULEER for everybody.
+        identity: true,
         weapons: true,
         map: true,
         dogma: true,

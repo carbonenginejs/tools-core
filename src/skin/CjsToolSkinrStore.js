@@ -361,9 +361,21 @@ export class CjsToolSkinrStore
 
         if (options.search && String(options.search).trim())
         {
-            // Name or line, because a reader typing "police" means either and
-            // cannot know which field carries the word they remember.
-            where.push("(d.name LIKE :search OR d.line LIKE :search)");
+            // Name, line, or the people. A reader typing "police" means the
+            // design and cannot know which field carries the word they
+            // remember; a reader typing a capsuleer's name means the person, and
+            // wants everything they made or are selling. One box for both,
+            // because the reader does not know which kind of thing they have
+            // typed until they see what comes back.
+            //
+            // Both sides of a listing: `creator` is who made it and `seller` is
+            // who is offering it, and they differ on about one listing in seven.
+            where.push(
+                "(d.name LIKE :search OR d.line LIKE :search"
+                + " OR EXISTS (SELECT 1 FROM skinr_characters c"
+                + "   WHERE c.character_id IN (d.creator_id, o.seller_id)"
+                + "     AND c.name LIKE :search))"
+            );
             parameters.search = `%${String(options.search).trim()}%`;
         }
 
@@ -443,6 +455,89 @@ export class CjsToolSkinrStore
             .map(row => ({ ...JSON.parse(row.payload), observedAt: row.observed_at }));
     }
 
+    /**
+     * Every character id the store mentions, on either side of a listing.
+     *
+     * Both sides, because they are different people about one listing in seven:
+     * a design's creator made it, a listing's seller is offering it.
+     *
+     * @param {Object} [options]
+     * @param {Boolean} [options.missingOnly] - only ids with no name yet
+     * @returns {Array<Number>}
+     */
+    CharacterIds({ missingOnly = false } = {})
+    {
+        const known = missingOnly
+            ? " AND id NOT IN (SELECT character_id FROM skinr_characters WHERE name IS NOT NULL)"
+            : "";
+
+        return this.#database.prepare(
+            "SELECT DISTINCT id FROM ("
+            + "  SELECT creator_id AS id FROM skinr_designs"
+            + "  UNION SELECT seller_id AS id FROM skinr_listing_observations"
+            + `) WHERE id IS NOT NULL AND id > 0${known} ORDER BY id`
+        ).all().map(row => row.id);
+    }
+
+    /**
+     * Records who an id belongs to.
+     *
+     * `observed_at` is not decoration: a name is effectively permanent but a
+     * corporation is a statement about a moment, and someone who left theirs
+     * yesterday has a different answer today. Storing when it was true is what
+     * lets a later reader tell a fresh answer from a stale one.
+     *
+     * @param {Object} identity - as `CjsToolPublicIdentity` returns
+     */
+    PutCharacter(identity)
+    {
+        const id = NumberOrNull(identity?.characterId);
+
+        if (id === null || !identity?.name) return false;
+
+        this.#database.prepare(
+            "INSERT INTO skinr_characters (character_id, name, corporation, alliance, observed_at) "
+            + "VALUES (:id, :name, :corporation, :alliance, :observedAt) "
+            + "ON CONFLICT(character_id) DO UPDATE SET "
+            + "  name = excluded.name, corporation = excluded.corporation, "
+            + "  alliance = excluded.alliance, observed_at = excluded.observed_at"
+        ).run({
+            id,
+            name: String(identity.name),
+            corporation: identity.corporation?.name ?? null,
+            alliance: identity.alliance?.name ?? null,
+            observedAt: identity.observedAt ?? new Date().toISOString(),
+        });
+
+        return true;
+    }
+
+    /**
+     * The names for a set of ids, for a caller drawing rows.
+     *
+     * @param {Array<Number>} ids
+     * @returns {Map<Number, Object>}
+     */
+    Characters(ids = [])
+    {
+        const wanted = ids.map(NumberOrNull).filter(id => id !== null);
+
+        if (!wanted.length) return new Map();
+
+        const rows = this.#database.prepare(
+            `SELECT character_id, name, corporation, alliance, observed_at FROM skinr_characters `
+            + `WHERE character_id IN (${wanted.map(() => "?").join(",")})`
+        ).all(...wanted);
+
+        return new Map(rows.map(row => [ row.character_id, {
+            characterId: row.character_id,
+            name: row.name,
+            corporation: row.corporation,
+            alliance: row.alliance,
+            observedAt: row.observed_at,
+        } ]));
+    }
+
     /** What is in the store, for a caller reporting harvest progress. */
     Describe()
     {
@@ -503,6 +598,27 @@ export class CjsToolSkinrStore
             + "  PRIMARY KEY (listing_id, observed_at));"
             + "CREATE INDEX IF NOT EXISTS skinr_listing_design "
             + "  ON skinr_listing_observations (skinr_id, observed_at);"
+            // Who the ids belong to.
+            //
+            // The harvest records a creator and a seller as bare ids, which is
+            // correct — that is what the API returns, and a name is not a fact
+            // about the listing. But it made every capsuleer unsearchable: a
+            // reader who knows a designer by name had no way to find their work,
+            // and the ones that appeared to work were only names cached by
+            // having clicked them.
+            //
+            // Kept beside the log rather than inside it for the same reason the
+            // store sits beside the SDE: a name is an observation of ours, not
+            // something the source shipped, and `observed_at` says when it was
+            // true. A corporation especially — people leave.
+            + "CREATE TABLE IF NOT EXISTS skinr_characters ("
+            + "  character_id INTEGER PRIMARY KEY,"
+            + "  name TEXT,"
+            + "  corporation TEXT,"
+            + "  alliance TEXT,"
+            + "  observed_at TEXT NOT NULL);"
+            + "CREATE INDEX IF NOT EXISTS skinr_characters_name "
+            + "  ON skinr_characters (name);"
         );
 
         const meta = this.#database.prepare("SELECT value FROM skinr_meta WHERE key = 'schema'").get();
