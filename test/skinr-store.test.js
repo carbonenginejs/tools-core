@@ -161,6 +161,39 @@ test("a seeded random sort is one shuffle, readable in pages", context =>
     assert.notDeepEqual(first, store.ListCards({ limit: 100 }).cards.map(card => card.listingId));
 });
 
+test("every sort key reads in either direction", context =>
+{
+    const store = openStore(context);
+
+    store.PutDesign({ ...DESIGN, id: "d1", name: "Alpha", tier: { level: 2 } }, "2026-08-17T10:00:00Z");
+    store.PutDesign({ ...DESIGN, id: "d2", name: "Beta", tier: { level: 9 } }, "2026-08-17T10:00:00Z");
+    store.AppendListings([
+        { ...listing("l1", { kind: "isk", value: 100 }), skinrId: "d1" },
+        { ...listing("l2", { kind: "isk", value: 900 }), skinrId: "d2" }
+    ], "2026-08-17T10:00:00Z");
+
+    const ids = options => store.ListCards({ limit: 10, ...options }).cards.map(card => card.listingId);
+
+    // The key's own order is what asking for the key means.
+    assert.deepEqual(ids({ sort: "price" }), [ "l1", "l2" ]);
+    assert.deepEqual(ids({ sort: "tier" }), [ "l2", "l1" ], "tier reads highest first");
+
+    // A stated direction is the COLUMN's: DESC on tier is 18 down to 1
+    // whichever way tier reads by default, which is what somebody pressing it
+    // is asking for.
+    assert.deepEqual(ids({ sort: "price", direction: "desc" }), [ "l2", "l1" ]);
+    assert.deepEqual(ids({ sort: "tier", direction: "asc" }), [ "l1", "l2" ]);
+    assert.deepEqual(ids({ sort: "tier", direction: "desc" }), [ "l2", "l1" ]);
+    assert.deepEqual(ids({ sort: "name", direction: "desc" }), [ "l2", "l1" ]);
+
+    // Asking for the natural direction explicitly changes nothing.
+    assert.deepEqual(ids({ sort: "price", direction: "asc" }), ids({ sort: "price" }));
+    assert.deepEqual(ids({ sort: "tier", direction: "desc" }), ids({ sort: "tier" }));
+
+    // The old spelling still answers, because links to it exist.
+    assert.deepEqual(ids({ sort: "price-desc" }), [ "l2", "l1" ]);
+});
+
 test("a target with no SKINR is refused rather than answered empty", context =>
 {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-skinr-"));

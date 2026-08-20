@@ -393,7 +393,7 @@ export class CjsToolSkinrStore
         }
 
         const clause = where.join(" AND ");
-        const order = SortOrder(options.sort);
+        const order = SortOrder(options.sort, options.direction);
         const total = this.#database.prepare(
             "SELECT COUNT(*) AS n FROM skinr_listing_observations o "
             + "LEFT JOIN skinr_designs d ON d.skinr_id = o.skinr_id "
@@ -712,19 +712,56 @@ function NumberOrNull(value)
  * The value is stored as text because ISK is a decimal quantity, so the cast is
  * here rather than in the column.
  */
-function SortOrder(sort)
+/**
+ * The ORDER BY for one sort, in one direction.
+ *
+ * Every key can be read either way. It used to be one key only - `price` had a
+ * `price-desc` twin and nothing else had anything - which made a direction
+ * control on a consumer either a lie on four options out of five, or a
+ * client-side reverse of the page it happens to be holding. The second is
+ * worse: reversing a thousand rows out of three thousand answers a question
+ * about the window rather than about the hub.
+ *
+ * Each key has a natural direction - newest listings, highest tiers, cheapest
+ * prices, names from A - and that is what asking for the key alone gives. A
+ * stated direction is the COLUMN's, not a reversal of the key's: "tier
+ * descending" is 18 down to 1 whichever way tier happens to read by default.
+ * Relative-to-natural was tried first and is a worse answer, because a reader
+ * pressing DESC on TIER is asking for high numbers first, not for "the other
+ * one from whatever you were doing".
+ *
+ * The tiebreaker turns with the key. A stable order that always broke ties the
+ * same way would leave equal-priced listings in one order in both directions,
+ * so a reversed page would not quite be the reverse of the page.
+ *
+ * @param {String} sort
+ * @param {String} [direction] - "asc" or "desc"; the key's own order otherwise
+ */
+function SortOrder(sort, direction)
 {
-    switch (String(sort ?? "").toLowerCase())
-    {
-        // Seeded, so one shuffle survives being read in pages. See the
-        // constructor for why SQLite's random() cannot do this.
-        case "random": return "cjs_skinr_shuffle(o.listing_id, :seed), o.listing_id";
-        case "price": return "CAST(o.price_value AS REAL) ASC, o.listing_id";
-        case "price-desc": return "CAST(o.price_value AS REAL) DESC, o.listing_id";
-        case "tier": return "d.tier_level DESC, o.listing_id";
-        case "name": return "d.name COLLATE NOCASE, o.listing_id";
-        default: return "o.created DESC, o.listing_id";
-    }
+    const key = String(sort ?? "").toLowerCase();
+    const asked = String(direction ?? "").toLowerCase();
+
+    // Seeded, so one shuffle survives being read in pages. See the constructor
+    // for why SQLite's random() cannot do this. Direction means nothing to a
+    // shuffle - its reverse is just another shuffle - so it is ignored rather
+    // than honoured into a second arrangement nobody asked for.
+    if (key === "random") return "cjs_skinr_shuffle(o.listing_id, :seed), o.listing_id";
+
+    const columns = {
+        // Legacy: the descending twin, from when this was the only key that had
+        // one. Still accepted, because links to it exist.
+        "price-desc": { column: "CAST(o.price_value AS REAL)", natural: "DESC" },
+        price: { column: "CAST(o.price_value AS REAL)", natural: "ASC" },
+        tier: { column: "d.tier_level", natural: "DESC" },
+        name: { column: "d.name COLLATE NOCASE", natural: "ASC" },
+        recent: { column: "o.created", natural: "DESC" }
+    };
+
+    const chosen = columns[key] ?? columns.recent;
+    const order = asked === "asc" ? "ASC" : asked === "desc" ? "DESC" : chosen.natural;
+
+    return `${chosen.column} ${order}, o.listing_id ${order}`;
 }
 
 /**
