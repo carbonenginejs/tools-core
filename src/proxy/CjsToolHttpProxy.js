@@ -1697,6 +1697,10 @@ export class CjsToolHttpProxy
                 creatorId: read("creatorId"),
                 search: read("search"),
                 sort: read("sort"),
+                // Only `sort=random` reads it. A paging consumer sends the same
+                // seed for every page so it sees one shuffle rather than a fresh
+                // one per request, which would repeat and skip listings.
+                seed: read("seed"),
             }));
 
             return;

@@ -129,6 +129,38 @@ test("the current hub is a projection: one row per listing, its newest", context
     assert.equal(latest.find(entry => entry.id === "l2").state, "listed");
 });
 
+test("a seeded random sort is one shuffle, readable in pages", context =>
+{
+    const store = openStore(context);
+    const page = [];
+
+    for (let i = 0; i < 40; i++) page.push(listing(`l${i}`, { kind: "isk", value: 1000 + i }));
+    store.PutDesign(DESIGN, "2026-08-17T10:00:00Z");
+    store.AppendListings(page, "2026-08-17T10:00:00Z");
+
+    const ids = options => store.ListCards({ limit: 100, sort: "random", ...options }).cards.map(card => card.listingId);
+    const first = ids({ seed: 7 });
+
+    // Stable: the same seed is the same order, which is what lets a consumer
+    // read it in pages at all.
+    assert.deepEqual(ids({ seed: 7 }), first);
+
+    // Paging it must produce the whole list once, in that order. This is the
+    // property SQLite's random() does not have, and the reason the seed exists.
+    const paged = [
+        ...store.ListCards({ limit: 15, offset: 0, sort: "random", seed: 7 }).cards,
+        ...store.ListCards({ limit: 15, offset: 15, sort: "random", seed: 7 }).cards,
+        ...store.ListCards({ limit: 15, offset: 30, sort: "random", seed: 7 }).cards
+    ].map(card => card.listingId);
+
+    assert.deepEqual(paged, first);
+    assert.equal(new Set(paged).size, page.length, "every listing once");
+
+    // And it is a shuffle, not the default order under another name.
+    assert.notDeepEqual(first, ids({ seed: 8 }));
+    assert.notDeepEqual(first, store.ListCards({ limit: 100 }).cards.map(card => card.listingId));
+});
+
 test("a target with no SKINR is refused rather than answered empty", context =>
 {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-skinr-"));

@@ -63,6 +63,19 @@ export class CjsToolSkinrStore
     {
         this.#database = database;
         this.filePath = path.resolve(filePath);
+
+        // A random order has to be STABLE for the duration of one reading, and
+        // SQLite's own random() is not: a consumer reads the hub in pages, and
+        // an order that re-rolls per statement shows some listings twice and
+        // hides others entirely. Seeding it makes "random" mean *a* shuffle,
+        // named by the caller, that can be asked for again page after page.
+        //
+        // Registered here rather than expressed in SQL because listing ids are
+        // text, so there is no arithmetic to hash them with. Deterministic in
+        // the SQL sense - same arguments, same answer - which is what lets
+        // SQLite use it in an ORDER BY at all.
+        database.function("cjs_skinr_shuffle", { deterministic: true }, (listingId, seed) =>
+            ShuffleKey(listingId, seed));
     }
 
     /**
@@ -380,6 +393,7 @@ export class CjsToolSkinrStore
         }
 
         const clause = where.join(" AND ");
+        const order = SortOrder(options.sort);
         const total = this.#database.prepare(
             "SELECT COUNT(*) AS n FROM skinr_listing_observations o "
             + "LEFT JOIN skinr_designs d ON d.skinr_id = o.skinr_id "
@@ -399,8 +413,16 @@ export class CjsToolSkinrStore
             + "LEFT JOIN skinr_designs d ON d.skinr_id = o.skinr_id "
             + "LEFT JOIN skinr_characters cc ON cc.character_id = d.creator_id "
             + "LEFT JOIN skinr_characters cs ON cs.character_id = o.seller_id "
-            + `WHERE ${clause} ORDER BY ${SortOrder(options.sort)} LIMIT :limit OFFSET :offset`
-        ).all({ ...parameters, limit: NormalizeLimit(options.limit ?? 60), offset: Math.max(0, Math.trunc(Number(options.offset)) || 0) });
+            + `WHERE ${clause} ORDER BY ${order} LIMIT :limit OFFSET :offset`
+        ).all({
+            ...parameters,
+            // Only when the order asks for it: better-sqlite3 refuses a named
+            // value the statement does not mention, and the count above shares
+            // this parameter set.
+            ...(order.includes(":seed") ? { seed: NormalizeSeed(options.seed) } : {}),
+            limit: NormalizeLimit(options.limit ?? 60),
+            offset: Math.max(0, Math.trunc(Number(options.offset)) || 0)
+        });
 
         return {
             total,
@@ -694,12 +716,48 @@ function SortOrder(sort)
 {
     switch (String(sort ?? "").toLowerCase())
     {
+        // Seeded, so one shuffle survives being read in pages. See the
+        // constructor for why SQLite's random() cannot do this.
+        case "random": return "cjs_skinr_shuffle(o.listing_id, :seed), o.listing_id";
         case "price": return "CAST(o.price_value AS REAL) ASC, o.listing_id";
         case "price-desc": return "CAST(o.price_value AS REAL) DESC, o.listing_id";
         case "tier": return "d.tier_level DESC, o.listing_id";
         case "name": return "d.name COLLATE NOCASE, o.listing_id";
         default: return "o.created DESC, o.listing_id";
     }
+}
+
+/**
+ * A listing's place in one shuffle: FNV-1a over the seed and the id.
+ *
+ * The seed is half the key rather than a starting point, so two seeds give two
+ * unrelated orders instead of the same order rotated.
+ */
+function ShuffleKey(listingId, seed)
+{
+    let hash = 0x811c9dc5;
+
+    for (const text of [ String(seed ?? 0), ":", String(listingId ?? "") ])
+    {
+        for (let i = 0; i < text.length; i++)
+        {
+            hash ^= text.charCodeAt(i);
+            hash = Math.imul(hash, 0x01000193) >>> 0;
+        }
+    }
+
+    return hash;
+}
+
+/** A caller's seed as an integer, or one that changes if they named none. */
+function NormalizeSeed(value)
+{
+    const seed = Math.trunc(Number(value));
+
+    // No seed is a reading of one page, so an arbitrary shuffle is the right
+    // answer - and a fixed fallback would make "random" mean one permanent
+    // order that every reader saw. A paging caller must send its own.
+    return Number.isFinite(seed) ? seed : Math.trunc(Math.random() * 0x7fffffff);
 }
 
 function NormalizeLimit(value)
