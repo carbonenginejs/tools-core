@@ -76,7 +76,6 @@
     "node": ">=18"
   },
   "scripts": {
-    "prepublishOnly": "node -e \"console.error(\\\"@carbonenginejs/tools-core is on a temporary publish hold. This guard is the only thing left holding it - lift it deliberately, by removing this prepublishOnly script from package.json.\\\"); process.exit(1)\"",
     "prepack": "npm run lint",
     "start": "node bin/cjs-tool-index.js",
     "service": "node bin/cjs-tools-service.js",
@@ -102,8 +101,8 @@
     "check": "npm run lint && npm test"
   },
   "dependencies": {
-    "@carbonenginejs/runtime-audio": "^0.3.3",
-    "@carbonenginejs/runtime-character": "^0.3.1",
+    "@carbonenginejs/runtime-audio": "^0.4.1",
+    "@carbonenginejs/runtime-character": "^0.4.0",
     "@carbonenginejs/runtime-resource": "^0.22.0",
     "@carbonenginejs/runtime-sof": "^0.3.5",
     "@carbonenginejs/runtime-trinity": "^0.11.2",

@@ -48,7 +48,7 @@ Generated libraries and databases use:
 <cache>/custom/targets/<target>/builds/<build>/<name>_<version>.<extension>
 ```
 
-Examples include `character_v9.json`, `skin_v1.json`, `skinr_v1.json`,
+Examples include `character_v10.json`, `skin_v1.json`, `skinr_v1.json`,
 `weapons_v1.json`, and `sde_v1.sqlite`. Existing installations may retain a
 cache root directory named `tool-core`; that storage name is independent of
 the `tools-core` package identity.

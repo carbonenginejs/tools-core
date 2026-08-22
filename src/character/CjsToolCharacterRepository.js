@@ -4,12 +4,15 @@ import { CjsCharacterLibraryManager } from "@carbonenginejs/runtime-character";
 import { CjsToolCache } from "../cache/CjsToolCache.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
+import { CjsToolCharacterBuilder } from "./CjsToolCharacterBuilder.js";
 
 /** Opens exact-build prepared character libraries from the shared tool cache. */
 export class CjsToolCharacterRepository
 {
 
     #cache;
+
+    #autoPrepare;
 
     #indexes;
 
@@ -21,7 +24,8 @@ export class CjsToolCharacterRepository
     constructor({
         cache = new CjsToolCache(),
         indexes = null,
-        targets = new CjsToolTargetRegistry()
+        targets = new CjsToolTargetRegistry(),
+        autoPrepare = true
     } = {})
     {
         if (!(cache instanceof CjsToolCache))
@@ -40,6 +44,7 @@ export class CjsToolCharacterRepository
         }
 
         this.#cache = cache;
+        this.#autoPrepare = autoPrepare === true;
         this.#indexes = indexes;
         this.#targets = targets;
         Object.freeze(this);
@@ -117,6 +122,11 @@ export class CjsToolCharacterRepository
 
         if (filePath === null)
         {
+            if (this.#autoPrepare && typeof this.#indexes?.OpenTarget === "function")
+            {
+                return this.#AutoPrepare(target, build);
+            }
+
             const missing = new Error(
                 `Character library is not prepared for ${target.id} build ${build}`
             );
@@ -137,6 +147,34 @@ export class CjsToolCharacterRepository
         RequireIdentity("build", prepared.sourceBuild, build);
 
         return new CjsCharacterLibraryManager().InstallLibrary(prepared);
+    }
+
+    /** Builds a missing base library through runtime-character's resource path. */
+    async #AutoPrepare(target, build)
+    {
+        const source = await this.#indexes.OpenTarget(target.id, build, {
+            client: target.client ?? undefined
+        });
+        const library = await CjsToolCharacterBuilder.buildFromResources({
+            source,
+            sourceTarget: target.id,
+            sourceGame: target.game,
+            sourceProvider: target.provider,
+            sourceBuild: build,
+            generatedAt: new Date().toISOString()
+        }, { targets: this.#targets });
+        const values = library.GetValues({ refs: true });
+
+        await this.#cache.WriteCustomLibrary({
+            target: target.id,
+            game: target.game,
+            provider: target.provider,
+            build,
+            name: "character",
+            version: "v10"
+        }, values);
+
+        return library;
     }
 
 }

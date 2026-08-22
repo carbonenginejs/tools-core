@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 
 import {
-    installAudioLibraryDocument,
+    CjsAudioLibrary,
     validateAudioLibraryDocument,
 } from "@carbonenginejs/runtime-audio/library";
 
@@ -43,7 +43,7 @@ export class CjsToolAudioSource
         music = null,
     } = {})
     {
-        const installed = installAudioLibraryDocument(library);
+        const installed = CjsAudioLibrary.from(library);
 
         this.constructor.validateLibrary(installed);
 

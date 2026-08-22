@@ -41,8 +41,9 @@ checked against declared size and MD5 before they are returned or cached.
 
 - app/resource index acquisition and the shared exact-build cache;
 - profile-driven exact-build cache preparation before tools or services start;
-- prepared SDE databases, composed icon resource paths, and deterministic
-  audio, character, SKIN, SKINR, weapon, and shader outputs;
+- prepared SDE databases, composed icon resource paths, and Node-side
+  orchestration/publication of deterministic audio, character, SKIN, SKINR,
+  weapon, and shader outputs;
 - self-contained SOF bundles for consumers without Carbon or a DDS decoder;
 - schema scanning and class-emission tooling;
 - optional loopback HTTP, authenticated realtime, WebSocket, webhook, and
@@ -50,7 +51,10 @@ checked against declared size and MD5 before they are returned or cached.
 - Twitch and Kick server-side integrations.
 
 Each area is independently importable through a documented package subpath.
-The character subpath gathers caller-selected model-shaped JSON records and
+Runtime-audio and runtime-character own their raw-resource build algorithms;
+tools-core supplies target-selected exact-build bytes and persists their
+`GetValues()` output. The character subpath also gathers optional prepared
+model-shaped JSON records and
 materializes sparse part-source authoring into complete effective metadata and
 exact resource-candidate inventories, while
 `@carbonenginejs/runtime-character` owns the

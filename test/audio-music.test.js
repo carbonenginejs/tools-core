@@ -8,6 +8,9 @@ import { spawnSync } from "node:child_process";
 import { gunzipSync } from "node:zlib";
 
 import { CjsToolAudioBuilder } from "../src/audio/index.js";
+import {
+    CjsFsd64SchemaAudioMetadata,
+} from "@carbonenginejs/runtime-resource/formats/fsd/64/readers";
 
 const TRACK_ID = 4101;
 const SEGMENT_ID = 4001;
@@ -398,11 +401,40 @@ function WriteSyntheticCache(directory, banks)
         );
     }
 
+    const fsdBytes = CreateEmptyAudioMetadata();
+    const fsdStoragePath = "dd/audiometadata.fsdbinary";
+    const fsdPath = path.join(cache, "ResFiles", fsdStoragePath);
+    const fsdChecksum = crypto.createHash("md5").update(fsdBytes).digest("hex");
+
+    fs.mkdirSync(path.dirname(fsdPath), { recursive: true });
+    fs.writeFileSync(fsdPath, fsdBytes);
+    indexLines.push(
+        `${CjsFsd64SchemaAudioMetadata.path},${fsdStoragePath},`
+        + `${fsdChecksum},${fsdBytes.byteLength}`,
+    );
+
     const indexPath = path.join(directory, "resfileindex.txt");
 
     fs.writeFileSync(indexPath, `${indexLines.join("\n")}\n`);
 
     return { cache, indexLines, indexPath };
+}
+
+function CreateEmptyAudioMetadata()
+{
+    const size = 80;
+    const bytes = new Uint8Array(size);
+    const view = new DataView(bytes.buffer);
+
+    for (let index = 0; index < CjsFsd64SchemaAudioMetadata.schemaID.length / 2; index++)
+    {
+        bytes[index] = Number.parseInt(
+            CjsFsd64SchemaAudioMetadata.schemaID.slice(index * 2, index * 2 + 2),
+            16,
+        );
+    }
+    view.setUint32(24, size - 32, true);
+    return bytes;
 }
 
 function SyntheticSoundbanksInfo()

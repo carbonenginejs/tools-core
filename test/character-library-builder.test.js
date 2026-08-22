@@ -452,7 +452,7 @@ test("character gathering keeps declared candidates and metadata-only sources", 
     const built = JSON.parse(jsonBytes.toString("utf8"));
 
     assert.deepEqual(gunzipSync(fs.readFileSync(`${outputPath}.gz`)), jsonBytes);
-    assert.equal(built.schemaVersion, 9);
+    assert.equal(built.schemaVersion, 10);
     assert.equal(built.documents.characterTextureMetadata.length, 0);
     assert.equal(built.documents.characterDefinitions.length, 1);
     assert.equal(built.documents.characterPartSources.length, 2);

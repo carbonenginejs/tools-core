@@ -13,6 +13,9 @@ import {
 import {
   CjsAudioLibraryBuilder,
 } from "@carbonenginejs/runtime-audio/library-builder";
+import {
+  CjsFsd64SchemaAudioMetadata,
+} from "@carbonenginejs/runtime-resource/formats/fsd/64/readers";
 import * as publicAudioLibraryTools from "../src/audio/index.js";
 
 const INDEX_TEXT = [
@@ -90,13 +93,28 @@ test("audio CLI reads and validates logical inputs from the shared ResFiles cach
   const bytes = Buffer.from(JSON.stringify(SOUNDBANKS_INFO));
   const checksum = crypto.createHash("md5").update(bytes).digest("hex");
   const cachePath = path.join(cacheDirectory, "ResFiles", "aa", "soundbanksinfo.json");
+  const fsdBytes = CreateEmptyAudioMetadata();
+  const fsdChecksum = crypto.createHash("md5").update(fsdBytes).digest("hex");
+  const fsdStoragePath = "bb/audiometadata.fsdbinary";
+  const fsdCachePath = path.join(
+    cacheDirectory,
+    "ResFiles",
+    "bb",
+    "audiometadata.fsdbinary",
+  );
 
   context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
   fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+  fs.mkdirSync(path.dirname(fsdCachePath), { recursive: true });
   fs.writeFileSync(cachePath, bytes);
+  fs.writeFileSync(fsdCachePath, fsdBytes);
   fs.writeFileSync(
     inputPath,
-    `${logicalPath},${storagePath},${checksum},${bytes.byteLength},${bytes.byteLength}\n`,
+    [
+      `${logicalPath},${storagePath},${checksum},${bytes.byteLength},${bytes.byteLength}`,
+      `${CjsFsd64SchemaAudioMetadata.path},${fsdStoragePath},${fsdChecksum},${fsdBytes.byteLength},${fsdBytes.byteLength}`,
+      "",
+    ].join("\n"),
   );
 
   const args = [
@@ -143,6 +161,23 @@ test("audio CLI reads and validates logical inputs from the shared ResFiles cach
   assert.equal(invalid.status, 1);
   assert.match(invalid.stderr, /size mismatch/);
 });
+
+function CreateEmptyAudioMetadata()
+{
+  const size = 80;
+  const bytes = new Uint8Array(size);
+  const view = new DataView(bytes.buffer);
+
+  for (let index = 0; index < CjsFsd64SchemaAudioMetadata.schemaID.length / 2; index++)
+  {
+    bytes[index] = Number.parseInt(
+      CjsFsd64SchemaAudioMetadata.schemaID.slice(index * 2, index * 2 + 2),
+      16,
+    );
+  }
+  view.setUint32(24, size - 32, true);
+  return bytes;
+}
 
 
 test("CjsToolAudioBuilder joins index + SoundbanksInfo + optional enrichment deterministically", () =>

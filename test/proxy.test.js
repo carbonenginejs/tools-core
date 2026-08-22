@@ -561,7 +561,7 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
     }
 });
 
-test("serves the combined schema-v9 character document", async context =>
+test("serves the combined schema-v10 character document", async context =>
 {
     const values = CjsToolCharacter.build(CreateCharacterDocuments(), {
         sourceTarget: "eve",
@@ -639,7 +639,7 @@ test("serves the combined schema-v9 character document", async context =>
     assert.equal(response.headers.get("x-carbon-answer"), "character");
     assert.equal(response.headers.get("x-carbon-target"), "eve");
     assert.equal(response.headers.get("x-carbon-build"), "3450001");
-    assert.equal(wholeLibrary.schemaVersion, 9);
+    assert.equal(wholeLibrary.schemaVersion, 10);
     assert.equal(wholeLibrary.sourceTarget, "eve");
     assert.equal(wholeLibrary.documents.characterResources[0].typeID, "9001");
     assert.deepEqual(await alias.json(), wholeLibrary);

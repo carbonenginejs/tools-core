@@ -32,6 +32,14 @@ export class CjsToolCharacterBuilder extends CjsCharacterLibraryBuilder
         return this.build(documents, options, { targets });
     }
 
+    /** Builds one hydrated library through the runtime-owned resource path. */
+    static buildFromResources(options = {}, { targets = TargetRegistry } = {})
+    {
+        return CjsCharacterLibraryBuilder.buildFromResources(
+            ResolveTargetOptions(options, targets)
+        );
+    }
+
 }
 
 function ResolveTargetOptions(options, targets)

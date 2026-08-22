@@ -19,7 +19,7 @@ Tools-core owns:
 - target/build resolution and validated app/resource index acquisition;
 - the shared exact-build cache and persistent resource overlays;
 - prepared exact-build SDE databases, target-keyed SDE build profiles, and
-  Node-side generated library orchestration;
+  Node-side generated library acquisition, orchestration, and publication;
 - schema scanning and class-emission tooling;
 - Node HTTP, WebSocket, webhook, credential, filesystem-watch, and command-line
   orchestration;
@@ -29,10 +29,11 @@ Tools-core does not own:
 
 - browser clients or browser-safe remote readers, which belong in
   `@carbonenginejs/tools-browser`;
-- runtime-owned audio-library construction, which tools-core calls with
-  exact-build target, cache, CLI, and service policy;
+- runtime-owned audio-library construction and raw-resource decoding, which
+  tools-core calls with an injected exact-build index/cache source;
 - runtime-owned character-library schema, hydration, and deterministic
-  combination, which tools-core calls with gathered plain document maps;
+  raw cFSD combination, which tools-core calls with an injected exact-build
+  index/cache source plus optional gathered catalogs;
 - runtime graph classes and domain behavior, which belong in `runtime-*`;
 - format decoding or shader compilation algorithms, which remain in their
   owning format/runtime packages;
@@ -53,9 +54,10 @@ core, format, and domain runtime packages
 ```
 
 Runtime and engine packages must not import tools-core. Tools-core calls
-runtime-audio's optional builder with Node-acquired inputs; it coordinates
-rather than duplicates joins, decoding, or conversion. It applies the same
-boundary to runtime-character's combined-library builder. Browser remote
+runtime-audio's builder with a Node byte source and serializes
+`library.GetValues()`; it coordinates rather than duplicates joins, decoding,
+or conversion. It applies the same boundary to runtime-character's
+combined-library builder. Browser remote
 clients remain optional consumers of the resulting service.
 
 ## Exact-build data path

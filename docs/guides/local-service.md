@@ -115,7 +115,9 @@ through the normal exact-build index source.
 
 Generated artifacts are prepared on their first request by default: a missing
 EVE SDE downloads and prepares itself, and a missing audio library builds from
-the exact build's own indexed inputs. Pass `--no-sde-auto-prepare` or
+the exact build's own indexed inputs through runtime-audio's resource builder.
+A missing character library follows the same runtime-character builder path
+when its required indexed cFSD inputs are available. Pass `--no-sde-auto-prepare` or
 `--no-audio-auto-prepare` to require deliberate preparation instead.
 
 An SDE `latest` reference resolves independently from the app/resource build,

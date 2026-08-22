@@ -190,7 +190,9 @@ a locally published copy.
 
 Audio routes answer from the prepared exact-build audio library; a missing
 library is built automatically from the build's own indexed inputs on its
-first request (`--no-audio-auto-prepare` disables this).
+first request (`--no-audio-auto-prepare` disables this). The repository passes
+its validated index/cache source into runtime-audio's raw-resource builder and
+stores `library.GetValues()`; the HTTP layer does not implement a second join.
 
 The ID route resolves one canonical positive decimal media ID through the
 prepared exact-build audio library. Compatible prepared/converted media wins

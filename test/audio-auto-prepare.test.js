@@ -8,6 +8,9 @@ import path from "node:path";
 import { CjsToolAudioRepository } from "../src/audio/index.js";
 import { CjsToolCache } from "../src/cache/index.js";
 import { CjsToolSdeRepository } from "../src/sde/index.js";
+import {
+    CjsFsd64SchemaAudioMetadata,
+} from "@carbonenginejs/runtime-resource/formats/fsd/64/readers";
 
 const TRACK_ID = 4101;
 const SEGMENT_ID = 4001;
@@ -423,6 +426,10 @@ function CreateFakeIndexSource(banks)
         "soundbanksinfo.json",
         new TextEncoder().encode(JSON.stringify(SyntheticSoundbanksInfo())),
     );
+    files.set(
+        CjsFsd64SchemaAudioMetadata.path,
+        CreateEmptyAudioMetadata(),
+    );
 
     const fetched = [];
 
@@ -450,6 +457,23 @@ function CreateFakeIndexSource(banks)
             return { bytes };
         },
     };
+}
+
+function CreateEmptyAudioMetadata()
+{
+    const size = 80;
+    const bytes = new Uint8Array(size);
+    const view = new DataView(bytes.buffer);
+
+    for (let index = 0; index < CjsFsd64SchemaAudioMetadata.schemaID.length / 2; index++)
+    {
+        bytes[index] = Number.parseInt(
+            CjsFsd64SchemaAudioMetadata.schemaID.slice(index * 2, index * 2 + 2),
+            16,
+        );
+    }
+    view.setUint32(24, size - 32, true);
+    return bytes;
 }
 
 function CreateTempDirectory(context, name)

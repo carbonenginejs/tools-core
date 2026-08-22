@@ -134,7 +134,7 @@ async function Main(argv)
             sourceBuild,
         })
         : null;
-    const data = preparedResult
+    const builtValues = preparedResult
         ? preparedResult.data
         : character.Build(MergeDocuments(
             partSourcesFromInput
@@ -148,16 +148,18 @@ async function Main(argv)
             sourceBuild,
             generatedAt: options.generatedAt,
         });
+    const data = CjsCharacterLibrary.from(builtValues).GetValues({ refs: true });
     const artifact = options.out
         ? await CjsToolLibraryArtifact.write(path.resolve(options.out), data, {
             compact: options.compact,
         })
         : await cache.WriteCustomLibrary({
+            target: target.id,
             game: target.game,
             provider: target.provider,
             build: sourceBuild,
             name: "character",
-            version: "v9",
+            version: "v10",
         }, data, { compact: options.compact });
     const reportPath = path.resolve(options.report || DefaultReportPath(artifact.jsonPath));
     const report = {

@@ -103,7 +103,7 @@ is why the entry points read `.env`.
 ## Library shapes
 
 When `--out` is omitted, the audio and character builders install
-`audio_v2.json` or `character_v9.json` and its deterministic gzip sibling into
+`audio_v2.json` or `character_v10.json` and its deterministic gzip sibling into
 the shared exact-build custom cache. Those are the preferred locations used by
 their repositories and local HTTP routes. An explicit `--out` remains
 available for distribution builds and other application-owned publication.
@@ -119,18 +119,22 @@ is a source catalog rather than a complete event-to-playable-media index.
 Embedded items are classified as `wem`, `midi`, `plugin`, or `unknown` from
 their bank bytes.
 
-SoundbanksInfo remains the public primary metadata source. Optional enrichment
+SoundbanksInfo remains the public authoring-name source. The runtime-owned raw
+resource path also decodes the exact-build `AudioMetadata` cFSD document
+through `runtime-resource` for every CLI and repository build. Catalog-only
+builds set `inspectBanks: false`; `--event-media`, `--sfx`, and `--music` opt
+into bank inspection without changing the cFSD path. Optional enrichment
 accepts a caller-owned plain JSON document containing `Events`, `SoundBanks`,
 and `WemFileIDs` maps. Tools-core does not acquire or decode private metadata
-formats; enrichment only adds culling, stop-relation, and essential flags
-without changing acquisition ownership.
+formats itself; enrichment only adds caller data after the decoded inputs.
 
 The deterministic audio-library join is implemented by
 `@carbonenginejs/runtime-audio/library-builder`. Tools-core supplies target validation,
 exact-build acquisition, shared-cache reads, CLI output, and service routes
 through its `CjsToolAudioBuilder` wrapper. Browser applications may call the
-same optional builder with already acquired values and injected bank access,
-or skip it by downloading the complete result.
+same builder with fetch or an injected byte source, load a plain/gzip prepared
+library through `CjsAudioLibrary`, or skip construction by requesting the
+complete result.
 
 Localized HIRC objects reuse IDs, so event-media and authored SFX graphs cannot
 safely union every language. `--language` selects both graph inputs and is
@@ -232,6 +236,10 @@ resource stems are retained separately as `modelFamily`, with
 not choose among families. Tools-core then delegates
 the combined schema-v10 document to
 `@carbonenginejs/runtime-character/library-builder`.
+During repository auto-preparation, the runtime builder reads and decodes the
+twelve required cFSD documents through the exact-build source supplied by
+tools-core. The explicit build command still accepts prepared document inputs
+so existing authoring and migration workflows remain available.
 The manifest is required by the command; use an empty JSON object when no
 optional catalog records are available.
 
@@ -247,7 +255,7 @@ The gathered part-source records retain exact configuration, geometry, and
 texture candidate paths plus effective metadata relationships. A caller can
 declare metadata-only sources even when no selectable type names them. The
 compiler also creates those sources for exact decoded `metadata.yaml` owner
-folders. Schema v9 retains each dependency and occlusion string and adds an
+folders. Schema v10 retains each dependency and occlusion string and adds an
 ordered modifier-reference record beside it. An unsuffixed safe path can link
 to a unique modifier location, an existing part source, or a source folder
 proved by direct indexed candidates. Suffixed values remain opaque, and no

@@ -30,6 +30,14 @@ export class CjsToolAudioBuilder extends CjsAudioLibraryBuilder
         );
     }
 
+    /** Builds one hydrated library through the runtime-owned resource path. */
+    static buildFromResources(options = {}, { targets = TargetRegistry } = {})
+    {
+        return CjsAudioLibraryBuilder.buildFromResources(
+            ResolveTargetOptions(options, targets),
+        );
+    }
+
 }
 
 function ResolveTargetOptions(options, targets)

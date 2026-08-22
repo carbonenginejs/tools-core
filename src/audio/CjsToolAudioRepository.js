@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { CjsAudioLibrary } from "@carbonenginejs/runtime-audio/library";
 
 import { CjsToolCache } from "../cache/CjsToolCache.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
@@ -7,8 +8,6 @@ import { CjsToolAudioBuilder } from "./CjsToolAudioBuilder.js";
 import { CjsToolAudioMediaBuilder } from "./CjsToolAudioMediaBuilder.js";
 import { CjsToolAudioSource } from "./CjsToolAudioSource.js";
 import { CjsToolMusicSource } from "./CjsToolMusicSource.js";
-
-const MUSIC_BANK_NAMES = Object.freeze([ "common.bnk", "music.bnk", "music_essential.bnk" ]);
 
 /** Opens exact-build prepared audio libraries and their indexed byte sources. */
 export class CjsToolAudioRepository
@@ -272,33 +271,13 @@ export class CjsToolAudioRepository
                 checksum: match.record.checksum ?? "",
                 byteLength: match.record.uncompressedSize ?? 0,
             }));
-        const soundbanksEntry = indexEntries.find(entry =>
-            entry.logicalPath.endsWith("/soundbanksinfo.json"));
-
-        if (!soundbanksEntry)
-        {
-            throw new Error(
-                `Audio auto-preparation requires an indexed SoundbanksInfo for ${target.id} build ${sourceIdentity.build}`,
-            );
-        }
-
-        const soundbanksInfo = JSON.parse(Buffer.from(
-            ToUint8Array((await source.Fetch(soundbanksEntry.logicalPath)).bytes),
-        ).toString("utf8"));
         const eventMediaLanguage = this.#defaultLanguage ?? "en-us";
-        const availableBankNames = new Set(indexEntries
-            .map(entry => BankSourceName(entry.logicalPath))
-            .filter(name => name.endsWith(".bnk")));
-        const includeMusic = MUSIC_BANK_NAMES.every(name =>
-            availableBankNames.has(name));
         const loadedBanks = new Map();
-        let library = await CjsToolAudioBuilder.buildFromBanks({
+        let library = await CjsToolAudioBuilder.buildFromResources({
+            source,
             indexEntries,
-            soundbanksInfo,
             enrichment: null,
             language: eventMediaLanguage,
-            includeSfx: true,
-            ...(includeMusic ? { music: true } : {}),
             sourceTarget: target.id,
             sourceGame: target.game,
             sourceProvider: target.provider,
@@ -328,7 +307,10 @@ export class CjsToolAudioRepository
                 library,
                 bankBytes: loadedBanks,
             })).library;
+            library = CjsAudioLibrary.from(library);
         }
+
+        const values = library.GetValues();
 
         await this.#cache.WriteCustomLibrary({
             target: target.id,
@@ -337,7 +319,7 @@ export class CjsToolAudioRepository
             build: sourceIdentity.build,
             name: "audio",
             version: "v2",
-        }, library);
+        }, values);
 
         return library;
     }
@@ -366,6 +348,7 @@ export class CjsToolAudioRepository
             library,
             bankBytes: loadedBanks,
         });
+        const libraryValue = CjsAudioLibrary.from(materialized.library);
 
         await this.#cache.WriteCustomLibrary({
             target: target.id,
@@ -374,16 +357,11 @@ export class CjsToolAudioRepository
             build: sourceIdentity.build,
             name: "audio",
             version: "v2",
-        }, materialized.library);
+        }, libraryValue.GetValues());
 
-        return materialized.library;
+        return libraryValue;
     }
 
-}
-
-function BankSourceName(resPath)
-{
-    return String(resPath ?? "").toLowerCase().split("/").pop();
 }
 
 function ToUint8Array(value)

@@ -1070,7 +1070,7 @@ export class CjsToolHttpProxy
                 return;
             }
 
-            WriteJson(response, 200, library, headers);
+            WriteJson(response, 200, library.GetValues(), headers);
 
             return;
         }

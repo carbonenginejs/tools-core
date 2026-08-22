@@ -1,7 +1,8 @@
 // Builds the deterministic audio library JSON from local inputs. Performs no
 // remote reads - use @carbonenginejs/tools-core/index for target/build
 // index/download work first, then supply local inputs here (mirrors
-// build_character_library.js).
+// build_character_library.js). The runtime builder decodes the indexed
+// AudioMetadata cFSD for every build; graph flags additionally open banks.
 //
 // Usage:
 //   npm run build:audio -- --index <resfileindex.txt> --cache <dir>
@@ -14,6 +15,7 @@
 // --enrichment accepts a caller-supplied plain-JSON metadata overlay.
 import fs from "node:fs";
 import path from "node:path";
+import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
 import {
     CjsToolAudio,
     CjsToolAudioBuilder,
@@ -105,7 +107,9 @@ async function Main(argv)
         provider: options.provider ?? undefined,
     });
 
-    const indexText = fs.readFileSync(path.resolve(options.index), "utf8");
+    const indexBytes = fs.readFileSync(path.resolve(options.index));
+    const indexText = indexBytes.toString("utf8");
+    const resourceIndex = CjsFileIndex.decodeResFileIndex(indexBytes);
     const indexEntries = CjsToolAudioBuilder.parseIndexEntries(indexText);
     // The cache root can come from .env, so it has to be loaded before any
     // cache is constructed - resolveCacheRoot reads the environment, not a file.
@@ -146,7 +150,15 @@ async function Main(argv)
 
     const generatedAt = options.generatedAt ?? new Date().toISOString();
     const eventMediaLanguage = NormalizeLanguage(options.language ?? "en-us");
-    const buildOptions = {
+    const inspectBanks = !!(options.eventMedia || options.sfx || options.music);
+    const option = options.music
+        ? "--music"
+        : options.sfx
+            ? "--sfx"
+            : options.eventMedia
+                ? "--event-media"
+                : "audio library build";
+    const library = await CjsToolAudioBuilder.buildFromResources({
         indexEntries,
         soundbanksInfo,
         enrichment,
@@ -154,65 +166,37 @@ async function Main(argv)
         sourceGame: target.game,
         sourceProvider: target.provider,
         sourceBuild,
-        generatedAt
-    };
-    let library = audio.Build(buildOptions);
-
-    // Each graph option inspects the banks through the shared runtime builder.
-    // --sfx adds the conservative authored SFX graph; --music adds dynamic
-    // music. Both imply event-media and embedded-media construction.
-    if (options.eventMedia || options.sfx || options.music)
-    {
-        if (options.music)
+        generatedAt,
+        inspectBanks,
+        language: eventMediaLanguage,
+        includeSfx: options.sfx === true,
+        music: options.music === true,
+        async source(logicalPath)
         {
-            const availableBankNames = new Set(
-                Object.values(library.banks)
-                    .map(bank => BankSourceName(bank.resPath)),
-            );
-            const missingMusicBanks = [
-                "common.bnk",
-                "music.bnk",
-                "music_essential.bnk",
-            ].filter(name => !availableBankNames.has(name));
+            const entry = resourceIndex.Find(logicalPath);
 
-            if (missingMusicBanks.length)
+            if (!entry)
+            {
+                throw new Error(`${option} resource is not indexed: ${logicalPath}`);
+            }
+
+            const cached = await cache.ReadRemote(
+                entry.location,
+                CacheExpectation(entry),
+            );
+
+            if (!cached)
             {
                 throw new Error(
-                    "--music requires indexed banks: "
-                    + missingMusicBanks.join(", "),
+                    `${option} requires cached resource: ${entry.location}`,
                 );
             }
-        }
 
-        const option = options.music
-            ? "--music"
-            : options.sfx
-                ? "--sfx"
-                : "--event-media";
+            return ToUint8Array(cached.bytes);
+        },
+    });
 
-        library = await CjsToolAudioBuilder.buildFromBanks({
-            ...buildOptions,
-            language: eventMediaLanguage,
-            includeSfx: options.sfx === true,
-            ...(options.music === true ? { music: true } : {}),
-            async loadBank(bank)
-            {
-                const cached = await cache.ReadRemote(
-                    bank.storagePath,
-                    CacheExpectation(bank),
-                );
-
-                if (!cached)
-                {
-                    throw new Error(
-                        `${option} requires cached bank: ${bank.storagePath}`,
-                    );
-                }
-
-                return ToUint8Array(cached.bytes);
-            },
-        });
-    }
+    const values = library.GetValues();
 
     const outPath = options.out
         ? path.resolve(options.out)
@@ -224,8 +208,8 @@ async function Main(argv)
             name: "audio",
             version: "v2",
         });
-    CjsToolAudioSource.validateLibrary(library);
-    const artifacts = await CjsToolLibraryArtifact.write(outPath, library, {
+    CjsToolAudioSource.validateLibrary(values);
+    const artifacts = await CjsToolLibraryArtifact.write(outPath, values, {
         compact: options.compact,
     });
     console.log(JSON.stringify({
@@ -257,20 +241,14 @@ async function Main(argv)
 
 function CacheExpectation(entry)
 {
+    const byteLength = Number(
+        entry.byteLength ?? entry.uncompressedSize ?? 0,
+    );
+
     return {
         ...(entry.checksum ? { md5: entry.checksum } : {}),
-        ...(Number(entry.byteLength) > 0 ? { size: Number(entry.byteLength) } : {}),
+        ...(byteLength > 0 ? { size: byteLength } : {}),
     };
-}
-
-function BankSourceName(value)
-{
-    return String(value ?? "")
-        .trim()
-        .replaceAll("\\", "/")
-        .split("/")
-        .pop()
-        .toLowerCase();
 }
 
 function NormalizeLanguage(value)

@@ -5,6 +5,9 @@ import path from "node:path";
 import test from "node:test";
 
 import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
+import {
+    CjsFsd64ReaderSetCharacterStaticData,
+} from "@carbonenginejs/runtime-resource/formats/fsd/64/readers";
 import { CjsToolCache } from "../src/cache/index.js";
 import {
     CjsToolCharacter,
@@ -13,7 +16,72 @@ import {
 } from "../src/character/index.js";
 import { CreateCharacterDocuments } from "./character-library-fixture.js";
 
-test("opens exact and friendly schema-v9 libraries from the shared cache", async context =>
+test("auto-prepares a missing base library through the runtime cFSD builder", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-auto-"));
+    const readers = CjsFsd64ReaderSetCharacterStaticData.create();
+    const byPath = new Map(readers.map(reader => [
+        reader.constructor.path,
+        reader.constructor,
+    ]));
+    const fetched = [];
+    const repository = new CjsToolCharacterRepository({
+        cache: new CjsToolCache(directory),
+        indexes: {
+            async ResolveTargetBuild()
+            {
+                throw new Error("exact builds must not resolve remotely");
+            },
+            async OpenTarget()
+            {
+                return {
+                    Fetch(resourcePath)
+                    {
+                        const Reader = byPath.get(resourcePath);
+
+                        assert.ok(Reader, `unexpected character resource ${resourcePath}`);
+                        fetched.push(resourcePath);
+                        return { bytes: CreateEmptyMapContainer(Reader.schemaID) };
+                    },
+                };
+            },
+        },
+    });
+
+    context.after(() => fs.rm(directory, { force: true, recursive: true }));
+
+    const library = await repository.OpenTarget("eve", "3450001");
+
+    assert.ok(library instanceof CjsCharacterLibrary);
+    assert.equal(library.sourceBuild, "3450001");
+    assert.deepEqual(new Set(fetched), new Set(byPath.keys()));
+    assert.equal(fetched.length, 12);
+    assert.ok(await fs.stat(path.join(
+        directory,
+        "custom",
+        "targets",
+        "eve",
+        "builds",
+        "3450001",
+        "character_v10.json",
+    )));
+});
+
+function CreateEmptyMapContainer(schemaID)
+{
+    const size = 48;
+    const bytes = new Uint8Array(size);
+    const view = new DataView(bytes.buffer);
+
+    for (let index = 0; index < schemaID.length / 2; index++)
+    {
+        bytes[index] = Number.parseInt(schemaID.slice(index * 2, index * 2 + 2), 16);
+    }
+    view.setUint32(24, size - 32, true);
+    return bytes;
+}
+
+test("opens exact and friendly schema-v10 libraries from the shared cache", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
     const cache = new CjsToolCache(directory);
@@ -29,7 +97,7 @@ test("opens exact and friendly schema-v9 libraries from the shared cache", async
         provider: "ccp",
         build: "3450001",
         name: "character",
-        version: "v9",
+        version: "v10",
     }, values);
 
     const repository = new CjsToolCharacterRepository({
