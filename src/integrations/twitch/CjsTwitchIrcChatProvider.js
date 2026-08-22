@@ -1,5 +1,5 @@
-import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
-import { CjsRealtimeSerialLane } from "../../realtime/internal/CjsRealtimeSerialLane.js";
+import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
+import { CjsToolRealtimeSerialLane } from "../../realtime/internal/CjsToolRealtimeSerialLane.js";
 import { CjsRealtimeTwitchChatNormalizer } from "./CjsRealtimeTwitchChatNormalizer.js";
 import { CjsTwitchChatAssetResolver } from "./CjsTwitchChatAssetResolver.js";
 import { CjsTwitchHelixClient } from "./CjsTwitchHelixClient.js";
@@ -104,8 +104,8 @@ export class CjsTwitchIrcChatProvider
         this.#client = null;
         this.#handlers = null;
         this.#identity = null;
-        this.#lane = new CjsRealtimeSerialLane();
-        this.#messageLane = new CjsRealtimeSerialLane();
+        this.#lane = new CjsToolRealtimeSerialLane();
+        this.#messageLane = new CjsToolRealtimeSerialLane();
         this.#onMessage = null;
         this.#onStatus = null;
         this.#operation = null;
@@ -133,7 +133,7 @@ export class CjsTwitchIrcChatProvider
 
             if (this.#rooms.size >= 100)
             {
-                throw new CjsRealtimeError(
+                throw new CjsToolRealtimeError(
                     "twitch_room_limit",
                     "Twitch IRC channel limit was reached",
                     { retryable: false },
@@ -162,7 +162,7 @@ export class CjsTwitchIrcChatProvider
                 this.#rooms.delete(room);
                 this.#EmitStatus("degraded", "room_unavailable", true);
 
-                throw new CjsRealtimeError(
+                throw new CjsToolRealtimeError(
                     "twitch_room_unavailable",
                     "Twitch IRC channel could not be joined",
                     { retryable: true, cause: error },
@@ -517,12 +517,12 @@ export class CjsTwitchIrcChatProvider
     /** Sanitizes adapter startup failures without reflecting credentials. */
     static startError(error)
     {
-        if (error instanceof CjsRealtimeError)
+        if (error instanceof CjsToolRealtimeError)
         {
             return error;
         }
 
-        return new CjsRealtimeError(
+        return new CjsToolRealtimeError(
             "twitch_unavailable",
             "Twitch IRC could not be started",
             { retryable: true, cause: error },

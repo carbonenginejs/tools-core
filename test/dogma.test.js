@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CjsSdeDatabase } from "../src/sde/index.js";
+import { CjsToolSdeDatabase } from "../src/sde/index.js";
 import { CjsToolDogma, ReadName } from "../src/dogma/CjsToolDogma.js";
 import { CjsToolDogmaProfile } from "../src/dogma/CjsToolDogmaProfile.js";
 import { ApplyModifiers, DogmaOperation } from "../src/dogma/CjsToolDogmaOperations.js";
@@ -138,7 +138,7 @@ const TABLES = Object.freeze({
 async function OpenFixture()
 {
     const filePath = CreateDatabasePath();
-    const database = await CjsSdeDatabase.create(filePath);
+    const database = await CjsToolSdeDatabase.create(filePath);
 
     await database.ImportTables(TABLES, { build: 3466501 });
 

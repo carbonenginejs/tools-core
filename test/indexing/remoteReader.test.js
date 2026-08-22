@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-    CjsIndexBuildResolver,
-    CjsIndexProvider,
-    CjsIndexProviderRegistry,
+    CjsToolIndexBuildResolver,
+    CjsToolIndexProvider,
+    CjsToolIndexProviderRegistry,
     CjsToolIndex,
     DefaultProviderData,
 } from "../../src/index.js";
@@ -122,8 +122,8 @@ test("caches latest metadata and refreshes it after the deployment-window TTL", 
     // interval is five minutes. Outside it the resolver waits hours, which is
     // the whole point of the schedule.
     let now = Date.parse("2026-07-20T11:10:00Z");
-    const provider = new CjsIndexProvider({ ...Provider, id: "ccp" });
-    const resolver = new CjsIndexBuildResolver({
+    const provider = new CjsToolIndexProvider({ ...Provider, id: "ccp" });
+    const resolver = new CjsToolIndexBuildResolver({
         now: () => now,
         fetch: createFetch({
             "https://metadata.test/eveclient_LIVE.json": jsonResponse({ build: 42 }),
@@ -161,18 +161,18 @@ test("uses exact builds without fetching channel metadata", async () =>
 
 test("bounds index metadata and streamed index response work", async () =>
 {
-    const resolver = new CjsIndexBuildResolver({
+    const resolver = new CjsToolIndexBuildResolver({
         requestTimeoutMs: 10,
         fetch: async () => new Promise(() => undefined),
     });
 
     await assert.rejects(
-        resolver.Resolve(new CjsIndexProvider(Provider), "latest", "live"),
+        resolver.Resolve(new CjsToolIndexProvider(Provider), "latest", "live"),
         error => error.code === "request_timeout",
     );
 
     const tool = new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider ]),
         fetch: async () => streamResponse("123456789"),
         cache: null,
         maxIndexBytes: 8,
@@ -196,7 +196,7 @@ test("bounds streamed resource payloads before cache validation", async () =>
         return streamResponse("12345");
     };
     const tool = new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider ]),
         fetch,
         cache: null,
         maxPayloadBytes: 4,
@@ -211,13 +211,13 @@ test("bounds streamed resource payloads before cache validation", async () =>
 
 test("built-in latest is not a client alias and a Chinese provider owns exactly one client", () =>
 {
-    const ccp = new CjsIndexProvider(DefaultProviderData.find(
+    const ccp = new CjsToolIndexProvider(DefaultProviderData.find(
         (provider) => provider.game === "Eve" && provider.id === "ccp",
     ));
-    const infinity = new CjsIndexProvider(DefaultProviderData.find(
+    const infinity = new CjsToolIndexProvider(DefaultProviderData.find(
         (provider) => provider.id === "infinity",
     ));
-    const serenity = new CjsIndexProvider(DefaultProviderData.find(
+    const serenity = new CjsToolIndexProvider(DefaultProviderData.find(
         (provider) => provider.id === "serenity",
     ));
 
@@ -235,7 +235,7 @@ test("built-in latest is not a client alias and a Chinese provider owns exactly 
 
 test("registers one provider independently for Eve and Frontier and resolves Frontier latest metadata", async () =>
 {
-    const registry = new CjsIndexProviderRegistry();
+    const registry = new CjsToolIndexProviderRegistry();
     const eve = registry.Get("ccp", "Eve");
     const frontier = registry.Get("ccp", "Frontier");
 
@@ -320,7 +320,7 @@ test("reads app and explicitly selected res payloads as ArrayBuffers", async () 
 function createReader(fetch)
 {
     return new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider ]),
         fetch,
         cache: null,
     });

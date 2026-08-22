@@ -5,13 +5,13 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import {
-    CjsIndexCache,
-    CjsIndexOverlayStore,
+    CjsToolIndexCache,
+    CjsToolIndexOverlayStore,
     CjsToolAudioPrefetch,
     CjsToolAudioRepository,
     CjsToolIndex,
     CjsToolPrefetch,
-    CjsSdeRepository,
+    CjsToolSdeRepository,
     CjsToolCache,
     CjsToolHttpProxy,
     CjsToolSofRepository,
@@ -78,8 +78,8 @@ async function main()
         || args.noAudioAutoPrepare !== true
         || args.noSdeAutoPrepare !== true;
     const indexes = new CjsToolIndex({
-        cache: new CjsIndexCache({ directory: cacheDirectory }),
-        overlays: new CjsIndexOverlayStore(dataDirectory),
+        cache: new CjsToolIndexCache({ directory: cacheDirectory }),
+        overlays: new CjsToolIndexOverlayStore(dataDirectory),
         requestTimeoutMs: Number(
             args.requestTimeoutMs
             ?? (heavyAcquisition
@@ -93,7 +93,7 @@ async function main()
                 : DEFAULT_MAX_PAYLOAD_BYTES),
         ),
     });
-    const sde = new CjsSdeRepository({
+    const sde = new CjsToolSdeRepository({
         cache: toolCache,
         autoPrepare: args.noSdeAutoPrepare !== true,
     });

@@ -1,7 +1,7 @@
 import {
-    CjsRealtimeLivestreamContract,
+    CjsToolRealtimeLivestreamContract,
     LIVESTREAM_ACTIVITY_FAMILY,
-} from "../../realtime/livestream/CjsRealtimeLivestreamContract.js";
+} from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 import { CjsTwitchActivitySource } from "./CjsTwitchActivitySource.js";
 
 /** Exposes Twitch EventSub activity through a live provider-neutral service. */
@@ -159,7 +159,7 @@ export class CjsRealtimeTwitchActivityService
 
         try
         {
-            normalized = CjsRealtimeLivestreamContract.normalizeActivity(
+            normalized = CjsToolRealtimeLivestreamContract.normalizeActivity(
                 activity.topic,
                 activity.data,
             );

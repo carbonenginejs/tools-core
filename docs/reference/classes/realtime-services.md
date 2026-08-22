@@ -5,33 +5,33 @@ Scope: `@carbonenginejs/tools-core` realtime, service-hosting, and webhook class
 Audience: Users, maintainers, and automated readers
 Summary: Provides source-backed purpose descriptors for realtime protocol, transport, hosting, and webhook classes.
 
-<!-- class:CjsRealtimeChatBlockList -->
-## `CjsRealtimeChatBlockList`
+<!-- class:CjsToolRealtimeChatBlockList -->
+## `CjsToolRealtimeChatBlockList`
 
 Applies immutable, empty-by-default term and user blocks to provider-neutral chat payloads.
 
 - Export: `@carbonenginejs/tools-core/realtime/chat`
-- Source: `src/realtime/chat/CjsRealtimeChatBlockList.js`
+- Source: `src/realtime/chat/CjsToolRealtimeChatBlockList.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeChatContract -->
-## `CjsRealtimeChatContract`
+<!-- class:CjsToolRealtimeChatContract -->
+## `CjsToolRealtimeChatContract`
 
 Validates provider-neutral live-chat message and source-status payloads.
 
 - Export: `@carbonenginejs/tools-core/realtime/chat`
-- Source: `src/realtime/chat/CjsRealtimeChatContract.js`
+- Source: `src/realtime/chat/CjsToolRealtimeChatContract.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeError -->
-## `CjsRealtimeError`
+<!-- class:CjsToolRealtimeError -->
+## `CjsToolRealtimeError`
 
 Stable protocol-facing error for realtime requests and transports.
 
 - Export: `@carbonenginejs/tools-core/realtime`
-- Source: `src/realtime/CjsRealtimeError.js`
+- Source: `src/realtime/CjsToolRealtimeError.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
@@ -44,151 +44,151 @@ Resolves and caches Twitch channel profile images and preferred static or animat
 - Visibility: Internal
 - Kind: Internal implementation
 
-<!-- class:CjsRealtimeProtocol -->
-## `CjsRealtimeProtocol`
+<!-- class:CjsToolRealtimeProtocol -->
+## `CjsToolRealtimeProtocol`
 
 Validation and normalization for the versioned realtime wire boundary.
 
 - Export: `@carbonenginejs/tools-core/realtime`
-- Source: `src/realtime/CjsRealtimeProtocol.js`
+- Source: `src/realtime/CjsToolRealtimeProtocol.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeSerialLane -->
-## `CjsRealtimeSerialLane`
+<!-- class:CjsToolRealtimeSerialLane -->
+## `CjsToolRealtimeSerialLane`
 
 Minimal promise lane for deterministic per-service work ordering.
 
-- Source: `src/realtime/internal/CjsRealtimeSerialLane.js`
+- Source: `src/realtime/internal/CjsToolRealtimeSerialLane.js`
 - Visibility: Internal
 - Kind: Internal implementation
 
-<!-- class:CjsRealtimeServiceController -->
-## `CjsRealtimeServiceController`
+<!-- class:CjsToolRealtimeServiceController -->
+## `CjsToolRealtimeServiceController`
 
 Owns lifecycle, publication order, cursors, and subscribers for one service.
 
-- Source: `src/realtime/internal/CjsRealtimeServiceController.js`
+- Source: `src/realtime/internal/CjsToolRealtimeServiceController.js`
 - Visibility: Internal
 - Kind: Internal implementation
 
-<!-- class:CjsRealtimeLivestreamContract -->
-## `CjsRealtimeLivestreamContract`
+<!-- class:CjsToolRealtimeLivestreamContract -->
+## `CjsToolRealtimeLivestreamContract`
 
 Validates provider-neutral livestream activity and state payloads.
 
 - Export: `@carbonenginejs/tools-core/realtime/livestream`
-- Source: `src/realtime/livestream/CjsRealtimeLivestreamContract.js`
+- Source: `src/realtime/livestream/CjsToolRealtimeLivestreamContract.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeResourceWatchService -->
-## `CjsRealtimeResourceWatchService`
+<!-- class:CjsToolRealtimeResourceWatchService -->
+## `CjsToolRealtimeResourceWatchService`
 
 Materialized logical-file service backed by an injected filesystem observer.
 
 - Export: `@carbonenginejs/tools-core/realtime/resource-watch`
-- Source: `src/realtime/resource-watch/CjsRealtimeResourceWatchService.js`
+- Source: `src/realtime/resource-watch/CjsToolRealtimeResourceWatchService.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeConnection -->
-## `CjsRealtimeConnection`
+<!-- class:CjsToolRealtimeConnection -->
+## `CjsToolRealtimeConnection`
 
 One authenticated, transport-neutral realtime protocol connection.
 
 - Export: `@carbonenginejs/tools-core/realtime/server`
-- Source: `src/realtime/server/CjsRealtimeConnection.js`
+- Source: `src/realtime/server/CjsToolRealtimeConnection.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeHttpRouter -->
-## `CjsRealtimeHttpRouter`
+<!-- class:CjsToolRealtimeHttpRouter -->
+## `CjsToolRealtimeHttpRouter`
 
 Authenticated HTTP discovery, snapshots, and service-owned content.
 
 - Export: `@carbonenginejs/tools-core/realtime/server`
-- Source: `src/realtime/server/CjsRealtimeHttpRouter.js`
+- Source: `src/realtime/server/CjsToolRealtimeHttpRouter.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeHub -->
-## `CjsRealtimeHub`
+<!-- class:CjsToolRealtimeHub -->
+## `CjsToolRealtimeHub`
 
 Transport-neutral realtime service host and protocol coordinator.
 
 - Export: `@carbonenginejs/tools-core/realtime/server`
-- Source: `src/realtime/server/CjsRealtimeHub.js`
+- Source: `src/realtime/server/CjsToolRealtimeHub.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeMemoryOperationStore -->
-## `CjsRealtimeMemoryOperationStore`
+<!-- class:CjsToolRealtimeOperationStoreMemory -->
+## `CjsToolRealtimeOperationStoreMemory`
 
 Bounded in-memory single-flight and completed-operation deduplication.
 
 - Export: `@carbonenginejs/tools-core/realtime/server`
-- Source: `src/realtime/server/CjsRealtimeMemoryOperationStore.js`
+- Source: `src/realtime/server/CjsToolRealtimeOperationStoreMemory.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeServiceContext -->
-## `CjsRealtimeServiceContext`
+<!-- class:CjsToolRealtimeServiceContext -->
+## `CjsToolRealtimeServiceContext`
 
 Bounded host capabilities supplied to one registered realtime service.
 
 - Export: `@carbonenginejs/tools-core/realtime/server`
-- Source: `src/realtime/server/CjsRealtimeServiceContext.js`
+- Source: `src/realtime/server/CjsToolRealtimeServiceContext.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeServiceRegistry -->
-## `CjsRealtimeServiceRegistry`
+<!-- class:CjsToolRealtimeServiceRegistry -->
+## `CjsToolRealtimeServiceRegistry`
 
 Registers independently authored realtime services before host startup.
 
 - Export: `@carbonenginejs/tools-core/realtime/server`
-- Source: `src/realtime/server/CjsRealtimeServiceRegistry.js`
+- Source: `src/realtime/server/CjsToolRealtimeServiceRegistry.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeSessionAuthority -->
-## `CjsRealtimeSessionAuthority`
+<!-- class:CjsToolRealtimeSessionAuthority -->
+## `CjsToolRealtimeSessionAuthority`
 
 Authenticates injected capabilities and enforces their service scopes.
 
 - Export: `@carbonenginejs/tools-core/realtime/server`
-- Source: `src/realtime/server/CjsRealtimeSessionAuthority.js`
+- Source: `src/realtime/server/CjsToolRealtimeSessionAuthority.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeWebSocketGateway -->
-## `CjsRealtimeWebSocketGateway`
+<!-- class:CjsToolRealtimeGatewayWebsocket -->
+## `CjsToolRealtimeGatewayWebsocket`
 
 Secure ws transport adapter for the transport-neutral realtime hub.
 
 - Export: `@carbonenginejs/tools-core/realtime/websocket`
-- Source: `src/realtime/websocket/CjsRealtimeWebSocketGateway.js`
+- Source: `src/realtime/websocket/CjsToolRealtimeGatewayWebsocket.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeWebSocketTransport -->
-## `CjsRealtimeWebSocketTransport`
+<!-- class:CjsToolRealtimeTransportWebsocket -->
+## `CjsToolRealtimeTransportWebsocket`
 
 Adapts one ws socket to the transport-neutral connection contract.
 
 - Export: `@carbonenginejs/tools-core/realtime/websocket`
-- Source: `src/realtime/websocket/CjsRealtimeWebSocketTransport.js`
+- Source: `src/realtime/websocket/CjsToolRealtimeTransportWebsocket.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsRealtimeServer -->
-## `CjsRealtimeServer`
+<!-- class:CjsToolRealtimeServer -->
+## `CjsToolRealtimeServer`
 
 Owns a composed realtime hub, HTTP listener, WebSocket gateway, and shutdown order.
 
 - Export: `@carbonenginejs/tools-core/service`
-- Source: `src/service/CjsRealtimeServer.js`
+- Source: `src/service/CjsToolRealtimeServer.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
@@ -202,52 +202,52 @@ Composes realtime routes and upgrades with an optional existing HTTP adapter.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsWebhookError -->
-## `CjsWebhookError`
+<!-- class:CjsToolWebhookError -->
+## `CjsToolWebhookError`
 
 Stable HTTP-facing failure raised by webhook endpoints and processors.
 
 - Export: `@carbonenginejs/tools-core/webhook`
-- Source: `src/webhook/CjsWebhookError.js`
+- Source: `src/webhook/CjsToolWebhookError.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsWebhookHttpRouter -->
-## `CjsWebhookHttpRouter`
+<!-- class:CjsToolWebhookHttpRouter -->
+## `CjsToolWebhookHttpRouter`
 
 Bounded raw HTTP ingress for independently authenticated webhook endpoints.
 
 - Export: `@carbonenginejs/tools-core/webhook`
-- Source: `src/webhook/CjsWebhookHttpRouter.js`
+- Source: `src/webhook/CjsToolWebhookHttpRouter.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsWebhookIngressSource -->
-## `CjsWebhookIngressSource`
+<!-- class:CjsToolWebhookIngressSource -->
+## `CjsToolWebhookIngressSource`
 
 Authenticates one webhook endpoint and routes deliveries to family services.
 
 - Export: `@carbonenginejs/tools-core/webhook`
-- Source: `src/webhook/CjsWebhookIngressSource.js`
+- Source: `src/webhook/CjsToolWebhookIngressSource.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsWebhookProjectionService -->
-## `CjsWebhookProjectionService`
+<!-- class:CjsToolWebhookProjectionService -->
+## `CjsToolWebhookProjectionService`
 
 Exposes one live service family projected from shared webhook ingress.
 
 - Export: `@carbonenginejs/tools-core/webhook`
-- Source: `src/webhook/CjsWebhookProjectionService.js`
+- Source: `src/webhook/CjsToolWebhookProjectionService.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsWebhookStreamService -->
-## `CjsWebhookStreamService`
+<!-- class:CjsToolWebhookStreamService -->
+## `CjsToolWebhookStreamService`
 
 Adapts authenticated provider webhooks into one realtime service stream.
 
 - Export: `@carbonenginejs/tools-core/webhook`
-- Source: `src/webhook/CjsWebhookStreamService.js`
+- Source: `src/webhook/CjsToolWebhookStreamService.js`
 - Visibility: Public
 - Kind: CarbonEngineJS

@@ -1,6 +1,6 @@
-import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
+import { CjsToolBoundedFetch } from "../internal/CjsToolBoundedFetch.js";
 
-import { ESI_COMPATIBILITY_DATE } from "../auth/CjsEsiCompatibilityDate.js";
+import { ESI_COMPATIBILITY_DATE } from "../auth/CjsToolEsiCompatibilityDate.js";
 
 const ESI_ROOT = "https://esi.evetech.net";
 
@@ -105,7 +105,7 @@ export class CjsToolPublicEsi
 
         if (body !== undefined) headers["content-type"] = "application/json";
 
-        const response = await CjsBoundedFetch.request(this.fetch, `${this.root}${path}`, {
+        const response = await CjsToolBoundedFetch.request(this.fetch, `${this.root}${path}`, {
             method,
             headers,
             ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -125,7 +125,7 @@ export class CjsToolPublicEsi
         }
 
         return {
-            body: await CjsBoundedFetch.readJson(response, {
+            body: await CjsToolBoundedFetch.readJson(response, {
                 label: `ESI ${path}`,
                 timeoutMs: this.requestTimeoutMs,
                 maxBytes: this.maxResponseBytes,

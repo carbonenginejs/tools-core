@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CjsRealtimeHub } from "../../src/realtime/server/CjsRealtimeHub.js";
-import { CjsRealtimeServiceRegistry } from "../../src/realtime/server/CjsRealtimeServiceRegistry.js";
-import { CjsRealtimeSessionAuthority } from "../../src/realtime/server/CjsRealtimeSessionAuthority.js";
+import { CjsToolRealtimeHub } from "../../src/realtime/server/CjsToolRealtimeHub.js";
+import { CjsToolRealtimeServiceRegistry } from "../../src/realtime/server/CjsToolRealtimeServiceRegistry.js";
+import { CjsToolRealtimeSessionAuthority } from "../../src/realtime/server/CjsToolRealtimeSessionAuthority.js";
 import {
     CjsRealtimeMemoryTransport,
     CjsRealtimeSyntheticService,
@@ -422,9 +422,9 @@ test("revocation closes an established subscriber before further delivery", asyn
 test("starts services supplied through a pre-populated registry", async context =>
 {
     const service = new CjsRealtimeSyntheticService();
-    const registry = new CjsRealtimeServiceRegistry();
-    const capability = CjsRealtimeSessionAuthority.createCapability();
-    const authority = new CjsRealtimeSessionAuthority({
+    const registry = new CjsToolRealtimeServiceRegistry();
+    const capability = CjsToolRealtimeSessionAuthority.createCapability();
+    const authority = new CjsToolRealtimeSessionAuthority({
         grants: [ {
             capability,
             actor: { id: "agent-one", kind: "agent" },
@@ -435,7 +435,7 @@ test("starts services supplied through a pre-populated registry", async context 
     });
 
     registry.Register(service);
-    const hub = new CjsRealtimeHub({ authority, registry });
+    const hub = new CjsToolRealtimeHub({ authority, registry });
 
     context.after(() => hub.Stop());
     await hub.Start();

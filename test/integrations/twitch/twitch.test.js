@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
 
-import { CjsRealtimeHub } from "../../../src/realtime/server/CjsRealtimeHub.js";
-import { CjsRealtimeSessionAuthority } from "../../../src/realtime/server/CjsRealtimeSessionAuthority.js";
+import { CjsToolRealtimeHub } from "../../../src/realtime/server/CjsToolRealtimeHub.js";
+import { CjsToolRealtimeSessionAuthority } from "../../../src/realtime/server/CjsToolRealtimeSessionAuthority.js";
 import { CjsRealtimeTwitchChatNormalizer } from "../../../src/integrations/twitch/CjsRealtimeTwitchChatNormalizer.js";
 import { CjsRealtimeTwitchChatService } from "../../../src/integrations/twitch/CjsRealtimeTwitchChatService.js";
 import { CjsTwitchChatSource } from "../../../src/integrations/twitch/CjsTwitchChatSource.js";
@@ -762,9 +762,9 @@ test("publishes only future chat and deduplicates stable ids per room", async co
         id: "twitch-main",
         provider,
     });
-    const capability = CjsRealtimeSessionAuthority.createCapability();
+    const capability = CjsToolRealtimeSessionAuthority.createCapability();
     const origin = "http://127.0.0.1:8080";
-    const authority = new CjsRealtimeSessionAuthority({
+    const authority = new CjsToolRealtimeSessionAuthority({
         grants: [ {
             capability,
             actor: { id: "viewer-one", kind: "viewer" },
@@ -783,7 +783,7 @@ test("publishes only future chat and deduplicates stable ids per room", async co
         } ],
     });
     let nextId = 0;
-    const hub = new CjsRealtimeHub({
+    const hub = new CjsToolRealtimeHub({
         authority,
         createId: prefix => `${prefix}-${++nextId}`,
     });
@@ -1026,9 +1026,9 @@ test("shares dynamic IRC rooms until their final downstream listener leaves", as
         id: "primary-chat",
         provider,
     });
-    const capability = CjsRealtimeSessionAuthority.createCapability();
+    const capability = CjsToolRealtimeSessionAuthority.createCapability();
     const origin = "http://127.0.0.1:8080";
-    const authority = new CjsRealtimeSessionAuthority({
+    const authority = new CjsToolRealtimeSessionAuthority({
         grants: [ {
             capability,
             actor: { id: "viewer-one", kind: "viewer" },
@@ -1047,7 +1047,7 @@ test("shares dynamic IRC rooms until their final downstream listener leaves", as
         } ],
     });
     let nextId = 0;
-    const hub = new CjsRealtimeHub({
+    const hub = new CjsToolRealtimeHub({
         authority,
         createId: prefix => `${prefix}-${++nextId}`,
     });

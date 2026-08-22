@@ -5,8 +5,8 @@ import test from "node:test";
 import {
     CHAT_FAMILY,
     CHAT_TOPICS,
-    CjsRealtimeChatBlockList,
-    CjsRealtimeChatContract,
+    CjsToolRealtimeChatBlockList,
+    CjsToolRealtimeChatContract,
 } from "../../../src/realtime/chat/index.js";
 
 const fixtures = JSON.parse(await fs.readFile(new URL(
@@ -18,8 +18,8 @@ test("exports the provider-neutral chat contract subpath", async () =>
 {
     const chat = await import("@carbonenginejs/tools-core/realtime/chat");
 
-    assert.equal(chat.CjsRealtimeChatContract, CjsRealtimeChatContract);
-    assert.equal(chat.CjsRealtimeChatBlockList, CjsRealtimeChatBlockList);
+    assert.equal(chat.CjsToolRealtimeChatContract, CjsToolRealtimeChatContract);
+    assert.equal(chat.CjsToolRealtimeChatBlockList, CjsToolRealtimeChatBlockList);
     assert.equal(CHAT_FAMILY, "chat");
     assert.equal(CHAT_TOPICS.MESSAGE_RECEIVED, "chat.message.received");
     assert.equal(CHAT_TOPICS.STATUS_CHANGED, "chat.status.changed");
@@ -32,7 +32,7 @@ test("validates channel and hierarchical thread message fixtures", () =>
     const normalized = fixtures.messages.map(fixture => ({
         case: fixture.case,
         topic: fixture.topic,
-        data: CjsRealtimeChatContract.normalizeMessage(fixture.data),
+        data: CjsToolRealtimeChatContract.normalizeMessage(fixture.data),
     }));
 
     assert.deepEqual(normalized, fixtures.messages);
@@ -49,7 +49,7 @@ test("validates integration and room-scoped status fixtures", () =>
     const normalized = fixtures.statuses.map(fixture => ({
         case: fixture.case,
         topic: fixture.topic,
-        data: CjsRealtimeChatContract.normalizeStatus(fixture.data),
+        data: CjsToolRealtimeChatContract.normalizeStatus(fixture.data),
     }));
 
     assert.deepEqual(normalized, fixtures.statuses);
@@ -68,19 +68,19 @@ test("keys messages by complete provider integration and room identity", () =>
     };
 
     assert.notEqual(
-        CjsRealtimeChatContract.roomKey(first),
-        CjsRealtimeChatContract.roomKey(second),
+        CjsToolRealtimeChatContract.roomKey(first),
+        CjsToolRealtimeChatContract.roomKey(second),
     );
     assert.equal(
-        CjsRealtimeChatContract.roomKey(first),
-        CjsRealtimeChatContract.roomKey(structuredClone(first)),
+        CjsToolRealtimeChatContract.roomKey(first),
+        CjsToolRealtimeChatContract.roomKey(structuredClone(first)),
     );
 });
 
 test("selects provider rooms by hierarchy and stable id or login", () =>
 {
     const twitchRoom = fixtures.messages[0].data.room;
-    const selector = CjsRealtimeChatContract.normalizeRoomSelector({
+    const selector = CjsToolRealtimeChatContract.normalizeRoomSelector({
         provider: "twitch",
         integrationId: twitchRoom.integrationId,
         kind: "channel",
@@ -88,11 +88,11 @@ test("selects provider rooms by hierarchy and stable id or login", () =>
     });
 
     assert.equal(
-        CjsRealtimeChatContract.matchesRoomSelector(selector, twitchRoom),
+        CjsToolRealtimeChatContract.matchesRoomSelector(selector, twitchRoom),
         true,
     );
     assert.equal(
-        CjsRealtimeChatContract.matchesRoomSelector({
+        CjsToolRealtimeChatContract.matchesRoomSelector({
             provider: "twitch",
             integrationId: "twitch-secondary",
             id: twitchRoom.id,
@@ -100,7 +100,7 @@ test("selects provider rooms by hierarchy and stable id or login", () =>
         false,
     );
     assert.throws(
-        () => CjsRealtimeChatContract.normalizeRoomSelector({
+        () => CjsToolRealtimeChatContract.normalizeRoomSelector({
             provider: "twitch",
         }),
         /requires id or login/u,
@@ -147,7 +147,7 @@ test("preserves animated emote formats and hosted visual media", () =>
             },
         },
     ];
-    const normalized = CjsRealtimeChatContract.normalizeMessage(message);
+    const normalized = CjsToolRealtimeChatContract.normalizeMessage(message);
 
     assert.deepEqual(normalized.fragments[0].emote.formats, [
         "animated",
@@ -158,7 +158,7 @@ test("preserves animated emote formats and hosted visual media", () =>
     assert.equal(normalized.room.assets.icon.url,
         "https://example.test/room-icon.png");
     assert.equal(normalized.fragments[1].media.animated, true);
-    assert.throws(() => CjsRealtimeChatContract.normalizeMedia({
+    assert.throws(() => CjsToolRealtimeChatContract.normalizeMedia({
         id: null,
         url: "http://example.test/not-secure.gif",
         contentType: "image/gif",
@@ -168,10 +168,10 @@ test("preserves animated emote formats and hosted visual media", () =>
 
 test("supports empty, scoped-term, and stable-user block lists without defaults", () =>
 {
-    const empty = new CjsRealtimeChatBlockList();
+    const empty = new CjsToolRealtimeChatBlockList();
 
     assert.equal(empty.IsEmpty(), true);
-    const blocks = new CjsRealtimeChatBlockList({
+    const blocks = new CjsToolRealtimeChatBlockList({
         terms: [
             "spoiler",
             {
@@ -229,7 +229,7 @@ test("supports empty, scoped-term, and stable-user block lists without defaults"
         login: "old-login",
     }), false);
     assert.throws(
-        () => new CjsRealtimeChatBlockList({
+        () => new CjsToolRealtimeChatBlockList({
             users: [ { provider: "twitch" } ],
         }),
         /requires id or login/u,
@@ -242,7 +242,7 @@ test("rejects replay ambiguity and incomplete hierarchical identity", () =>
 
     replay.deliveryMode = "catchup";
     assert.throws(
-        () => CjsRealtimeChatContract.normalizeMessage(replay),
+        () => CjsToolRealtimeChatContract.normalizeMessage(replay),
         /deliveryMode/u,
     );
 
@@ -250,7 +250,7 @@ test("rejects replay ambiguity and incomplete hierarchical identity", () =>
 
     thread.room.parentRoomId = null;
     assert.throws(
-        () => CjsRealtimeChatContract.normalizeMessage(thread),
+        () => CjsToolRealtimeChatContract.normalizeMessage(thread),
         /parentRoomId/u,
     );
 
@@ -258,7 +258,7 @@ test("rejects replay ambiguity and incomplete hierarchical identity", () =>
 
     wrongExtension.extensions = { discord: {} };
     assert.throws(
-        () => CjsRealtimeChatContract.normalizeMessage(wrongExtension),
+        () => CjsToolRealtimeChatContract.normalizeMessage(wrongExtension),
         /extensions\.twitch/u,
     );
 
@@ -266,7 +266,7 @@ test("rejects replay ambiguity and incomplete hierarchical identity", () =>
 
     mismatchedStatus.room.integrationId = "discord-secondary";
     assert.throws(
-        () => CjsRealtimeChatContract.normalizeStatus(mismatchedStatus),
+        () => CjsToolRealtimeChatContract.normalizeStatus(mismatchedStatus),
         /belong to its source/u,
     );
 });

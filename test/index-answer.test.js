@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CjsIndexAnswerCatalog, CjsToolHttpProxy } from "../src/index.js";
+import { CjsToolIndexAnswerCatalog, CjsToolHttpProxy } from "../src/index.js";
 
 const Paths = Object.freeze([
     "res:/dx9/model/ship/amarr/battleship/ab1/ab1_t1_m.dds",
@@ -24,7 +24,7 @@ const SortedPaths = Object.freeze([ ...Paths ].sort((left, right) => left.locale
 
 test("derives build answers from one composed resource view", () =>
 {
-    const catalog = new CjsIndexAnswerCatalog(createSource());
+    const catalog = new CjsToolIndexAnswerCatalog(createSource());
 
     assert.equal(catalog.Has("RES:/VIDEO/BILLBOARDS/QUAFE.WEBM"), true);
     assert.deepEqual(catalog.ListResFiles(), SortedPaths);
@@ -168,7 +168,7 @@ test("serves build answers with exact-build identity", async context =>
 
 test("returns original paths for inactive inserts and rejects malformed path requests", () =>
 {
-    const catalog = new CjsIndexAnswerCatalog(createSource());
+    const catalog = new CjsToolIndexAnswerCatalog(createSource());
 
     assert.deepEqual(catalog.ResolveHullResPathInserts("ab1_t1", "missing", [
         "res:/dx9/model/ship/amarr/battleship/ab1/ab1_t1_m.dds",

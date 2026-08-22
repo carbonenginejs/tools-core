@@ -8,7 +8,7 @@ Summary: Defines provider-neutral livestream activity and state payloads for rea
 This contract defines the provider-neutral payloads published by tools-core
 livestream integrations. It is independent of the WebSocket framing contract:
 the realtime v1 `event.data` value contains one payload from this document.
-`CjsRealtimeLivestreamContract` is the executable validator, and the adjacent
+`CjsToolRealtimeLivestreamContract` is the executable validator, and the adjacent
 JSON file contains public conformance fixtures.
 
 ## Families and recovery

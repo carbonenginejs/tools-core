@@ -8,9 +8,9 @@ Summary: Composes authenticated HTTP, WebSocket, webhook, and filesystem-backed 
 ## Quick start
 
 ```js
-import { CjsRealtimeServer } from "@carbonenginejs/tools-core/service";
+import { CjsToolRealtimeServer } from "@carbonenginejs/tools-core/service";
 
-const realtime = new CjsRealtimeServer({
+const realtime = new CjsToolRealtimeServer({
     services: [ aggregateChat, exactChannelChat ],
     grants,
     allowedOrigins: [ "http://127.0.0.1:8080" ],
@@ -62,10 +62,10 @@ The complete wire contract is [Realtime protocol v1](../protocols/realtime-v1.md
 
 ## Webhook ingress
 
-`CjsWebhookHttpRouter` reads bounded exact request bytes.
+`CjsToolWebhookHttpRouter` reads bounded exact request bytes.
 `AuthenticateWebhook()` validates the provider signature, timestamp, replay
 identity, and raw body before `HandleWebhook()` may return canonical events.
-One `CjsWebhookIngressSource` can feed several statically registered family
+One `CjsToolWebhookIngressSource` can feed several statically registered family
 projections without verifying the same provider delivery repeatedly.
 
 Webhook endpoints are loopback-only by default and do not accept browser CORS.
@@ -74,7 +74,7 @@ durable replay protection.
 
 ## Resource watch
 
-`CjsRealtimeResourceWatchService` projects one configured filesystem root into
+`CjsToolRealtimeResourceWatchService` projects one configured filesystem root into
 snapshot entries and `add`, `update`, or `remove` events. Physical paths,
 native watcher objects, symlink escapes, and provider errors never enter public
 payloads. Watcher notifications are hints; authoritative state is reread and

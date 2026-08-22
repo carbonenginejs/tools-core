@@ -1,4 +1,4 @@
-import { CjsRealtimeSerialLane } from "../../realtime/internal/CjsRealtimeSerialLane.js";
+import { CjsToolRealtimeSerialLane } from "../../realtime/internal/CjsToolRealtimeSerialLane.js";
 
 const PROVIDER_KINDS = new Set([ "twitch.eventsub", "twitch.irc" ]);
 
@@ -42,7 +42,7 @@ export class CjsTwitchChatSource
             && typeof provider.PartRoom === "function";
         this.#abortController = null;
         this.#consumers = new Map();
-        this.#lane = new CjsRealtimeSerialLane();
+        this.#lane = new CjsToolRealtimeSerialLane();
         this.#leasesByConsumer = new Map();
         this.#provider = provider;
         this.#roomLeases = new Map();

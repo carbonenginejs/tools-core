@@ -1,8 +1,8 @@
-import { CjsRealtimeSerialLane } from "../../realtime/internal/CjsRealtimeSerialLane.js";
+import { CjsToolRealtimeSerialLane } from "../../realtime/internal/CjsToolRealtimeSerialLane.js";
 import {
-    CjsRealtimeLivestreamContract,
+    CjsToolRealtimeLivestreamContract,
     LIVESTREAM_STATE_TOPICS,
-} from "../../realtime/livestream/CjsRealtimeLivestreamContract.js";
+} from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 
 /** Owns one Twitch state provider and materializes its shared channel state. */
 export class CjsTwitchStateSource
@@ -46,7 +46,7 @@ export class CjsTwitchStateSource
         this.kind = provider.kind;
         this.#abortController = null;
         this.#consumers = new Map();
-        this.#lane = new CjsRealtimeSerialLane();
+        this.#lane = new CjsToolRealtimeSerialLane();
         this.#observedAt = null;
         this.#provider = provider;
         this.#recentEventLimit = recentEventLimit;
@@ -176,7 +176,7 @@ export class CjsTwitchStateSource
             throw new TypeError("Twitch state source received an unsupported topic");
         }
 
-        const normalized = CjsRealtimeLivestreamContract.normalizeStateChange(change.data);
+        const normalized = CjsToolRealtimeLivestreamContract.normalizeStateChange(change.data);
         const identity = CjsTwitchStateSource.sourceKey(normalized.source);
         const current = this.#states.get(identity);
         const eventIdentity = `${identity}:${normalized.id}`;
@@ -191,7 +191,7 @@ export class CjsTwitchStateSource
             return;
         }
 
-        const next = CjsRealtimeLivestreamContract.normalizeStateSnapshot({
+        const next = CjsToolRealtimeLivestreamContract.normalizeStateSnapshot({
             observedAt: normalized.occurredAt,
             states: [ {
                 source: normalized.source,
@@ -228,7 +228,7 @@ export class CjsTwitchStateSource
 
     #Replace(snapshot)
     {
-        const normalized = CjsRealtimeLivestreamContract.normalizeStateSnapshot(snapshot);
+        const normalized = CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(snapshot);
 
         this.#states = new Map(normalized.states.map(state => [
             CjsTwitchStateSource.sourceKey(state.source),
@@ -239,7 +239,7 @@ export class CjsTwitchStateSource
 
     #Snapshot()
     {
-        return CjsRealtimeLivestreamContract.normalizeStateSnapshot({
+        return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot({
             observedAt: this.#observedAt,
             states: [ ...this.#states.values() ],
         });

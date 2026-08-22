@@ -13,7 +13,7 @@
  * constellations, 8490 systems, and the computed `mapIndex` — is held in
  * memory, because navigation touches all of it and it is a few megabytes. The
  * large half stays in SQLite behind the locality indexes from
- * `CjsSdeQueryIndexes`, and a system's contents are fetched when a system is
+ * `CjsToolSdeQueryIndexes`, and a system's contents are fetched when a system is
  * asked for.
  *
  * ## Addressing
@@ -31,7 +31,7 @@
  * why `/celestials/{id}` probes the tables by primary key instead.
  */
 
-import { ReadDerivation } from "../sde/CjsSdeDerivations.js";
+import { ReadDerivation } from "../sde/CjsToolSdeDerivations.js";
 import { BuildMapIndex, MAP_INDEX_TABLES } from "./CjsToolMapIndex.js";
 import { BlackbodyColor, SunIntensity } from "./CjsToolMapGeometry.js";
 import {

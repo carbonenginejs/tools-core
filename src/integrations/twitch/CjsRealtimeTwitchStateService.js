@@ -1,8 +1,8 @@
 import {
-    CjsRealtimeLivestreamContract,
+    CjsToolRealtimeLivestreamContract,
     LIVESTREAM_STATE_FAMILY,
     LIVESTREAM_STATE_TOPICS,
-} from "../../realtime/livestream/CjsRealtimeLivestreamContract.js";
+} from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 import { CjsTwitchStateSource } from "./CjsTwitchStateSource.js";
 
 /** Exposes materialized Twitch stream state with snapshot recovery. */
@@ -146,7 +146,7 @@ export class CjsRealtimeTwitchStateService
             throw new Error("Twitch state service has not been initialized");
         }
 
-        return CjsRealtimeLivestreamContract.normalizeStateSnapshot(this.#snapshot);
+        return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(this.#snapshot);
     }
 
     #OnChange(change)
@@ -160,7 +160,7 @@ export class CjsRealtimeTwitchStateService
 
         try
         {
-            normalized = CjsRealtimeLivestreamContract.normalizeStateChange(change.data);
+            normalized = CjsToolRealtimeLivestreamContract.normalizeStateChange(change.data);
         }
         catch
         {
@@ -239,7 +239,7 @@ export class CjsRealtimeTwitchStateService
     /** Filters a full source snapshot to one service projection. */
     static filterSnapshot(snapshot, selector)
     {
-        return CjsRealtimeLivestreamContract.normalizeStateSnapshot({
+        return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot({
             observedAt: snapshot.observedAt,
             states: snapshot.states.filter(state =>
                 CjsRealtimeTwitchStateService.matchesRoom(selector, state.source)),
@@ -270,7 +270,7 @@ export class CjsRealtimeTwitchStateService
             throw new TypeError("Twitch state change source was not initialized");
         }
 
-        return CjsRealtimeLivestreamContract.normalizeStateSnapshot({
+        return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot({
             observedAt: change.occurredAt,
             states,
         });

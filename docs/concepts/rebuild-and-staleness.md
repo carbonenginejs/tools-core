@@ -72,7 +72,7 @@ hashes its inputs is recomputing a number the index handed it, and for audio it
 is reading hundreds of megabytes to derive a value that was already in the file
 name.
 
-`CjsIndexOverlayStore.validateContentAddress` checks the shape;
+`CjsToolIndexOverlayStore.validateContentAddress` checks the shape;
 `runtime-utils/resfile` derives and parses it.
 
 ## Track builds, not libraries
@@ -109,8 +109,8 @@ no content identity - a `legacy-gles` row is
 nothing about that row changes when the file behind it changes.
 
 **The distinction already exists in the code: `artifactKind`**, `hash-safe`
-versus `local-exact`, set at `CjsIndex.js:223` and
-`CjsIndexOverlayStore.js:496` and surfaced as the `x-carbon-artifact-kind`
+versus `local-exact`, set at `CjsToolIndexGraph.js:223` and
+`CjsToolIndexOverlayStore.js:496` and surfaced as the `x-carbon-artifact-kind`
 response header. The ownership table is in
 `/docs/architecture/resource-addressing-and-staleness.md`.
 

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CjsWebhookIngressSource } from "../../src/webhook/CjsWebhookIngressSource.js";
-import { CjsWebhookProjectionService } from "../../src/webhook/CjsWebhookProjectionService.js";
+import { CjsToolWebhookIngressSource } from "../../src/webhook/CjsToolWebhookIngressSource.js";
+import { CjsToolWebhookProjectionService } from "../../src/webhook/CjsToolWebhookProjectionService.js";
 
 class CjsWebhookIngressTestHandler
 {
@@ -80,12 +80,12 @@ class CjsWebhookIngressTestSupport
 test("routes one authenticated webhook delivery across static family projections", async () =>
 {
     const handler = new CjsWebhookIngressTestHandler();
-    const source = new CjsWebhookIngressSource({ id: "provider-main", handler });
+    const source = new CjsToolWebhookIngressSource({ id: "provider-main", handler });
     const activityMessages = [];
     const stateMessages = [];
     const activityContext = CjsWebhookIngressTestSupport.context(activityMessages);
     const stateContext = CjsWebhookIngressTestSupport.context(stateMessages);
-    const activity = new CjsWebhookProjectionService({
+    const activity = new CjsToolWebhookProjectionService({
         id: "provider-activity",
         family: "synthetic.activity",
         familyVersion: 1,
@@ -93,7 +93,7 @@ test("routes one authenticated webhook delivery across static family projections
         topics: [ "synthetic.activity.received" ],
         source,
     });
-    const state = new CjsWebhookProjectionService({
+    const state = new CjsToolWebhookProjectionService({
         id: "provider-state",
         family: "synthetic.state",
         familyVersion: 1,
@@ -150,7 +150,7 @@ test("routes one authenticated webhook delivery across static family projections
 
 test("resumes a partial multi-family retry without republishing completed steps", async () =>
 {
-    const source = new CjsWebhookIngressSource({
+    const source = new CjsToolWebhookIngressSource({
         id: "provider-partial",
         handler: new CjsWebhookIngressTestHandler(),
     });
@@ -171,14 +171,14 @@ test("resumes a partial multi-family retry without republishing completed steps"
             return true;
         },
     });
-    const activity = new CjsWebhookProjectionService({
+    const activity = new CjsToolWebhookProjectionService({
         id: "partial-activity",
         family: "synthetic.activity",
         kind: "synthetic.webhook",
         topics: [ "synthetic.activity.received" ],
         source,
     });
-    const state = new CjsWebhookProjectionService({
+    const state = new CjsToolWebhookProjectionService({
         id: "partial-state",
         family: "synthetic.state",
         kind: "synthetic.webhook",
@@ -208,6 +208,6 @@ test("exports shared ingress and projection classes through the webhook subpath"
 {
     const webhook = await import("@carbonenginejs/tools-core/webhook");
 
-    assert.equal(webhook.CjsWebhookIngressSource, CjsWebhookIngressSource);
-    assert.equal(webhook.CjsWebhookProjectionService, CjsWebhookProjectionService);
+    assert.equal(webhook.CjsToolWebhookIngressSource, CjsToolWebhookIngressSource);
+    assert.equal(webhook.CjsToolWebhookProjectionService, CjsToolWebhookProjectionService);
 });

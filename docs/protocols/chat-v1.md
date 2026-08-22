@@ -7,7 +7,7 @@ Summary: Defines provider-neutral live-chat messages, hierarchical room identity
 
 This contract defines the payloads published by a realtime service whose
 family is `chat` and family version is `1`. Realtime protocol v1 carries these
-values inside `event.payload.data`. `CjsRealtimeChatContract` is the executable
+values inside `event.payload.data`. `CjsToolRealtimeChatContract` is the executable
 validator, and the adjacent JSON file contains public conformance fixtures.
 
 ## Topics and recovery
@@ -140,7 +140,7 @@ and credential-bearing URLs are never extensions.
 
 ## Optional block policy
 
-`CjsRealtimeChatBlockList` provides empty-by-default literal term and user
+`CjsToolRealtimeChatBlockList` provides empty-by-default literal term and user
 blocks for a logical chat projection. Terms are case-insensitive substrings and
 may be global or scoped by provider, integration, space, and stable room ID or
 login fallback. User selectors use a provider, an optional integration, and

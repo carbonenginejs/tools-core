@@ -1,10 +1,10 @@
-import { CjsRealtimeSerialLane } from "../../realtime/internal/CjsRealtimeSerialLane.js";
+import { CjsToolRealtimeSerialLane } from "../../realtime/internal/CjsToolRealtimeSerialLane.js";
 import {
-    CjsRealtimeLivestreamContract,
+    CjsToolRealtimeLivestreamContract,
     LIVESTREAM_STATE_FAMILY,
     LIVESTREAM_STATE_TOPICS,
-} from "../../realtime/livestream/CjsRealtimeLivestreamContract.js";
-import { CjsWebhookError } from "../../webhook/CjsWebhookError.js";
+} from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
+import { CjsToolWebhookError } from "../../webhook/CjsToolWebhookError.js";
 
 /** Materializes snapshot-recoverable Kick state over shared webhook ingress. */
 export class CjsKickStateService
@@ -55,7 +55,7 @@ export class CjsKickStateService
         this.#readSnapshot = readSnapshot;
         this.#accepting = false;
         this.#context = null;
-        this.#lane = new CjsRealtimeSerialLane();
+        this.#lane = new CjsToolRealtimeSerialLane();
         this.#operations = new Set();
         this.#rejectSeed = null;
         this.#resolveSeed = null;
@@ -103,7 +103,7 @@ export class CjsKickStateService
         context.signal.addEventListener("abort", () =>
         {
             this.#accepting = false;
-            this.#rejectSeed?.(new CjsWebhookError(
+            this.#rejectSeed?.(new CjsToolWebhookError(
                 "service_unavailable",
                 "Kick state initialization was stopped",
                 { statusCode: 503, retryable: true },
@@ -116,7 +116,7 @@ export class CjsKickStateService
                 signal: context.signal,
                 onEvent: event => this.#OnEvent(event),
             });
-            this.#snapshot = CjsRealtimeLivestreamContract.normalizeStateSnapshot(
+            this.#snapshot = CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(
                 await this.#readSnapshot({ signal: context.signal }),
             );
             this.#resolveSeed();
@@ -145,7 +145,7 @@ export class CjsKickStateService
 
         this.#running = false;
         this.#accepting = false;
-        this.#rejectSeed?.(new CjsWebhookError(
+        this.#rejectSeed?.(new CjsToolWebhookError(
             "service_unavailable",
             "Kick state service stopped before initialization",
             { statusCode: 503, retryable: true },
@@ -172,14 +172,14 @@ export class CjsKickStateService
             throw new Error("Kick state service has not been initialized");
         }
 
-        return CjsRealtimeLivestreamContract.normalizeStateSnapshot(this.#snapshot);
+        return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(this.#snapshot);
     }
 
     #OnEvent(event)
     {
         if (!this.#accepting || event?.topic !== LIVESTREAM_STATE_TOPICS.CHANGED)
         {
-            return Promise.reject(new CjsWebhookError(
+            return Promise.reject(new CjsToolWebhookError(
                 "service_unavailable",
                 "Kick state service is not accepting the event",
                 { statusCode: 503, retryable: true },
@@ -189,13 +189,13 @@ export class CjsKickStateService
         const operation = this.#lane.Enqueue(async () =>
         {
             await this.#seed;
-            const change = CjsRealtimeLivestreamContract.normalizeStateChange(event.data);
+            const change = CjsToolRealtimeLivestreamContract.normalizeStateChange(event.data);
 
             return this.#context.Commit(async context =>
             {
                 if (!this.#accepting)
                 {
-                    throw new CjsWebhookError(
+                    throw new CjsToolWebhookError(
                         "service_unavailable",
                         "Kick state service stopped before publication",
                         { statusCode: 503, retryable: true },
@@ -257,7 +257,7 @@ export class CjsKickStateService
             throw new TypeError("Kick state change source was not initialized");
         }
 
-        return CjsRealtimeLivestreamContract.normalizeStateSnapshot({
+        return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot({
             observedAt: change.occurredAt,
             states,
         });

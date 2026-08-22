@@ -4,7 +4,7 @@ import path from "node:path";
 import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
 import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
 import { CjsToolCache } from "../src/cache/index.js";
-import { CjsIndexCache, CjsToolIndex } from "../src/indexing/index.js";
+import { CjsToolIndexCache, CjsToolIndex } from "../src/indexing/index.js";
 import {
     CjsToolCharacter,
     CjsToolCharacterCatalogGatherer,
@@ -90,7 +90,7 @@ async function Main(argv)
 
     const cache = new CjsToolCache(path.resolve(options.cache));
     const indexes = new CjsToolIndex({
-        cache: new CjsIndexCache({ cache }),
+        cache: new CjsToolIndexCache({ cache }),
     });
     const indexPath = path.resolve(options.index);
     const index = CjsFileIndex.decodeResFileIndex(await fs.readFile(indexPath));

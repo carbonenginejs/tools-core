@@ -6,7 +6,7 @@ import test from "node:test";
 
 import Database from "better-sqlite3";
 
-import { CjsSdeDatabase } from "../src/sde/index.js";
+import { CjsToolSdeDatabase } from "../src/sde/index.js";
 import { CjsToolMap } from "../src/map/CjsToolMap.js";
 import { BuildMapIndex } from "../src/map/CjsToolMapIndex.js";
 import {
@@ -30,7 +30,7 @@ import {
     QueryIndexJsonPath,
     QueryIndexName,
     QueryIndexSql
-} from "../src/sde/CjsSdeQueryIndexes.js";
+} from "../src/sde/CjsToolSdeQueryIndexes.js";
 
 function CreateDatabasePath()
 {
@@ -150,11 +150,11 @@ const TABLES = Object.freeze({
 async function OpenFixture()
 {
     const filePath = CreateDatabasePath();
-    const database = await CjsSdeDatabase.create(filePath);
+    const database = await CjsToolSdeDatabase.create(filePath);
 
     await database.ImportTables(TABLES, { build: 3466501 });
 
-    // Stands in for `CjsSdeSource`, which is what the map is written against.
+    // Stands in for `CjsToolSdeSource`, which is what the map is written against.
     // A fake rather than the real repository because the repository's job is
     // acquiring and choosing a build, and none of that is under test here.
     return {
@@ -367,9 +367,9 @@ test("the planner actually uses a locality index", async () =>
     }
 });
 
-test("the index expression matches the path CjsSdeTable.Find builds", async () =>
+test("the index expression matches the path CjsToolSdeTable.Find builds", async () =>
 {
-    // Guards the duplication called out in CjsSdeQueryIndexes: the two texts
+    // Guards the duplication called out in CjsToolSdeQueryIndexes: the two texts
     // are written in different files and must agree exactly. Proven by asking
     // the database rather than by comparing strings, so it stays true if either
     // side is rewritten.

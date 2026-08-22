@@ -1,6 +1,6 @@
-import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
+import { CjsToolBoundedFetch } from "../internal/CjsToolBoundedFetch.js";
 
-import { ESI_COMPATIBILITY_DATE } from "./CjsEsiCompatibilityDate.js";
+import { ESI_COMPATIBILITY_DATE } from "./CjsToolEsiCompatibilityDate.js";
 
 const ESI_ROOT = "https://esi.evetech.net";
 
@@ -98,7 +98,7 @@ export class CjsToolEsiClient
             throw error;
         }
 
-        return CjsBoundedFetch.readJson(response, {
+        return CjsToolBoundedFetch.readJson(response, {
             label: `ESI ${path}`,
             timeoutMs: this.requestTimeoutMs,
             maxBytes: this.maxResponseBytes,
@@ -107,7 +107,7 @@ export class CjsToolEsiClient
 
     #Send(path, accessToken)
     {
-        return CjsBoundedFetch.request(this.fetch, `${this.root}${path}`, {
+        return CjsToolBoundedFetch.request(this.fetch, `${this.root}${path}`, {
             method: "GET",
             headers: {
                 accept: "application/json",

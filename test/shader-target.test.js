@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CjsShaderTarget, CjsShaderTargetRegistry } from "../src/index.js";
+import { CjsToolShaderTarget, CjsToolShaderTargetRegistry } from "../src/index.js";
 
 const StandardPbr = "res:/graphics/effect.dx11/managed/space/characters/standardpbr.sm_hi";
 
 test("catalogs Frontier CEWG outputs under its WebGL2 profile and exact build", () =>
 {
-    const targets = new CjsShaderTargetRegistry();
+    const targets = new CjsToolShaderTargetRegistry();
     const target = targets.Get("frontier-webgl2");
     const catalog = target.CreateCatalog([ StandardPbr ], { build: 3438337 });
 
@@ -58,7 +58,7 @@ test("catalogs Frontier CEWG outputs under its WebGL2 profile and exact build", 
 
 test("keeps Frontier shader targets separate from EVE and unaudited tiers", () =>
 {
-    const targets = new CjsShaderTargetRegistry();
+    const targets = new CjsToolShaderTargetRegistry();
     const target = targets.Get("frontier-webgl2");
 
     assert.equal(target.SupportsSourcePath(StandardPbr), true);
@@ -73,7 +73,7 @@ test("keeps Frontier shader targets separate from EVE and unaudited tiers", () =
 
 test("catalogs CEWGPU targets without weakening exact-build validation", () =>
 {
-    const target = new CjsShaderTargetRegistry().Get("eve-webgpu");
+    const target = new CjsToolShaderTargetRegistry().Get("eve-webgpu");
     const sourcePath = "res:/graphics/effect.dx11/managed/space/standard.sm_hi";
     const catalog = target.CreateCatalog([ sourcePath ], { build: 3430261 });
 
@@ -111,10 +111,10 @@ test("future Frontier WebGPU targets require format-owned native comparison", ()
     };
 
     assert.throws(
-        () => new CjsShaderTarget(data),
+        () => new CjsToolShaderTarget(data),
         /must require native HLSLcc comparison/u,
     );
-    assert.equal(new CjsShaderTarget({
+    assert.equal(new CjsToolShaderTarget({
         ...data,
         qualificationPolicy: {
             level: "native-hlslcc",
@@ -125,7 +125,7 @@ test("future Frontier WebGPU targets require format-owned native comparison", ()
 
 test("catalogs only index resolutions from one exact Frontier build", () =>
 {
-    const target = new CjsShaderTargetRegistry().Get("frontier-webgl2");
+    const target = new CjsToolShaderTargetRegistry().Get("frontier-webgl2");
     const resolution = {
         target: "frontier",
         game: "Frontier",

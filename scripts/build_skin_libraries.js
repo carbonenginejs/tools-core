@@ -6,7 +6,7 @@
 //     [--target <eve>] [--version <v1>] [--sde-version <v1>]
 //     [--auto-prepare]
 import { CjsToolCache } from "../src/cache/index.js";
-import { CjsSdeRepository } from "../src/sde/index.js";
+import { CjsToolSdeRepository } from "../src/sde/index.js";
 import { CjsToolSkin } from "../src/skin/index.js";
 import { LoadToolEnv } from "../src/env.js";
 
@@ -82,7 +82,7 @@ async function Main(argv)
     const cache = options.cache === undefined
         ? new CjsToolCache()
         : new CjsToolCache(options.cache);
-    const repository = new CjsSdeRepository({
+    const repository = new CjsToolSdeRepository({
         autoPrepare: options.autoPrepare,
         cache,
         version: options.sdeVersion,

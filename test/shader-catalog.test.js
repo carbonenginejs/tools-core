@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildShaderTargetCatalog, CjsIndexEntry } from "../src/index.js";
+import { buildShaderTargetCatalog, CjsToolIndexEntry } from "../src/index.js";
 
 test("builds a deterministic Frontier high-tier shader source inventory", () =>
 {
@@ -10,18 +10,18 @@ test("builds a deterministic Frontier high-tier shader source inventory", () =>
         build: 3438337,
         generatedAt: "2026-07-19T00:00:00Z",
         indexEntries: [
-            new CjsIndexEntry({
+            new CjsToolIndexEntry({
                 logicalPath: "res:/graphics/effect.dx11/managed/space/characters/standardpbr.sm_hi",
                 location: "90/source",
                 checksum: "1a846e224f05d7ae9e8d33e9d054c1cc",
                 uncompressedSize: 526654,
                 compressedSize: 61005,
             }),
-            new CjsIndexEntry({
+            new CjsToolIndexEntry({
                 logicalPath: "res:/graphics/effect.dx11/managed/space/characters/standardpbr.sm_depth",
                 location: "91/depth",
             }),
-            new CjsIndexEntry({
+            new CjsToolIndexEntry({
                 logicalPath: "res:/graphics/texture/not-a-shader.dds",
                 location: "92/texture",
             }),
@@ -49,7 +49,7 @@ test("shader catalog fails when its index has no audited target sources", () =>
         () => buildShaderTargetCatalog({
             shaderTarget: "frontier-webgl2",
             build: 3438337,
-            indexEntries: [ new CjsIndexEntry({
+            indexEntries: [ new CjsToolIndexEntry({
                 logicalPath: "res:/graphics/effect.dx11/utility/textureviewer.sm_depth",
                 location: "90/depth",
             }) ],

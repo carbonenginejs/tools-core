@@ -4,15 +4,15 @@ import test from "node:test";
 
 import { WebSocket } from "ws";
 
-import { REALTIME_SUBPROTOCOL } from "../../src/realtime/CjsRealtimeProtocol.js";
-import { CjsRealtimeHub } from "../../src/realtime/server/CjsRealtimeHub.js";
-import { CjsRealtimeHttpRouter } from "../../src/realtime/server/CjsRealtimeHttpRouter.js";
-import { CjsRealtimeSessionAuthority } from "../../src/realtime/server/CjsRealtimeSessionAuthority.js";
-import { CjsRealtimeWebSocketGateway } from "../../src/realtime/websocket/CjsRealtimeWebSocketGateway.js";
+import { REALTIME_SUBPROTOCOL } from "../../src/realtime/CjsToolRealtimeProtocol.js";
+import { CjsToolRealtimeHub } from "../../src/realtime/server/CjsToolRealtimeHub.js";
+import { CjsToolRealtimeHttpRouter } from "../../src/realtime/server/CjsToolRealtimeHttpRouter.js";
+import { CjsToolRealtimeSessionAuthority } from "../../src/realtime/server/CjsToolRealtimeSessionAuthority.js";
+import { CjsToolRealtimeGatewayWebsocket } from "../../src/realtime/websocket/CjsToolRealtimeGatewayWebsocket.js";
 import { CjsToolServiceHost } from "../../src/service/CjsToolServiceHost.js";
-import { CjsWebhookError } from "../../src/webhook/CjsWebhookError.js";
-import { CjsWebhookHttpRouter } from "../../src/webhook/CjsWebhookHttpRouter.js";
-import { CjsWebhookStreamService } from "../../src/webhook/CjsWebhookStreamService.js";
+import { CjsToolWebhookError } from "../../src/webhook/CjsToolWebhookError.js";
+import { CjsToolWebhookHttpRouter } from "../../src/webhook/CjsToolWebhookHttpRouter.js";
+import { CjsToolWebhookStreamService } from "../../src/webhook/CjsToolWebhookStreamService.js";
 
 const TOPIC = "livestream.activity.subscription.received";
 
@@ -31,7 +31,7 @@ class CjsWebhookFixtureHandler
 
         if (request.headers.authorization !== "Bearer provider-secret")
         {
-            throw new CjsWebhookError(
+            throw new CjsToolWebhookError(
                 "unauthorized",
                 "Webhook authentication failed",
                 { statusCode: 401 },
@@ -127,8 +127,8 @@ class CjsWebhookTestSupport
     } = {})
     {
         const origin = "http://127.0.0.1:8080";
-        const capability = CjsRealtimeSessionAuthority.createCapability();
-        const service = new CjsWebhookStreamService({
+        const capability = CjsToolRealtimeSessionAuthority.createCapability();
+        const service = new CjsToolWebhookStreamService({
             id: "synthetic-webhook",
             family: "livestream.activity",
             familyVersion: 1,
@@ -136,7 +136,7 @@ class CjsWebhookTestSupport
             topics: [ { name: TOPIC, recovery: "loss-tolerant" } ],
             handler,
         });
-        const authority = new CjsRealtimeSessionAuthority({
+        const authority = new CjsToolRealtimeSessionAuthority({
             grants: [ {
                 capability,
                 actor: { id: "facade-one", kind: "application" },
@@ -155,19 +155,19 @@ class CjsWebhookTestSupport
             } ],
         });
         let nextId = 0;
-        const hub = new CjsRealtimeHub({
+        const hub = new CjsToolRealtimeHub({
             authority,
             createId: prefix => `${prefix}-${++nextId}`,
         });
-        const realtimeRouter = new CjsRealtimeHttpRouter({
+        const realtimeRouter = new CjsToolRealtimeHttpRouter({
             hub,
             allowedOrigins: [ origin ],
         });
-        const realtimeGateway = new CjsRealtimeWebSocketGateway({
+        const realtimeGateway = new CjsToolRealtimeGatewayWebsocket({
             hub,
             allowedOrigins: [ origin ],
         });
-        const webhookRouter = new CjsWebhookHttpRouter({
+        const webhookRouter = new CjsToolWebhookHttpRouter({
             endpoints: [ service ],
             maxBodyBytes,
             maxConcurrentRequests,
@@ -412,7 +412,7 @@ test("rejects invalid ingress without publishing or bypassing the fallback", asy
 test("refuses new webhook deliveries outside the realtime service lifecycle", async () =>
 {
     const handler = new CjsWebhookFixtureHandler();
-    const service = new CjsWebhookStreamService({
+    const service = new CjsToolWebhookStreamService({
         id: "stopped-webhook",
         family: "livestream.activity",
         kind: "synthetic.webhook",
@@ -428,7 +428,7 @@ test("refuses new webhook deliveries outside the realtime service lifecycle", as
 
 test("requires an explicit provider authentication phase", () =>
 {
-    assert.throws(() => new CjsWebhookStreamService({
+    assert.throws(() => new CjsToolWebhookStreamService({
         id: "unsafe-webhook",
         family: "livestream.activity",
         kind: "synthetic.webhook",
@@ -440,7 +440,7 @@ test("requires an explicit provider authentication phase", () =>
 test("bounds provider verification work before it reaches the service lane", async context =>
 {
     const handler = new CjsBlockingWebhookHandler();
-    const service = new CjsWebhookStreamService({
+    const service = new CjsToolWebhookStreamService({
         id: "bounded-webhook",
         family: "livestream.activity",
         kind: "synthetic.webhook",
@@ -448,8 +448,8 @@ test("bounds provider verification work before it reaches the service lane", asy
         handler,
         maxConcurrentDeliveries: 1,
     });
-    const authority = new CjsRealtimeSessionAuthority({ grants: [] });
-    const hub = new CjsRealtimeHub({ authority });
+    const authority = new CjsToolRealtimeSessionAuthority({ grants: [] });
+    const hub = new CjsToolRealtimeHub({ authority });
 
     context.after(() => hub.Stop());
     hub.Register(service);
@@ -494,7 +494,7 @@ test("bounds aggregate HTTP body and handler admission before reading more reque
 test("validates exact endpoint paths without decoding separator aliases", () =>
 {
     assert.deepEqual(
-        CjsWebhookHttpRouter.matchEndpoint(
+        CjsToolWebhookHttpRouter.matchEndpoint(
             "/v1/webhooks/synthetic-webhook?tenant=primary",
         ),
         {
@@ -504,15 +504,15 @@ test("validates exact endpoint paths without decoding separator aliases", () =>
         },
     );
     assert.equal(
-        CjsWebhookHttpRouter.matchEndpoint("/v1/webhooks/a/b"),
+        CjsToolWebhookHttpRouter.matchEndpoint("/v1/webhooks/a/b"),
         null,
     );
     assert.equal(
-        CjsWebhookHttpRouter.matchEndpoint("/v1/webhooks/a%2fb"),
+        CjsToolWebhookHttpRouter.matchEndpoint("/v1/webhooks/a%2fb"),
         null,
     );
     assert.throws(
-        () => CjsWebhookHttpRouter.matchEndpoint("/v1/webhooks/%2e%2e"),
+        () => CjsToolWebhookHttpRouter.matchEndpoint("/v1/webhooks/%2e%2e"),
         error => error.code === "invalid_path",
     );
 });

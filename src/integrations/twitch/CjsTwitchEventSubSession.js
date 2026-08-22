@@ -1,6 +1,6 @@
 import { WebSocket } from "ws";
 
-import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
+import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
 
 const DEFAULT_ENDPOINT = "wss://eventsub.wss.twitch.tv/ws";
 
@@ -257,7 +257,7 @@ export class CjsTwitchEventSubSession
         this.#records.add(record);
         record.welcomeTimer = setTimeout(() =>
         {
-            this.#FailRecord(record, new CjsRealtimeError(
+            this.#FailRecord(record, new CjsToolRealtimeError(
                 "twitch_unavailable",
                 "Twitch EventSub welcome timed out",
                 { retryable: true },
@@ -318,7 +318,7 @@ export class CjsTwitchEventSubSession
         }
         catch
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_invalid_response",
                 "Twitch EventSub delivered an invalid message",
                 { retryable: true },
@@ -357,7 +357,7 @@ export class CjsTwitchEventSubSession
         }
         else if (messageType !== "session_keepalive")
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_invalid_response",
                 "Twitch EventSub delivered an unexpected message",
                 { retryable: true },
@@ -369,7 +369,7 @@ export class CjsTwitchEventSubSession
     {
         if (record.ready)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_invalid_response",
                 "Twitch EventSub delivered a duplicate welcome",
                 { retryable: true },
@@ -380,7 +380,7 @@ export class CjsTwitchEventSubSession
 
         if (typeof sessionId !== "string" || sessionId.length === 0)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_invalid_response",
                 "Twitch EventSub welcome omitted its session identity",
                 { retryable: true },
@@ -643,7 +643,7 @@ export class CjsTwitchEventSubSession
 
         if (Buffer.byteLength(text) > 64 * 1024)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_invalid_response",
                 "Twitch EventSub message exceeds its configured limit",
                 { retryable: true },
@@ -669,7 +669,7 @@ export class CjsTwitchEventSubSession
     /** Creates a sanitized connection failure. */
     static connectionError(error = undefined)
     {
-        return new CjsRealtimeError(
+        return new CjsToolRealtimeError(
             "twitch_unavailable",
             "Twitch EventSub connection is unavailable",
             { retryable: true, cause: error },
@@ -679,7 +679,7 @@ export class CjsTwitchEventSubSession
     /** Preserves safe startup errors and sanitizes socket implementation failures. */
     static startError(error)
     {
-        return error instanceof CjsRealtimeError
+        return error instanceof CjsToolRealtimeError
             ? error
             : CjsTwitchEventSubSession.connectionError(error);
     }

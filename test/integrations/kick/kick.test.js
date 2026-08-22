@@ -5,11 +5,11 @@ import test from "node:test";
 import {
     LIVESTREAM_ACTIVITY_TOPICS,
     LIVESTREAM_STATE_TOPICS,
-} from "../../../src/realtime/livestream/CjsRealtimeLivestreamContract.js";
+} from "../../../src/realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 import { CjsKickActivityService } from "../../../src/integrations/kick/CjsKickActivityService.js";
 import { CjsKickStateService } from "../../../src/integrations/kick/CjsKickStateService.js";
 import { CjsKickWebhookHandler } from "../../../src/integrations/kick/CjsKickWebhookHandler.js";
-import { CjsWebhookIngressSource } from "../../../src/webhook/CjsWebhookIngressSource.js";
+import { CjsToolWebhookIngressSource } from "../../../src/webhook/CjsToolWebhookIngressSource.js";
 
 const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
     modulusLength: 2048,
@@ -100,7 +100,7 @@ class CjsKickTestSupport
 test("authenticates exact Kick bytes and publishes a canonical subscriber alert", async () =>
 {
     const handler = new CjsKickWebhookHandler({ publicKey });
-    const source = new CjsWebhookIngressSource({ id: "kick-main", handler });
+    const source = new CjsToolWebhookIngressSource({ id: "kick-main", handler });
     const service = new CjsKickActivityService({ id: "kick-activity", source });
     const messages = [];
     const harness = CjsKickTestSupport.context(messages);
@@ -141,7 +141,7 @@ test("authenticates exact Kick bytes and publishes a canonical subscriber alert"
 
 test("fans a Kick gift batch into one batch and stable beneficiary alerts", async () =>
 {
-    const source = new CjsWebhookIngressSource({
+    const source = new CjsToolWebhookIngressSource({
         id: "kick-gifts",
         handler: new CjsKickWebhookHandler({ publicKey }),
     });
@@ -227,7 +227,7 @@ test("normalizes Kick stream status and rejects stale signed messages", () =>
 
 test("shares one Kick ingress across activity and gap-free state projections", async () =>
 {
-    const source = new CjsWebhookIngressSource({
+    const source = new CjsToolWebhookIngressSource({
         id: "kick-shared",
         handler: new CjsKickWebhookHandler({ publicKey }),
     });

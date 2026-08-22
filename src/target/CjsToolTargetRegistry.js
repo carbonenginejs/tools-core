@@ -1,6 +1,6 @@
 import { CjsToolTarget, normalizeTargetId } from "./CjsToolTarget.js";
 import { DefaultTargetData } from "./defaultTargets.js";
-import { normalizeGame, normalizeProviderId } from "../indexing/CjsIndexProvider.js";
+import { normalizeGame, normalizeProviderId } from "../indexing/CjsToolIndexProvider.js";
 
 /** Immutable registry for short public target aliases. */
 export class CjsToolTargetRegistry

@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import http from "node:http";
 
-import { ESI_COMPATIBILITY_DATE } from "../auth/CjsEsiCompatibilityDate.js";
+import { ESI_COMPATIBILITY_DATE } from "../auth/CjsToolEsiCompatibilityDate.js";
 import { CjsToolEveSso } from "../auth/CjsToolEveSso.js";
 import { CjsToolBlack } from "../black/CjsToolBlack.js";
-import { CjsIndexAnswerCatalog } from "../indexing/CjsIndexAnswerCatalog.js";
+import { CjsToolIndexAnswerCatalog } from "../indexing/CjsToolIndexAnswerCatalog.js";
 import { CjsToolSkin } from "../skin/CjsToolSkin.js";
 import { CjsToolSkinrPattern } from "../skin/CjsToolSkinrPattern.js";
 import { CjsToolWeapon } from "../weapon/CjsToolWeapon.js";
@@ -17,7 +17,7 @@ import { CjsToolFitting } from "../fitting/CjsToolFitting.js";
 import { CjsToolSkills } from "../skills/CjsToolSkills.js";
 import { FITTING_SLOTS } from "../fitting/CjsToolFittingCodec.js";
 import { CjsToolLocalisation, ReadGuessedNames, ReadManualNames } from "../localisation/CjsToolLocalisation.js";
-import { ReadDerivation } from "../sde/CjsSdeDerivations.js";
+import { ReadDerivation } from "../sde/CjsToolSdeDerivations.js";
 import * as utils from "../utils.js";
 
 export const TOOLS_SERVICE_PROTOCOL = "carbon.tools";
@@ -1753,7 +1753,7 @@ export class CjsToolHttpProxy
 
         if (!catalog)
         {
-            catalog = new CjsIndexAnswerCatalog(source);
+            catalog = new CjsToolIndexAnswerCatalog(source);
             this.#answerCatalogs.set(key, catalog);
         }
 

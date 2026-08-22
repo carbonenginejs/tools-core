@@ -1,4 +1,4 @@
 export { CjsToolBuildAuthority, AUTHORITY_REASONS, FACETS } from "./CjsToolBuildAuthority.js";
-export { CjsBuildPolicy, POLICY_FILE, REASONS } from "./CjsBuildPolicy.js";
-export { CjsBuildObservations, OBSERVATIONS_FILE } from "./CjsBuildObservations.js";
-export { NextCheckDelay, IsFresh, PUBLISH_WINDOW } from "./CjsBuildSchedule.js";
+export { CjsToolBuildPolicy, POLICY_FILE, REASONS } from "./CjsToolBuildPolicy.js";
+export { CjsToolBuildObservations, OBSERVATIONS_FILE } from "./CjsToolBuildObservations.js";
+export { NextCheckDelay, IsFresh, PUBLISH_WINDOW } from "./CjsToolBuildSchedule.js";

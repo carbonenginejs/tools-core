@@ -1,8 +1,8 @@
-import { CjsBoundedFetch } from "../../internal/CjsBoundedFetch.js";
-import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
+import { CjsToolBoundedFetch } from "../../internal/CjsToolBoundedFetch.js";
+import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
 import {
-    CjsRealtimeLivestreamContract,
-} from "../../realtime/livestream/CjsRealtimeLivestreamContract.js";
+    CjsToolRealtimeLivestreamContract,
+} from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 import { CjsRealtimeTwitchStateNormalizer } from "./CjsRealtimeTwitchStateNormalizer.js";
 import { CjsTwitchEventSubSource } from "./CjsTwitchEventSubSource.js";
 import { CjsTwitchHelixClient } from "./CjsTwitchHelixClient.js";
@@ -182,7 +182,7 @@ export class CjsTwitchEventSubStateProvider
             ? await this.#readState({ rooms: this.#rooms, signal })
             : await this.#ReadHelix(signal);
 
-        return CjsRealtimeLivestreamContract.normalizeStateSnapshot(value);
+        return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(value);
     }
 
     /** Detaches state and stops the source when it was the final family user. */
@@ -244,14 +244,14 @@ export class CjsTwitchEventSubStateProvider
 
         if (response.status < 200 || response.status >= 300)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_unavailable",
                 "Twitch state could not be read",
                 { retryable: response.status >= 500 },
             );
         }
 
-        const value = await CjsBoundedFetch.readJson(response, {
+        const value = await CjsToolBoundedFetch.readJson(response, {
             maxBytes: this.#maxResponseBytes,
             timeoutMs: this.#responseTimeoutMs,
             signal,
@@ -260,7 +260,7 @@ export class CjsTwitchEventSubStateProvider
 
         if (!value || typeof value !== "object" || !Array.isArray(value.data))
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_invalid_response",
                 "Twitch returned invalid state data",
             );

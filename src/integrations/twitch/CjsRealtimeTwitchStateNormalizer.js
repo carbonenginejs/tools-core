@@ -1,7 +1,7 @@
 import {
-    CjsRealtimeLivestreamContract,
+    CjsToolRealtimeLivestreamContract,
     LIVESTREAM_STATE_TOPICS,
-} from "../../realtime/livestream/CjsRealtimeLivestreamContract.js";
+} from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 
 /** Maps Twitch EventSub notifications into provider-neutral state patches. */
 export class CjsRealtimeTwitchStateNormalizer
@@ -92,7 +92,7 @@ export class CjsRealtimeTwitchStateNormalizer
 
         return Object.freeze({
             topic: LIVESTREAM_STATE_TOPICS.CHANGED,
-            data: CjsRealtimeLivestreamContract.normalizeStateChange(value),
+            data: CjsToolRealtimeLivestreamContract.normalizeStateChange(value),
         });
     }
 

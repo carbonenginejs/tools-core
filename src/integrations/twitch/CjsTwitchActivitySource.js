@@ -1,4 +1,4 @@
-import { CjsRealtimeSerialLane } from "../../realtime/internal/CjsRealtimeSerialLane.js";
+import { CjsToolRealtimeSerialLane } from "../../realtime/internal/CjsToolRealtimeSerialLane.js";
 
 /** Owns one Twitch activity provider and fans it into service projections. */
 export class CjsTwitchActivitySource
@@ -27,7 +27,7 @@ export class CjsTwitchActivitySource
         this.topics = Object.freeze([ ...provider.topics ]);
         this.#abortController = null;
         this.#consumers = new Map();
-        this.#lane = new CjsRealtimeSerialLane();
+        this.#lane = new CjsToolRealtimeSerialLane();
         this.#provider = provider;
         this.#running = false;
     }

@@ -1,13 +1,13 @@
-import { CjsBuildObservations } from "./CjsBuildObservations.js";
-import { CjsBuildPolicy, REASONS } from "./CjsBuildPolicy.js";
+import { CjsToolBuildObservations } from "./CjsToolBuildObservations.js";
+import { CjsToolBuildPolicy, REASONS } from "./CjsToolBuildPolicy.js";
 
 /**
  * Which builds exist, which one a caller is served, and therefore which ones
  * the cache keeps.
  *
  * The three parts this assembles already existed and each answers one question
- * well: `CjsBuildObservations` records what upstream had and when,
- * `CjsBuildPolicy` decides what we serve and why, and `CjsIndexBuildResolver`
+ * well: `CjsToolBuildObservations` records what upstream had and when,
+ * `CjsToolBuildPolicy` decides what we serve and why, and `CjsToolIndexBuildResolver`
  * turns an alias into one exact remote build. What did not exist was anything
  * owning the sequence, so every caller assembled it for itself and each
  * rediscovered the same facts — which is how `latest` came to mean a different
@@ -21,7 +21,7 @@ import { CjsBuildPolicy, REASONS } from "./CjsBuildPolicy.js";
  *
  * Discovery is injected. The authority never imports a resolver, an archive or
  * an HTTP client: it is handed `discover(target, facet)` and calls it. That is
- * not testing convenience, it is the boundary — `CjsIndexBuildResolver` already
+ * not testing convenience, it is the boundary — `CjsToolIndexBuildResolver` already
  * means "resolve an alias to one exact remote build, with no opinion", and this
  * is the opinion. Two remote channels feed it, one per facet, and neither
  * belongs inside a policy layer.
@@ -47,8 +47,8 @@ export class CjsToolBuildAuthority
 
     /**
      * @param {Object} parts
-     * @param {CjsBuildObservations} parts.observations
-     * @param {CjsBuildPolicy} parts.policy
+     * @param {CjsToolBuildObservations} parts.observations
+     * @param {CjsToolBuildPolicy} parts.policy
      * @param {Function} parts.discover - async (target, facet) => build id, or
      *   an object carrying `{ build, released, source, url }`. May throw or
      *   answer null; both mean "upstream did not say".
@@ -72,8 +72,8 @@ export class CjsToolBuildAuthority
     static async open({ dataDirectory, discover, requireVerified = false })
     {
         const [ observations, policy ] = await Promise.all([
-            CjsBuildObservations.read(dataDirectory),
-            CjsBuildPolicy.read(dataDirectory),
+            CjsToolBuildObservations.read(dataDirectory),
+            CjsToolBuildPolicy.read(dataDirectory),
         ]);
 
         return new CjsToolBuildAuthority({ observations, policy, discover, requireVerified });
@@ -365,7 +365,7 @@ export class CjsToolBuildAuthority
     /**
      * Substitutes the newest verified build when the gate is on.
      *
-     * Applied here rather than inside `CjsBuildPolicy.Decide` because the
+     * Applied here rather than inside `CjsToolBuildPolicy.Decide` because the
      * policy has no way to express it yet: a rule carries `pin`, `hold`,
      * `since` and `note`, and nothing else. `REASONS.newestVerified` exists and
      * is unused, which is the shape of a decision made and not yet wired.

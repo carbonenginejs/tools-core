@@ -7,10 +7,10 @@ import test from "node:test";
 import { resFileAddress } from "@carbonenginejs/runtime-utils/resfile";
 
 import {
-    CjsIndexOverlaySource,
-    CjsIndexOverlayStore,
-    CjsIndexCache,
-    CjsIndexProviderRegistry,
+    CjsToolIndexOverlaySource,
+    CjsToolIndexOverlayStore,
+    CjsToolIndexCache,
+    CjsToolIndexProviderRegistry,
     CjsToolIndex,
     CjsToolTargetRegistry,
 } from "../../src/index.js";
@@ -72,7 +72,7 @@ test("composes persistent overrides and fallbacks around the official res index"
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
     const sourceDirectory = path.join(directory, "source");
-    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
 
     context.after(async () => fs.rm(directory, { recursive: true, force: true }));
 
@@ -108,7 +108,7 @@ test("composes persistent overrides and fallbacks around the official res index"
 
     const requests = [];
     const tool = new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider ]),
         targets: Targets,
         overlays: store,
         cache: null,
@@ -127,7 +127,7 @@ test("composes persistent overrides and fallbacks around the official res index"
     });
     const source = await tool.OpenTarget("eve", "77");
 
-    assert.ok(source instanceof CjsIndexOverlaySource);
+    assert.ok(source instanceof CjsToolIndexOverlaySource);
     assert.deepEqual(source.availableIndexes, [ "main", "generated", "legacy" ]);
     assert.equal(source.Resolve("res:/same.bin").overlay, "generated");
     assert.equal(source.Resolve("res:/same.bin").artifactKind, "local-exact");
@@ -172,7 +172,7 @@ test("rejects replacement imports and ignores overlays for incompatible builds",
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
     const sourceDirectory = path.join(directory, "source");
-    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
     const options = {
         target: "eve",
         game: "Eve",
@@ -213,7 +213,7 @@ test("inherits only explicitly named browser shader overlays across EVE provider
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
     const sourceDirectory = path.join(directory, "source");
-    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
 
     context.after(async () => fs.rm(directory, { recursive: true, force: true }));
     await writePayload(sourceDirectory, "shaders/legacy", "legacy-gles");
@@ -246,7 +246,7 @@ test("inherits only explicitly named browser shader overlays across EVE provider
     });
 
     const tool = new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider, CrossProvider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider, CrossProvider ]),
         targets: CrossProviderTargets,
         overlays: store,
         cache: null,
@@ -261,7 +261,7 @@ test("inherits only explicitly named browser shader overlays across EVE provider
     const source = await tool.OpenTarget("netease", "88");
     const shader = source.Resolve("res:/graphics/effect.gles2/test.sm_hi");
 
-    assert.ok(source instanceof CjsIndexOverlaySource);
+    assert.ok(source instanceof CjsToolIndexOverlaySource);
     assert.equal(source.target, "netease");
     assert.equal(source.provider, "alternate");
     assert.equal(shader.overlay, "legacy-gles");
@@ -277,7 +277,7 @@ test("matches a large composed provider index without overflowing the argument s
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
     const sourceDirectory = path.join(directory, "source");
-    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
     const officialRows = Array.from(
         { length: 100000 },
         (_, index) => row(`res:/bulk/${String(index).padStart(6, "0")}.bin`, `bulk/${index}`),
@@ -300,7 +300,7 @@ test("matches a large composed provider index without overflowing the argument s
     });
 
     const tool = new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider ]),
         targets: Targets,
         overlays: store,
         cache: null,
@@ -324,7 +324,7 @@ test("transactionally replaces an overlay only when explicitly requested", async
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
     const sourceDirectory = path.join(directory, "source");
-    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
     const options = {
         target: "eve",
         game: "Eve",
@@ -362,7 +362,7 @@ test("transactionally replaces an overlay only when explicitly requested", async
 test("fetches remote fallback overlays through the disposable shared cache", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
-    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
     const payload = Buffer.from("remote-legacy");
     const checksum = createHash("md5").update(payload).digest("hex");
 
@@ -387,10 +387,10 @@ test("fetches remote fallback overlays through the disposable shared cache", asy
 
     const requests = [];
     const tool = new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider ]),
         targets: Targets,
         overlays: store,
-        cache: new CjsIndexCache({ directory: path.join(directory, "cache") }),
+        cache: new CjsToolIndexCache({ directory: path.join(directory, "cache") }),
         fetch: createFetch({
             "https://indexes.test/eveonline_77.txt": row(
                 "app:/resfileindex.txt",
@@ -421,7 +421,7 @@ test("fetches remote fallback overlays through the disposable shared cache", asy
 test("serves exact-build generated index groups from hash-safe cached payloads", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-generated-"));
-    const cache = new CjsIndexCache({ directory: path.join(directory, "cache") });
+    const cache = new CjsToolIndexCache({ directory: path.join(directory, "cache") });
     const payload = Buffer.from("generated-audio");
     const checksum = createHash("md5").update(payload).digest("hex");
     const logicalPath = "res:/audio/bnk/200/0/900001.wem";
@@ -432,7 +432,7 @@ test("serves exact-build generated index groups from hash-safe cached payloads",
 
     const requests = [];
     const tool = new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider ]),
         targets: Targets,
         cache,
         fetch: createFetch({
@@ -465,7 +465,7 @@ test("serves exact-build generated index groups from hash-safe cached payloads",
     const resolution = source.Resolve(logicalPath);
     const result = await source.Fetch(logicalPath);
 
-    assert.ok(source instanceof CjsIndexOverlaySource);
+    assert.ok(source instanceof CjsToolIndexOverlaySource);
     assert.deepEqual(source.availableIndexes, [ "main", "audio" ]);
     assert.equal(resolution.indexName, "audio");
     assert.equal(resolution.storageKind, "generated-cache");
@@ -489,7 +489,7 @@ test("serves exact-build generated index groups from hash-safe cached payloads",
 test("keeps concurrent remote overlays with the same locator isolated", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
-    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
     const firstPayload = Buffer.from("A");
     const secondPayload = Buffer.from("B");
 
@@ -520,7 +520,7 @@ test("keeps concurrent remote overlays with the same locator isolated", async co
 
     const requests = [];
     const tool = new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider ]),
         targets: Targets,
         overlays: store,
         cache: null,
@@ -551,7 +551,7 @@ test("keeps concurrent remote overlays with the same locator isolated", async co
 test("rejects overlay names that collide with official indexes", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
-    const store = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
     const payload = Buffer.from("shadow");
 
     context.after(async () => fs.rm(directory, { recursive: true, force: true }));
@@ -574,7 +574,7 @@ test("rejects overlay names that collide with official indexes", async context =
     });
 
     const tool = new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider ]),
         targets: Targets,
         overlays: store,
         cache: null,

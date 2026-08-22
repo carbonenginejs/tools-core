@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CjsSde } from "../src/index.js";
+import { CjsToolSde } from "../src/index.js";
 
 function CreateSde()
 {
-    return new CjsSde({
+    return new CjsToolSde({
         build: 3435006,
         types: {
             587: { name: { en: "Rifter" }, graphicID: 42 },

@@ -6,10 +6,10 @@ import path from "node:path";
 import test from "node:test";
 
 import {
-    CjsIndexEntry,
-    CjsIndexOverlayStore,
-    CjsToolWebglBuilder,
-    CjsToolWebgpuBuilder,
+    CjsToolIndexEntry,
+    CjsToolIndexOverlayStore,
+    CjsToolShaderBuilderWebgl,
+    CjsToolShaderBuilderWebgpu,
 } from "../src/index.js";
 
 const WebglPath = "res:/graphics/effect.dx11/managed/space/test.sm_hi";
@@ -25,7 +25,7 @@ test("WebGL builder verifies sources and emits deterministic qualified reports",
         logicalPath: WebglPath,
         bytes: "compiled-webgl-source",
     });
-    const builder = new CjsToolWebglBuilder({ source, format: QualifiedFormat });
+    const builder = new CjsToolShaderBuilderWebgl({ source, format: QualifiedFormat });
     const progress = [];
 
     context.after(async () => fs.rm(directory, { recursive: true, force: true }));
@@ -80,7 +80,7 @@ test("WebGPU builder remains independently importable and uses CEWGPU targets", 
         logicalPath: WebgpuPath,
         bytes: "compiled-webgpu-source",
     });
-    const builder = new CjsToolWebgpuBuilder({ format: QualifiedFormat });
+    const builder = new CjsToolShaderBuilderWebgpu({ format: QualifiedFormat });
 
     context.after(async () => fs.rm(directory, { recursive: true, force: true }));
 
@@ -108,8 +108,8 @@ test("tools-core coordinates but does not implement native HLSLcc qualification"
         logicalPath: WebgpuPath,
         bytes: "compiled-source",
     });
-    const missing = new CjsToolWebgpuBuilder({ format: QualifiedFormat });
-    const qualified = new CjsToolWebgpuBuilder({ format: NativeQualifiedFormat });
+    const missing = new CjsToolShaderBuilderWebgpu({ format: QualifiedFormat });
+    const qualified = new CjsToolShaderBuilderWebgpu({ format: NativeQualifiedFormat });
 
     context.after(async () => fs.rm(directory, { recursive: true, force: true }));
 
@@ -156,7 +156,7 @@ test("failed shader runs roll back staging and do not publish output", async con
         logicalPath: WebglPath,
         bytes: "compiled-source",
     });
-    const builder = new CjsToolWebglBuilder({ format: FailingFormat });
+    const builder = new CjsToolShaderBuilderWebgl({ format: FailingFormat });
     const progress = [];
 
     context.after(async () => fs.rm(directory, { recursive: true, force: true }));
@@ -187,7 +187,7 @@ test("force transactionally replaces a conflicting immutable output", async cont
         logicalPath: WebglPath,
         bytes: "compiled-force-source",
     });
-    const builder = new CjsToolWebglBuilder({ format: QualifiedFormat });
+    const builder = new CjsToolShaderBuilderWebgl({ format: QualifiedFormat });
     const options = {
         shaderTarget: "frontier-webgl2",
         build: "77",
@@ -220,7 +220,7 @@ test("qualified builds install and safely reuse immutable persistent overlays", 
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-shader-overlay-"));
     const outputDirectory = path.join(directory, "output");
-    const overlays = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const overlays = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
     const source = createSource({
         target: "frontier",
         game: "Frontier",
@@ -228,7 +228,7 @@ test("qualified builds install and safely reuse immutable persistent overlays", 
         logicalPath: WebglPath,
         bytes: "compiled-overlay-source",
     });
-    const builder = new CjsToolWebglBuilder({ format: QualifiedFormat, overlays });
+    const builder = new CjsToolShaderBuilderWebgl({ format: QualifiedFormat, overlays });
 
     context.after(async () => fs.rm(directory, { recursive: true, force: true }));
 
@@ -261,7 +261,7 @@ test("qualified builds install and safely reuse immutable persistent overlays", 
 function createSource({ target, game, client, logicalPath, bytes })
 {
     const payload = Buffer.from(bytes);
-    const record = new CjsIndexEntry({
+    const record = new CjsToolIndexEntry({
         logicalPath,
         location: "aa/source",
         checksum: createHash("md5").update(payload).digest("hex"),

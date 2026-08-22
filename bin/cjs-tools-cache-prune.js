@@ -23,7 +23,7 @@ import { readdir, readFile, rm, stat, writeFile, mkdir } from "node:fs/promises"
 import path from "node:path";
 import process from "node:process";
 
-import { CjsToolBuildAuthority, CjsIndexCache, CjsToolCache, CjsToolIndex, resolveDataRoot } from "../src/index.js";
+import { CjsToolBuildAuthority, CjsToolIndexCache, CjsToolCache, CjsToolIndex, resolveDataRoot } from "../src/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
 import { LoadToolEnv } from "../src/env.js";
 
@@ -96,7 +96,7 @@ async function main()
     // the prune root and left the index reading the default one — the keep-set
     // was computed from one cache and applied to another. Content addressing
     // meant the answer was still correct; the downloads went to the wrong place.
-    const index = new CjsToolIndex({ cache: new CjsIndexCache({ directory: cache.directory }) });
+    const index = new CjsToolIndex({ cache: new CjsToolIndexCache({ directory: cache.directory }) });
 
     // EVERY target, always. Resource files are content-addressed and shared, so
     // a file Serenity needs may be one Tranquility never mentions - pruning

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-    CjsRealtimeLivestreamContract,
+    CjsToolRealtimeLivestreamContract,
     LIVESTREAM_STATE_TOPICS,
-} from "../../../src/realtime/livestream/CjsRealtimeLivestreamContract.js";
+} from "../../../src/realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 import { CjsRealtimeTwitchStateNormalizer } from "../../../src/integrations/twitch/CjsRealtimeTwitchStateNormalizer.js";
 import { CjsRealtimeTwitchStateService } from "../../../src/integrations/twitch/CjsRealtimeTwitchStateService.js";
 import { CjsTwitchEventSubStateProvider } from "../../../src/integrations/twitch/CjsTwitchEventSubStateProvider.js";
@@ -146,7 +146,7 @@ class CjsStateTestSupport
     /** Creates one complete offline state snapshot. */
     static snapshot(ids = [ "100" ])
     {
-        return CjsRealtimeLivestreamContract.normalizeStateSnapshot({
+        return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot({
             observedAt: "2026-07-23T04:59:00.000Z",
             states: ids.map(id => ({
                 source: {

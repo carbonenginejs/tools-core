@@ -1,7 +1,7 @@
 /**
  * The map answers that cannot be looked up, precomputed at import.
  *
- * This is a derivation in the sense `CjsSdeDerivations` means it — a pure
+ * This is a derivation in the sense `CjsToolSdeDerivations` means it — a pure
  * function of the rows an import just wrote, stored beside the database so it
  * can never be mistaken for something the source shipped. It holds exactly the
  * two things the SDE does not contain and a query cannot recover:

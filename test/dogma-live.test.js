@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-import { CjsSdeDatabase } from "../src/sde/index.js";
+import { CjsToolSdeDatabase } from "../src/sde/index.js";
 import { CjsToolDogma } from "../src/dogma/CjsToolDogma.js";
 import { CjsToolIndustry } from "../src/industry/CjsToolIndustry.js";
 import { CjsToolLocalisation } from "../src/localisation/CjsToolLocalisation.js";
@@ -65,7 +65,7 @@ function FindDatabase(target)
 
 async function OpenSource(target, found)
 {
-    const database = await CjsSdeDatabase.open(found.filePath, { readOnly: true });
+    const database = await CjsToolSdeDatabase.open(found.filePath, { readOnly: true });
 
     return {
         database,

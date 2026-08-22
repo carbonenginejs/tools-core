@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import test from "node:test";
 
 import {
-    CjsRealtimeLivestreamContract,
+    CjsToolRealtimeLivestreamContract,
     LIVESTREAM_ACTIVITY_FAMILY,
     LIVESTREAM_ACTIVITY_TOPICS,
     LIVESTREAM_STATE_FAMILY,
@@ -20,8 +20,8 @@ test("exports the exact provider-neutral livestream contract subpath", async () 
     const livestream = await import("@carbonenginejs/tools-core/realtime/livestream");
 
     assert.equal(
-        livestream.CjsRealtimeLivestreamContract,
-        CjsRealtimeLivestreamContract,
+        livestream.CjsToolRealtimeLivestreamContract,
+        CjsToolRealtimeLivestreamContract,
     );
     assert.equal(LIVESTREAM_ACTIVITY_FAMILY, "livestream.activity");
     assert.equal(LIVESTREAM_STATE_FAMILY, "livestream.state");
@@ -39,7 +39,7 @@ test("validates equivalent Twitch and Kick activity fixtures", () =>
     const normalized = fixtures.activity.map(fixture => ({
         case: fixture.case,
         topic: fixture.topic,
-        data: CjsRealtimeLivestreamContract.normalizeActivity(
+        data: CjsToolRealtimeLivestreamContract.normalizeActivity(
             fixture.topic,
             fixture.data,
         ),
@@ -64,13 +64,13 @@ test("validates partial state changes and deterministic materialized snapshots",
     const changes = fixtures.stateChanges.map(fixture => ({
         case: fixture.case,
         topic: fixture.topic,
-        data: CjsRealtimeLivestreamContract.normalizeStateChange(fixture.data),
+        data: CjsToolRealtimeLivestreamContract.normalizeStateChange(fixture.data),
     }));
 
     assert.deepEqual(changes, fixtures.stateChanges);
     assert.ok(changes.every(fixture => fixture.topic === LIVESTREAM_STATE_TOPICS.CHANGED));
 
-    const snapshot = CjsRealtimeLivestreamContract.normalizeStateSnapshot(
+    const snapshot = CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(
         fixtures.stateSnapshots[0].data,
     );
 
@@ -88,14 +88,14 @@ test("rejects ambiguous activity and state payloads at the family boundary", () 
     const subscription = structuredClone(fixtures.activity[0].data);
 
     subscription.actor = null;
-    assert.throws(() => CjsRealtimeLivestreamContract.normalizeActivity(
+    assert.throws(() => CjsToolRealtimeLivestreamContract.normalizeActivity(
         LIVESTREAM_ACTIVITY_TOPICS.SUBSCRIPTION_RECEIVED,
         subscription,
     ), /actor/u);
 
     subscription.actor = structuredClone(fixtures.activity[0].data.actor);
     subscription.extensions = { kick: {} };
-    assert.throws(() => CjsRealtimeLivestreamContract.normalizeActivity(
+    assert.throws(() => CjsToolRealtimeLivestreamContract.normalizeActivity(
         LIVESTREAM_ACTIVITY_TOPICS.SUBSCRIPTION_RECEIVED,
         subscription,
     ), /extensions\.twitch/u);
@@ -104,7 +104,7 @@ test("rejects ambiguous activity and state payloads at the family boundary", () 
 
     state.changes = {};
     assert.throws(
-        () => CjsRealtimeLivestreamContract.normalizeStateChange(state),
+        () => CjsToolRealtimeLivestreamContract.normalizeStateChange(state),
         /at least one field/u,
     );
 
@@ -112,7 +112,7 @@ test("rejects ambiguous activity and state payloads at the family boundary", () 
 
     snapshot.states.push(structuredClone(snapshot.states[0]));
     assert.throws(
-        () => CjsRealtimeLivestreamContract.normalizeStateSnapshot(snapshot),
+        () => CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(snapshot),
         /Duplicate livestream snapshot source/u,
     );
 });

@@ -1,4 +1,4 @@
-import { normalizeLogicalPath } from "../indexing/CjsIndexEntry.js";
+import { normalizeLogicalPath } from "../indexing/CjsToolIndexEntry.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 

@@ -4,11 +4,11 @@ import test from "node:test";
 
 import { WebSocket } from "ws";
 
-import { REALTIME_SUBPROTOCOL } from "../../src/realtime/CjsRealtimeProtocol.js";
-import { CjsRealtimeHttpRouter } from "../../src/realtime/server/CjsRealtimeHttpRouter.js";
-import { CjsRealtimeWebSocketGateway } from "../../src/realtime/websocket/CjsRealtimeWebSocketGateway.js";
-import { CjsRealtimeWebSocketTransport } from "../../src/realtime/websocket/CjsRealtimeWebSocketTransport.js";
-import { CjsRealtimeServer } from "../../src/service/CjsRealtimeServer.js";
+import { REALTIME_SUBPROTOCOL } from "../../src/realtime/CjsToolRealtimeProtocol.js";
+import { CjsToolRealtimeHttpRouter } from "../../src/realtime/server/CjsToolRealtimeHttpRouter.js";
+import { CjsToolRealtimeGatewayWebsocket } from "../../src/realtime/websocket/CjsToolRealtimeGatewayWebsocket.js";
+import { CjsToolRealtimeTransportWebsocket } from "../../src/realtime/websocket/CjsToolRealtimeTransportWebsocket.js";
+import { CjsToolRealtimeServer } from "../../src/service/CjsToolRealtimeServer.js";
 import { CjsToolServiceHost } from "../../src/service/CjsToolServiceHost.js";
 import {
     CjsRealtimeSyntheticService,
@@ -45,11 +45,11 @@ class CjsRealtimeNetworkTest
                 idleTimeoutMs: options.idleTimeoutMs ?? 3000,
             },
         });
-        const router = new CjsRealtimeHttpRouter({
+        const router = new CjsToolRealtimeHttpRouter({
             hub: harness.hub,
             allowedOrigins: [ harness.origin ],
         });
-        const gateway = new CjsRealtimeWebSocketGateway({
+        const gateway = new CjsToolRealtimeGatewayWebsocket({
             hub: harness.hub,
             allowedOrigins: [ harness.origin ],
         });
@@ -141,7 +141,7 @@ test("owns a standalone realtime listener without changing the legacy launcher",
     const capability = "standalone-capability-value-00000001";
     const origin = "http://127.0.0.1:8080";
     const service = new CjsRealtimeSyntheticService();
-    const realtime = new CjsRealtimeServer({
+    const realtime = new CjsToolRealtimeServer({
         services: [ service ],
         grants: [ {
             capability,
@@ -297,7 +297,7 @@ test("releases a service-owned response body when ETag returns 304", async () =>
         },
     };
 
-    await CjsRealtimeHttpRouter.writeResource(response, {
+    await CjsToolRealtimeHttpRouter.writeResource(response, {
         method: "GET",
         headers: { "if-none-match": "\"revision-one\"" },
     }, {
@@ -329,7 +329,7 @@ test("rejects raw traversal aliases, drive prefixes, and malformed content paths
         const url = new URL(requestTarget, "http://tools-core.local");
 
         assert.throws(
-            () => CjsRealtimeHttpRouter.matchContent(url, requestTarget),
+            () => CjsToolRealtimeHttpRouter.matchContent(url, requestTarget),
             error => [ "invalid_path", "invalid_request" ].includes(error.code),
             requestTarget,
         );
@@ -472,7 +472,7 @@ test("checks WebSocket backpressure including the next message bytes", async () 
             closes.push({ code, reason });
         },
     };
-    const transport = new CjsRealtimeWebSocketTransport({
+    const transport = new CjsToolRealtimeTransportWebsocket({
         socket,
         maxBufferedBytes: 5,
     });

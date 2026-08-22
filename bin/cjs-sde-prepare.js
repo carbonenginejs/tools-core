@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { CjsToolCache } from "../src/cache/index.js";
-import { CjsSdeArchive, CjsSdeDatabase } from "../src/sde/index.js";
+import { CjsToolSdeArchive, CjsToolSdeDatabase } from "../src/sde/index.js";
 import { LoadToolEnv } from "../src/env.js";
 
 const HELP = `Usage:
@@ -44,7 +44,7 @@ async function Main(argv)
         throw new Error("--refresh requires --build: it operates on one database already on disk");
     }
 
-    const archive = new CjsSdeArchive({
+    const archive = new CjsToolSdeArchive({
         latestUrl: options.latestUrl,
         archiveUrlTemplate: options.archiveUrlTemplate
     });
@@ -69,7 +69,7 @@ async function Main(argv)
     // that has not changed. Without this, every change to the derivation
     // register would strand every database already on disk.
     const database = options.refresh
-        ? await CjsSdeDatabase.refresh(outputPath)
+        ? await CjsToolSdeDatabase.refresh(outputPath)
         : await archive.PrepareDatabase({
             archiveUrl: options.source,
             build: requestedBuild,

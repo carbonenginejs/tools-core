@@ -14,23 +14,23 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | `./black` | Indexed Black-to-public-JSON reads | `CjsToolBlack` |
 | `./cache` | Shared cache layout and access | `CjsToolCache` |
 | `./character` | Schema-v7 character-library target policy, lossless decoded-definition retention, additive typed compilation, source-catalog gathering, effective version materialization, and prepared-document loading | `CjsToolCharacter`, `CjsToolCharacterBuilder`, `CjsToolCharacterCatalogGatherer`, `CjsToolCharacterDefinitionCompiler`, `CjsToolCharacterRepository` |
-| `./index` | Exact-build app/res indexes, overlays, and validated bytes | `CjsToolIndex`, `CjsIndexOverlayStore` |
+| `./index` | Exact-build app/res indexes, overlays, and validated bytes | `CjsToolIndex`, `CjsToolIndexOverlayStore` |
 | `./integrations/kick` | Signed Kick webhook normalization | `KickWebhookHandler`, `KickActivityService`, `KickStateService` |
 | `./integrations/twitch` | Twitch OAuth, Helix, IRC/EventSub, chat, activity, and state | Public `Twitch*` classes |
 | `./library` | Canonical JSON and deterministic gzip artifacts | `CjsToolLibraryArtifact` |
 | `./map` | Region/constellation/system/celestial documents, composed names, stargate orientation, and derived per-system lighting | `CjsToolMap`, `BuildMapIndex`, `BlackbodyColor`, `StargateDirection` |
 | `./prefetch` | Exact-build cache preparation from explicit resource profiles | `CjsToolPrefetch` |
 | `./proxy` | Optional local query/resource HTTP adapter | `CjsToolHttpProxy` |
-| `./realtime` | Protocol constants and validation | `CjsRealtimeProtocol`, `CjsRealtimeError` |
-| `./realtime/chat` | Provider-neutral live-chat contract | `CjsRealtimeChatContract`, family/topic constants |
-| `./realtime/livestream` | Provider-neutral livestream contracts | `CjsRealtimeLivestreamContract`, family/topic constants |
-| `./realtime/resource-watch` | Snapshot-recoverable filesystem projection | `CjsRealtimeResourceWatchService` |
-| `./realtime/server` | Service registry, authority, hub, HTTP router, and connections | `CjsRealtimeHub`, `CjsRealtimeSessionAuthority`, related classes |
-| `./realtime/websocket` | Node WebSocket gateway and transport | `CjsRealtimeWebSocketGateway`, `CjsRealtimeWebSocketTransport` |
+| `./realtime` | Protocol constants and validation | `CjsToolRealtimeProtocol`, `CjsToolRealtimeError` |
+| `./realtime/chat` | Provider-neutral live-chat contract | `CjsToolRealtimeChatContract`, family/topic constants |
+| `./realtime/livestream` | Provider-neutral livestream contracts | `CjsToolRealtimeLivestreamContract`, family/topic constants |
+| `./realtime/resource-watch` | Snapshot-recoverable filesystem projection | `CjsToolRealtimeResourceWatchService` |
+| `./realtime/server` | Service registry, authority, hub, HTTP router, and connections | `CjsToolRealtimeHub`, `CjsToolRealtimeSessionAuthority`, related classes |
+| `./realtime/websocket` | Node WebSocket gateway and transport | `CjsToolRealtimeGatewayWebsocket`, `CjsToolRealtimeTransportWebsocket` |
 | `./schema` | Carbon schema scanning, checking, and class emission | `CjsFormatCarbon` |
-| `./service` | HTTP/realtime composition and standalone listener | `CjsToolServiceHost`, `CjsRealtimeServer` |
-| `./sde` | Exact-build JSONL SDE preparation and queries | `CjsSde`, archive/database/repository classes |
-| `./shader` | Exact-build shader catalog and build orchestration | `CjsShaderTargetRegistry`, `CjsToolWebglBuilder`, `CjsToolWebgpuBuilder` |
+| `./service` | HTTP/realtime composition and standalone listener | `CjsToolServiceHost`, `CjsToolRealtimeServer` |
+| `./sde` | Exact-build JSONL SDE preparation and queries | `CjsToolSde`, archive/database/repository classes |
+| `./shader` | Exact-build shader catalog and build orchestration | `CjsToolShaderTargetRegistry`, `CjsToolShaderBuilderWebgl`, `CjsToolShaderBuilderWebgpu` |
 | `./skin` | SKIN and SKINR generated libraries | `CjsToolSkin`, `CjsToolSkinBuilder`, `CjsToolSkinrBuilder` |
 | `./sof` | Exact-build SOF catalogs and self-contained SOF bundles | `CjsToolSofRepository`, `CjsToolSofCatalog`, `CjsToolSofBundle` |
 | `./target` | Audited public target identities and capabilities | `CjsToolTargetRegistry` |

@@ -2,7 +2,7 @@ import {
     normalizeBuildReference,
     normalizeGame,
     normalizeProviderId,
-} from "../indexing/CjsIndexProvider.js";
+} from "../indexing/CjsToolIndexProvider.js";
 
 const TargetIdPattern = /^[a-z0-9][a-z0-9._-]*$/u;
 

@@ -1,5 +1,5 @@
-import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
-import { CjsBoundedFetch } from "../../internal/CjsBoundedFetch.js";
+import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
+import { CjsToolBoundedFetch } from "../../internal/CjsToolBoundedFetch.js";
 
 const DEFAULT_ENDPOINT = "https://api.twitch.tv/helix/";
 
@@ -33,7 +33,7 @@ export class CjsTwitchHelixClient
             throw new TypeError("Twitch Helix fetch option must be a function");
         }
 
-        CjsBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
+        CjsToolBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
 
         this.#oauth = oauth;
         this.#fetch = fetchImplementation;
@@ -59,7 +59,7 @@ export class CjsTwitchHelixClient
 
         try
         {
-            return await CjsBoundedFetch.run(async requestSignal =>
+            return await CjsToolBoundedFetch.run(async requestSignal =>
             {
                 const url = CjsTwitchHelixClient.createUrl(this.#endpoint, route, query);
                 const normalizedMethod = CjsTwitchHelixClient.normalizeMethod(method);
@@ -68,7 +68,7 @@ export class CjsTwitchHelixClient
                     expectedUserId,
                 });
 
-                CjsBoundedFetch.requireActive(requestSignal, "Twitch Helix request");
+                CjsToolBoundedFetch.requireActive(requestSignal, "Twitch Helix request");
                 let response = await this.#Send(
                     url,
                     normalizedMethod,
@@ -85,7 +85,7 @@ export class CjsTwitchHelixClient
                         expectedUserId,
                         force: true,
                     });
-                    CjsBoundedFetch.requireActive(requestSignal, "Twitch Helix request");
+                    CjsToolBoundedFetch.requireActive(requestSignal, "Twitch Helix request");
                     response = await this.#Send(
                         url,
                         normalizedMethod,
@@ -104,12 +104,12 @@ export class CjsTwitchHelixClient
         }
         catch (error)
         {
-            if (error instanceof CjsRealtimeError)
+            if (error instanceof CjsToolRealtimeError)
             {
                 throw error;
             }
 
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_unavailable",
                 "Twitch Helix is unavailable",
                 { retryable: true, cause: error },
@@ -144,7 +144,7 @@ export class CjsTwitchHelixClient
         }
         catch (error)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_unavailable",
                 "Twitch Helix is unavailable",
                 { retryable: true, cause: error },

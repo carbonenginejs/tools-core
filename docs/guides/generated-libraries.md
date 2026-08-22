@@ -302,15 +302,15 @@ ammunition-to-projectile TypeID relation.
 ## JavaScript composition
 
 ```js
-import { CjsSde, CjsSdeArchive } from "@carbonenginejs/tools-core/sde";
+import { CjsToolSde, CjsToolSdeArchive } from "@carbonenginejs/tools-core/sde";
 
-const archive = new CjsSdeArchive();
+const archive = new CjsToolSdeArchive();
 const exact = await archive.ResolveLatest();
 const database = await archive.PrepareDatabase({
     ...exact,
     databasePath: "<cache database path>",
 });
-const sde = new CjsSde(await database.LoadTables([
+const sde = new CjsToolSde(await database.LoadTables([
     "types",
     "graphics",
     "skins",

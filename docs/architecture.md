@@ -75,11 +75,11 @@ The legacy query/resource service and the authenticated realtime host are
 separate compositions:
 
 - `CjsToolHttpProxy` exposes exact-build query and byte routes.
-- `CjsRealtimeHub` owns registered service lifecycles and protocol state.
-- `CjsRealtimeHttpRouter` and `CjsRealtimeWebSocketGateway` expose the versioned
+- `CjsToolRealtimeHub` owns registered service lifecycles and protocol state.
+- `CjsToolRealtimeHttpRouter` and `CjsToolRealtimeGatewayWebsocket` expose the versioned
   realtime transport.
 - `CjsToolServiceHost` composes those routes without choosing a listener.
-- `CjsRealtimeServer` owns an optional standalone loopback listener.
+- `CjsToolRealtimeServer` owns an optional standalone loopback listener.
 
 Provider integrations authenticate and normalize upstream input before it
 enters a service. Registered services receive canonical values, not raw sockets.

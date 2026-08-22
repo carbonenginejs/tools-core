@@ -1,10 +1,10 @@
-import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
-import { CjsRealtimeProtocol } from "../../realtime/CjsRealtimeProtocol.js";
+import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
+import { CjsToolRealtimeProtocol } from "../../realtime/CjsToolRealtimeProtocol.js";
 import {
     CHAT_FAMILY,
     CHAT_TOPICS,
-    CjsRealtimeChatBlockList,
-    CjsRealtimeChatContract,
+    CjsToolRealtimeChatBlockList,
+    CjsToolRealtimeChatContract,
 } from "../../realtime/chat/index.js";
 import { CjsTwitchChatSource } from "./CjsTwitchChatSource.js";
 
@@ -90,11 +90,11 @@ export class CjsRealtimeTwitchChatService
         }
 
         this.id = id;
-        this.#blockList = blockList instanceof CjsRealtimeChatBlockList
+        this.#blockList = blockList instanceof CjsToolRealtimeChatBlockList
             ? blockList
-            : new CjsRealtimeChatBlockList(blockList ?? {});
+            : new CjsToolRealtimeChatBlockList(blockList ?? {});
         this.#room = CjsRealtimeTwitchChatService.normalizeRoom(room);
-        this.#integrationId = CjsRealtimeChatContract.normalizeNullableString(
+        this.#integrationId = CjsToolRealtimeChatContract.normalizeNullableString(
             chatSource.integrationId ?? null,
             "source.integrationId",
             256,
@@ -190,7 +190,7 @@ export class CjsRealtimeTwitchChatService
 
         if (!this.#source.supportsDynamicRooms)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "subscription_target_unsupported",
                 "Twitch chat source does not support dynamic room subscriptions",
             );
@@ -207,7 +207,7 @@ export class CjsRealtimeTwitchChatService
             target.room.login,
         );
         const resolvedTarget = Object.freeze({
-            room: CjsRealtimeChatContract.freeze({
+            room: CjsToolRealtimeChatContract.freeze({
                 ...target.room,
                 id: roomMetadata?.id ?? target.room.id,
                 displayName: roomMetadata?.displayName ?? null,
@@ -250,7 +250,7 @@ export class CjsRealtimeTwitchChatService
             return true;
         }
 
-        return CjsRealtimeChatContract.matchesRoomSelector(room, data.room);
+        return CjsToolRealtimeChatContract.matchesRoomSelector(room, data.room);
     }
 
     #OnMessage(message)
@@ -339,14 +339,14 @@ export class CjsRealtimeTwitchChatService
 
     #IsDuplicate(room, messageId)
     {
-        const roomKey = CjsRealtimeChatContract.roomKey(room);
+        const roomKey = CjsToolRealtimeChatContract.roomKey(room);
 
         return this.#recentByRoom.get(roomKey)?.ids.has(messageId) ?? false;
     }
 
     #Remember(room, messageId)
     {
-        const roomKey = CjsRealtimeChatContract.roomKey(room);
+        const roomKey = CjsToolRealtimeChatContract.roomKey(room);
         let record = this.#recentByRoom.get(roomKey);
 
         if (!record)
@@ -382,10 +382,10 @@ export class CjsRealtimeTwitchChatService
 
         if (integrationId !== null)
         {
-            if (!CjsRealtimeProtocol.isRecord(value)
-                || !CjsRealtimeProtocol.isRecord(value.room))
+            if (!CjsToolRealtimeProtocol.isRecord(value)
+                || !CjsToolRealtimeProtocol.isRecord(value.room))
             {
-                throw new CjsRealtimeError(
+                throw new CjsToolRealtimeError(
                     "twitch_invalid_message",
                     "Twitch delivered an invalid normalized chat message",
                 );
@@ -400,12 +400,12 @@ export class CjsRealtimeTwitchChatService
             };
         }
 
-        const normalized = CjsRealtimeChatContract.normalizeMessage(candidate);
+        const normalized = CjsToolRealtimeChatContract.normalizeMessage(candidate);
 
         if (normalized.room.provider !== "twitch"
-            || !CjsRealtimeProtocol.isRecord(normalized.extensions.twitch))
+            || !CjsToolRealtimeProtocol.isRecord(normalized.extensions.twitch))
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_invalid_message",
                 "Twitch delivered an invalid normalized chat message",
             );
@@ -453,16 +453,16 @@ export class CjsRealtimeTwitchChatService
     /** Normalizes a provider-neutral room target for Twitch IRC joining. */
     static normalizeSubscriptionTarget(value, integrationId = null)
     {
-        if (!CjsRealtimeProtocol.isRecord(value)
-            || !CjsRealtimeProtocol.isRecord(value.room))
+        if (!CjsToolRealtimeProtocol.isRecord(value)
+            || !CjsToolRealtimeProtocol.isRecord(value.room))
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "invalid_subscription_target",
                 "Twitch chat target must contain a room selector",
             );
         }
 
-        const selector = CjsRealtimeChatContract.normalizeRoomSelector(value.room);
+        const selector = CjsToolRealtimeChatContract.normalizeRoomSelector(value.room);
         const login = selector.login?.replace(/^#/u, "").toLowerCase() ?? null;
 
         if (selector.provider !== "twitch"
@@ -474,14 +474,14 @@ export class CjsRealtimeTwitchChatService
             || login === null
             || !/^[a-z0-9_]{1,25}$/u.test(login))
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "invalid_subscription_target",
                 "Twitch chat target must identify a channel login",
             );
         }
 
         return Object.freeze({
-            room: CjsRealtimeChatContract.freeze({
+            room: CjsToolRealtimeChatContract.freeze({
                 ...selector,
                 integrationId,
                 kind: "channel",
@@ -498,7 +498,7 @@ export class CjsRealtimeTwitchChatService
             throw new TypeError("Twitch provider status is invalid");
         }
 
-        return CjsRealtimeChatContract.normalizeStatus({
+        return CjsToolRealtimeChatContract.normalizeStatus({
             state: value?.state,
             reasonCode: value?.reasonCode ?? null,
             retryable: value?.retryable === true,

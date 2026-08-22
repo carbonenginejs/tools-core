@@ -21,7 +21,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CjsSdeDatabase } from "../src/sde/index.js";
+import { CjsToolSdeDatabase } from "../src/sde/index.js";
 import { CjsToolLocalisation, ReadManualNames } from "../src/localisation/index.js";
 
 const HELP = `Usage:
@@ -124,7 +124,7 @@ async function OpenTarget(cacheRoot, target, build)
     if (!chosen) throw new Error(`No prepared build for ${target} under ${root}`);
 
     const filePath = path.join(root, chosen, "sde_v1.sqlite");
-    const database = await CjsSdeDatabase.open(filePath, { readOnly: true });
+    const database = await CjsToolSdeDatabase.open(filePath, { readOnly: true });
 
     return {
         database,

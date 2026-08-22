@@ -7,7 +7,7 @@ import path from "node:path";
 
 import { CjsToolAudioRepository } from "../src/audio/index.js";
 import { CjsToolCache } from "../src/cache/index.js";
-import { CjsSdeRepository } from "../src/sde/index.js";
+import { CjsToolSdeRepository } from "../src/sde/index.js";
 
 const TRACK_ID = 4101;
 const SEGMENT_ID = 4001;
@@ -731,7 +731,7 @@ test("sde repository defaults to auto-prepare and falls back to the newest prepa
         fs.writeFileSync(path.join(directory, "sde_v1.sqlite"), "");
     }
 
-    const repository = new CjsSdeRepository({
+    const repository = new CjsToolSdeRepository({
         cache: new CjsToolCache(cacheDirectory),
         archive: {
             async ResolveLatest()

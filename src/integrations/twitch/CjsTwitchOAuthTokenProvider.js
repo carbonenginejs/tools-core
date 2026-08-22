@@ -1,5 +1,5 @@
-import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
-import { CjsBoundedFetch } from "../../internal/CjsBoundedFetch.js";
+import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
+import { CjsToolBoundedFetch } from "../../internal/CjsToolBoundedFetch.js";
 
 /** Validates externally acquired Twitch user tokens and serializes optional refresh. */
 export class CjsTwitchOAuthTokenProvider
@@ -64,8 +64,8 @@ export class CjsTwitchOAuthTokenProvider
             );
         }
 
-        CjsBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
-        CjsBoundedFetch.normalizeLimit(maxResponseBytes, "maxResponseBytes");
+        CjsToolBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
+        CjsToolBoundedFetch.normalizeLimit(maxResponseBytes, "maxResponseBytes");
 
         this.#clientId = clientId;
         this.#getAccessToken = getAccessToken;
@@ -95,7 +95,7 @@ export class CjsTwitchOAuthTokenProvider
 
         if (!this.#acquiring)
         {
-            const operation = CjsBoundedFetch.run(
+            const operation = CjsToolBoundedFetch.run(
                 signal => this.#Acquire(signal),
                 {
                     timeoutMs: this.#requestTimeoutMs,
@@ -103,12 +103,12 @@ export class CjsTwitchOAuthTokenProvider
                 },
             ).catch(error =>
             {
-                if (error instanceof CjsRealtimeError)
+                if (error instanceof CjsToolRealtimeError)
                 {
                     throw error;
                 }
 
-                throw new CjsRealtimeError(
+                throw new CjsToolRealtimeError(
                     "twitch_unavailable",
                     "Twitch token validation is unavailable",
                     { retryable: true, cause: error },
@@ -159,19 +159,19 @@ export class CjsTwitchOAuthTokenProvider
         }
         catch (error)
         {
-            if (error instanceof CjsRealtimeError)
+            if (error instanceof CjsToolRealtimeError)
             {
                 throw error;
             }
 
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_unauthorized",
                 "Twitch authorization is not available",
                 { cause: error },
             );
         }
 
-        CjsBoundedFetch.requireActive(signal, "Twitch token acquisition");
+        CjsToolBoundedFetch.requireActive(signal, "Twitch token acquisition");
 
         let response = await this.#Validate(accessToken, signal);
 
@@ -188,21 +188,21 @@ export class CjsTwitchOAuthTokenProvider
             }
             catch (error)
             {
-                throw new CjsRealtimeError(
+                throw new CjsToolRealtimeError(
                     "twitch_unauthorized",
                     "Twitch authorization could not be refreshed",
                     { cause: error },
                 );
             }
 
-            CjsBoundedFetch.requireActive(signal, "Twitch token refresh");
+            CjsToolBoundedFetch.requireActive(signal, "Twitch token refresh");
 
             response = await this.#Validate(accessToken, signal);
         }
 
         if (!response.ok)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 response.status === 401 ? "twitch_unauthorized" : "twitch_unavailable",
                 response.status === 401
                     ? "Twitch authorization is no longer valid"
@@ -215,7 +215,7 @@ export class CjsTwitchOAuthTokenProvider
 
         try
         {
-            value = await CjsBoundedFetch.readJson(response, {
+            value = await CjsToolBoundedFetch.readJson(response, {
                 maxBytes: this.#maxResponseBytes,
                 label: "Twitch token validation response",
                 signal,
@@ -223,7 +223,7 @@ export class CjsTwitchOAuthTokenProvider
         }
         catch
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_invalid_response",
                 "Twitch token validation returned an invalid response",
                 { retryable: true },
@@ -235,7 +235,7 @@ export class CjsTwitchOAuthTokenProvider
             || !Array.isArray(value.scopes) || !Number.isSafeInteger(value.expires_in)
             || value.expires_in <= 0)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_unauthorized",
                 "Twitch authorization identity does not match this application",
             );
@@ -279,7 +279,7 @@ export class CjsTwitchOAuthTokenProvider
         }
         catch
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_unavailable",
                 "Twitch token validation is unavailable",
                 { retryable: true },
@@ -297,7 +297,7 @@ export class CjsTwitchOAuthTokenProvider
 
         if (typeof token !== "string" || token.length < 8 || /\s/u.test(token))
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_unauthorized",
                 "Twitch authorization is not available",
             );
@@ -323,7 +323,7 @@ export class CjsTwitchOAuthTokenProvider
     {
         if (expectedUserId !== null && record.userId !== expectedUserId)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_unauthorized",
                 "Twitch authorization user does not match the configured identity",
             );
@@ -331,7 +331,7 @@ export class CjsTwitchOAuthTokenProvider
 
         if (!requiredScopes.every(scope => record.scopes.includes(scope)))
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_scope_required",
                 "Twitch authorization is missing a required scope",
             );

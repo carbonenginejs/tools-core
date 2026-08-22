@@ -1,14 +1,14 @@
-import { CjsIndexReader } from "./CjsIndexReader.js";
-import { CjsIndexProviderRegistry } from "./CjsIndexProviderRegistry.js";
-import { CjsIndexOverlaySource } from "./CjsIndexOverlaySource.js";
-import { CjsIndexOverlayStore } from "./CjsIndexOverlayStore.js";
-import { CjsIndexGeneratedStore } from "./CjsIndexGeneratedStore.js";
-import { CjsIndexSource } from "./CjsIndexSource.js";
-import { CjsIndexCache } from "./CjsIndexCache.js";
-import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
+import { CjsToolIndexReader } from "./CjsToolIndexReader.js";
+import { CjsToolIndexProviderRegistry } from "./CjsToolIndexProviderRegistry.js";
+import { CjsToolIndexOverlaySource } from "./CjsToolIndexOverlaySource.js";
+import { CjsToolIndexOverlayStore } from "./CjsToolIndexOverlayStore.js";
+import { CjsToolIndexGeneratedStore } from "./CjsToolIndexGeneratedStore.js";
+import { CjsToolIndexSource } from "./CjsToolIndexSource.js";
+import { CjsToolIndexCache } from "./CjsToolIndexCache.js";
+import { CjsToolBoundedFetch } from "../internal/CjsToolBoundedFetch.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
-import { CjsBuildPolicy } from "../build/CjsBuildPolicy.js";
-import { CjsBuildObservations } from "../build/CjsBuildObservations.js";
+import { CjsToolBuildPolicy } from "../build/CjsToolBuildPolicy.js";
+import { CjsToolBuildObservations } from "../build/CjsToolBuildObservations.js";
 import { resolveDataRoot } from "../cache/resolveDataRoot.js";
 import * as utils from "../utils.js";
 
@@ -40,10 +40,10 @@ export class CjsToolIndex
 
     /** Creates the standalone source service with a local cache by default. */
     constructor({
-        providers = new CjsIndexProviderRegistry(),
+        providers = new CjsToolIndexProviderRegistry(),
         targets = new CjsToolTargetRegistry(),
         fetch = globalThis.fetch,
-        cache = new CjsIndexCache(),
+        cache = new CjsToolIndexCache(),
         overlays = null,
         requestTimeoutMs = 30000,
         maxMetadataBytes = 64 * 1024,
@@ -56,9 +56,9 @@ export class CjsToolIndex
             throw new TypeError("CjsToolIndex requires fetch");
         }
 
-        if (cache !== null && !(cache instanceof CjsIndexCache))
+        if (cache !== null && !(cache instanceof CjsToolIndexCache))
         {
-            throw new TypeError("CjsToolIndex cache must be a CjsIndexCache or null");
+            throw new TypeError("CjsToolIndex cache must be a CjsToolIndexCache or null");
         }
 
         if (!(targets instanceof CjsToolTargetRegistry))
@@ -66,14 +66,14 @@ export class CjsToolIndex
             throw new TypeError("CjsToolIndex targets must be a CjsToolTargetRegistry");
         }
 
-        if (overlays !== null && !(overlays instanceof CjsIndexOverlayStore))
+        if (overlays !== null && !(overlays instanceof CjsToolIndexOverlayStore))
         {
             throw new TypeError(
-                "CjsToolIndex overlays must be a CjsIndexOverlayStore or null",
+                "CjsToolIndex overlays must be a CjsToolIndexOverlayStore or null",
             );
         }
 
-        CjsBoundedFetch.normalizeLimit(maxPayloadBytes, "maxPayloadBytes");
+        CjsToolBoundedFetch.normalizeLimit(maxPayloadBytes, "maxPayloadBytes");
 
         this.#fetch = fetch;
         this.#cache = cache;
@@ -81,11 +81,11 @@ export class CjsToolIndex
         this.#targets = targets;
         this.#overlays = overlays;
         this.#generated = cache
-            ? new CjsIndexGeneratedStore({ cache })
+            ? new CjsToolIndexGeneratedStore({ cache })
             : null;
         this.#requestTimeoutMs = requestTimeoutMs;
         this.#maxPayloadBytes = maxPayloadBytes;
-        this.#indexes = new CjsIndexReader({
+        this.#indexes = new CjsToolIndexReader({
             providers,
             fetch,
             cache,
@@ -266,7 +266,7 @@ export class CjsToolIndex
         // resolution that has already succeeded.
         try
         {
-            const observations = await CjsBuildObservations.read(resolveDataRoot());
+            const observations = await CjsToolBuildObservations.read(resolveDataRoot());
 
             await observations.Record({
                 target: target.id,
@@ -306,7 +306,7 @@ export class CjsToolIndex
      */
     async #GetPolicy()
     {
-        this.#policy ??= CjsBuildPolicy.read(resolveDataRoot());
+        this.#policy ??= CjsToolBuildPolicy.read(resolveDataRoot());
 
         return this.#policy;
     }
@@ -336,7 +336,7 @@ export class CjsToolIndex
     {
         const indexes = await this.ReadIndexes(options);
 
-        return new CjsIndexSource({
+        return new CjsToolIndexSource({
             indexes,
             fetch: this.#fetch,
             cache: this.#cache,
@@ -350,7 +350,7 @@ export class CjsToolIndex
     {
         const target = this.#targets.Get(targetValue);
         const indexes = await this.ReadTargetIndexes(target.id, build, options);
-        const source = new CjsIndexSource({
+        const source = new CjsToolIndexSource({
             indexes,
             fetch: this.#fetch,
             cache: this.#cache,
@@ -411,7 +411,7 @@ export class CjsToolIndex
         const overlays = [ ...overlaysByName.values() ];
 
         return overlays.length
-            ? new CjsIndexOverlaySource({ source, overlays })
+            ? new CjsToolIndexOverlaySource({ source, overlays })
             : source;
     }
 

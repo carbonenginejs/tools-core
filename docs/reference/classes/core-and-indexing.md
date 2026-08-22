@@ -185,143 +185,143 @@ Public Node composition root for cache, identity, and graph tooling.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndex -->
-## `CjsIndex`
+<!-- class:CjsToolIndexGraph -->
+## `CjsToolIndexGraph`
 
 Complete immutable app/res index graph for one provider and exact build.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndex.js`
+- Source: `src/indexing/CjsToolIndexGraph.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexAnswerCatalog -->
-## `CjsIndexAnswerCatalog`
+<!-- class:CjsToolIndexAnswerCatalog -->
+## `CjsToolIndexAnswerCatalog`
 
 Immutable target/build answers derived from one composed resource view.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexAnswerCatalog.js`
+- Source: `src/indexing/CjsToolIndexAnswerCatalog.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexBuildResolver -->
-## `CjsIndexBuildResolver`
+<!-- class:CjsToolIndexBuildResolver -->
+## `CjsToolIndexBuildResolver`
 
 Resolves an exact build or provider channel to one exact remote build.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexBuildResolver.js`
+- Source: `src/indexing/CjsToolIndexBuildResolver.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexCache -->
-## `CjsIndexCache`
+<!-- class:CjsToolIndexCache -->
+## `CjsToolIndexCache`
 
 Index-module adapter over tools-core's one shared cache.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexCache.js`
+- Source: `src/indexing/CjsToolIndexCache.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexEntry -->
-## `CjsIndexEntry`
+<!-- class:CjsToolIndexEntry -->
+## `CjsToolIndexEntry`
 
 One immutable resource entry from an app/res index.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexEntry.js`
+- Source: `src/indexing/CjsToolIndexEntry.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexGroup -->
-## `CjsIndexGroup`
+<!-- class:CjsToolIndexGroup -->
+## `CjsToolIndexGroup`
 
 One immutable appfileindex or resfileindex parsed as an ordered group.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexGroup.js`
+- Source: `src/indexing/CjsToolIndexGroup.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexGeneratedStore -->
-## `CjsIndexGeneratedStore`
+<!-- class:CjsToolIndexGeneratedStore -->
+## `CjsToolIndexGeneratedStore`
 
 Persists exact-build generated resfileindex groups over shared hash-safe payloads.
 
 - Export: Internal
-- Source: `src/indexing/CjsIndexGeneratedStore.js`
+- Source: `src/indexing/CjsToolIndexGeneratedStore.js`
 - Visibility: Internal
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexOverlaySource -->
-## `CjsIndexOverlaySource`
+<!-- class:CjsToolIndexOverlaySource -->
+## `CjsToolIndexOverlaySource`
 
 Composes persistent target overlays around one official immutable index source.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexOverlaySource.js`
+- Source: `src/indexing/CjsToolIndexOverlaySource.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexOverlay -->
-## `CjsIndexOverlay`
+<!-- class:CjsToolIndexOverlay -->
+## `CjsToolIndexOverlay`
 
 One opened persistent or remote overlay and its immutable resource index.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexOverlayStore.js`
+- Source: `src/indexing/CjsToolIndexOverlayStore.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexOverlayStore -->
-## `CjsIndexOverlayStore`
+<!-- class:CjsToolIndexOverlayStore -->
+## `CjsToolIndexOverlayStore`
 
 Persistent target-specific resource overlays stored outside disposable caches.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexOverlayStore.js`
+- Source: `src/indexing/CjsToolIndexOverlayStore.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexProvider -->
-## `CjsIndexProvider`
+<!-- class:CjsToolIndexProvider -->
+## `CjsToolIndexProvider`
 
 Immutable remote-provider configuration.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexProvider.js`
+- Source: `src/indexing/CjsToolIndexProvider.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexProviderRegistry -->
-## `CjsIndexProviderRegistry`
+<!-- class:CjsToolIndexProviderRegistry -->
+## `CjsToolIndexProviderRegistry`
 
 Immutable registry of remote provider profiles.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexProviderRegistry.js`
+- Source: `src/indexing/CjsToolIndexProviderRegistry.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexReader -->
-## `CjsIndexReader`
+<!-- class:CjsToolIndexReader -->
+## `CjsToolIndexReader`
 
 Reads the complete immutable app/res index graph for one provider/build.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexReader.js`
+- Source: `src/indexing/CjsToolIndexReader.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsIndexSource -->
-## `CjsIndexSource`
+<!-- class:CjsToolIndexSource -->
+## `CjsToolIndexSource`
 
 Cached, read-only remote payload source opened from one complete index graph.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsIndexSource.js`
+- Source: `src/indexing/CjsToolIndexSource.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
@@ -335,21 +335,21 @@ Facade for complete indexes and cached remote app/res file retrieval.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsBoundedFetch -->
-## `CjsBoundedFetch`
+<!-- class:CjsToolBoundedFetch -->
+## `CjsToolBoundedFetch`
 
 Shared deadlines, cancellation, and streaming response limits for remote reads.
 
-- Source: `src/internal/CjsBoundedFetch.js`
+- Source: `src/internal/CjsToolBoundedFetch.js`
 - Visibility: Internal
 - Kind: Internal implementation
 
-<!-- class:CjsBoundedFetchError -->
-## `CjsBoundedFetchError`
+<!-- class:CjsToolBoundedFetchError -->
+## `CjsToolBoundedFetchError`
 
 Stable internal failure emitted by the bounded network boundary.
 
-- Source: `src/internal/CjsBoundedFetch.js`
+- Source: `src/internal/CjsToolBoundedFetch.js`
 - Visibility: Internal
 - Kind: Internal implementation
 

@@ -9,6 +9,9 @@ import {
     CjsRealtimeClient as CjsBrowserRealtimeClient,
 } from "@carbonenginejs/tools-browser/realtime";
 import {
+    // tools-browser OWNS this name, and it is not ours to rename: the two
+    // packages each have a CjsRealtimeProtocol and this test exists to check
+    // they agree. Only the tools-core one took the CjsTool prefix.
     CjsRealtimeProtocol as CjsBrowserRealtimeProtocol,
     REALTIME_PROTOCOL as BROWSER_REALTIME_PROTOCOL,
     REALTIME_PROTOCOL_VERSION as BROWSER_REALTIME_PROTOCOL_VERSION,
@@ -20,10 +23,10 @@ import {
     REALTIME_PROTOCOL_VERSION,
     REALTIME_ROUTE,
     REALTIME_SUBPROTOCOL,
-} from "../../src/realtime/CjsRealtimeProtocol.js";
-import { CjsRealtimeHub } from "../../src/realtime/server/CjsRealtimeHub.js";
-import { CjsRealtimeSessionAuthority } from "../../src/realtime/server/CjsRealtimeSessionAuthority.js";
-import { CjsRealtimeServer } from "../../src/service/CjsRealtimeServer.js";
+} from "../../src/realtime/CjsToolRealtimeProtocol.js";
+import { CjsToolRealtimeHub } from "../../src/realtime/server/CjsToolRealtimeHub.js";
+import { CjsToolRealtimeSessionAuthority } from "../../src/realtime/server/CjsToolRealtimeSessionAuthority.js";
+import { CjsToolRealtimeServer } from "../../src/service/CjsToolRealtimeServer.js";
 import {
     CjsRealtimeMemoryTransport,
     CjsRealtimeSyntheticService,
@@ -41,9 +44,9 @@ class CjsRealtimeConformanceTest
     static async runTranscript(transcript)
     {
         let nextId = 0;
-        const authority = new CjsRealtimeSessionAuthority({ grants: [ transcript.grant ] });
+        const authority = new CjsToolRealtimeSessionAuthority({ grants: [ transcript.grant ] });
         const service = new CjsRealtimeSyntheticService();
-        const hub = new CjsRealtimeHub({
+        const hub = new CjsToolRealtimeHub({
             authority,
             clock: () => Date.parse(fixture.clock),
             createId: prefix => `${prefix}-${++nextId}`,
@@ -91,7 +94,7 @@ class CjsRealtimeConformanceTest
     /** Creates a real gateway using one fixture transport and capability grant. */
     static async listen(transcript, transport = transcript.transport)
     {
-        const server = new CjsRealtimeServer({
+        const server = new CjsToolRealtimeServer({
             services: [ new CjsRealtimeSyntheticService() ],
             grants: [ transcript.grant ],
             allowedOrigins: transport.allowedOrigins,
@@ -187,7 +190,7 @@ test("drives the real browser client and shared wire from the normative transcri
         const publishStep = transcript.steps.find(step => step.id === "publish");
         const commandStep = transcript.steps.find(step => step.id === "command");
         const service = new CjsRealtimeSyntheticService();
-        const server = new CjsRealtimeServer({
+        const server = new CjsToolRealtimeServer({
             services: [ service ],
             grants: [ transcript.grant ],
             allowedOrigins: transcript.transport.allowedOrigins,
@@ -273,7 +276,7 @@ test("keeps browser and missing-Origin agent grants separate", () =>
     for (const rejection of fixture.authenticationRejections)
     {
         const transcript = transcripts.get(rejection.grant);
-        const authority = new CjsRealtimeSessionAuthority({
+        const authority = new CjsToolRealtimeSessionAuthority({
             grants: [ transcript.grant ],
         });
 

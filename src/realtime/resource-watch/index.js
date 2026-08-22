@@ -1,1 +1,1 @@
-export { CjsRealtimeResourceWatchService } from "./CjsRealtimeResourceWatchService.js";
+export { CjsToolRealtimeResourceWatchService } from "./CjsToolRealtimeResourceWatchService.js";

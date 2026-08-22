@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { NextCheckDelay } from "./build/CjsBuildSchedule.js";
+import { NextCheckDelay } from "./build/CjsToolBuildSchedule.js";
 
 export function isExactBuild(value)
 {
@@ -112,7 +112,7 @@ export function toArrayBuffer(bytes)
 /**
  * Returns how long an observation of the latest build stays good.
  *
- * The rule now lives in `src/build/CjsBuildSchedule.js`, which the build
+ * The rule now lives in `src/build/CjsToolBuildSchedule.js`, which the build
  * authority owns; this stays as the name two callers already use.
  *
  * It moved so the build authority owns it, not because it was wrong: 09:00-12:00

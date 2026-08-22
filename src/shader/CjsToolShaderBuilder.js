@@ -2,8 +2,8 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CjsIndexOverlayStore } from "../indexing/CjsIndexOverlayStore.js";
-import { CjsShaderTargetRegistry } from "./CjsShaderTargetRegistry.js";
+import { CjsToolIndexOverlayStore } from "../indexing/CjsToolIndexOverlayStore.js";
+import { CjsToolShaderTargetRegistry } from "./CjsToolShaderTargetRegistry.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 
@@ -58,13 +58,13 @@ export class CjsToolShaderBuilder
         format = null,
         index = null,
         overlays = null,
-        shaderTargets = new CjsShaderTargetRegistry(),
+        shaderTargets = new CjsToolShaderTargetRegistry(),
         targets = new CjsToolTargetRegistry(),
     })
     {
-        if (!(shaderTargets instanceof CjsShaderTargetRegistry))
+        if (!(shaderTargets instanceof CjsToolShaderTargetRegistry))
         {
-            throw new TypeError("Shader builder targets must be a CjsShaderTargetRegistry");
+            throw new TypeError("Shader builder targets must be a CjsToolShaderTargetRegistry");
         }
 
         if (!(targets instanceof CjsToolTargetRegistry))
@@ -72,9 +72,9 @@ export class CjsToolShaderBuilder
             throw new TypeError("Shader builder tool targets must be a CjsToolTargetRegistry");
         }
 
-        if (overlays !== null && !(overlays instanceof CjsIndexOverlayStore))
+        if (overlays !== null && !(overlays instanceof CjsToolIndexOverlayStore))
         {
-            throw new TypeError("Shader builder overlays must be a CjsIndexOverlayStore or null");
+            throw new TypeError("Shader builder overlays must be a CjsToolIndexOverlayStore or null");
         }
 
         this.#backend = String(backend);

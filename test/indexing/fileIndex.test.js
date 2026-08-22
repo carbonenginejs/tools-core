@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-    CjsIndexEntry,
-    CjsIndexGroup,
+    CjsToolIndexEntry,
+    CjsToolIndexGroup,
     createPathMatcher,
     parseFileIndex,
     parseFileIndexLine,
@@ -13,7 +13,7 @@ test("parses index columns into an immutable index entry", () =>
     const line = "res:/Graphics/Foo.red,AA/source,0123456789abcdef0123456789abcdef,42,21,1";
     const resource = parseFileIndexLine(line, 7);
 
-    assert.equal(resource instanceof CjsIndexEntry, true);
+    assert.equal(resource instanceof CjsToolIndexEntry, true);
     assert.equal(resource.logicalPath, "res:/graphics/foo.red");
     assert.equal(resource.sourceLogicalPath, "res:/Graphics/Foo.red");
     assert.equal(resource.prefix, "res");
@@ -44,7 +44,7 @@ test("retains one complete index group without reordering its entries", () =>
         sourceUrl: "https://indexes.test/main",
     });
 
-    assert.equal(group instanceof CjsIndexGroup, true);
+    assert.equal(group instanceof CjsToolIndexGroup, true);
     assert.equal(group.rawText, text);
     assert.deepEqual(group.entries.map((resource) => resource.logicalPath), [
         "res:/z.red",

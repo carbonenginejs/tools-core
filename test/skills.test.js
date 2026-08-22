@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CjsSdeDatabase } from "../src/sde/index.js";
+import { CjsToolSdeDatabase } from "../src/sde/index.js";
 import { CjsToolSkills } from "../src/skills/index.js";
 
 function CreateDatabasePath()
@@ -113,7 +113,7 @@ const TABLES = Object.freeze({
 async function OpenFixture()
 {
     const filePath = CreateDatabasePath();
-    const database = await CjsSdeDatabase.create(filePath);
+    const database = await CjsToolSdeDatabase.create(filePath);
 
     await database.ImportTables(TABLES, { build: 3466501 });
 

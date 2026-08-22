@@ -1,7 +1,7 @@
-import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
+import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
 import {
-    CjsRealtimeChatContract,
-} from "../../realtime/chat/CjsRealtimeChatContract.js";
+    CjsToolRealtimeChatContract,
+} from "../../realtime/chat/CjsToolRealtimeChatContract.js";
 
 const EMOTE_CDN = "https://static-cdn.jtvnw.net/emoticons/v2";
 
@@ -167,7 +167,7 @@ export class CjsRealtimeTwitchChatNormalizer
             throw CjsRealtimeTwitchChatNormalizer.invalidMessage();
         }
 
-        return CjsRealtimeChatContract.normalizeMessage({
+        return CjsToolRealtimeChatContract.normalizeMessage({
             id,
             text,
             occurredAt,
@@ -612,7 +612,7 @@ export class CjsRealtimeTwitchChatNormalizer
     /** Creates a sanitized malformed-upstream error. */
     static invalidMessage()
     {
-        return new CjsRealtimeError(
+        return new CjsToolRealtimeError(
             "twitch_invalid_message",
             "Twitch delivered a chat message without the required stable identity",
         );

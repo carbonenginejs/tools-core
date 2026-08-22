@@ -1,6 +1,6 @@
-import { CjsBoundedFetch } from "../../internal/CjsBoundedFetch.js";
-import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
-import { CjsRealtimeChatContract } from "../../realtime/chat/CjsRealtimeChatContract.js";
+import { CjsToolBoundedFetch } from "../../internal/CjsToolBoundedFetch.js";
+import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
+import { CjsToolRealtimeChatContract } from "../../realtime/chat/CjsToolRealtimeChatContract.js";
 import { CjsRealtimeTwitchChatNormalizer } from "./CjsRealtimeTwitchChatNormalizer.js";
 
 const DEFAULT_TTL_MS = 6 * 60 * 60 * 1000;
@@ -76,14 +76,14 @@ export class CjsTwitchChatAssetResolver
 
         if (!id || !profileImageUrl)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_room_metadata_unavailable",
                 "Twitch channel metadata is unavailable",
                 { retryable: true },
             );
         }
 
-        const room = CjsRealtimeChatContract.freeze({
+        const room = CjsToolRealtimeChatContract.freeze({
             id,
             login: CjsTwitchChatAssetResolver.string(user?.login)?.toLowerCase()
                 ?? login,
@@ -130,7 +130,7 @@ export class CjsTwitchChatAssetResolver
             emotes[id] = cached ?? await this.#ProbeEmote(id, signal);
         }
 
-        return CjsRealtimeChatContract.freeze({ room, emotes });
+        return CjsToolRealtimeChatContract.freeze({ room, emotes });
     }
 
     async #LoadCatalog(key, route, query, signal)
@@ -170,7 +170,7 @@ export class CjsTwitchChatAssetResolver
 
         try
         {
-            const response = await CjsBoundedFetch.run(
+            const response = await CjsToolBoundedFetch.run(
                 requestSignal => this.#fetch(animated.url, {
                     method: "HEAD",
                     signal: requestSignal,
@@ -202,7 +202,7 @@ export class CjsTwitchChatAssetResolver
 
         if (!response?.ok || typeof response.json !== "function")
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "twitch_asset_metadata_unavailable",
                 "Twitch asset metadata is unavailable",
                 { retryable: Number(response?.status) >= 500 },

@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-import { CjsSdeDatabase } from "../src/sde/index.js";
+import { CjsToolSdeDatabase } from "../src/sde/index.js";
 import { CjsToolFitting } from "../src/fitting/CjsToolFitting.js";
 
 /**
@@ -64,7 +64,7 @@ const skip = found ? false : `no prepared eve database under ${CACHE_ROOT}`;
 
 async function Open()
 {
-    const database = await CjsSdeDatabase.open(found.filePath, { readOnly: true });
+    const database = await CjsToolSdeDatabase.open(found.filePath, { readOnly: true });
 
     return {
         database,

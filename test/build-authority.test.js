@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CjsToolBuildAuthority, CjsBuildObservations, CjsBuildPolicy, REASONS } from "../src/build/index.js";
+import { CjsToolBuildAuthority, CjsToolBuildObservations, CjsToolBuildPolicy, REASONS } from "../src/build/index.js";
 
 /** A data root with an optional policy already written into it. */
 function Root(policy = null)
@@ -50,7 +50,7 @@ test("latest asks upstream, records what it said, and reports it", async () =>
     assert.equal(answer.observedLatest, "3466501");
 
     // The log is durable, which is what makes the offline answer below possible.
-    const reread = await CjsBuildObservations.read(directory);
+    const reread = await CjsToolBuildObservations.read(directory);
 
     assert.equal(reread.Latest("eve", "resources").build, "3466501");
 });
@@ -149,7 +149,7 @@ test("re-verifying the build already served is recorded, not dropped as a repeat
 test("the keep-set holds what is served, every pin, and the window", async () =>
 {
     const { directory } = await Open(() => "3466501");
-    const observations = await CjsBuildObservations.read(directory);
+    const observations = await CjsToolBuildObservations.read(directory);
 
     for (const build of [ "3466000", "3466200", "3466501" ])
     {
@@ -164,7 +164,7 @@ test("the keep-set holds what is served, every pin, and the window", async () =>
     });
     const withPin = new CjsToolBuildAuthority({
         observations,
-        policy: new CjsBuildPolicy({ targets: { eve: { resources: { pin: "3465000" } } } }),
+        policy: new CjsToolBuildPolicy({ targets: { eve: { resources: { pin: "3465000" } } } }),
         discover: () => "3466501"
     });
 

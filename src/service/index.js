@@ -1,2 +1,2 @@
-export { CjsRealtimeServer } from "./CjsRealtimeServer.js";
+export { CjsToolRealtimeServer } from "./CjsToolRealtimeServer.js";
 export { CjsToolServiceHost } from "./CjsToolServiceHost.js";

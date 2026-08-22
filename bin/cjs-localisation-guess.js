@@ -25,7 +25,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CjsSdeDatabase, WriteDerivation } from "../src/sde/index.js";
+import { CjsToolSdeDatabase, WriteDerivation } from "../src/sde/index.js";
 import { CjsToolLocalisation } from "../src/localisation/CjsToolLocalisation.js";
 import {
     BuildLocalDictionary,
@@ -168,7 +168,7 @@ async function OpenTarget(cacheRoot, target)
 
     if (!build) throw new Error(`No prepared build for ${target} under ${root}`);
 
-    const database = await CjsSdeDatabase.open(path.join(root, build, "sde_v1.sqlite"), { readOnly: true });
+    const database = await CjsToolSdeDatabase.open(path.join(root, build, "sde_v1.sqlite"), { readOnly: true });
 
     return { database, source: { target, build, Table: name => database.Table(name) } };
 }

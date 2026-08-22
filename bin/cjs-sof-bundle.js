@@ -3,7 +3,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CjsIndexCache, CjsToolIndex } from "../src/indexing/index.js";
+import { CjsToolIndexCache, CjsToolIndex } from "../src/indexing/index.js";
 import { CjsToolSofBundle, CjsToolSofRepository } from "../src/sof/index.js";
 import { LoadToolEnv } from "../src/env.js";
 
@@ -86,7 +86,7 @@ async function Main(argv)
 
     const root = path.resolve(options.out);
     const index = new CjsToolIndex(options.cache
-        ? { cache: new CjsIndexCache({ directory: path.resolve(options.cache) }) }
+        ? { cache: new CjsToolIndexCache({ directory: path.resolve(options.cache) }) }
         : {});
     const source = await index.OpenTarget(options.target, options.build, { client: options.client });
 

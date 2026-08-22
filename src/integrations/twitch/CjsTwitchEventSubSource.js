@@ -1,5 +1,5 @@
-import { CjsRealtimeError } from "../../realtime/CjsRealtimeError.js";
-import { CjsRealtimeProtocol } from "../../realtime/CjsRealtimeProtocol.js";
+import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
+import { CjsToolRealtimeProtocol } from "../../realtime/CjsToolRealtimeProtocol.js";
 import { CjsTwitchEventSubSession } from "./CjsTwitchEventSubSession.js";
 import { CjsTwitchHelixClient } from "./CjsTwitchHelixClient.js";
 
@@ -189,7 +189,7 @@ export class CjsTwitchEventSubSource
 
         if (signal.aborted)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "service_unavailable",
                 "Twitch EventSub attachment was already aborted",
                 { retryable: true },
@@ -218,7 +218,7 @@ export class CjsTwitchEventSubSource
             {
                 if (this.#revoked)
                 {
-                    throw new CjsRealtimeError(
+                    throw new CjsToolRealtimeError(
                         "twitch_unavailable",
                         "Twitch EventSub subscriptions were revoked",
                         { retryable: false },
@@ -296,7 +296,7 @@ export class CjsTwitchEventSubSource
 
             if (this.#abortController.signal.aborted || this.#attachments.size === 0)
             {
-                throw new CjsRealtimeError(
+                throw new CjsToolRealtimeError(
                     "service_unavailable",
                     "Twitch EventSub source stopped during startup",
                     { retryable: true },
@@ -401,7 +401,7 @@ export class CjsTwitchEventSubSource
                     ? subscription.condition(identity)
                     : subscription.condition;
 
-                if (!CjsRealtimeProtocol.isRecord(condition))
+                if (!CjsToolRealtimeProtocol.isRecord(condition))
                 {
                     throw new TypeError("Twitch EventSub subscription condition must be an object");
                 }
@@ -409,13 +409,13 @@ export class CjsTwitchEventSubSource
                 const body = {
                     type: subscription.type,
                     version: subscription.version,
-                    condition: CjsRealtimeProtocol.cloneJson(condition),
+                    condition: CjsToolRealtimeProtocol.cloneJson(condition),
                     transport: {
                         method: "websocket",
                         session_id: sessionId,
                     },
                 };
-                const fingerprint = CjsRealtimeProtocol.canonicalStringify(body);
+                const fingerprint = CjsToolRealtimeProtocol.canonicalStringify(body);
 
                 subscriptions.set(fingerprint, body);
             }
@@ -464,7 +464,7 @@ export class CjsTwitchEventSubSource
 
         if (failed)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 failed.status === 401 ? "twitch_unauthorized" : "twitch_unavailable",
                 failed.status === 401
                     ? "Twitch EventSub authorization is no longer valid"
@@ -500,7 +500,7 @@ export class CjsTwitchEventSubSource
 
             try
             {
-                await attachment.onNotification(CjsRealtimeProtocol.cloneJson(message));
+                await attachment.onNotification(CjsToolRealtimeProtocol.cloneJson(message));
             }
             catch
             {
@@ -529,7 +529,7 @@ export class CjsTwitchEventSubSource
 
             try
             {
-                await attachment.onRevocation(CjsRealtimeProtocol.cloneJson(message));
+                await attachment.onRevocation(CjsToolRealtimeProtocol.cloneJson(message));
             }
             catch
             {
@@ -653,7 +653,7 @@ export class CjsTwitchEventSubSource
                 || typeof subscription.version !== "string"
                 || !/^[1-9][0-9]{0,7}$/u.test(subscription.version)
                 || (typeof subscription.condition !== "function"
-                    && !CjsRealtimeProtocol.isRecord(subscription.condition)))
+                    && !CjsToolRealtimeProtocol.isRecord(subscription.condition)))
             {
                 throw new TypeError("Twitch EventSub subscription declaration is invalid");
             }
@@ -691,7 +691,7 @@ export class CjsTwitchEventSubSource
     /** Preserves stable provider failures and sanitizes unexpected adapters. */
     static startError(error)
     {
-        return error instanceof CjsRealtimeError
+        return error instanceof CjsToolRealtimeError
             ? error
             : CjsTwitchEventSubSession.connectionError(error);
     }

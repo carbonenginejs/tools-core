@@ -1,7 +1,7 @@
 import {
-    CjsRealtimeLivestreamContract,
+    CjsToolRealtimeLivestreamContract,
     LIVESTREAM_ACTIVITY_TOPICS,
-} from "../../realtime/livestream/CjsRealtimeLivestreamContract.js";
+} from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 
 /** Maps Twitch EventSub notifications into provider-neutral activity events. */
 export class CjsRealtimeTwitchActivityNormalizer
@@ -196,7 +196,7 @@ export class CjsRealtimeTwitchActivityNormalizer
 
         return Object.freeze({
             topic,
-            data: CjsRealtimeLivestreamContract.normalizeActivity(topic, value),
+            data: CjsToolRealtimeLivestreamContract.normalizeActivity(topic, value),
         });
     }
 

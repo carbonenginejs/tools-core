@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CjsSde, CjsSdeDatabase } from "../src/sde/index.js";
+import { CjsToolSde, CjsToolSdeDatabase } from "../src/sde/index.js";
 
 function CreateDatabasePath()
 {
@@ -26,7 +26,7 @@ const TABLES = Object.freeze({
 test("imports decoded tables into the same database an archive would write", async () =>
 {
     const filePath = CreateDatabasePath();
-    const database = await CjsSdeDatabase.create(filePath);
+    const database = await CjsToolSdeDatabase.create(filePath);
     const result = await database.ImportTables(TABLES, { build: 3466057 });
 
     assert.deepEqual(result.tables.map(table => table.name), [ "skinMaterials", "skins" ]);
@@ -35,7 +35,7 @@ test("imports decoded tables into the same database an archive would write", asy
 
     await database.Close();
 
-    const reopened = await CjsSdeDatabase.open(filePath);
+    const reopened = await CjsToolSdeDatabase.open(filePath);
     const described = await reopened.Describe();
 
     assert.equal(described.schema, "carbon.sde.sqlite");
@@ -47,7 +47,7 @@ test("imports decoded tables into the same database an archive would write", asy
     assert.equal(row.payload.skinMaterialID, 2572);
 
     const loaded = await reopened.LoadTables([ "skins", "skinMaterials" ]);
-    const sde = new CjsSde(loaded);
+    const sde = new CjsToolSde(loaded);
 
     assert.equal(sde.GetSkin(11542).internalName, "Muninn Aurora Universalis");
     assert.deepEqual([ ...sde.GetSkinTypeIDs(11542) ], [ "12015" ]);
@@ -58,7 +58,7 @@ test("imports decoded tables into the same database an archive would write", asy
 test("records the identity a non-official SDE came from", async () =>
 {
     const filePath = CreateDatabasePath();
-    const database = await CjsSdeDatabase.create(filePath);
+    const database = await CjsToolSdeDatabase.create(filePath);
 
     await database.ImportTables(TABLES, {
         build: 3466057,
@@ -69,7 +69,7 @@ test("records the identity a non-official SDE came from", async () =>
     });
     await database.Close();
 
-    const reopened = await CjsSdeDatabase.open(filePath);
+    const reopened = await CjsToolSdeDatabase.open(filePath);
     const metadata = await reopened.GetMetadata();
 
     assert.equal(metadata.target, "netease");
@@ -83,7 +83,7 @@ test("records the identity a non-official SDE came from", async () =>
 test("defaults to the official identity when none is given", async () =>
 {
     const filePath = CreateDatabasePath();
-    const database = await CjsSdeDatabase.create(filePath);
+    const database = await CjsToolSdeDatabase.create(filePath);
     const result = await database.ImportTables(TABLES, { build: 3466057 });
 
     assert.equal(result.target, "eve");
@@ -96,7 +96,7 @@ test("defaults to the official identity when none is given", async () =>
 test("searchable names come from the same fields as an archive import", async () =>
 {
     const filePath = CreateDatabasePath();
-    const database = await CjsSdeDatabase.create(filePath);
+    const database = await CjsToolSdeDatabase.create(filePath);
 
     await database.ImportTables(TABLES, { build: 3466057 });
 
@@ -111,7 +111,7 @@ test("searchable names come from the same fields as an archive import", async ()
 test("rejects an empty import, a bad table name, and a non-object record", async () =>
 {
     const filePath = CreateDatabasePath();
-    const database = await CjsSdeDatabase.create(filePath);
+    const database = await CjsToolSdeDatabase.create(filePath);
 
     await assert.rejects(() => database.ImportTables({}, { build: 3466057 }));
     await assert.rejects(() => database.ImportTables(null, { build: 3466057 }));
@@ -128,7 +128,7 @@ test("rejects an empty import, a bad table name, and a non-object record", async
 test("a failed import leaves the previous contents intact", async () =>
 {
     const filePath = CreateDatabasePath();
-    const database = await CjsSdeDatabase.create(filePath);
+    const database = await CjsToolSdeDatabase.create(filePath);
 
     await database.ImportTables(TABLES, { build: 3466057 });
     await assert.rejects(

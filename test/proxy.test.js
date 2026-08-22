@@ -11,8 +11,8 @@ import { fileURLToPath } from "node:url";
 
 import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
 import {
-    CjsIndexOverlayStore,
-    CjsIndexProviderRegistry,
+    CjsToolIndexOverlayStore,
+    CjsToolIndexProviderRegistry,
     CjsToolHttpProxy,
     CjsToolIndex,
     CjsToolTargetRegistry,
@@ -75,7 +75,7 @@ test("serves health without the removed legacy SOF routes", async context =>
         },
         // Reported so a consumer that also calls ESI can agree with this service
         // rather than pinning its own date - the failure that guards against is
-        // silent and total. See CjsEsiCompatibilityDate.
+        // silent and total. See CjsToolEsiCompatibilityDate.
         esiCompatibilityDate: ESI_COMPATIBILITY_DATE,
     });
 
@@ -1026,7 +1026,7 @@ test("serves the shared browser shader overlay through `netease` resource endpoi
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-proxy-overlay-"));
     const sourceDirectory = path.join(directory, "source");
-    const overlayStore = new CjsIndexOverlayStore(path.join(directory, "data.local"));
+    const overlayStore = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
     const shaderPath = "graphics/effect.gles2/test.sm_hi";
     const shaderBytes = Buffer.from("legacy-gles");
 
@@ -1066,7 +1066,7 @@ test("serves the shared browser shader overlay through `netease` resource endpoi
             names: [ "legacy-gles" ],
         } ],
     } ]);
-    const providers = new CjsIndexProviderRegistry([ {
+    const providers = new CjsToolIndexProviderRegistry([ {
         game: "Eve",
         id: "netease",
         defaultBuildRef: "latest",

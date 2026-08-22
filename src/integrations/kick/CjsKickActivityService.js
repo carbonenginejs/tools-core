@@ -1,11 +1,11 @@
 import {
     LIVESTREAM_ACTIVITY_FAMILY,
     LIVESTREAM_ACTIVITY_TOPICS,
-} from "../../realtime/livestream/CjsRealtimeLivestreamContract.js";
-import { CjsWebhookProjectionService } from "../../webhook/CjsWebhookProjectionService.js";
+} from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
+import { CjsToolWebhookProjectionService } from "../../webhook/CjsToolWebhookProjectionService.js";
 
 /** Declares the live Kick activity projection over shared webhook ingress. */
-export class CjsKickActivityService extends CjsWebhookProjectionService
+export class CjsKickActivityService extends CjsToolWebhookProjectionService
 {
 
     constructor({ id, source } = {})

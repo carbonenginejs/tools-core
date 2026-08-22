@@ -6,19 +6,19 @@ import path from "node:path";
 import test from "node:test";
 
 import {
-    CjsSde,
-    CjsSdeArchive,
-    CjsSdeDatabase,
-    CjsSdeRepository,
+    CjsToolSde,
+    CjsToolSdeArchive,
+    CjsToolSdeDatabase,
+    CjsToolSdeRepository,
     CJS_SDE_PREPARED_TABLES
 } from "../src/sde/index.js";
 import { CjsToolCache } from "../src/cache/index.js";
 
-test("resolves latest once and prepares exact-build CjsSde tables", async () =>
+test("resolves latest once and prepares exact-build CjsToolSde tables", async () =>
 {
     const archiveBytes = CreatePreparedArchive();
     const requests = [];
-    const source = new CjsSdeArchive({
+    const source = new CjsToolSdeArchive({
         fetch: async url =>
         {
             requests.push(String(url));
@@ -40,7 +40,7 @@ test("resolves latest once and prepares exact-build CjsSde tables", async () =>
     const latest = await source.ResolveLatest();
     const cachedLatest = await source.ResolveLatest();
     const prepared = await source.Prepare(latest);
-    const sde = new CjsSde(prepared);
+    const sde = new CjsToolSde(prepared);
 
     assert.equal(latest.build, 3435006);
     assert.equal(cachedLatest, latest);
@@ -76,7 +76,7 @@ test("resolves latest once and prepares exact-build CjsSde tables", async () =>
 
 test("requires exact builds and complete identity tables", async () =>
 {
-    const source = new CjsSdeArchive({
+    const source = new CjsToolSdeArchive({
         fetch: async () => new Response(CreateZip({
             "types.jsonl": JsonLines([ { _key: 1 } ])
         }))
@@ -96,7 +96,7 @@ test("stores every archive table behind generic SQLite wrappers", async context 
 
     context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
 
-    const archive = new CjsSdeArchive();
+    const archive = new CjsToolSdeArchive();
     const database = await archive.WriteDatabase(CreateZip({
         "sde/_sde.jsonl": JsonLines([ { _key: "version", value: 1 } ]),
         "sde/dogmaAttributes.jsonl": JsonLines([
@@ -154,7 +154,7 @@ test("stores every archive table behind generic SQLite wrappers", async context 
         await database.Close();
     }
 
-    const reopened = await CjsSdeDatabase.open(databasePath);
+    const reopened = await CjsToolSdeDatabase.open(databasePath);
 
     try
     {
@@ -171,7 +171,7 @@ test("publishes a fresh SDE database only after a successful import", async cont
 {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-sde-atomic-"));
     const databasePath = path.join(directory, "eve.sqlite");
-    const archive = new CjsSdeArchive();
+    const archive = new CjsToolSdeArchive();
 
     context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
 
@@ -223,7 +223,7 @@ test("auto-prepares over an invalid cached SDE database", async context =>
     fs.mkdirSync(path.dirname(databasePath), { recursive: true });
     fs.writeFileSync(databasePath, "poisoned");
 
-    const repository = new CjsSdeRepository({
+    const repository = new CjsToolSdeRepository({
         cache,
         autoPrepare: true,
         archive: {
@@ -231,7 +231,7 @@ test("auto-prepares over an invalid cached SDE database", async context =>
             {
                 preparations += 1;
 
-                return new CjsSdeArchive().WriteDatabase(CreateZip({
+                return new CjsToolSdeArchive().WriteDatabase(CreateZip({
                     "sde/types.jsonl": JsonLines([
                         { _key: 587, name: { en: "Rifter" } },
                     ]),
@@ -268,7 +268,7 @@ test("resolves EVE SDE latest and refuses it to targets with no SDE of their own
         version: "v1",
         extension: "sqlite",
     });
-    const writer = await new CjsSdeArchive().WriteDatabase(CreateZip({
+    const writer = await new CjsToolSdeArchive().WriteDatabase(CreateZip({
         "sde/types.jsonl": JsonLines([ { _key: 587, name: { en: "Rifter" } } ]),
     }), {
         build: 3435006,
@@ -280,7 +280,7 @@ test("resolves EVE SDE latest and refuses it to targets with no SDE of their own
     context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
 
     let latestRequests = 0;
-    const repository = new CjsSdeRepository({
+    const repository = new CjsToolSdeRepository({
         cache,
         archive: {
             async ResolveLatest()
@@ -369,7 +369,7 @@ test("SDE preparation CLI writes every table to a loadable exact-build database"
     assert.equal(result.status, 0, result.stderr);
 
     const summary = JSON.parse(result.stdout);
-    const database = await CjsSdeDatabase.open(summary.outputPath);
+    const database = await CjsToolSdeDatabase.open(summary.outputPath);
     let prepared;
 
     try
@@ -385,7 +385,7 @@ test("SDE preparation CLI writes every table to a loadable exact-build database"
     assert.equal(summary.tables.types, 2);
     assert.equal(summary.tables.ignored, 1);
     assert.equal(summary.schema, "carbon.sde.sqlite");
-    assert.equal(new CjsSde(prepared).ResolveTypeDna(587), "rifter:minmatar:minmatar");
+    assert.equal(new CjsToolSde(prepared).ResolveTypeDna(587), "rifter:minmatar:minmatar");
 });
 
 function JsonLines(records)

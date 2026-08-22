@@ -1,11 +1,11 @@
 import crypto from "node:crypto";
 
 import {
-    CjsRealtimeLivestreamContract,
+    CjsToolRealtimeLivestreamContract,
     LIVESTREAM_ACTIVITY_TOPICS,
     LIVESTREAM_STATE_TOPICS,
-} from "../../realtime/livestream/CjsRealtimeLivestreamContract.js";
-import { CjsWebhookError } from "../../webhook/CjsWebhookError.js";
+} from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
+import { CjsToolWebhookError } from "../../webhook/CjsToolWebhookError.js";
 
 export const KICK_WEBHOOK_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq/+l1WnlRrGSolDMA+A8
@@ -162,7 +162,7 @@ export class CjsKickWebhookHandler
         }
         catch (error)
         {
-            throw new CjsWebhookError(
+            throw new CjsToolWebhookError(
                 "invalid_delivery",
                 "Kick webhook body is not valid JSON",
                 { statusCode: 400, cause: error },
@@ -171,7 +171,7 @@ export class CjsKickWebhookHandler
 
         if (!payload || typeof payload !== "object" || Array.isArray(payload))
         {
-            throw new CjsWebhookError(
+            throw new CjsToolWebhookError(
                 "invalid_delivery",
                 "Kick webhook body is invalid",
                 { statusCode: 400 },
@@ -381,7 +381,7 @@ export class CjsKickWebhookHandler
             ) ];
         }
 
-        throw new CjsWebhookError(
+        throw new CjsToolWebhookError(
             "unsupported_event",
             "Kick webhook event is unsupported",
             { statusCode: 400 },
@@ -396,7 +396,7 @@ export class CjsKickWebhookHandler
         extension = {},
     })
     {
-        const data = CjsRealtimeLivestreamContract.normalizeActivity(topic, {
+        const data = CjsToolRealtimeLivestreamContract.normalizeActivity(topic, {
             id,
             occurredAt,
             deliveryMode: "live",
@@ -416,7 +416,7 @@ export class CjsKickWebhookHandler
     {
         return Object.freeze({
             topic: LIVESTREAM_STATE_TOPICS.CHANGED,
-            data: CjsRealtimeLivestreamContract.normalizeStateChange({
+            data: CjsToolRealtimeLivestreamContract.normalizeStateChange({
                 id: authentication.messageId,
                 occurredAt,
                 deliveryMode: "live",
@@ -577,7 +577,7 @@ export class CjsKickWebhookHandler
     /** Creates a non-reflective provider authentication failure. */
     static authenticationError()
     {
-        return new CjsWebhookError(
+        return new CjsToolWebhookError(
             "unauthorized",
             "Kick webhook authentication failed",
             { statusCode: 401 },

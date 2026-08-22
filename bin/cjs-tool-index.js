@@ -4,9 +4,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import {
-    CjsIndexCache,
-    CjsIndexProvider,
-    CjsIndexProviderRegistry,
+    CjsToolIndexCache,
+    CjsToolIndexProvider,
+    CjsToolIndexProviderRegistry,
     CjsToolIndex,
     CjsToolTargetRegistry,
     DefaultProviderData,
@@ -53,7 +53,7 @@ async function main()
     const client = args.client ?? target?.client;
     const cache = args.noCache
         ? null
-        : new CjsIndexCache({
+        : new CjsToolIndexCache({
             directory: args.cache
                 ? path.resolve(String(args.cache))
                 : path.resolve(".cache", "tool-core"),
@@ -311,16 +311,16 @@ async function createProviderRegistry(providerFile)
 {
     if (!providerFile)
     {
-        return new CjsIndexProviderRegistry();
+        return new CjsToolIndexProviderRegistry();
     }
 
     const custom = JSON.parse(await fs.readFile(path.resolve(String(providerFile)), "utf8"));
-    const customProfile = new CjsIndexProvider(custom);
+    const customProfile = new CjsToolIndexProvider(custom);
     const providers = DefaultProviderData.filter(
         (provider) => provider.id !== customProfile.id || provider.game !== customProfile.game,
     );
 
-    return new CjsIndexProviderRegistry([ ...providers, customProfile ]);
+    return new CjsToolIndexProviderRegistry([ ...providers, customProfile ]);
 }
 
 function PrintJson(value)

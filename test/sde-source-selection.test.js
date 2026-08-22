@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CjsSdeDatabase, CjsSdeRepository } from "../src/sde/index.js";
+import { CjsToolSdeDatabase, CjsToolSdeRepository } from "../src/sde/index.js";
 import { CjsToolCache } from "../src/cache/index.js";
 
 /** Content differs per publisher so a test can tell which file answered. */
@@ -33,7 +33,7 @@ async function PrepareExport(cache, { provider, build, ...metadata })
         version: "v1",
         extension: "sqlite"
     });
-    const database = await CjsSdeDatabase.create(databasePath);
+    const database = await CjsToolSdeDatabase.create(databasePath);
 
     await database.ImportTables(TablesFor(provider), { build, provider, ...metadata });
     await database.Close();
@@ -62,7 +62,7 @@ test("a target with its own prepared SDE is answered from it, not the borrowed o
 
     await PrepareExport(cache, { provider: "infinity", build: 3466057, target: "infinity" });
 
-    const repository = new CjsSdeRepository({ cache, archive: CreateUnreachableArchive() });
+    const repository = new CjsToolSdeRepository({ cache, archive: CreateUnreachableArchive() });
     const resolution = await repository.ResolveTargetBuild("infinity", "latest");
 
     assert.equal(resolution.target, "infinity");
@@ -86,7 +86,7 @@ test("a generated SDE is matched exactly and never trails to another build", asy
     await PrepareExport(cache, { provider: "infinity", build: 3466057, target: "infinity" });
     await PrepareExport(cache, { provider: "infinity", build: 3400000, target: "infinity" });
 
-    const repository = new CjsSdeRepository({ cache, archive: CreateUnreachableArchive() });
+    const repository = new CjsToolSdeRepository({ cache, archive: CreateUnreachableArchive() });
 
     // The build that exists answers for itself.
     const exact = await repository.ResolveTargetBuild("infinity", 3400000);
@@ -143,7 +143,7 @@ test("a target with no SDE of its own is refused, not answered from another's", 
 
     await PrepareExport(cache, { provider: "ccp", build: 3466501 });
 
-    const repository = new CjsSdeRepository({
+    const repository = new CjsToolSdeRepository({
         cache,
         archive: {
             async ResolveLatest()
@@ -179,7 +179,7 @@ test("the official target is unaffected and still reports no borrowing", async (
 
     await PrepareExport(cache, { provider: "ccp", build: 3466501 });
 
-    const repository = new CjsSdeRepository({
+    const repository = new CjsToolSdeRepository({
         cache,
         archive: {
             async ResolveLatest()
@@ -203,7 +203,7 @@ test("the official target is unaffected and still reports no borrowing", async (
 test("a provider with no channel is never auto-prepared from another target's archive", async () =>
 {
     const cache = CreateCache();
-    const repository = new CjsSdeRepository({ cache, archive: CreateUnreachableArchive() });
+    const repository = new CjsToolSdeRepository({ cache, archive: CreateUnreachableArchive() });
 
     // Nothing is prepared for netease, so the request falls through to the
     // declared borrow and fails there against the unreachable remote channel.

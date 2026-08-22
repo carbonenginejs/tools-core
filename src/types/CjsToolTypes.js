@@ -1,4 +1,4 @@
-import { ReadDerivation } from "../sde/CjsSdeDerivations.js";
+import { ReadDerivation } from "../sde/CjsToolSdeDerivations.js";
 import { ReadName } from "../dogma/CjsToolDogma.js";
 // One owner for the `.red` -> `.black` and case rule. It was verified once,
 // against every planet family, and a second copy is a second thing to get wrong.

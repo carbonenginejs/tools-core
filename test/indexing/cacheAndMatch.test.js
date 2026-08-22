@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
-    CjsIndexCache,
-    CjsIndexProviderRegistry,
+    CjsToolIndexCache,
+    CjsToolIndexProviderRegistry,
     CjsToolIndex,
 } from "../../src/index.js";
 
@@ -73,7 +73,7 @@ test("reuses validated index and payload bytes from the local cache", async (con
     const firstRequests = [];
     const first = createService(
         createFetch(responses, firstRequests),
-        new CjsIndexCache({ directory }),
+        new CjsToolIndexCache({ directory }),
     );
     const firstSource = await first.Open({ provider: "test", build: "77" });
     const ownedResolution = firstSource.Resolve("res:/data/cached.bin");
@@ -90,7 +90,7 @@ test("reuses validated index and payload bytes from the local cache", async (con
     const secondRequests = [];
     const second = createService(
         createFetch(responses, secondRequests),
-        new CjsIndexCache({ directory }),
+        new CjsToolIndexCache({ directory }),
     );
     const secondSource = await second.Open({ provider: "test", build: "77" });
     const secondFile = await secondSource.Fetch("res:/data/cached.bin");
@@ -111,7 +111,7 @@ test("reuses validated index and payload bytes from the local cache", async (con
 function createService(fetch, cache = null)
 {
     return new CjsToolIndex({
-        providers: new CjsIndexProviderRegistry([ Provider ]),
+        providers: new CjsToolIndexProviderRegistry([ Provider ]),
         fetch,
         cache,
     });

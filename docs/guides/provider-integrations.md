@@ -70,11 +70,11 @@ import {
     KickWebhookHandler,
 } from "@carbonenginejs/tools-core/integrations/kick";
 import {
-    CjsWebhookHttpRouter,
-    CjsWebhookIngressSource,
+    CjsToolWebhookHttpRouter,
+    CjsToolWebhookIngressSource,
 } from "@carbonenginejs/tools-core/webhook";
 
-const ingress = new CjsWebhookIngressSource({
+const ingress = new CjsToolWebhookIngressSource({
     id: "kick-main",
     handler: new KickWebhookHandler(),
 });
@@ -89,7 +89,7 @@ hub.Register(new KickStateService({
     readSnapshot: ({ signal }) => kickApi.ReadLivestreamSnapshot({ signal }),
 }));
 
-const webhookRouter = new CjsWebhookHttpRouter({
+const webhookRouter = new CjsToolWebhookHttpRouter({
     endpoints: [ ingress ],
 });
 ```

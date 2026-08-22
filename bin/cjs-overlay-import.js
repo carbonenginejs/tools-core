@@ -3,7 +3,7 @@
 /**
  * Imports a directory of resource files as a persistent overlay.
  *
- * `CjsIndexOverlayStore.Import` has always done the work - copying payloads,
+ * `CjsToolIndexOverlayStore.Import` has always done the work - copying payloads,
  * checksumming, writing `resfileindex.txt` and the manifest - but nothing
  * outside the tests could reach it, so every overlay on disk was placed by hand.
  * This is the missing front door, and it is deliberately generic: an overlay is
@@ -36,7 +36,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CjsIndexOverlayStore } from "../src/indexing/index.js";
+import { CjsToolIndexOverlayStore } from "../src/indexing/index.js";
 
 const HELP = `Usage:
   cjs-overlay-import --name <name> --mode <override|fallback> --dir <directory>
@@ -102,8 +102,8 @@ async function Main(argv)
     // Takes the data root directly, not an options bag: overlays are persistent
     // local data, not cache, and live under `data.local/games/<target>/overlays`.
     const store = options.data
-        ? new CjsIndexOverlayStore(options.data)
-        : new CjsIndexOverlayStore();
+        ? new CjsToolIndexOverlayStore(options.data)
+        : new CjsToolIndexOverlayStore();
 
     const request = {
         target: options.target,

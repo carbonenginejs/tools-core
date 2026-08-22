@@ -2,8 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import {
-    CjsIndexOverlayStore,
-    CjsShaderTargetRegistry,
+    CjsToolIndexOverlayStore,
+    CjsToolShaderTargetRegistry,
     CjsToolIndex,
 } from "../src/index.js";
 
@@ -23,7 +23,7 @@ export async function RunShaderBuilder(Builder, backend, argv = process.argv.sli
         throw new Error("Missing --shader-target");
     }
 
-    const shaderTargets = new CjsShaderTargetRegistry();
+    const shaderTargets = new CjsToolShaderTargetRegistry();
     const shaderTarget = shaderTargets.Get(options.shaderTarget);
 
     if (options.target && options.target !== shaderTarget.target)
@@ -34,7 +34,7 @@ export async function RunShaderBuilder(Builder, backend, argv = process.argv.sli
     }
 
     const overlays = options.overlayDirectory
-        ? new CjsIndexOverlayStore(options.overlayDirectory)
+        ? new CjsToolIndexOverlayStore(options.overlayDirectory)
         : null;
     const index = new CjsToolIndex({ overlays });
     const builder = new Builder({ index, overlays, shaderTargets });

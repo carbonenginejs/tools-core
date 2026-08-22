@@ -15,33 +15,33 @@ CarbonEngineJS-facing Carbon format profile.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsSde -->
-## `CjsSde`
+<!-- class:CjsToolSde -->
+## `CjsToolSde`
 
 Thin in-memory join layer for prepared EVE SDE identity tables.
 
 - Export: `@carbonenginejs/tools-core/sde`
-- Source: `src/sde/CjsSde.js`
+- Source: `src/sde/CjsToolSde.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsSdeArchive -->
-## `CjsSdeArchive`
+<!-- class:CjsToolSdeArchive -->
+## `CjsToolSdeArchive`
 
-Acquires exact-build published JSONL archives and prepares CjsSde input tables.
+Acquires exact-build published JSONL archives and prepares CjsToolSde input tables.
 
 - Export: `@carbonenginejs/tools-core/sde`
-- Source: `src/sde/CjsSdeArchive.js`
+- Source: `src/sde/CjsToolSdeArchive.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsSdeDatabase -->
-## `CjsSdeDatabase`
+<!-- class:CjsToolSdeDatabase -->
+## `CjsToolSdeDatabase`
 
 Exact-build SQLite store for every table in an SDE.
 
 - Export: `@carbonenginejs/tools-core/sde`
-- Source: `src/sde/CjsSdeDatabase.js`
+- Source: `src/sde/CjsToolSdeDatabase.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 - Notes: `Import` writes the database from an official JSONL archive;
@@ -49,34 +49,34 @@ Exact-build SQLite store for every table in an SDE.
   target with no published SDE. Both record the `target`, `game` and
   `provider` the data came from, defaulting to the official identity.
 
-<!-- class:CjsSdeTable -->
-## `CjsSdeTable`
+<!-- class:CjsToolSdeTable -->
+## `CjsToolSdeTable`
 
 Minimal paginated interface over one SDE table.
 
 - Export: `@carbonenginejs/tools-core/sde`
-- Source: `src/sde/CjsSdeDatabase.js`
+- Source: `src/sde/CjsToolSdeDatabase.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsSdeRepository -->
-## `CjsSdeRepository`
+<!-- class:CjsToolSdeRepository -->
+## `CjsToolSdeRepository`
 
 Resolves target/build SDE requests to exact cached SQLite databases.
 
 - Export: `@carbonenginejs/tools-core/sde`
-- Source: `src/sde/CjsSdeRepository.js`
+- Source: `src/sde/CjsToolSdeRepository.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsSdeDerivations -->
-## `CjsSdeDerivations`
+<!-- class:CjsToolSdeDerivations -->
+## `CjsToolSdeDerivations`
 
 Tables computed from an SDE rather than shipped in one.
 
 A derived table is a pure function of the rows an import just wrote, so it
 belongs to the SDE rather than to its source: the register runs
-after both `CjsSdeDatabase.Import` and `ImportTables` commit, which is the one
+after both `CjsToolSdeDatabase.Import` and `ImportTables` commit, which is the one
 point both import paths traverse. Artifacts are written beside the `.sqlite` as
 `<name>_v<version>.json`, never into `sde_rows`, where a computed table would be
 indistinguishable from imported data. Adding one is an entry in the
@@ -84,7 +84,7 @@ register. Currently: the DNA reverse index.
 
 - Exports: `RunDerivations`, `DerivationPath`, `ListDerivations`
 - Export: `@carbonenginejs/tools-core/sde`
-- Source: `src/sde/CjsSdeDerivations.js`
+- Source: `src/sde/CjsToolSdeDerivations.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
@@ -98,7 +98,7 @@ Served by `GET /{target}/{build}/map`.
 Query-backed rather than library-backed, unlike `skin` and `weapons`: the map is
 481000 celestials, so only the navigational tables and the computed `mapIndex`
 are held in memory and the rest is answered from SQLite through the locality
-indexes in `CjsSdeQueryIndexes`. Composes what the SDE does not ship —
+indexes in `CjsToolSdeQueryIndexes`. Composes what the SDE does not ship —
 celestial names, stargate orientation, and a per-system key light derived from
 the star — and reports `postProcess` as `null` because nothing in the SDE names one.
 
@@ -112,8 +112,8 @@ form; see the route reference for the measured error at each scale.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsSdeDnaIndex -->
-## `CjsSdeDnaIndex`
+<!-- class:CjsToolSdeDnaIndex -->
+## `CjsToolSdeDnaIndex`
 
 The inverse of DNA resolution: which ships and skins produce a given DNA, or any
 part of one. Served by `GET /{target}/{build}/dna/search?q=`. The index shape and
@@ -122,37 +122,37 @@ matching rules are settled in the organization documentation,
 
 - Exports: `BuildDnaIndex`, `QueryDnaIndex`, `SplitDna`
 - Export: `@carbonenginejs/tools-core/sde`
-- Source: `src/sde/CjsSdeDnaIndex.js`
+- Source: `src/sde/CjsToolSdeDnaIndex.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsSdeSource -->
-## `CjsSdeSource`
+<!-- class:CjsToolSdeSource -->
+## `CjsToolSdeSource`
 
 Open exact-build SDE source used by service and direct callers.
 
 - Export: `@carbonenginejs/tools-core/sde`
-- Source: `src/sde/CjsSdeRepository.js`
+- Source: `src/sde/CjsToolSdeRepository.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsShaderTarget -->
-## `CjsShaderTarget`
+<!-- class:CjsToolShaderTarget -->
+## `CjsToolShaderTarget`
 
 Immutable compiled-shader target over one public game target and profile.
 
 - Export: `@carbonenginejs/tools-core/shader`
-- Source: `src/shader/CjsShaderTarget.js`
+- Source: `src/shader/CjsToolShaderTarget.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsShaderTargetRegistry -->
-## `CjsShaderTargetRegistry`
+<!-- class:CjsToolShaderTargetRegistry -->
+## `CjsToolShaderTargetRegistry`
 
 Immutable registry of audited compiled-shader targets.
 
 - Export: `@carbonenginejs/tools-core/shader`
-- Source: `src/shader/CjsShaderTargetRegistry.js`
+- Source: `src/shader/CjsToolShaderTargetRegistry.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
@@ -165,23 +165,23 @@ Shared Node orchestration for independently importable shader builders.
 - Visibility: Internal
 - Kind: Internal implementation
 
-<!-- class:CjsToolWebglBuilder -->
-## `CjsToolWebglBuilder`
+<!-- class:CjsToolShaderBuilderWebgl -->
+## `CjsToolShaderBuilderWebgl`
 
 Node orchestration for browser-complete CEWG conversion.
 
 - Export: `@carbonenginejs/tools-core/shader`
-- Source: `src/shader/CjsToolWebglBuilder.js`
+- Source: `src/shader/CjsToolShaderBuilderWebgl.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsToolWebgpuBuilder -->
-## `CjsToolWebgpuBuilder`
+<!-- class:CjsToolShaderBuilderWebgpu -->
+## `CjsToolShaderBuilderWebgpu`
 
 Node orchestration for browser-complete CEWGPU conversion.
 
 - Export: `@carbonenginejs/tools-core/shader`
-- Source: `src/shader/CjsToolWebgpuBuilder.js`
+- Source: `src/shader/CjsToolShaderBuilderWebgpu.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 

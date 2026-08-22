@@ -1,6 +1,6 @@
 import {
     LIVESTREAM_ACTIVITY_TOPICS,
-} from "../../realtime/livestream/CjsRealtimeLivestreamContract.js";
+} from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 import { CjsRealtimeTwitchActivityNormalizer } from "./CjsRealtimeTwitchActivityNormalizer.js";
 import { CjsTwitchEventSubSource } from "./CjsTwitchEventSubSource.js";
 

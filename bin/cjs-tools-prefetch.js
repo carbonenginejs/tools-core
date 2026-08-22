@@ -4,7 +4,7 @@ import path from "node:path";
 import process from "node:process";
 
 import {
-    CjsIndexCache,
+    CjsToolIndexCache,
     CjsToolAudioPrefetch,
     CjsToolAudioRepository,
     CjsToolCache,
@@ -55,7 +55,7 @@ async function main()
     );
     const toolCache = new CjsToolCache(cacheDirectory);
     const indexes = new CjsToolIndex({
-        cache: new CjsIndexCache({ directory: cacheDirectory }),
+        cache: new CjsToolIndexCache({ directory: cacheDirectory }),
         requestTimeoutMs: Number(
             args.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
         ),

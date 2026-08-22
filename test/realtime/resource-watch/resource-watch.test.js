@@ -4,12 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CjsRealtimeResourceWatchService } from "@carbonenginejs/tools-core/realtime/resource-watch";
+import { CjsToolRealtimeResourceWatchService } from "@carbonenginejs/tools-core/realtime/resource-watch";
 
-import { CjsRealtimeHub } from "../../../src/realtime/server/CjsRealtimeHub.js";
+import { CjsToolRealtimeHub } from "../../../src/realtime/server/CjsToolRealtimeHub.js";
 import {
-    CjsRealtimeSessionAuthority,
-} from "../../../src/realtime/server/CjsRealtimeSessionAuthority.js";
+    CjsToolRealtimeSessionAuthority,
+} from "../../../src/realtime/server/CjsToolRealtimeSessionAuthority.js";
 import {
     CjsRealtimeMemoryTransport,
 } from "../CjsRealtimeTestSupport.js";
@@ -73,10 +73,10 @@ class CjsResourceWatchTestSupport
     /** Creates an authenticated hub around one injected resource-watch service. */
     static createHarness(root, options = {})
     {
-        const capability = CjsRealtimeSessionAuthority.createCapability();
+        const capability = CjsToolRealtimeSessionAuthority.createCapability();
         const origin = "http://127.0.0.1:8090";
         const observer = options.observer ?? new CjsRealtimeManualObserver();
-        const service = new CjsRealtimeResourceWatchService({
+        const service = new CjsToolRealtimeResourceWatchService({
             id: "resources-main",
             root,
             logicalRoot: "res:/",
@@ -84,7 +84,7 @@ class CjsResourceWatchTestSupport
             settleMs: 0,
             ...options.service,
         });
-        const authority = new CjsRealtimeSessionAuthority({
+        const authority = new CjsToolRealtimeSessionAuthority({
             grants: [ {
                 capability,
                 actor: { id: "resource-consumer", kind: "test" },
@@ -103,7 +103,7 @@ class CjsResourceWatchTestSupport
             } ],
         });
         let nextId = 0;
-        const hub = new CjsRealtimeHub({
+        const hub = new CjsToolRealtimeHub({
             authority,
             createId: prefix => `${prefix}-${++nextId}`,
         });

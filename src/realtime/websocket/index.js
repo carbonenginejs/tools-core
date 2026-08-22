@@ -1,2 +1,2 @@
-export { CjsRealtimeWebSocketGateway } from "./CjsRealtimeWebSocketGateway.js";
-export { CjsRealtimeWebSocketTransport } from "./CjsRealtimeWebSocketTransport.js";
+export { CjsToolRealtimeGatewayWebsocket } from "./CjsToolRealtimeGatewayWebsocket.js";
+export { CjsToolRealtimeTransportWebsocket } from "./CjsToolRealtimeTransportWebsocket.js";

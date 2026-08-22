@@ -30,7 +30,7 @@ export class CjsToolBlack
      * Fetches one Black resource through an opened index source and reads it
      * into JSON-compatible public payload data.
      *
-     * @param {import("../indexing/CjsIndexSource.js").CjsIndexSource} source Opened cached resource source.
+     * @param {import("../indexing/CjsToolIndexSource.js").CjsToolIndexSource} source Opened cached resource source.
      * @param {string} logicalPath Exact `res:/`-scheme logical path to a `.black` resource.
      * @param {object} [options] `fetch` (source.Fetch options) and `read` (CjsBlackFormat read options).
      * @returns {Promise<object>} Plain JSON-compatible payload data.

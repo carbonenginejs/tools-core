@@ -1,5 +1,5 @@
-import { CjsIndexEntry } from "../indexing/CjsIndexEntry.js";
-import { CjsShaderTargetRegistry } from "./CjsShaderTargetRegistry.js";
+import { CjsToolIndexEntry } from "../indexing/CjsToolIndexEntry.js";
+import { CjsToolShaderTargetRegistry } from "./CjsToolShaderTargetRegistry.js";
 
 /** Builds a deterministic exact-build source inventory for one shader target. */
 export function buildShaderTargetCatalog(
@@ -8,7 +8,7 @@ export function buildShaderTargetCatalog(
     build,
     indexEntries,
     generatedAt = null,
-    shaderTargets = new CjsShaderTargetRegistry(),
+    shaderTargets = new CjsToolShaderTargetRegistry(),
 } = {})
 {
     if (!Array.isArray(indexEntries))
@@ -18,7 +18,7 @@ export function buildShaderTargetCatalog(
 
     const target = shaderTargets.Get(shaderTarget);
     const matching = indexEntries
-        .map((entry) => CjsIndexEntry.from(entry))
+        .map((entry) => CjsToolIndexEntry.from(entry))
         .filter((entry) => target.SupportsSourcePath(entry.logicalPath));
 
     if (!matching.length)

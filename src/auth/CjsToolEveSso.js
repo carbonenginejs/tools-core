@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
-import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
+import { CjsToolBoundedFetch } from "../internal/CjsToolBoundedFetch.js";
 
 const AUTHORIZE_URL = "https://login.eveonline.com/v2/oauth/authorize";
 const TOKEN_URL = "https://login.eveonline.com/v2/oauth/token";
@@ -57,8 +57,8 @@ export class CjsToolEveSso
             throw new TypeError("EVE SSO fetch option must be a function");
         }
 
-        CjsBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
-        CjsBoundedFetch.normalizeLimit(maxResponseBytes, "maxResponseBytes");
+        CjsToolBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
+        CjsToolBoundedFetch.normalizeLimit(maxResponseBytes, "maxResponseBytes");
 
         this.clientId = String(clientId);
         this.callback = String(callback);
@@ -251,7 +251,7 @@ export class CjsToolEveSso
             maxBytes: this.maxResponseBytes,
         };
 
-        const response = await CjsBoundedFetch.request(this.fetch, TOKEN_URL, {
+        const response = await CjsToolBoundedFetch.request(this.fetch, TOKEN_URL, {
             method: "POST",
             headers: {
                 "content-type": "application/x-www-form-urlencoded",
@@ -269,7 +269,7 @@ export class CjsToolEveSso
             throw new Error(`EVE SSO ${params.grant_type} failed (${response.status})`);
         }
 
-        return CjsBoundedFetch.readJson(response, limits);
+        return CjsToolBoundedFetch.readJson(response, limits);
     }
 
 }

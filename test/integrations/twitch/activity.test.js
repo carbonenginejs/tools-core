@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
     LIVESTREAM_ACTIVITY_TOPICS,
-} from "../../../src/realtime/livestream/CjsRealtimeLivestreamContract.js";
+} from "../../../src/realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 import { CjsRealtimeTwitchActivityNormalizer } from "../../../src/integrations/twitch/CjsRealtimeTwitchActivityNormalizer.js";
 import { CjsRealtimeTwitchActivityService } from "../../../src/integrations/twitch/CjsRealtimeTwitchActivityService.js";
 import { CjsTwitchActivitySource } from "../../../src/integrations/twitch/CjsTwitchActivitySource.js";

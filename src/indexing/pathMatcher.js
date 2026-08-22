@@ -1,4 +1,4 @@
-import { normalizeLogicalPath } from "./CjsIndexEntry.js";
+import { normalizeLogicalPath } from "./CjsToolIndexEntry.js";
 
 /**
  * Creates an exact, wildcard, or regular-expression logical-path matcher.

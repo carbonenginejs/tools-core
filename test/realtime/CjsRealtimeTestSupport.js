@@ -1,6 +1,6 @@
-import { CjsRealtimeError } from "../../src/realtime/CjsRealtimeError.js";
-import { CjsRealtimeHub } from "../../src/realtime/server/CjsRealtimeHub.js";
-import { CjsRealtimeSessionAuthority } from "../../src/realtime/server/CjsRealtimeSessionAuthority.js";
+import { CjsToolRealtimeError } from "../../src/realtime/CjsToolRealtimeError.js";
+import { CjsToolRealtimeHub } from "../../src/realtime/server/CjsToolRealtimeHub.js";
+import { CjsToolRealtimeSessionAuthority } from "../../src/realtime/server/CjsToolRealtimeSessionAuthority.js";
 
 /** Synthetic state, event, command, snapshot, and content service for conformance tests. */
 export class CjsRealtimeSyntheticService
@@ -86,7 +86,7 @@ export class CjsRealtimeSyntheticService
     {
         if (path !== "state.json")
         {
-            throw new CjsRealtimeError("resource_not_found", "Synthetic resource was not found", {
+            throw new CjsToolRealtimeError("resource_not_found", "Synthetic resource was not found", {
                 statusCode: 404,
             });
         }
@@ -95,7 +95,7 @@ export class CjsRealtimeSyntheticService
 
         if (request.revision !== revision)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "revision_mismatch",
                 "Synthetic resource revision does not match",
                 { statusCode: 409, retryable: true },
@@ -125,12 +125,12 @@ export class CjsRealtimeSyntheticService
 
         if (command.action === "reject")
         {
-            throw new CjsRealtimeError("synthetic_rejected", "Synthetic command was rejected");
+            throw new CjsToolRealtimeError("synthetic_rejected", "Synthetic command was rejected");
         }
 
         if (command.action === "transient" && this.transientFailures++ === 0)
         {
-            throw new CjsRealtimeError(
+            throw new CjsToolRealtimeError(
                 "service_unavailable",
                 "Synthetic service is temporarily unavailable",
                 { retryable: true, statusCode: 503 },
@@ -164,7 +164,7 @@ export class CjsRealtimeSyntheticService
         {
             context.Commit(async () =>
             {
-                throw new CjsRealtimeError(
+                throw new CjsToolRealtimeError(
                     "nested_rejected",
                     "Synthetic nested commit was rejected",
                 );
@@ -341,8 +341,8 @@ export class CjsRealtimeTestSupport
     /** Creates a started synthetic hub with two scoped actors. */
     static async createHarness({ limits = {}, failStart = false } = {})
     {
-        const capability = CjsRealtimeSessionAuthority.createCapability();
-        const otherCapability = CjsRealtimeSessionAuthority.createCapability();
+        const capability = CjsToolRealtimeSessionAuthority.createCapability();
+        const otherCapability = CjsToolRealtimeSessionAuthority.createCapability();
         const origin = "http://127.0.0.1:8080";
         const service = new CjsRealtimeSyntheticService({ failStart });
         const serviceScope = {
@@ -360,7 +360,7 @@ export class CjsRealtimeTestSupport
             snapshots: true,
             content: true,
         };
-        const authority = new CjsRealtimeSessionAuthority({
+        const authority = new CjsToolRealtimeSessionAuthority({
             grants: [
                 {
                     capability,
@@ -383,7 +383,7 @@ export class CjsRealtimeTestSupport
             ],
         });
         let nextId = 0;
-        const hub = new CjsRealtimeHub({
+        const hub = new CjsToolRealtimeHub({
             authority,
             limits,
             createId: prefix => `${prefix}-${++nextId}`,

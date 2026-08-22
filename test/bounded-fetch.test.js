@@ -2,15 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-    CjsBoundedFetch,
-    CjsBoundedFetchError,
-} from "../src/internal/CjsBoundedFetch.js";
+    CjsToolBoundedFetch,
+    CjsToolBoundedFetchError,
+} from "../src/internal/CjsToolBoundedFetch.js";
 
 test("settles a deadline even when an injected fetch ignores cancellation", async () =>
 {
     let signal;
 
-    await assert.rejects(CjsBoundedFetch.request(
+    await assert.rejects(CjsToolBoundedFetch.request(
         async (_url, options) =>
         {
             signal = options.signal;
@@ -20,7 +20,7 @@ test("settles a deadline even when an injected fetch ignores cancellation", asyn
         "https://example.invalid/never",
         {},
         { timeoutMs: 10, label: "Fixture request" },
-    ), error => error instanceof CjsBoundedFetchError
+    ), error => error instanceof CjsToolBoundedFetchError
         && error.code === "request_timeout");
     assert.equal(signal.aborted, true);
 });
@@ -28,7 +28,7 @@ test("settles a deadline even when an injected fetch ignores cancellation", asyn
 test("composes caller cancellation without reflecting its abort reason", async () =>
 {
     const abortController = new AbortController();
-    const operation = CjsBoundedFetch.request(
+    const operation = CjsToolBoundedFetch.request(
         async () => new Promise(() => undefined),
         "https://example.invalid/cancel",
         {},
@@ -40,7 +40,7 @@ test("composes caller cancellation without reflecting its abort reason", async (
     );
 
     abortController.abort(new Error("private abort reason"));
-    await assert.rejects(operation, error => error instanceof CjsBoundedFetchError
+    await assert.rejects(operation, error => error instanceof CjsToolBoundedFetchError
         && error.code === "request_aborted"
         && !error.message.includes("private abort reason"));
 });
@@ -65,7 +65,7 @@ test("rejects declared oversized responses before reading their body", async () 
     };
 
     await assert.rejects(
-        CjsBoundedFetch.readBytes(response, {
+        CjsToolBoundedFetch.readBytes(response, {
             maxBytes: 8,
             label: "Fixture response",
         }),
@@ -92,7 +92,7 @@ test("cancels an undeclared streaming body as soon as its byte limit is crossed"
     };
 
     await assert.rejects(
-        CjsBoundedFetch.readBytes(response, {
+        CjsToolBoundedFetch.readBytes(response, {
             maxBytes: 6,
             label: "Fixture response",
         }),
@@ -114,7 +114,7 @@ test("cancels a streaming response body when its read deadline expires", async (
     };
 
     await assert.rejects(
-        CjsBoundedFetch.readBytes(response, {
+        CjsToolBoundedFetch.readBytes(response, {
             maxBytes: 16,
             timeoutMs: 10,
             label: "Fixture response",
