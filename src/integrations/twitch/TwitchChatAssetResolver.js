@@ -1,7 +1,7 @@
 import { CjsToolBoundedFetch } from "../../internal/CjsToolBoundedFetch.js";
 import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
 import { CjsToolRealtimeChatContract } from "../../realtime/chat/CjsToolRealtimeChatContract.js";
-import { CjsRealtimeTwitchChatNormalizer } from "./CjsRealtimeTwitchChatNormalizer.js";
+import { TwitchChatNormalizer } from "./TwitchChatNormalizer.js";
 
 const DEFAULT_TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -9,7 +9,7 @@ const DEFAULT_TTL_MS = 6 * 60 * 60 * 1000;
  * Resolves and caches Twitch channel profile images and preferred static or
  * animated IRC emote URLs before chat publication.
  */
-export class CjsTwitchChatAssetResolver
+export class TwitchChatAssetResolver
 {
 
     #catalogs;
@@ -56,7 +56,7 @@ export class CjsTwitchChatAssetResolver
     /** Resolves a Twitch channel identity and its profile-image URL. */
     async ResolveRoom(loginValue, { signal = undefined } = {})
     {
-        const login = CjsTwitchChatAssetResolver.normalizeLogin(loginValue);
+        const login = TwitchChatAssetResolver.normalizeLogin(loginValue);
         const cached = this.#Read(this.#rooms, login);
 
         if (cached)
@@ -69,8 +69,8 @@ export class CjsTwitchChatAssetResolver
             signal,
         });
         const user = Array.isArray(payload?.data) ? payload.data[0] : null;
-        const id = CjsTwitchChatAssetResolver.string(user?.id);
-        const profileImageUrl = CjsTwitchChatAssetResolver.httpsUrl(
+        const id = TwitchChatAssetResolver.string(user?.id);
+        const profileImageUrl = TwitchChatAssetResolver.httpsUrl(
             user?.profile_image_url,
         );
 
@@ -85,15 +85,15 @@ export class CjsTwitchChatAssetResolver
 
         const room = CjsToolRealtimeChatContract.freeze({
             id,
-            login: CjsTwitchChatAssetResolver.string(user?.login)?.toLowerCase()
+            login: TwitchChatAssetResolver.string(user?.login)?.toLowerCase()
                 ?? login,
-            displayName: CjsTwitchChatAssetResolver.string(user?.display_name)
+            displayName: TwitchChatAssetResolver.string(user?.display_name)
                 ?? login,
             assets: {
                 icon: {
                     id: `twitch-channel-${id}`,
                     url: profileImageUrl,
-                    contentType: CjsTwitchChatAssetResolver.imageContentType(
+                    contentType: TwitchChatAssetResolver.imageContentType(
                         profileImageUrl,
                     ),
                     animated: false,
@@ -108,9 +108,9 @@ export class CjsTwitchChatAssetResolver
     /** Resolves all Twitch assets needed to publish one IRC message. */
     async ResolveIrcMessage({ channel, tags, signal = undefined } = {})
     {
-        const login = CjsTwitchChatAssetResolver.normalizeLogin(channel);
+        const login = TwitchChatAssetResolver.normalizeLogin(channel);
         const room = await this.ResolveRoom(login, { signal });
-        const ids = CjsTwitchChatAssetResolver.emoteIds(tags?.emotes);
+        const ids = TwitchChatAssetResolver.emoteIds(tags?.emotes);
 
         await Promise.allSettled([
             this.#LoadCatalog("global", "chat/emotes/global", null, signal),
@@ -144,7 +144,7 @@ export class CjsTwitchChatAssetResolver
 
         for (const entry of Array.isArray(payload?.data) ? payload.data : [])
         {
-            const id = CjsTwitchChatAssetResolver.string(entry?.id);
+            const id = TwitchChatAssetResolver.string(entry?.id);
             const formats = Array.isArray(entry?.format) ? entry.format : [];
 
             if (id)
@@ -152,7 +152,7 @@ export class CjsTwitchChatAssetResolver
                 this.#Write(
                     this.#emotes,
                     id,
-                    CjsRealtimeTwitchChatNormalizer.emoteAsset(id, formats),
+                    TwitchChatNormalizer.emoteAsset(id, formats),
                 );
             }
         }
@@ -162,7 +162,7 @@ export class CjsTwitchChatAssetResolver
 
     async #ProbeEmote(id, signal)
     {
-        const animated = CjsRealtimeTwitchChatNormalizer.emoteAsset(
+        const animated = TwitchChatNormalizer.emoteAsset(
             id,
             [ "animated" ],
         );
@@ -191,7 +191,7 @@ export class CjsTwitchChatAssetResolver
 
         const asset = supportsAnimation
             ? animated
-            : CjsRealtimeTwitchChatNormalizer.emoteAsset(id, [ "static" ]);
+            : TwitchChatNormalizer.emoteAsset(id, [ "static" ]);
         this.#Write(this.#emotes, id, asset);
         return asset;
     }

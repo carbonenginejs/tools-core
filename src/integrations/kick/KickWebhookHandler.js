@@ -29,7 +29,7 @@ const EVENT_TYPES = new Set([
 ]);
 
 /** Authenticates and normalizes official Kick webhook deliveries. */
-export class CjsKickWebhookHandler
+export class KickWebhookHandler
 {
 
     #maxFutureSkewMs;
@@ -76,27 +76,27 @@ export class CjsKickWebhookHandler
     /** Verifies signed Kick identity, raw bytes, event metadata, and freshness. */
     AuthenticateWebhook(request)
     {
-        const messageId = CjsKickWebhookHandler.header(
+        const messageId = KickWebhookHandler.header(
             request.headers,
             "kick-event-message-id",
         );
-        const subscriptionId = CjsKickWebhookHandler.header(
+        const subscriptionId = KickWebhookHandler.header(
             request.headers,
             "kick-event-subscription-id",
         );
-        const signatureText = CjsKickWebhookHandler.header(
+        const signatureText = KickWebhookHandler.header(
             request.headers,
             "kick-event-signature",
         );
-        const messageTimestamp = CjsKickWebhookHandler.header(
+        const messageTimestamp = KickWebhookHandler.header(
             request.headers,
             "kick-event-message-timestamp",
         );
-        const eventType = CjsKickWebhookHandler.header(
+        const eventType = KickWebhookHandler.header(
             request.headers,
             "kick-event-type",
         );
-        const eventVersion = CjsKickWebhookHandler.header(
+        const eventVersion = KickWebhookHandler.header(
             request.headers,
             "kick-event-version",
         );
@@ -106,7 +106,7 @@ export class CjsKickWebhookHandler
             || !EVENT_TYPES.has(eventType) || eventVersion !== "1"
             || !(request.body instanceof Uint8Array))
         {
-            throw CjsKickWebhookHandler.authenticationError();
+            throw KickWebhookHandler.authenticationError();
         }
 
         const sentAt = Date.parse(messageTimestamp);
@@ -116,10 +116,10 @@ export class CjsKickWebhookHandler
             || sentAt < receivedAt - this.#maxMessageAgeMs
             || sentAt > receivedAt + this.#maxFutureSkewMs)
         {
-            throw CjsKickWebhookHandler.authenticationError();
+            throw KickWebhookHandler.authenticationError();
         }
 
-        const signature = CjsKickWebhookHandler.decodeSignature(signatureText);
+        const signature = KickWebhookHandler.decodeSignature(signatureText);
         const signed = Buffer.concat([
             Buffer.from(`${messageId}.${messageTimestamp}.`, "utf8"),
             Buffer.from(request.body),
@@ -137,7 +137,7 @@ export class CjsKickWebhookHandler
 
         if (!verified)
         {
-            throw CjsKickWebhookHandler.authenticationError();
+            throw KickWebhookHandler.authenticationError();
         }
 
         return Object.freeze({
@@ -178,7 +178,7 @@ export class CjsKickWebhookHandler
             );
         }
 
-        const events = CjsKickWebhookHandler.normalize(
+        const events = KickWebhookHandler.normalize(
             authentication,
             payload,
             request.receivedAt,
@@ -202,13 +202,13 @@ export class CjsKickWebhookHandler
 
         if (type === "channel.followed")
         {
-            return [ CjsKickWebhookHandler.activity(
+            return [ KickWebhookHandler.activity(
                 LIVESTREAM_ACTIVITY_TOPICS.FOLLOW_RECEIVED,
                 authentication,
                 payload,
                 receivedAt,
                 {
-                    actor: CjsKickWebhookHandler.actor(payload.follower),
+                    actor: KickWebhookHandler.actor(payload.follower),
                     extension: { timeSource: "received" },
                 },
             ) ];
@@ -216,13 +216,13 @@ export class CjsKickWebhookHandler
 
         if ([ "channel.subscription.new", "channel.subscription.renewal" ].includes(type))
         {
-            return [ CjsKickWebhookHandler.activity(
+            return [ KickWebhookHandler.activity(
                 LIVESTREAM_ACTIVITY_TOPICS.SUBSCRIPTION_RECEIVED,
                 authentication,
                 payload,
                 payload.created_at ?? receivedAt,
                 {
-                    actor: CjsKickWebhookHandler.actor(payload.subscriber),
+                    actor: KickWebhookHandler.actor(payload.subscriber),
                     fields: {
                         subscription: {
                             kind: type.endsWith(".new") ? "new" : "renewal",
@@ -230,8 +230,8 @@ export class CjsKickWebhookHandler
                         },
                     },
                     extension: {
-                        duration: CjsKickWebhookHandler.integer(payload.duration),
-                        expiresAt: CjsKickWebhookHandler.string(payload.expires_at),
+                        duration: KickWebhookHandler.integer(payload.duration),
+                        expiresAt: KickWebhookHandler.string(payload.expires_at),
                     },
                 },
             ) ];
@@ -242,9 +242,9 @@ export class CjsKickWebhookHandler
             const giftees = Array.isArray(payload.giftees) ? payload.giftees : [];
             const gifter = payload.gifter?.is_anonymous === true
                 ? null
-                : CjsKickWebhookHandler.actor(payload.gifter);
+                : KickWebhookHandler.actor(payload.gifter);
             const occurredAt = payload.created_at ?? receivedAt;
-            const batch = CjsKickWebhookHandler.activity(
+            const batch = KickWebhookHandler.activity(
                 LIVESTREAM_ACTIVITY_TOPICS.SUBSCRIPTION_GIFTED,
                 authentication,
                 payload,
@@ -254,26 +254,26 @@ export class CjsKickWebhookHandler
                     actor: gifter,
                     fields: { gift: { count: giftees.length } },
                     extension: {
-                        expiresAt: CjsKickWebhookHandler.string(payload.expires_at),
+                        expiresAt: KickWebhookHandler.string(payload.expires_at),
                         isAnonymous: gifter === null,
                     },
                 },
             );
             const beneficiaries = giftees.map((giftee, index) =>
-                CjsKickWebhookHandler.activity(
+                KickWebhookHandler.activity(
                     LIVESTREAM_ACTIVITY_TOPICS.SUBSCRIPTION_RECEIVED,
                     authentication,
                     payload,
                     occurredAt,
                     {
                         id: `${authentication.messageId}:beneficiary:${index}`,
-                        actor: CjsKickWebhookHandler.actor(giftee),
+                        actor: KickWebhookHandler.actor(giftee),
                         fields: {
                             subscription: { kind: "gift", giftedBy: gifter },
                         },
                         extension: {
                             giftIndex: index,
-                            expiresAt: CjsKickWebhookHandler.string(payload.expires_at),
+                            expiresAt: KickWebhookHandler.string(payload.expires_at),
                         },
                     },
                 ));
@@ -283,54 +283,54 @@ export class CjsKickWebhookHandler
 
         if (type === "channel.reward.redemption.updated")
         {
-            return [ CjsKickWebhookHandler.activity(
+            return [ KickWebhookHandler.activity(
                 LIVESTREAM_ACTIVITY_TOPICS.REWARD_REDEEMED,
                 authentication,
                 payload,
                 payload.redeemed_at ?? receivedAt,
                 {
-                    id: CjsKickWebhookHandler.requiredString(payload.id),
-                    actor: CjsKickWebhookHandler.actor(payload.redeemer),
+                    id: KickWebhookHandler.requiredString(payload.id),
+                    actor: KickWebhookHandler.actor(payload.redeemer),
                     fields: {
                         reward: {
-                            id: CjsKickWebhookHandler.requiredString(payload.reward?.id),
-                            title: CjsKickWebhookHandler.requiredString(payload.reward?.title),
-                            cost: CjsKickWebhookHandler.requiredInteger(
+                            id: KickWebhookHandler.requiredString(payload.reward?.id),
+                            title: KickWebhookHandler.requiredString(payload.reward?.title),
+                            cost: KickWebhookHandler.requiredInteger(
                                 payload.reward?.cost,
                                 { minimum: 0 },
                             ),
-                            input: CjsKickWebhookHandler.string(payload.user_input),
-                            status: CjsKickWebhookHandler.rewardStatus(payload.status),
+                            input: KickWebhookHandler.string(payload.user_input),
+                            status: KickWebhookHandler.rewardStatus(payload.status),
                         },
                     },
-                    extension: { providerStatus: CjsKickWebhookHandler.string(payload.status) },
+                    extension: { providerStatus: KickWebhookHandler.string(payload.status) },
                 },
             ) ];
         }
 
         if (type === "kicks.gifted")
         {
-            return [ CjsKickWebhookHandler.activity(
+            return [ KickWebhookHandler.activity(
                 LIVESTREAM_ACTIVITY_TOPICS.CONTRIBUTION_RECEIVED,
                 authentication,
                 payload,
                 payload.created_at ?? receivedAt,
                 {
-                    actor: CjsKickWebhookHandler.actor(payload.sender),
+                    actor: KickWebhookHandler.actor(payload.sender),
                     fields: {
                         contribution: {
-                            amount: CjsKickWebhookHandler.requiredInteger(
+                            amount: KickWebhookHandler.requiredInteger(
                                 payload.gift?.amount,
                             ),
                             unit: "kicks",
-                            message: CjsKickWebhookHandler.string(payload.gift?.message),
+                            message: KickWebhookHandler.string(payload.gift?.message),
                         },
                     },
                     extension: {
-                        name: CjsKickWebhookHandler.string(payload.gift?.name),
-                        type: CjsKickWebhookHandler.string(payload.gift?.type),
-                        tier: CjsKickWebhookHandler.string(payload.gift?.tier),
-                        pinnedTimeSeconds: CjsKickWebhookHandler.integer(
+                        name: KickWebhookHandler.string(payload.gift?.name),
+                        type: KickWebhookHandler.string(payload.gift?.type),
+                        tier: KickWebhookHandler.string(payload.gift?.tier),
+                        pinnedTimeSeconds: KickWebhookHandler.integer(
                             payload.gift?.pinned_time_seconds,
                         ),
                     },
@@ -345,31 +345,31 @@ export class CjsKickWebhookHandler
                 ? payload.started_at ?? receivedAt
                 : payload.ended_at ?? receivedAt;
 
-            return [ CjsKickWebhookHandler.state(
+            return [ KickWebhookHandler.state(
                 authentication,
                 payload,
                 occurredAt,
                 {
                     online,
-                    startedAt: CjsKickWebhookHandler.string(payload.started_at),
-                    endedAt: CjsKickWebhookHandler.string(payload.ended_at),
-                    title: CjsKickWebhookHandler.string(payload.title),
+                    startedAt: KickWebhookHandler.string(payload.started_at),
+                    endedAt: KickWebhookHandler.string(payload.ended_at),
+                    title: KickWebhookHandler.string(payload.title),
                 },
             ) ];
         }
 
         if (type === "livestream.metadata.updated")
         {
-            const categoryId = CjsKickWebhookHandler.identityId(payload.metadata?.category?.id);
-            const categoryName = CjsKickWebhookHandler.string(payload.metadata?.category?.name);
+            const categoryId = KickWebhookHandler.identityId(payload.metadata?.category?.id);
+            const categoryName = KickWebhookHandler.string(payload.metadata?.category?.name);
 
-            return [ CjsKickWebhookHandler.state(
+            return [ KickWebhookHandler.state(
                 authentication,
                 payload,
                 receivedAt,
                 {
-                    title: CjsKickWebhookHandler.string(payload.metadata?.title),
-                    language: CjsKickWebhookHandler.string(payload.metadata?.language),
+                    title: KickWebhookHandler.string(payload.metadata?.title),
+                    language: KickWebhookHandler.string(payload.metadata?.language),
                     mature: typeof payload.metadata?.has_mature_content === "boolean"
                         ? payload.metadata.has_mature_content
                         : null,
@@ -400,11 +400,11 @@ export class CjsKickWebhookHandler
             id,
             occurredAt,
             deliveryMode: "live",
-            source: CjsKickWebhookHandler.source(payload.broadcaster),
+            source: KickWebhookHandler.source(payload.broadcaster),
             actor,
             ...fields,
             extensions: {
-                kick: CjsKickWebhookHandler.extension(authentication, extension),
+                kick: KickWebhookHandler.extension(authentication, extension),
             },
         });
 
@@ -420,10 +420,10 @@ export class CjsKickWebhookHandler
                 id: authentication.messageId,
                 occurredAt,
                 deliveryMode: "live",
-                source: CjsKickWebhookHandler.source(payload.broadcaster),
+                source: KickWebhookHandler.source(payload.broadcaster),
                 changes,
                 extensions: {
-                    kick: CjsKickWebhookHandler.extension(authentication, extension),
+                    kick: KickWebhookHandler.extension(authentication, extension),
                 },
             }),
         });
@@ -434,10 +434,10 @@ export class CjsKickWebhookHandler
     {
         return {
             provider: "kick",
-            channelId: CjsKickWebhookHandler.requiredIdentityId(value?.user_id),
-            channelLogin: CjsKickWebhookHandler.string(value?.channel_slug)?.toLowerCase()
+            channelId: KickWebhookHandler.requiredIdentityId(value?.user_id),
+            channelLogin: KickWebhookHandler.string(value?.channel_slug)?.toLowerCase()
                 ?? null,
-            channelDisplayName: CjsKickWebhookHandler.string(value?.username),
+            channelDisplayName: KickWebhookHandler.string(value?.username),
         };
     }
 
@@ -445,11 +445,11 @@ export class CjsKickWebhookHandler
     static actor(value)
     {
         return {
-            id: CjsKickWebhookHandler.requiredIdentityId(value?.user_id),
-            login: CjsKickWebhookHandler.string(value?.channel_slug)?.toLowerCase()
-                ?? CjsKickWebhookHandler.string(value?.username)?.toLowerCase()
+            id: KickWebhookHandler.requiredIdentityId(value?.user_id),
+            login: KickWebhookHandler.string(value?.channel_slug)?.toLowerCase()
+                ?? KickWebhookHandler.string(value?.username)?.toLowerCase()
                 ?? null,
-            displayName: CjsKickWebhookHandler.string(value?.username),
+            displayName: KickWebhookHandler.string(value?.username),
         };
     }
 
@@ -472,7 +472,7 @@ export class CjsKickWebhookHandler
 
         if (typeof value !== "string" || value.length === 0)
         {
-            throw CjsKickWebhookHandler.authenticationError();
+            throw KickWebhookHandler.authenticationError();
         }
 
         return value;
@@ -484,14 +484,14 @@ export class CjsKickWebhookHandler
         if (value.length > 1024 || value.length % 4 !== 0
             || !/^[A-Za-z0-9+/]+={0,2}$/u.test(value))
         {
-            throw CjsKickWebhookHandler.authenticationError();
+            throw KickWebhookHandler.authenticationError();
         }
 
         const signature = Buffer.from(value, "base64");
 
         if (signature.length === 0 || signature.toString("base64") !== value)
         {
-            throw CjsKickWebhookHandler.authenticationError();
+            throw KickWebhookHandler.authenticationError();
         }
 
         return signature;
@@ -528,7 +528,7 @@ export class CjsKickWebhookHandler
     /** Requires one exact provider identity. */
     static requiredIdentityId(value)
     {
-        const result = CjsKickWebhookHandler.identityId(value);
+        const result = KickWebhookHandler.identityId(value);
 
         if (result === null)
         {
@@ -547,7 +547,7 @@ export class CjsKickWebhookHandler
     /** Requires a non-empty string. */
     static requiredString(value)
     {
-        const result = CjsKickWebhookHandler.string(value);
+        const result = KickWebhookHandler.string(value);
 
         if (result === null)
         {

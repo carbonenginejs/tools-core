@@ -2,7 +2,7 @@ import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
 import { CjsToolBoundedFetch } from "../../internal/CjsToolBoundedFetch.js";
 
 /** Validates externally acquired Twitch user tokens and serializes optional refresh. */
-export class CjsTwitchOAuthTokenProvider
+export class TwitchOAuthTokenProvider
 {
 
     #acquiring;
@@ -83,12 +83,12 @@ export class CjsTwitchOAuthTokenProvider
     /** Returns one currently validated user token with the required Twitch scopes. */
     async Acquire({ requiredScopes = [], expectedUserId = null, force = false } = {})
     {
-        const scopes = CjsTwitchOAuthTokenProvider.normalizeScopes(requiredScopes);
+        const scopes = TwitchOAuthTokenProvider.normalizeScopes(requiredScopes);
         const cached = this.#record;
 
         if (!force && cached && this.#clock() < cached.validateAfter)
         {
-            CjsTwitchOAuthTokenProvider.requireIdentity(cached, scopes, expectedUserId);
+            TwitchOAuthTokenProvider.requireIdentity(cached, scopes, expectedUserId);
 
             return cached;
         }
@@ -136,7 +136,7 @@ export class CjsTwitchOAuthTokenProvider
 
         const record = await this.#acquiring;
 
-        CjsTwitchOAuthTokenProvider.requireIdentity(record, scopes, expectedUserId);
+        TwitchOAuthTokenProvider.requireIdentity(record, scopes, expectedUserId);
 
         return record;
     }
@@ -153,7 +153,7 @@ export class CjsTwitchOAuthTokenProvider
 
         try
         {
-            accessToken = CjsTwitchOAuthTokenProvider.normalizeToken(
+            accessToken = TwitchOAuthTokenProvider.normalizeToken(
                 await this.#getAccessToken(),
             );
         }
@@ -179,7 +179,7 @@ export class CjsTwitchOAuthTokenProvider
         {
             try
             {
-                accessToken = CjsTwitchOAuthTokenProvider.normalizeToken(
+                accessToken = TwitchOAuthTokenProvider.normalizeToken(
                     await this.#refreshAccessToken({
                         clientId: this.#clientId,
                         accessToken,

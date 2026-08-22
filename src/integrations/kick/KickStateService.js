@@ -7,7 +7,7 @@ import {
 import { CjsToolWebhookError } from "../../webhook/CjsToolWebhookError.js";
 
 /** Materializes snapshot-recoverable Kick state over shared webhook ingress. */
-export class CjsKickStateService
+export class KickStateService
 {
 
     #accepting;
@@ -202,7 +202,7 @@ export class CjsKickStateService
                     );
                 }
 
-                this.#snapshot = CjsKickStateService.applyChange(
+                this.#snapshot = KickStateService.applyChange(
                     this.#snapshot,
                     change,
                 );

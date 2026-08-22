@@ -3,7 +3,7 @@ import { CjsToolRealtimeSerialLane } from "../../realtime/internal/CjsToolRealti
 const PROVIDER_KINDS = new Set([ "twitch.eventsub", "twitch.irc" ]);
 
 /** Owns one Twitch transport and fans its live output into several chat services. */
-export class CjsTwitchChatSource
+export class TwitchChatSource
 {
 
     #abortController;
@@ -104,7 +104,7 @@ export class CjsTwitchChatSource
     /** Acquires one upstream room for a service subscription lease. */
     AcquireRoom(consumer, leaseId, login)
     {
-        const room = CjsTwitchChatSource.normalizeRoomLogin(login);
+        const room = TwitchChatSource.normalizeRoomLogin(login);
 
         if (!this.supportsDynamicRooms)
         {

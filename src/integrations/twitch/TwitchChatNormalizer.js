@@ -6,7 +6,7 @@ import {
 const EMOTE_CDN = "https://static-cdn.jtvnw.net/emoticons/v2";
 
 /** Canonicalizes Twitch IRC and EventSub messages into the common chat family. */
-export class CjsRealtimeTwitchChatNormalizer
+export class TwitchChatNormalizer
 {
 
     /** Normalizes one tmi.js-compatible IRC message callback. */
@@ -19,27 +19,27 @@ export class CjsRealtimeTwitchChatNormalizer
     })
     {
         const roomLogin = String(channel ?? "").replace(/^#/u, "").toLowerCase();
-        const messageId = CjsRealtimeTwitchChatNormalizer.string(tags?.id);
-        const roomId = CjsRealtimeTwitchChatNormalizer.string(
+        const messageId = TwitchChatNormalizer.string(tags?.id);
+        const roomId = TwitchChatNormalizer.string(
             assets?.room?.id ?? tags?.["room-id"],
         );
-        const authorId = CjsRealtimeTwitchChatNormalizer.string(tags?.["user-id"]);
+        const authorId = TwitchChatNormalizer.string(tags?.["user-id"]);
 
-        CjsRealtimeTwitchChatNormalizer.requireIdentity(
+        TwitchChatNormalizer.requireIdentity(
             messageId,
             roomId,
             authorId,
             roomLogin,
         );
-        const occurredAt = CjsRealtimeTwitchChatNormalizer.time(
+        const occurredAt = TwitchChatNormalizer.time(
             tags?.["tmi-sent-ts"],
             receivedAt,
         );
-        const badges = CjsRealtimeTwitchChatNormalizer.badges(tags?.badges);
-        const sourceMessageId = CjsRealtimeTwitchChatNormalizer.string(tags?.["source-id"]);
-        const sourceRoomId = CjsRealtimeTwitchChatNormalizer.string(tags?.["source-room-id"]);
+        const badges = TwitchChatNormalizer.badges(tags?.badges);
+        const sourceMessageId = TwitchChatNormalizer.string(tags?.["source-id"]);
+        const sourceRoomId = TwitchChatNormalizer.string(tags?.["source-room-id"]);
 
-        return CjsRealtimeTwitchChatNormalizer.common({
+        return TwitchChatNormalizer.common({
             id: messageId,
             text,
             occurredAt,
@@ -48,7 +48,7 @@ export class CjsRealtimeTwitchChatNormalizer
                 id: roomId,
                 kind: "channel",
                 login: roomLogin,
-                displayName: CjsRealtimeTwitchChatNormalizer.string(
+                displayName: TwitchChatNormalizer.string(
                     assets?.room?.displayName,
                 ),
                 ...(assets?.room?.assets
@@ -57,14 +57,14 @@ export class CjsRealtimeTwitchChatNormalizer
             },
             author: {
                 id: authorId,
-                login: CjsRealtimeTwitchChatNormalizer.string(tags?.username)?.toLowerCase()
+                login: TwitchChatNormalizer.string(tags?.username)?.toLowerCase()
                     ?? "unknown",
-                displayName: CjsRealtimeTwitchChatNormalizer.string(tags?.["display-name"]),
-                color: CjsRealtimeTwitchChatNormalizer.string(tags?.color),
-                roles: CjsRealtimeTwitchChatNormalizer.roles(tags, badges),
+                displayName: TwitchChatNormalizer.string(tags?.["display-name"]),
+                color: TwitchChatNormalizer.string(tags?.color),
+                roles: TwitchChatNormalizer.roles(tags, badges),
             },
-            reply: CjsRealtimeTwitchChatNormalizer.ircReply(tags),
-            fragments: CjsRealtimeTwitchChatNormalizer.ircFragments(
+            reply: TwitchChatNormalizer.ircReply(tags),
+            fragments: TwitchChatNormalizer.ircFragments(
                 text,
                 tags?.emotes,
                 tags?.gifs,
@@ -75,8 +75,8 @@ export class CjsRealtimeTwitchChatNormalizer
                 badges,
                 sourceMessageId,
                 sourceRoomId,
-                messageType: CjsRealtimeTwitchChatNormalizer.string(tags?.["message-type"]),
-                bits: CjsRealtimeTwitchChatNormalizer.integer(tags?.bits),
+                messageType: TwitchChatNormalizer.string(tags?.["message-type"]),
+                bits: TwitchChatNormalizer.integer(tags?.bits),
             },
         });
     }
@@ -92,28 +92,28 @@ export class CjsRealtimeTwitchChatNormalizer
             || metadata?.subscription_type !== "channel.chat.message"
             || subscription?.type !== "channel.chat.message")
         {
-            throw CjsRealtimeTwitchChatNormalizer.invalidMessage();
+            throw TwitchChatNormalizer.invalidMessage();
         }
 
-        const messageId = CjsRealtimeTwitchChatNormalizer.string(event?.message_id);
-        const roomId = CjsRealtimeTwitchChatNormalizer.string(event?.broadcaster_user_id);
-        const authorId = CjsRealtimeTwitchChatNormalizer.string(event?.chatter_user_id);
-        const roomLogin = CjsRealtimeTwitchChatNormalizer.string(
+        const messageId = TwitchChatNormalizer.string(event?.message_id);
+        const roomId = TwitchChatNormalizer.string(event?.broadcaster_user_id);
+        const authorId = TwitchChatNormalizer.string(event?.chatter_user_id);
+        const roomLogin = TwitchChatNormalizer.string(
             event?.broadcaster_user_login,
         )?.toLowerCase();
 
-        CjsRealtimeTwitchChatNormalizer.requireIdentity(
+        TwitchChatNormalizer.requireIdentity(
             messageId,
             roomId,
             authorId,
             roomLogin,
         );
-        const badges = CjsRealtimeTwitchChatNormalizer.badges(event?.badges);
+        const badges = TwitchChatNormalizer.badges(event?.badges);
 
-        return CjsRealtimeTwitchChatNormalizer.common({
+        return TwitchChatNormalizer.common({
             id: messageId,
             text: event?.message?.text,
-            occurredAt: CjsRealtimeTwitchChatNormalizer.time(
+            occurredAt: TwitchChatNormalizer.time(
                 metadata?.message_timestamp,
                 receivedAt,
             ),
@@ -122,39 +122,39 @@ export class CjsRealtimeTwitchChatNormalizer
                 id: roomId,
                 kind: "channel",
                 login: roomLogin,
-                displayName: CjsRealtimeTwitchChatNormalizer.string(
+                displayName: TwitchChatNormalizer.string(
                     event?.broadcaster_user_name,
                 ),
             },
             author: {
                 id: authorId,
-                login: CjsRealtimeTwitchChatNormalizer.string(
+                login: TwitchChatNormalizer.string(
                     event?.chatter_user_login,
                 )?.toLowerCase() ?? "unknown",
-                displayName: CjsRealtimeTwitchChatNormalizer.string(
+                displayName: TwitchChatNormalizer.string(
                     event?.chatter_user_name,
                 ),
-                color: CjsRealtimeTwitchChatNormalizer.string(event?.color),
-                roles: CjsRealtimeTwitchChatNormalizer.roles(event, badges),
+                color: TwitchChatNormalizer.string(event?.color),
+                roles: TwitchChatNormalizer.roles(event, badges),
             },
-            reply: CjsRealtimeTwitchChatNormalizer.eventSubReply(event?.reply),
-            fragments: CjsRealtimeTwitchChatNormalizer.fragments(
+            reply: TwitchChatNormalizer.eventSubReply(event?.reply),
+            fragments: TwitchChatNormalizer.fragments(
                 event?.message?.fragments,
                 event?.message?.text,
             ),
             twitch: {
                 transport: "eventsub",
-                notificationId: CjsRealtimeTwitchChatNormalizer.string(metadata?.message_id),
-                subscriptionId: CjsRealtimeTwitchChatNormalizer.string(subscription?.id),
+                notificationId: TwitchChatNormalizer.string(metadata?.message_id),
+                subscriptionId: TwitchChatNormalizer.string(subscription?.id),
                 badges,
-                sourceMessageId: CjsRealtimeTwitchChatNormalizer.string(
+                sourceMessageId: TwitchChatNormalizer.string(
                     event?.source_message_id,
                 ),
-                sourceRoomId: CjsRealtimeTwitchChatNormalizer.string(
+                sourceRoomId: TwitchChatNormalizer.string(
                     event?.source_broadcaster_user_id,
                 ),
-                messageType: CjsRealtimeTwitchChatNormalizer.string(event?.message_type),
-                bits: CjsRealtimeTwitchChatNormalizer.integer(event?.cheer?.bits),
+                messageType: TwitchChatNormalizer.string(event?.message_type),
+                bits: TwitchChatNormalizer.integer(event?.cheer?.bits),
             },
         });
     }
@@ -164,7 +164,7 @@ export class CjsRealtimeTwitchChatNormalizer
     {
         if (typeof text !== "string" || text.length === 0)
         {
-            throw CjsRealtimeTwitchChatNormalizer.invalidMessage();
+            throw TwitchChatNormalizer.invalidMessage();
         }
 
         return CjsToolRealtimeChatContract.normalizeMessage({
@@ -189,8 +189,8 @@ export class CjsRealtimeTwitchChatNormalizer
         {
             return Object.freeze(value.flatMap(entry =>
             {
-                const setId = CjsRealtimeTwitchChatNormalizer.string(entry?.set_id);
-                const id = CjsRealtimeTwitchChatNormalizer.string(entry?.id);
+                const setId = TwitchChatNormalizer.string(entry?.set_id);
+                const id = TwitchChatNormalizer.string(entry?.id);
 
                 return setId && id ? [ Object.freeze({ setId, id }) ] : [];
             }));
@@ -243,22 +243,22 @@ export class CjsRealtimeTwitchChatNormalizer
         return Object.freeze(value.map(fragment =>
         {
             const result = {
-                type: CjsRealtimeTwitchChatNormalizer.string(fragment?.type) ?? "text",
+                type: TwitchChatNormalizer.string(fragment?.type) ?? "text",
                 text: String(fragment?.text ?? ""),
             };
 
             if (fragment?.emote)
             {
                 const emote = {
-                    id: CjsRealtimeTwitchChatNormalizer.string(fragment.emote.id),
-                    setId: CjsRealtimeTwitchChatNormalizer.string(
+                    id: TwitchChatNormalizer.string(fragment.emote.id),
+                    setId: TwitchChatNormalizer.string(
                         fragment.emote.emote_set_id,
                     ),
-                    ownerId: CjsRealtimeTwitchChatNormalizer.string(
+                    ownerId: TwitchChatNormalizer.string(
                         fragment.emote.owner_id,
                     ),
                 };
-                const formats = CjsRealtimeTwitchChatNormalizer.formats(
+                const formats = TwitchChatNormalizer.formats(
                     fragment.emote.format,
                 );
 
@@ -266,7 +266,7 @@ export class CjsRealtimeTwitchChatNormalizer
                 {
                     emote.formats = formats;
                 }
-                emote.asset = CjsRealtimeTwitchChatNormalizer.emoteAsset(
+                emote.asset = TwitchChatNormalizer.emoteAsset(
                     emote.id,
                     formats,
                 );
@@ -277,13 +277,13 @@ export class CjsRealtimeTwitchChatNormalizer
             if (fragment?.mention)
             {
                 result.mention = Object.freeze({
-                    userId: CjsRealtimeTwitchChatNormalizer.string(
+                    userId: TwitchChatNormalizer.string(
                         fragment.mention.user_id,
                     ),
-                    login: CjsRealtimeTwitchChatNormalizer.string(
+                    login: TwitchChatNormalizer.string(
                         fragment.mention.user_login,
                     ),
-                    displayName: CjsRealtimeTwitchChatNormalizer.string(
+                    displayName: TwitchChatNormalizer.string(
                         fragment.mention.user_name,
                     ),
                 });
@@ -292,11 +292,11 @@ export class CjsRealtimeTwitchChatNormalizer
             if (fragment?.cheermote)
             {
                 result.cheermote = Object.freeze({
-                    prefix: CjsRealtimeTwitchChatNormalizer.string(
+                    prefix: TwitchChatNormalizer.string(
                         fragment.cheermote.prefix,
                     ),
-                    bits: CjsRealtimeTwitchChatNormalizer.integer(fragment.cheermote.bits),
-                    tier: CjsRealtimeTwitchChatNormalizer.integer(fragment.cheermote.tier),
+                    bits: TwitchChatNormalizer.integer(fragment.cheermote.bits),
+                    tier: TwitchChatNormalizer.integer(fragment.cheermote.tier),
                 });
             }
 
@@ -309,11 +309,11 @@ export class CjsRealtimeTwitchChatNormalizer
     {
         const characters = Array.from(String(textValue ?? ""));
         const spans = [
-            ...CjsRealtimeTwitchChatNormalizer.ircEmoteSpans(
+            ...TwitchChatNormalizer.ircEmoteSpans(
                 emoteValue,
                 emoteAssets,
             ),
-            ...CjsRealtimeTwitchChatNormalizer.ircGifSpans(gifValue),
+            ...TwitchChatNormalizer.ircGifSpans(gifValue),
         ].sort((left, right) => left.start - right.start || left.end - right.end);
 
         if (spans.length === 0)
@@ -389,7 +389,7 @@ export class CjsRealtimeTwitchChatNormalizer
 
         return entries.flatMap(([ id, positions ]) =>
         {
-            if (!CjsRealtimeTwitchChatNormalizer.string(id)
+            if (!TwitchChatNormalizer.string(id)
                 || !Array.isArray(positions))
             {
                 return [];
@@ -421,7 +421,7 @@ export class CjsRealtimeTwitchChatNormalizer
                                     ...(resolved?.animated === true ? [ "static" ] : []),
                                 ]),
                                 asset: Object.freeze(resolved
-                                    ?? CjsRealtimeTwitchChatNormalizer.emoteAsset(
+                                    ?? TwitchChatNormalizer.emoteAsset(
                                         id,
                                         [ "static" ],
                                     )),
@@ -452,8 +452,8 @@ export class CjsRealtimeTwitchChatNormalizer
                 || !Number.isSafeInteger(end)
                 || start < 0
                 || end < start
-                || !CjsRealtimeTwitchChatNormalizer.string(id)
-                || !CjsRealtimeTwitchChatNormalizer.string(url))
+                || !TwitchChatNormalizer.string(id)
+                || !TwitchChatNormalizer.string(url))
             {
                 return [];
             }
@@ -491,13 +491,13 @@ export class CjsRealtimeTwitchChatNormalizer
     /** Creates one ready-to-render preferred Twitch emote URL. */
     static emoteAsset(idValue, formatValue)
     {
-        const id = CjsRealtimeTwitchChatNormalizer.string(idValue);
+        const id = TwitchChatNormalizer.string(idValue);
         const formats = Array.isArray(formatValue) ? formatValue : [];
         const animated = formats.includes("animated");
 
         if (!id)
         {
-            throw CjsRealtimeTwitchChatNormalizer.invalidMessage();
+            throw TwitchChatNormalizer.invalidMessage();
         }
 
         return Object.freeze({
@@ -511,7 +511,7 @@ export class CjsRealtimeTwitchChatNormalizer
     /** Normalizes the IRC reply tag family. */
     static ircReply(tags)
     {
-        const parentMessageId = CjsRealtimeTwitchChatNormalizer.string(
+        const parentMessageId = TwitchChatNormalizer.string(
             tags?.["reply-parent-msg-id"],
         );
 
@@ -522,19 +522,19 @@ export class CjsRealtimeTwitchChatNormalizer
 
         return {
             parentMessageId,
-            parentAuthorId: CjsRealtimeTwitchChatNormalizer.string(
+            parentAuthorId: TwitchChatNormalizer.string(
                 tags?.["reply-parent-user-id"],
             ),
-            parentAuthorLogin: CjsRealtimeTwitchChatNormalizer.string(
+            parentAuthorLogin: TwitchChatNormalizer.string(
                 tags?.["reply-parent-user-login"],
             ),
-            parentAuthorDisplayName: CjsRealtimeTwitchChatNormalizer.string(
+            parentAuthorDisplayName: TwitchChatNormalizer.string(
                 tags?.["reply-parent-display-name"],
             ),
-            parentText: CjsRealtimeTwitchChatNormalizer.string(
+            parentText: TwitchChatNormalizer.string(
                 tags?.["reply-parent-msg-body"],
             ),
-            threadParentMessageId: CjsRealtimeTwitchChatNormalizer.string(
+            threadParentMessageId: TwitchChatNormalizer.string(
                 tags?.["reply-thread-parent-msg-id"],
             ),
         };
@@ -543,7 +543,7 @@ export class CjsRealtimeTwitchChatNormalizer
     /** Normalizes the EventSub reply object. */
     static eventSubReply(reply)
     {
-        const parentMessageId = CjsRealtimeTwitchChatNormalizer.string(
+        const parentMessageId = TwitchChatNormalizer.string(
             reply?.parent_message_id,
         );
 
@@ -554,15 +554,15 @@ export class CjsRealtimeTwitchChatNormalizer
 
         return {
             parentMessageId,
-            parentAuthorId: CjsRealtimeTwitchChatNormalizer.string(reply?.parent_user_id),
-            parentAuthorLogin: CjsRealtimeTwitchChatNormalizer.string(
+            parentAuthorId: TwitchChatNormalizer.string(reply?.parent_user_id),
+            parentAuthorLogin: TwitchChatNormalizer.string(
                 reply?.parent_user_login,
             ),
-            parentAuthorDisplayName: CjsRealtimeTwitchChatNormalizer.string(
+            parentAuthorDisplayName: TwitchChatNormalizer.string(
                 reply?.parent_user_name,
             ),
-            parentText: CjsRealtimeTwitchChatNormalizer.string(reply?.parent_message_body),
-            threadParentMessageId: CjsRealtimeTwitchChatNormalizer.string(
+            parentText: TwitchChatNormalizer.string(reply?.parent_message_body),
+            threadParentMessageId: TwitchChatNormalizer.string(
                 reply?.thread_message_id,
             ),
         };
@@ -578,7 +578,7 @@ export class CjsRealtimeTwitchChatNormalizer
 
         if (!Number.isFinite(date.getTime()))
         {
-            throw CjsRealtimeTwitchChatNormalizer.invalidMessage();
+            throw TwitchChatNormalizer.invalidMessage();
         }
 
         return date.toISOString();
@@ -605,7 +605,7 @@ export class CjsRealtimeTwitchChatNormalizer
     {
         if (!messageId || !roomId || !authorId || !roomLogin)
         {
-            throw CjsRealtimeTwitchChatNormalizer.invalidMessage();
+            throw TwitchChatNormalizer.invalidMessage();
         }
     }
 

@@ -5,7 +5,7 @@ import {
 import { CjsToolWebhookProjectionService } from "../../webhook/CjsToolWebhookProjectionService.js";
 
 /** Declares the live Kick activity projection over shared webhook ingress. */
-export class CjsKickActivityService extends CjsToolWebhookProjectionService
+export class KickActivityService extends CjsToolWebhookProjectionService
 {
 
     constructor({ id, source } = {})

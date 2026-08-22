@@ -4,7 +4,7 @@ import {
 } from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 
 /** Maps Twitch EventSub notifications into provider-neutral state patches. */
-export class CjsRealtimeTwitchStateNormalizer
+export class TwitchStateNormalizer
 {
 
     /** Normalizes one supported Twitch EventSub state notification. */
@@ -26,15 +26,15 @@ export class CjsRealtimeTwitchStateNormalizer
             throw new TypeError("Twitch EventSub state notification is invalid");
         }
 
-        const occurredAt = CjsRealtimeTwitchStateNormalizer.string(
+        const occurredAt = TwitchStateNormalizer.string(
             metadata.message_timestamp,
         ) ?? new Date(receivedAt).toISOString();
         const extension = {
             transport: "eventsub",
             eventSubType: type,
             eventSubVersion: version,
-            notificationId: CjsRealtimeTwitchStateNormalizer.string(metadata.message_id),
-            subscriptionId: CjsRealtimeTwitchStateNormalizer.string(subscription.id),
+            notificationId: TwitchStateNormalizer.string(metadata.message_id),
+            subscriptionId: TwitchStateNormalizer.string(subscription.id),
         };
         let changes;
 
@@ -42,11 +42,11 @@ export class CjsRealtimeTwitchStateNormalizer
         {
             changes = {
                 online: true,
-                streamId: CjsRealtimeTwitchStateNormalizer.requiredString(event.id),
-                startedAt: CjsRealtimeTwitchStateNormalizer.requiredString(event.started_at),
+                streamId: TwitchStateNormalizer.requiredString(event.id),
+                startedAt: TwitchStateNormalizer.requiredString(event.started_at),
                 endedAt: null,
             };
-            extension.streamType = CjsRealtimeTwitchStateNormalizer.string(event.type);
+            extension.streamType = TwitchStateNormalizer.string(event.type);
         }
         else if (type === "stream.offline" && version === "1")
         {
@@ -59,14 +59,14 @@ export class CjsRealtimeTwitchStateNormalizer
         }
         else if (type === "channel.update" && version === "2")
         {
-            const categoryId = CjsRealtimeTwitchStateNormalizer.string(event.category_id);
-            const categoryName = CjsRealtimeTwitchStateNormalizer.string(
+            const categoryId = TwitchStateNormalizer.string(event.category_id);
+            const categoryName = TwitchStateNormalizer.string(
                 event.category_name,
             );
 
             changes = {
-                title: CjsRealtimeTwitchStateNormalizer.string(event.title),
-                language: CjsRealtimeTwitchStateNormalizer.string(event.language),
+                title: TwitchStateNormalizer.string(event.title),
+                language: TwitchStateNormalizer.string(event.language),
                 category: categoryId && categoryName
                     ? { id: categoryId, name: categoryName }
                     : null,
@@ -82,10 +82,10 @@ export class CjsRealtimeTwitchStateNormalizer
         }
 
         const value = {
-            id: CjsRealtimeTwitchStateNormalizer.requiredString(metadata.message_id),
+            id: TwitchStateNormalizer.requiredString(metadata.message_id),
             occurredAt,
             deliveryMode: "live",
-            source: CjsRealtimeTwitchStateNormalizer.source(event),
+            source: TwitchStateNormalizer.source(event),
             changes,
             extensions: { twitch: extension },
         };
@@ -101,13 +101,13 @@ export class CjsRealtimeTwitchStateNormalizer
     {
         return {
             provider: "twitch",
-            channelId: CjsRealtimeTwitchStateNormalizer.requiredString(
+            channelId: TwitchStateNormalizer.requiredString(
                 event.broadcaster_user_id,
             ),
-            channelLogin: CjsRealtimeTwitchStateNormalizer.string(
+            channelLogin: TwitchStateNormalizer.string(
                 event.broadcaster_user_login,
             )?.toLowerCase() ?? null,
-            channelDisplayName: CjsRealtimeTwitchStateNormalizer.string(
+            channelDisplayName: TwitchStateNormalizer.string(
                 event.broadcaster_user_name,
             ),
         };
@@ -122,7 +122,7 @@ export class CjsRealtimeTwitchStateNormalizer
     /** Requires a non-empty string. */
     static requiredString(value)
     {
-        const result = CjsRealtimeTwitchStateNormalizer.string(value);
+        const result = TwitchStateNormalizer.string(value);
 
         if (result === null)
         {

@@ -35,14 +35,6 @@ Stable protocol-facing error for realtime requests and transports.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsTwitchChatAssetResolver -->
-## `CjsTwitchChatAssetResolver`
-
-Resolves and caches Twitch channel profile images and preferred static or animated IRC emote URLs before chat publication.
-
-- Source: `src/integrations/twitch/CjsTwitchChatAssetResolver.js`
-- Visibility: Internal
-- Kind: Internal implementation
 
 <!-- class:CjsToolRealtimeProtocol -->
 ## `CjsToolRealtimeProtocol`

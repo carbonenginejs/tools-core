@@ -1,7 +1,7 @@
 import { CjsToolRealtimeSerialLane } from "../../realtime/internal/CjsToolRealtimeSerialLane.js";
 
 /** Owns one Twitch activity provider and fans it into service projections. */
-export class CjsTwitchActivitySource
+export class TwitchActivitySource
 {
 
     #abortController;

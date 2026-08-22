@@ -1,11 +1,11 @@
 import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
 import { CjsToolRealtimeSerialLane } from "../../realtime/internal/CjsToolRealtimeSerialLane.js";
-import { CjsRealtimeTwitchChatNormalizer } from "./CjsRealtimeTwitchChatNormalizer.js";
-import { CjsTwitchChatAssetResolver } from "./CjsTwitchChatAssetResolver.js";
-import { CjsTwitchHelixClient } from "./CjsTwitchHelixClient.js";
+import { TwitchChatNormalizer } from "./TwitchChatNormalizer.js";
+import { TwitchChatAssetResolver } from "./TwitchChatAssetResolver.js";
+import { TwitchHelixClient } from "./TwitchHelixClient.js";
 
 /** Adapts an injected tmi.js-compatible client into the Twitch chat source contract. */
-export class CjsTwitchIrcChatProvider
+export class TwitchIrcChatProvider
 {
 
     #active;
@@ -78,8 +78,8 @@ export class CjsTwitchIrcChatProvider
         this.#oauth = oauth;
         this.#assetResolver = assetResolver === null
             ? null
-            : assetResolver ?? new CjsTwitchChatAssetResolver({
-                helix: helix ?? new CjsTwitchHelixClient({
+            : assetResolver ?? new TwitchChatAssetResolver({
+                helix: helix ?? new TwitchHelixClient({
                     oauth,
                     fetch: fetchImplementation,
                     endpoint: apiEndpoint,
@@ -95,7 +95,7 @@ export class CjsTwitchIrcChatProvider
         {
             throw new TypeError("Twitch IRC asset resolver is invalid");
         }
-        this.#pinnedRooms = new Set(CjsTwitchIrcChatProvider.normalizeRooms(rooms));
+        this.#pinnedRooms = new Set(TwitchIrcChatProvider.normalizeRooms(rooms));
         this.#rooms = new Set(this.#pinnedRooms);
         this.#createClient = createClient;
         this.#clock = clock;
@@ -115,14 +115,14 @@ export class CjsTwitchIrcChatProvider
     /** Resolves one joined channel into canonical room presentation metadata. */
     ResolveRoom(login)
     {
-        const room = CjsTwitchIrcChatProvider.normalizeRoom(login);
+        const room = TwitchIrcChatProvider.normalizeRoom(login);
         return this.#assetResolver?.ResolveRoom(room) ?? Promise.resolve(null);
     }
 
     /** Joins one desired Twitch channel once across all downstream listeners. */
     JoinRoom(login)
     {
-        const room = CjsTwitchIrcChatProvider.normalizeRoom(login);
+        const room = TwitchIrcChatProvider.normalizeRoom(login);
 
         return this.#lane.Enqueue(async () =>
         {
@@ -176,7 +176,7 @@ export class CjsTwitchIrcChatProvider
     /** Parts one unpinned Twitch channel when it is no longer desired. */
     PartRoom(login)
     {
-        const room = CjsTwitchIrcChatProvider.normalizeRoom(login);
+        const room = TwitchIrcChatProvider.normalizeRoom(login);
 
         return this.#lane.Enqueue(async () =>
         {
@@ -248,7 +248,7 @@ export class CjsTwitchIrcChatProvider
             this.#active = false;
             await this.#CloseClient().catch(() => undefined);
 
-            throw CjsTwitchIrcChatProvider.startError(error);
+            throw TwitchIrcChatProvider.startError(error);
         }
     }
 
@@ -373,7 +373,7 @@ export class CjsTwitchIrcChatProvider
             return;
         }
 
-        this.#onMessage(CjsRealtimeTwitchChatNormalizer.fromIrc({
+        this.#onMessage(TwitchChatNormalizer.fromIrc({
             channel,
             tags,
             text,
@@ -496,7 +496,7 @@ export class CjsTwitchIrcChatProvider
         }
 
         return Object.freeze([ ...new Set(value.map(room =>
-            CjsTwitchIrcChatProvider.normalizeRoom(room))) ].sort());
+            TwitchIrcChatProvider.normalizeRoom(room))) ].sort());
     }
 
     /** Normalizes one Twitch IRC channel login. */

@@ -4,7 +4,7 @@ import {
 } from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 
 /** Maps Twitch EventSub notifications into provider-neutral activity events. */
-export class CjsRealtimeTwitchActivityNormalizer
+export class TwitchActivityNormalizer
 {
 
     /** Normalizes one supported Twitch EventSub activity notification. */
@@ -26,7 +26,7 @@ export class CjsRealtimeTwitchActivityNormalizer
             throw new TypeError("Twitch EventSub activity notification is invalid");
         }
 
-        const extension = CjsRealtimeTwitchActivityNormalizer.extension(
+        const extension = TwitchActivityNormalizer.extension(
             metadata,
             subscription,
         );
@@ -37,16 +37,16 @@ export class CjsRealtimeTwitchActivityNormalizer
         {
             topic = LIVESTREAM_ACTIVITY_TOPICS.SUBSCRIPTION_RECEIVED;
             Object.assign(extension, {
-                tier: CjsRealtimeTwitchActivityNormalizer.string(event.tier),
+                tier: TwitchActivityNormalizer.string(event.tier),
                 isGift: event.is_gift === true,
             });
             value = {
-                ...CjsRealtimeTwitchActivityNormalizer.common(
+                ...TwitchActivityNormalizer.common(
                     event,
                     metadata,
                     receivedAt,
                 ),
-                actor: CjsRealtimeTwitchActivityNormalizer.actor(event, "user"),
+                actor: TwitchActivityNormalizer.actor(event, "user"),
                 subscription: {
                     kind: event.is_gift === true ? "gift" : "new",
                     giftedBy: null,
@@ -57,22 +57,22 @@ export class CjsRealtimeTwitchActivityNormalizer
         {
             topic = LIVESTREAM_ACTIVITY_TOPICS.SUBSCRIPTION_RECEIVED;
             Object.assign(extension, {
-                tier: CjsRealtimeTwitchActivityNormalizer.string(event.tier),
-                cumulativeMonths: CjsRealtimeTwitchActivityNormalizer.integer(
+                tier: TwitchActivityNormalizer.string(event.tier),
+                cumulativeMonths: TwitchActivityNormalizer.integer(
                     event.cumulative_months,
                 ),
-                durationMonths: CjsRealtimeTwitchActivityNormalizer.integer(
+                durationMonths: TwitchActivityNormalizer.integer(
                     event.duration_months,
                 ),
-                message: CjsRealtimeTwitchActivityNormalizer.string(event.message?.text),
+                message: TwitchActivityNormalizer.string(event.message?.text),
             });
             value = {
-                ...CjsRealtimeTwitchActivityNormalizer.common(
+                ...TwitchActivityNormalizer.common(
                     event,
                     metadata,
                     receivedAt,
                 ),
-                actor: CjsRealtimeTwitchActivityNormalizer.actor(event, "user"),
+                actor: TwitchActivityNormalizer.actor(event, "user"),
                 subscription: {
                     kind: "renewal",
                     giftedBy: null,
@@ -83,23 +83,23 @@ export class CjsRealtimeTwitchActivityNormalizer
         {
             topic = LIVESTREAM_ACTIVITY_TOPICS.SUBSCRIPTION_GIFTED;
             Object.assign(extension, {
-                tier: CjsRealtimeTwitchActivityNormalizer.string(event.tier),
-                cumulativeTotal: CjsRealtimeTwitchActivityNormalizer.integer(
+                tier: TwitchActivityNormalizer.string(event.tier),
+                cumulativeTotal: TwitchActivityNormalizer.integer(
                     event.cumulative_total,
                 ),
                 isAnonymous: event.is_anonymous === true,
             });
             value = {
-                ...CjsRealtimeTwitchActivityNormalizer.common(
+                ...TwitchActivityNormalizer.common(
                     event,
                     metadata,
                     receivedAt,
                 ),
                 actor: event.is_anonymous === true
                     ? null
-                    : CjsRealtimeTwitchActivityNormalizer.actor(event, "user"),
+                    : TwitchActivityNormalizer.actor(event, "user"),
                 gift: {
-                    count: CjsRealtimeTwitchActivityNormalizer.requiredInteger(event.total),
+                    count: TwitchActivityNormalizer.requiredInteger(event.total),
                 },
             };
         }
@@ -107,31 +107,31 @@ export class CjsRealtimeTwitchActivityNormalizer
         {
             topic = LIVESTREAM_ACTIVITY_TOPICS.FOLLOW_RECEIVED;
             value = {
-                ...CjsRealtimeTwitchActivityNormalizer.common(
+                ...TwitchActivityNormalizer.common(
                     event,
                     metadata,
                     receivedAt,
                     { occurredAt: event.followed_at },
                 ),
-                actor: CjsRealtimeTwitchActivityNormalizer.actor(event, "user"),
+                actor: TwitchActivityNormalizer.actor(event, "user"),
             };
         }
         else if (type === "channel.raid" && version === "1")
         {
             topic = LIVESTREAM_ACTIVITY_TOPICS.RAID_RECEIVED;
             value = {
-                ...CjsRealtimeTwitchActivityNormalizer.common(
+                ...TwitchActivityNormalizer.common(
                     event,
                     metadata,
                     receivedAt,
                     { sourcePrefix: "to_broadcaster" },
                 ),
-                actor: CjsRealtimeTwitchActivityNormalizer.actor(
+                actor: TwitchActivityNormalizer.actor(
                     event,
                     "from_broadcaster_user",
                 ),
                 raid: {
-                    viewers: CjsRealtimeTwitchActivityNormalizer.requiredInteger(
+                    viewers: TwitchActivityNormalizer.requiredInteger(
                         event.viewers,
                         { minimum: 0 },
                     ),
@@ -143,18 +143,18 @@ export class CjsRealtimeTwitchActivityNormalizer
             topic = LIVESTREAM_ACTIVITY_TOPICS.CONTRIBUTION_RECEIVED;
             Object.assign(extension, { isAnonymous: event.is_anonymous === true });
             value = {
-                ...CjsRealtimeTwitchActivityNormalizer.common(
+                ...TwitchActivityNormalizer.common(
                     event,
                     metadata,
                     receivedAt,
                 ),
                 actor: event.is_anonymous === true
                     ? null
-                    : CjsRealtimeTwitchActivityNormalizer.actor(event, "user"),
+                    : TwitchActivityNormalizer.actor(event, "user"),
                 contribution: {
-                    amount: CjsRealtimeTwitchActivityNormalizer.requiredInteger(event.bits),
+                    amount: TwitchActivityNormalizer.requiredInteger(event.bits),
                     unit: "bits",
-                    message: CjsRealtimeTwitchActivityNormalizer.string(event.message),
+                    message: TwitchActivityNormalizer.string(event.message),
                 },
             };
         }
@@ -163,27 +163,27 @@ export class CjsRealtimeTwitchActivityNormalizer
         {
             topic = LIVESTREAM_ACTIVITY_TOPICS.REWARD_REDEEMED;
             Object.assign(extension, {
-                providerStatus: CjsRealtimeTwitchActivityNormalizer.string(event.status),
+                providerStatus: TwitchActivityNormalizer.string(event.status),
             });
             value = {
-                ...CjsRealtimeTwitchActivityNormalizer.common(
+                ...TwitchActivityNormalizer.common(
                     event,
                     metadata,
                     receivedAt,
                     { id: event.id, occurredAt: event.redeemed_at },
                 ),
-                actor: CjsRealtimeTwitchActivityNormalizer.actor(event, "user"),
+                actor: TwitchActivityNormalizer.actor(event, "user"),
                 reward: {
-                    id: CjsRealtimeTwitchActivityNormalizer.requiredString(event.reward?.id),
-                    title: CjsRealtimeTwitchActivityNormalizer.requiredString(
+                    id: TwitchActivityNormalizer.requiredString(event.reward?.id),
+                    title: TwitchActivityNormalizer.requiredString(
                         event.reward?.title,
                     ),
-                    cost: CjsRealtimeTwitchActivityNormalizer.requiredInteger(
+                    cost: TwitchActivityNormalizer.requiredInteger(
                         event.reward?.cost,
                         { minimum: 0 },
                     ),
-                    input: CjsRealtimeTwitchActivityNormalizer.string(event.user_input),
-                    status: CjsRealtimeTwitchActivityNormalizer.rewardStatus(event.status),
+                    input: TwitchActivityNormalizer.string(event.user_input),
+                    status: TwitchActivityNormalizer.rewardStatus(event.status),
                 },
             };
         }
@@ -210,18 +210,18 @@ export class CjsRealtimeTwitchActivityNormalizer
         const fallback = new Date(receivedAt).toISOString();
 
         return {
-            id: CjsRealtimeTwitchActivityNormalizer.requiredString(id),
-            occurredAt: CjsRealtimeTwitchActivityNormalizer.string(occurredAt) ?? fallback,
+            id: TwitchActivityNormalizer.requiredString(id),
+            occurredAt: TwitchActivityNormalizer.string(occurredAt) ?? fallback,
             deliveryMode: "live",
             source: {
                 provider: "twitch",
-                channelId: CjsRealtimeTwitchActivityNormalizer.requiredString(
+                channelId: TwitchActivityNormalizer.requiredString(
                     event[`${sourcePrefix}_user_id`],
                 ),
-                channelLogin: CjsRealtimeTwitchActivityNormalizer.string(
+                channelLogin: TwitchActivityNormalizer.string(
                     event[`${sourcePrefix}_user_login`],
                 )?.toLowerCase() ?? null,
-                channelDisplayName: CjsRealtimeTwitchActivityNormalizer.string(
+                channelDisplayName: TwitchActivityNormalizer.string(
                     event[`${sourcePrefix}_user_name`],
                 ),
             },
@@ -232,13 +232,13 @@ export class CjsRealtimeTwitchActivityNormalizer
     static actor(event, prefix)
     {
         return {
-            id: CjsRealtimeTwitchActivityNormalizer.requiredString(
+            id: TwitchActivityNormalizer.requiredString(
                 event[`${prefix}_id`],
             ),
-            login: CjsRealtimeTwitchActivityNormalizer.string(
+            login: TwitchActivityNormalizer.string(
                 event[`${prefix}_login`],
             )?.toLowerCase() ?? null,
-            displayName: CjsRealtimeTwitchActivityNormalizer.string(
+            displayName: TwitchActivityNormalizer.string(
                 event[`${prefix}_name`],
             ),
         };
@@ -251,8 +251,8 @@ export class CjsRealtimeTwitchActivityNormalizer
             transport: "eventsub",
             eventSubType: metadata.subscription_type,
             eventSubVersion: metadata.subscription_version,
-            notificationId: CjsRealtimeTwitchActivityNormalizer.string(metadata.message_id),
-            subscriptionId: CjsRealtimeTwitchActivityNormalizer.string(subscription.id),
+            notificationId: TwitchActivityNormalizer.string(metadata.message_id),
+            subscriptionId: TwitchActivityNormalizer.string(subscription.id),
         };
     }
 
@@ -284,7 +284,7 @@ export class CjsRealtimeTwitchActivityNormalizer
     /** Requires a non-empty string. */
     static requiredString(value)
     {
-        const result = CjsRealtimeTwitchActivityNormalizer.string(value);
+        const result = TwitchActivityNormalizer.string(value);
 
         if (result === null)
         {

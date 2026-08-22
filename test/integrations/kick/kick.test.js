@@ -6,9 +6,9 @@ import {
     LIVESTREAM_ACTIVITY_TOPICS,
     LIVESTREAM_STATE_TOPICS,
 } from "../../../src/realtime/livestream/CjsToolRealtimeLivestreamContract.js";
-import { CjsKickActivityService } from "../../../src/integrations/kick/CjsKickActivityService.js";
-import { CjsKickStateService } from "../../../src/integrations/kick/CjsKickStateService.js";
-import { CjsKickWebhookHandler } from "../../../src/integrations/kick/CjsKickWebhookHandler.js";
+import { KickActivityService } from "../../../src/integrations/kick/KickActivityService.js";
+import { KickStateService } from "../../../src/integrations/kick/KickStateService.js";
+import { KickWebhookHandler } from "../../../src/integrations/kick/KickWebhookHandler.js";
 import { CjsToolWebhookIngressSource } from "../../../src/webhook/CjsToolWebhookIngressSource.js";
 
 const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
@@ -99,9 +99,9 @@ class CjsKickTestSupport
 
 test("authenticates exact Kick bytes and publishes a canonical subscriber alert", async () =>
 {
-    const handler = new CjsKickWebhookHandler({ publicKey });
+    const handler = new KickWebhookHandler({ publicKey });
     const source = new CjsToolWebhookIngressSource({ id: "kick-main", handler });
-    const service = new CjsKickActivityService({ id: "kick-activity", source });
+    const service = new KickActivityService({ id: "kick-activity", source });
     const messages = [];
     const harness = CjsKickTestSupport.context(messages);
     const request = CjsKickTestSupport.request({
@@ -143,9 +143,9 @@ test("fans a Kick gift batch into one batch and stable beneficiary alerts", asyn
 {
     const source = new CjsToolWebhookIngressSource({
         id: "kick-gifts",
-        handler: new CjsKickWebhookHandler({ publicKey }),
+        handler: new KickWebhookHandler({ publicKey }),
     });
-    const service = new CjsKickActivityService({ id: "kick-gift-activity", source });
+    const service = new KickActivityService({ id: "kick-gift-activity", source });
     const messages = [];
     const harness = CjsKickTestSupport.context(messages);
     const request = CjsKickTestSupport.request({
@@ -186,7 +186,7 @@ test("fans a Kick gift batch into one batch and stable beneficiary alerts", asyn
 
 test("normalizes Kick stream status and rejects stale signed messages", () =>
 {
-    const handler = new CjsKickWebhookHandler({
+    const handler = new KickWebhookHandler({
         publicKey,
         maxMessageAgeMs: 60 * 1000,
     });
@@ -229,15 +229,15 @@ test("shares one Kick ingress across activity and gap-free state projections", a
 {
     const source = new CjsToolWebhookIngressSource({
         id: "kick-shared",
-        handler: new CjsKickWebhookHandler({ publicKey }),
+        handler: new KickWebhookHandler({ publicKey }),
     });
-    const activity = new CjsKickActivityService({ id: "kick-shared-activity", source });
+    const activity = new KickActivityService({ id: "kick-shared-activity", source });
     let releaseSnapshot;
     const snapshotGate = new Promise(resolve =>
     {
         releaseSnapshot = resolve;
     });
-    const state = new CjsKickStateService({
+    const state = new KickStateService({
         id: "kick-shared-state",
         source,
         readSnapshot: async () =>

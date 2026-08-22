@@ -4,16 +4,16 @@ import test from "node:test";
 
 import { CjsToolRealtimeHub } from "../../../src/realtime/server/CjsToolRealtimeHub.js";
 import { CjsToolRealtimeSessionAuthority } from "../../../src/realtime/server/CjsToolRealtimeSessionAuthority.js";
-import { CjsRealtimeTwitchChatNormalizer } from "../../../src/integrations/twitch/CjsRealtimeTwitchChatNormalizer.js";
-import { CjsRealtimeTwitchChatService } from "../../../src/integrations/twitch/CjsRealtimeTwitchChatService.js";
-import { CjsTwitchChatSource } from "../../../src/integrations/twitch/CjsTwitchChatSource.js";
-import { CjsTwitchChatAssetResolver } from "../../../src/integrations/twitch/CjsTwitchChatAssetResolver.js";
-import { CjsTwitchEventSubChatProvider } from "../../../src/integrations/twitch/CjsTwitchEventSubChatProvider.js";
-import { CjsTwitchEventSubSession } from "../../../src/integrations/twitch/CjsTwitchEventSubSession.js";
-import { CjsTwitchEventSubSource } from "../../../src/integrations/twitch/CjsTwitchEventSubSource.js";
-import { CjsTwitchHelixClient } from "../../../src/integrations/twitch/CjsTwitchHelixClient.js";
-import { CjsTwitchIrcChatProvider } from "../../../src/integrations/twitch/CjsTwitchIrcChatProvider.js";
-import { CjsTwitchOAuthTokenProvider } from "../../../src/integrations/twitch/CjsTwitchOAuthTokenProvider.js";
+import { TwitchChatNormalizer } from "../../../src/integrations/twitch/TwitchChatNormalizer.js";
+import { TwitchChatService } from "../../../src/integrations/twitch/TwitchChatService.js";
+import { TwitchChatSource } from "../../../src/integrations/twitch/TwitchChatSource.js";
+import { TwitchChatAssetResolver } from "../../../src/integrations/twitch/TwitchChatAssetResolver.js";
+import { TwitchEventSubChatProvider } from "../../../src/integrations/twitch/TwitchEventSubChatProvider.js";
+import { TwitchEventSubSession } from "../../../src/integrations/twitch/TwitchEventSubSession.js";
+import { TwitchEventSubSource } from "../../../src/integrations/twitch/TwitchEventSubSource.js";
+import { TwitchHelixClient } from "../../../src/integrations/twitch/TwitchHelixClient.js";
+import { TwitchIrcChatProvider } from "../../../src/integrations/twitch/TwitchIrcChatProvider.js";
+import { TwitchOAuthTokenProvider } from "../../../src/integrations/twitch/TwitchOAuthTokenProvider.js";
 import { CjsRealtimeMemoryTransport } from "../../realtime/CjsRealtimeTestSupport.js";
 
 class CjsFakeTwitchProvider
@@ -231,7 +231,7 @@ test("validates, caches, and scopes externally acquired Twitch OAuth tokens", as
     let clock = 1000;
     let fetchCount = 0;
     const headers = [];
-    const provider = new CjsTwitchOAuthTokenProvider({
+    const provider = new TwitchOAuthTokenProvider({
         clientId: "client-one",
         getAccessToken: () => "oauth:access-token-one",
         clock: () => clock,
@@ -268,7 +268,7 @@ test("validates, caches, and scopes externally acquired Twitch OAuth tokens", as
 
 test("bounds Twitch OAuth validation and Helix request lifetimes", async () =>
 {
-    const oauth = new CjsTwitchOAuthTokenProvider({
+    const oauth = new TwitchOAuthTokenProvider({
         clientId: "client-one",
         getAccessToken: () => "access-token-one",
         requestTimeoutMs: 10,
@@ -280,7 +280,7 @@ test("bounds Twitch OAuth validation and Helix request lifetimes", async () =>
         error => error.code === "twitch_unavailable" && error.retryable === true,
     );
 
-    const helix = new CjsTwitchHelixClient({
+    const helix = new TwitchHelixClient({
         oauth: {
             Acquire: async () => ({
                 accessToken: "access-token-one",
@@ -301,7 +301,7 @@ test("bounds Twitch OAuth validation and Helix request lifetimes", async () =>
 
 test("rejects an oversized streamed Twitch validation response", async () =>
 {
-    const oauth = new CjsTwitchOAuthTokenProvider({
+    const oauth = new TwitchOAuthTokenProvider({
         clientId: "client-one",
         getAccessToken: () => "access-token-one",
         maxResponseBytes: 16,
@@ -331,21 +331,35 @@ test("exports the Twitch slice through its exact package subpath", async () =>
 {
     const twitch = await import("@carbonenginejs/tools-core/integrations/twitch");
 
-    assert.equal(twitch.TwitchOAuthTokenProvider.name, "TwitchOAuthTokenProvider");
-    assert.equal(twitch.TwitchHelixClient.name, "TwitchHelixClient");
-    assert.equal(twitch.TwitchEventSubChatProvider.name, "TwitchEventSubChatProvider");
-    assert.equal(twitch.TwitchEventSubSession.name, "TwitchEventSubSession");
-    assert.equal(twitch.TwitchEventSubSource.name, "TwitchEventSubSource");
-    assert.equal(twitch.TwitchIrcChatProvider.name, "TwitchIrcChatProvider");
-    assert.equal(twitch.TwitchChatService.name, "TwitchChatService");
-    assert.equal(twitch.TwitchChatSource.name, "TwitchChatSource");
-    assert.equal(twitch.TwitchChatAssetResolver.name, "TwitchChatAssetResolver");
-    assert.equal(new twitch.TwitchOAuthTokenProvider({
-        clientId: "client-one",
-        getAccessToken: () => "access-token-one",
-        fetch: async () => ValidationResponse(401),
-    }) instanceof CjsTwitchOAuthTokenProvider, true);
-    assert.equal(Object.keys(twitch).some(name => name.startsWith("Cjs")), false);
+    // The EXPORT KEY is the identity, not Function.name: a bundler renames the
+    // constructor and leaves the key alone. Asserting the key also proves the
+    // subpath keeps exporting a name callers already import.
+    const exported = Object.keys(twitch).sort();
+
+    assert.deepEqual(exported, [
+        "TwitchActivityNormalizer",
+        "TwitchActivityService",
+        "TwitchActivitySource",
+        "TwitchChatAssetResolver",
+        "TwitchChatNormalizer",
+        "TwitchChatService",
+        "TwitchChatSource",
+        "TwitchEventSubActivityProvider",
+        "TwitchEventSubChatProvider",
+        "TwitchEventSubSession",
+        "TwitchEventSubSource",
+        "TwitchEventSubStateProvider",
+        "TwitchHelixClient",
+        "TwitchIrcChatProvider",
+        "TwitchOAuthTokenProvider",
+        "TwitchStateNormalizer",
+        "TwitchStateService",
+        "TwitchStateSource",
+    ]);
+    assert.equal(exported.every(name => typeof twitch[name] === "function"), true);
+    // Each export is the class the package source declares, not a wrapper of it.
+    assert.equal(twitch.TwitchOAuthTokenProvider === TwitchOAuthTokenProvider, true);
+    assert.equal(twitch.TwitchChatService === TwitchChatService, true);
 
     const oauth = new twitch.TwitchOAuthTokenProvider({
         clientId: "client-one",
@@ -376,7 +390,7 @@ test("exports the Twitch slice through its exact package subpath", async () =>
 test("shares one Twitch transport across aggregate and exact room emitters", async () =>
 {
     const provider = new CjsFakeTwitchProvider();
-    const source = new CjsTwitchChatSource({
+    const source = new TwitchChatSource({
         provider,
         integrationId: "twitch-primary",
     });
@@ -394,16 +408,16 @@ test("shares one Twitch transport across aggregate and exact room emitters", asy
 
         return context;
     };
-    const aggregateService = new CjsRealtimeTwitchChatService({
+    const aggregateService = new TwitchChatService({
         id: "primary-chat",
         source,
     });
-    const carbonService = new CjsRealtimeTwitchChatService({
+    const carbonService = new TwitchChatService({
         id: "twitch-carbon",
         source,
         room: { id: "200", login: "carbon" },
     });
-    const otherService = new CjsRealtimeTwitchChatService({
+    const otherService = new TwitchChatService({
         id: "twitch-other",
         source,
         room: { login: "other" },
@@ -450,7 +464,7 @@ test("applies optional term and user blocks before publication", async () =>
         Commit: callback => Promise.resolve().then(() => callback(serviceContext)),
         Publish: async (topic, data) => published.push({ topic, data }),
     };
-    const service = new CjsRealtimeTwitchChatService({
+    const service = new TwitchChatService({
         id: "blocked-chat",
         provider,
         blockList: {
@@ -502,7 +516,7 @@ test("serializes an OAuth refresh and never reflects a rejected secret", async (
 {
     let validationCount = 0;
     let refreshCount = 0;
-    const provider = new CjsTwitchOAuthTokenProvider({
+    const provider = new TwitchOAuthTokenProvider({
         clientId: "client-one",
         getAccessToken: () => "expired-secret-token",
         refreshAccessToken: async () =>
@@ -538,7 +552,7 @@ test("serializes an OAuth refresh and never reflects a rejected secret", async (
     assert.equal(refreshCount, 1);
     assert.equal(validationCount, 2);
 
-    const unavailable = new CjsTwitchOAuthTokenProvider({
+    const unavailable = new TwitchOAuthTokenProvider({
         clientId: "client-one",
         getAccessToken: () =>
         {
@@ -554,7 +568,7 @@ test("serializes an OAuth refresh and never reflects a rejected secret", async (
 
 test("normalizes IRC and EventSub into one provider-neutral chat shape", () =>
 {
-    const irc = CjsRealtimeTwitchChatNormalizer.fromIrc({
+    const irc = TwitchChatNormalizer.fromIrc({
         channel: "#Carbon",
         text: "Hello <agent>",
         receivedAt: Date.parse("2026-07-21T12:00:02.000Z"),
@@ -569,7 +583,7 @@ test("normalizes IRC and EventSub into one provider-neutral chat shape", () =>
             mod: "1",
         },
     });
-    const eventSub = CjsRealtimeTwitchChatNormalizer.fromEventSub(
+    const eventSub = TwitchChatNormalizer.fromEventSub(
         EventSubNotification(),
     );
 
@@ -589,7 +603,7 @@ test("normalizes IRC and EventSub into one provider-neutral chat shape", () =>
         "static",
     ]);
 
-    const richIrc = CjsRealtimeTwitchChatNormalizer.fromIrc({
+    const richIrc = TwitchChatNormalizer.fromIrc({
         channel: "#Carbon",
         text: "Hi 😀 Kappa GIF",
         receivedAt: Date.parse("2026-07-21T12:00:02.000Z"),
@@ -615,7 +629,7 @@ test("normalizes IRC and EventSub into one provider-neutral chat shape", () =>
     assert.equal(richIrc.fragments[3].media.url,
         "https://example.test/chat/gif-one.gif");
 
-    const status = CjsRealtimeTwitchChatService.normalizeStatus({
+    const status = TwitchChatService.normalizeStatus({
         state: "ready",
         retryable: false,
     }, "twitch.eventsub", Date.parse("2026-07-21T12:00:00.000Z"), "primary");
@@ -655,7 +669,7 @@ test("resolves Twitch channel logos and preferred animated IRC emote URLs", asyn
             };
         },
     };
-    const resolver = new CjsTwitchChatAssetResolver({
+    const resolver = new TwitchChatAssetResolver({
         helix,
         fetch: async (url, options) =>
         {
@@ -687,7 +701,7 @@ test("resolves Twitch channel logos and preferred animated IRC emote URLs", asyn
         { login: "crispybunnyuk" },
     );
 
-    const message = CjsRealtimeTwitchChatNormalizer.fromIrc({
+    const message = TwitchChatNormalizer.fromIrc({
         channel: "#CrispyBunnyUK",
         text: "Kappa",
         tags: {
@@ -727,7 +741,7 @@ test("reuses OAuth scope and refresh policy across Helix integration points", as
             token = "replacement-token";
         },
     };
-    const helix = new CjsTwitchHelixClient({
+    const helix = new TwitchHelixClient({
         oauth,
         fetch: async (url, options) =>
         {
@@ -758,7 +772,7 @@ test("reuses OAuth scope and refresh policy across Helix integration points", as
 test("publishes only future chat and deduplicates stable ids per room", async context =>
 {
     const provider = new CjsFakeTwitchProvider();
-    const service = new CjsRealtimeTwitchChatService({
+    const service = new TwitchChatService({
         id: "twitch-main",
         provider,
     });
@@ -836,7 +850,7 @@ test("validates and isolates complete chat payloads before deduplication", async
             published.push({ topic, data });
         },
     };
-    const service = new CjsRealtimeTwitchChatService({
+    const service = new TwitchChatService({
         id: "twitch-validation",
         provider,
     });
@@ -890,7 +904,7 @@ test("adapts receive-only tmi-compatible IRC without owning token acquisition", 
         },
         Invalidate: () => undefined,
     };
-    const provider = new CjsTwitchIrcChatProvider({
+    const provider = new TwitchIrcChatProvider({
         oauth,
         assetResolver: null,
         rooms: [ "#Carbon" ],
@@ -939,7 +953,7 @@ test("keeps IRC chat available when optional asset metadata is unavailable", asy
     const clients = [];
     const messages = [];
     const statuses = [];
-    const provider = new CjsTwitchIrcChatProvider({
+    const provider = new TwitchIrcChatProvider({
         oauth: {
             Acquire: async () => ({
                 accessToken: "irc-token",
@@ -1009,7 +1023,7 @@ test("shares dynamic IRC rooms until their final downstream listener leaves", as
         }),
         Invalidate: () => undefined,
     };
-    const provider = new CjsTwitchIrcChatProvider({
+    const provider = new TwitchIrcChatProvider({
         oauth,
         assetResolver: null,
         validationIntervalMs: 60000,
@@ -1022,7 +1036,7 @@ test("shares dynamic IRC rooms until their final downstream listener leaves", as
             return client;
         },
     });
-    const service = new CjsRealtimeTwitchChatService({
+    const service = new TwitchChatService({
         id: "primary-chat",
         provider,
     });
@@ -1177,7 +1191,7 @@ test("creates EventSub subscriptions and migrates sessions without recreating th
         },
         Invalidate: () => undefined,
     };
-    const provider = new CjsTwitchEventSubChatProvider({
+    const provider = new TwitchEventSubChatProvider({
         oauth,
         rooms: [ { id: "200", login: "carbon", displayName: "Carbon" } ],
         validationIntervalMs: 60000,
@@ -1266,7 +1280,7 @@ test("serializes early EventSub notifications behind subscription setup", async 
         }),
         Invalidate: () => undefined,
     };
-    const provider = new CjsTwitchEventSubChatProvider({
+    const provider = new TwitchEventSubChatProvider({
         oauth,
         helix: {
             Request: () => subscription.promise,
@@ -1311,7 +1325,7 @@ test("keeps the shared EventSub session family-neutral", async () =>
     const notifications = [];
     const welcomes = [];
     const setup = Deferred();
-    const session = new CjsTwitchEventSubSession({
+    const session = new TwitchEventSubSession({
         createWebSocket: url =>
         {
             const socket = new CjsFakeEventSubSocket(url);
@@ -1364,7 +1378,7 @@ test("composes static EventSub families over one scoped physical session", async
     const helixBodies = [];
     const chatNotifications = [];
     const activityNotifications = [];
-    const source = new CjsTwitchEventSubSource({
+    const source = new TwitchEventSubSource({
         oauth: {
             Acquire: async request =>
             {
@@ -1485,7 +1499,7 @@ test("suspends EventSub reconnects until external authorization resumes", async 
 {
     const sockets = [];
     const welcomes = [];
-    const session = new CjsTwitchEventSubSession({
+    const session = new TwitchEventSubSession({
         reconnectBaseMs: 1,
         reconnectMaxMs: 1,
         createWebSocket: url =>
@@ -1535,7 +1549,7 @@ test("fails EventSub startup when a socket never delivers welcome", async () =>
         }),
         Invalidate: () => undefined,
     };
-    const provider = new CjsTwitchEventSubChatProvider({
+    const provider = new TwitchEventSubChatProvider({
         oauth,
         helix: { Request: async () => ({ status: 202 }) },
         rooms: [ { id: "200" } ],
@@ -1576,7 +1590,7 @@ test("reports an EventSub gap and recreates subscriptions after unexpected loss"
         }),
         Invalidate: () => undefined,
     };
-    const provider = new CjsTwitchEventSubChatProvider({
+    const provider = new TwitchEventSubChatProvider({
         oauth,
         rooms: [ { id: "200" } ],
         validationIntervalMs: 60000,

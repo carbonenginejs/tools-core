@@ -5,10 +5,10 @@ import {
     CjsToolRealtimeLivestreamContract,
     LIVESTREAM_STATE_TOPICS,
 } from "../../../src/realtime/livestream/CjsToolRealtimeLivestreamContract.js";
-import { CjsRealtimeTwitchStateNormalizer } from "../../../src/integrations/twitch/CjsRealtimeTwitchStateNormalizer.js";
-import { CjsRealtimeTwitchStateService } from "../../../src/integrations/twitch/CjsRealtimeTwitchStateService.js";
-import { CjsTwitchEventSubStateProvider } from "../../../src/integrations/twitch/CjsTwitchEventSubStateProvider.js";
-import { CjsTwitchStateSource } from "../../../src/integrations/twitch/CjsTwitchStateSource.js";
+import { TwitchStateNormalizer } from "../../../src/integrations/twitch/TwitchStateNormalizer.js";
+import { TwitchStateService } from "../../../src/integrations/twitch/TwitchStateService.js";
+import { TwitchEventSubStateProvider } from "../../../src/integrations/twitch/TwitchEventSubStateProvider.js";
+import { TwitchStateSource } from "../../../src/integrations/twitch/TwitchStateSource.js";
 
 class CjsStateTestEventSubSource
 {
@@ -247,7 +247,7 @@ test("normalizes Twitch online, offline, and metadata state patches", () =>
 
     for (const fixture of fixtures)
     {
-        const change = CjsRealtimeTwitchStateNormalizer.fromEventSub(
+        const change = TwitchStateNormalizer.fromEventSub(
             CjsStateTestSupport.notification(
                 fixture.type,
                 fixture.version,
@@ -298,7 +298,7 @@ test("registers Twitch state once and seeds complete bounded Helix state", async
             };
         },
     };
-    const provider = new CjsTwitchEventSubStateProvider({
+    const provider = new TwitchEventSubStateProvider({
         source,
         helix,
         registrationId: "state-main",
@@ -328,21 +328,21 @@ test("registers Twitch state once and seeds complete bounded Helix state", async
 test("queues early state behind its seed and shares exact snapshot projections", async () =>
 {
     const provider = new CjsStateTestProvider(CjsStateTestSupport.snapshot([ "100", "200" ]));
-    const source = new CjsTwitchStateSource({ provider });
+    const source = new TwitchStateSource({ provider });
     const aggregateMessages = [];
     const exactMessages = [];
     const aggregateContext = CjsStateTestSupport.context(aggregateMessages);
     const exactContext = CjsStateTestSupport.context(exactMessages);
-    const aggregate = new CjsRealtimeTwitchStateService({
+    const aggregate = new TwitchStateService({
         id: "twitch-state-all",
         source,
     });
-    const exact = new CjsRealtimeTwitchStateService({
+    const exact = new TwitchStateService({
         id: "twitch-state-room-100",
         source,
         room: { id: "100" },
     });
-    const online = CjsRealtimeTwitchStateNormalizer.fromEventSub(
+    const online = TwitchStateNormalizer.fromEventSub(
         CjsStateTestSupport.notification(
             "stream.online",
             "1",
@@ -377,7 +377,7 @@ test("queues early state behind its seed and shares exact snapshot projections",
     assert.equal(aggregateMessages.length, 1);
     assert.equal(exactMessages.length, 0);
 
-    const offline = CjsRealtimeTwitchStateNormalizer.fromEventSub(
+    const offline = TwitchStateNormalizer.fromEventSub(
         CjsStateTestSupport.notification(
             "stream.offline",
             "1",

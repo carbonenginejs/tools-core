@@ -3,10 +3,10 @@ import {
     LIVESTREAM_STATE_FAMILY,
     LIVESTREAM_STATE_TOPICS,
 } from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
-import { CjsTwitchStateSource } from "./CjsTwitchStateSource.js";
+import { TwitchStateSource } from "./TwitchStateSource.js";
 
 /** Exposes materialized Twitch stream state with snapshot recovery. */
-export class CjsRealtimeTwitchStateService
+export class TwitchStateService
 {
 
     #accepting;
@@ -35,7 +35,7 @@ export class CjsRealtimeTwitchStateService
             throw new TypeError("Twitch state service requires exactly one provider or source");
         }
 
-        const stateSource = source ?? new CjsTwitchStateSource({ provider });
+        const stateSource = source ?? new TwitchStateSource({ provider });
 
         if (stateSource.kind !== "twitch.eventsub"
             || typeof stateSource.Attach !== "function"
@@ -45,7 +45,7 @@ export class CjsRealtimeTwitchStateService
         }
 
         this.id = id;
-        this.#room = CjsRealtimeTwitchStateService.normalizeRoom(room);
+        this.#room = TwitchStateService.normalizeRoom(room);
         this.#accepting = false;
         this.#context = null;
         this.#operations = new Set();
@@ -94,7 +94,7 @@ export class CjsRealtimeTwitchStateService
                 onChange: change => this.#OnChange(change),
                 onSnapshot: snapshot =>
                 {
-                    this.#snapshot = CjsRealtimeTwitchStateService.filterSnapshot(
+                    this.#snapshot = TwitchStateService.filterSnapshot(
                         snapshot,
                         this.#room,
                     );
@@ -167,7 +167,7 @@ export class CjsRealtimeTwitchStateService
             return;
         }
 
-        if (!CjsRealtimeTwitchStateService.matchesRoom(this.#room, normalized.source))
+        if (!TwitchStateService.matchesRoom(this.#room, normalized.source))
         {
             return;
         }
@@ -176,7 +176,7 @@ export class CjsRealtimeTwitchStateService
         {
             if (this.#accepting)
             {
-                this.#snapshot = CjsRealtimeTwitchStateService.applyChange(
+                this.#snapshot = TwitchStateService.applyChange(
                     this.#snapshot,
                     normalized,
                 );
@@ -242,7 +242,7 @@ export class CjsRealtimeTwitchStateService
         return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot({
             observedAt: snapshot.observedAt,
             states: snapshot.states.filter(state =>
-                CjsRealtimeTwitchStateService.matchesRoom(selector, state.source)),
+                TwitchStateService.matchesRoom(selector, state.source)),
         });
     }
 

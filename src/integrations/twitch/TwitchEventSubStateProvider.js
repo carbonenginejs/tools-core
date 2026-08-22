@@ -3,9 +3,9 @@ import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
 import {
     CjsToolRealtimeLivestreamContract,
 } from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
-import { CjsRealtimeTwitchStateNormalizer } from "./CjsRealtimeTwitchStateNormalizer.js";
-import { CjsTwitchEventSubSource } from "./CjsTwitchEventSubSource.js";
-import { CjsTwitchHelixClient } from "./CjsTwitchHelixClient.js";
+import { TwitchStateNormalizer } from "./TwitchStateNormalizer.js";
+import { TwitchEventSubSource } from "./TwitchEventSubSource.js";
+import { TwitchHelixClient } from "./TwitchHelixClient.js";
 
 const SUBSCRIPTIONS = Object.freeze([
     Object.freeze({ type: "channel.update", version: "2" }),
@@ -14,7 +14,7 @@ const SUBSCRIPTIONS = Object.freeze([
 ]);
 
 /** Adds Twitch stream-state declarations and Helix seeding to EventSub. */
-export class CjsTwitchEventSubStateProvider
+export class TwitchEventSubStateProvider
 {
 
     #active;
@@ -78,9 +78,9 @@ export class CjsTwitchEventSubStateProvider
             throw new TypeError("Twitch state response limits must be positive integers");
         }
 
-        const normalizedRooms = CjsTwitchEventSubStateProvider.normalizeRooms(rooms);
+        const normalizedRooms = TwitchEventSubStateProvider.normalizeRooms(rooms);
         const helixClient = helix ?? (readState === null || source === null
-            ? new CjsTwitchHelixClient({
+            ? new TwitchHelixClient({
                 oauth,
                 fetch: fetchImplementation,
                 endpoint: apiEndpoint,
@@ -94,7 +94,7 @@ export class CjsTwitchEventSubStateProvider
         }
 
         this.kind = "twitch.eventsub";
-        this.#source = source ?? new CjsTwitchEventSubSource({
+        this.#source = source ?? new TwitchEventSubSource({
             oauth,
             fetch: fetchImplementation,
             helix: helixClient,
@@ -198,7 +198,7 @@ export class CjsTwitchEventSubStateProvider
     {
         try
         {
-            this.#onChange(CjsRealtimeTwitchStateNormalizer.fromEventSub(
+            this.#onChange(TwitchStateNormalizer.fromEventSub(
                 message,
                 this.#clock(),
             ));
@@ -230,7 +230,7 @@ export class CjsTwitchEventSubStateProvider
         return {
             observedAt: new Date(this.#clock()).toISOString(),
             states: this.#rooms.map(room =>
-                CjsTwitchEventSubStateProvider.createState(
+                TwitchEventSubStateProvider.createState(
                     room,
                     streamsById.get(room.id) ?? null,
                     channelsById.get(room.id) ?? null,
@@ -272,10 +272,10 @@ export class CjsTwitchEventSubStateProvider
     /** Creates one complete canonical state from Helix stream/channel records. */
     static createState(room, stream, channel)
     {
-        const categoryId = CjsTwitchEventSubStateProvider.string(
+        const categoryId = TwitchEventSubStateProvider.string(
             stream?.game_id ?? channel?.game_id,
         );
-        const categoryName = CjsTwitchEventSubStateProvider.string(
+        const categoryName = TwitchEventSubStateProvider.string(
             stream?.game_name ?? channel?.game_name,
         );
         const online = stream !== null;
@@ -284,22 +284,22 @@ export class CjsTwitchEventSubStateProvider
             source: {
                 provider: "twitch",
                 channelId: room.id,
-                channelLogin: CjsTwitchEventSubStateProvider.string(
+                channelLogin: TwitchEventSubStateProvider.string(
                     channel?.broadcaster_login ?? stream?.user_login ?? room.login,
                 )?.toLowerCase() ?? null,
-                channelDisplayName: CjsTwitchEventSubStateProvider.string(
+                channelDisplayName: TwitchEventSubStateProvider.string(
                     channel?.broadcaster_name ?? stream?.user_name ?? room.displayName,
                 ),
             },
             stream: {
                 online,
-                streamId: CjsTwitchEventSubStateProvider.string(stream?.id),
-                startedAt: CjsTwitchEventSubStateProvider.string(stream?.started_at),
+                streamId: TwitchEventSubStateProvider.string(stream?.id),
+                startedAt: TwitchEventSubStateProvider.string(stream?.started_at),
                 endedAt: null,
-                title: CjsTwitchEventSubStateProvider.string(
+                title: TwitchEventSubStateProvider.string(
                     stream?.title ?? channel?.title,
                 ),
-                language: CjsTwitchEventSubStateProvider.string(
+                language: TwitchEventSubStateProvider.string(
                     stream?.language ?? channel?.broadcaster_language,
                 ),
                 mature: typeof stream?.is_mature === "boolean" ? stream.is_mature : null,
@@ -335,8 +335,8 @@ export class CjsTwitchEventSubStateProvider
 
             rooms.set(room.id, Object.freeze({
                 id: room.id,
-                login: CjsTwitchEventSubStateProvider.string(room.login)?.toLowerCase() ?? null,
-                displayName: CjsTwitchEventSubStateProvider.string(room.displayName),
+                login: TwitchEventSubStateProvider.string(room.login)?.toLowerCase() ?? null,
+                displayName: TwitchEventSubStateProvider.string(room.displayName),
             }));
         }
 

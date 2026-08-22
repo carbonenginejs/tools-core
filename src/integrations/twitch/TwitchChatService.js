@@ -6,13 +6,13 @@ import {
     CjsToolRealtimeChatBlockList,
     CjsToolRealtimeChatContract,
 } from "../../realtime/chat/index.js";
-import { CjsTwitchChatSource } from "./CjsTwitchChatSource.js";
+import { TwitchChatSource } from "./TwitchChatSource.js";
 
 const MESSAGE_TOPIC = CHAT_TOPICS.MESSAGE_RECEIVED;
 const STATUS_TOPIC = CHAT_TOPICS.STATUS_CHANGED;
 
 /** Exposes a Twitch transport through the provider-neutral live chat family. */
-export class CjsRealtimeTwitchChatService
+export class TwitchChatService
 {
 
     #accepting;
@@ -67,7 +67,7 @@ export class CjsRealtimeTwitchChatService
             );
         }
 
-        const chatSource = source ?? new CjsTwitchChatSource({
+        const chatSource = source ?? new TwitchChatSource({
             provider,
             integrationId,
         });
@@ -93,7 +93,7 @@ export class CjsRealtimeTwitchChatService
         this.#blockList = blockList instanceof CjsToolRealtimeChatBlockList
             ? blockList
             : new CjsToolRealtimeChatBlockList(blockList ?? {});
-        this.#room = CjsRealtimeTwitchChatService.normalizeRoom(room);
+        this.#room = TwitchChatService.normalizeRoom(room);
         this.#integrationId = CjsToolRealtimeChatContract.normalizeNullableString(
             chatSource.integrationId ?? null,
             "source.integrationId",
@@ -196,7 +196,7 @@ export class CjsRealtimeTwitchChatService
             );
         }
 
-        const target = CjsRealtimeTwitchChatService.normalizeSubscriptionTarget(
+        const target = TwitchChatService.normalizeSubscriptionTarget(
             subscription.target,
             this.#integrationId,
         );
@@ -264,7 +264,7 @@ export class CjsRealtimeTwitchChatService
 
         try
         {
-            normalized = CjsRealtimeTwitchChatService.normalizeMessage(
+            normalized = TwitchChatService.normalizeMessage(
                 message,
                 this.#integrationId,
             );
@@ -280,7 +280,7 @@ export class CjsRealtimeTwitchChatService
             return;
         }
 
-        if (!CjsRealtimeTwitchChatService.matchesRoom(this.#room, normalized.room))
+        if (!TwitchChatService.matchesRoom(this.#room, normalized.room))
         {
             return;
         }
@@ -318,7 +318,7 @@ export class CjsRealtimeTwitchChatService
 
         try
         {
-            normalized = CjsRealtimeTwitchChatService.normalizeStatus(
+            normalized = TwitchChatService.normalizeStatus(
                 status,
                 this.#source.kind,
                 this.#clock(),

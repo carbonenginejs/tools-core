@@ -1,8 +1,8 @@
 import {
     LIVESTREAM_ACTIVITY_TOPICS,
 } from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
-import { CjsRealtimeTwitchActivityNormalizer } from "./CjsRealtimeTwitchActivityNormalizer.js";
-import { CjsTwitchEventSubSource } from "./CjsTwitchEventSubSource.js";
+import { TwitchActivityNormalizer } from "./TwitchActivityNormalizer.js";
+import { TwitchEventSubSource } from "./TwitchEventSubSource.js";
 
 const TOPIC_DEFINITIONS = Object.freeze({
     [LIVESTREAM_ACTIVITY_TOPICS.CONTRIBUTION_RECEIVED]: Object.freeze({
@@ -66,7 +66,7 @@ const TOPIC_DEFINITIONS = Object.freeze({
 });
 
 /** Adds Twitch activity declarations and normalization to an EventSub source. */
-export class CjsTwitchEventSubActivityProvider
+export class TwitchEventSubActivityProvider
 {
 
     #active;
@@ -110,13 +110,13 @@ export class CjsTwitchEventSubActivityProvider
             throw new TypeError("Twitch EventSub activity source is invalid");
         }
 
-        const normalizedRooms = CjsTwitchEventSubActivityProvider.normalizeRooms(rooms);
-        const normalizedTopics = CjsTwitchEventSubActivityProvider.normalizeTopics(topics);
+        const normalizedRooms = TwitchEventSubActivityProvider.normalizeRooms(rooms);
+        const normalizedTopics = TwitchEventSubActivityProvider.normalizeTopics(topics);
         const definitions = normalizedTopics.map(topic => TOPIC_DEFINITIONS[topic]);
 
         this.kind = "twitch.eventsub";
         this.topics = normalizedTopics;
-        this.#source = source ?? new CjsTwitchEventSubSource({
+        this.#source = source ?? new TwitchEventSubSource({
             oauth,
             fetch: fetchImplementation,
             helix,
@@ -210,7 +210,7 @@ export class CjsTwitchEventSubActivityProvider
     {
         try
         {
-            const activity = CjsRealtimeTwitchActivityNormalizer.fromEventSub(
+            const activity = TwitchActivityNormalizer.fromEventSub(
                 message,
                 this.#clock(),
             );

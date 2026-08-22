@@ -97,7 +97,7 @@ async function LintJavaScript(file, lintErrors)
     }
 
     const integration = relativeFile.match(
-        /^src\/integrations\/([a-z][a-z0-9-]*)\/index\.js$/u,
+        /^src\/integrations\/([a-z][a-z0-9-]*)\//u,
     );
     const boundaryPrefix = integration
         ? integration[1].split("-")

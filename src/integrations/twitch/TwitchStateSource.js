@@ -5,7 +5,7 @@ import {
 } from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
 
 /** Owns one Twitch state provider and materializes its shared channel state. */
-export class CjsTwitchStateSource
+export class TwitchStateSource
 {
 
     #abortController;
@@ -177,7 +177,7 @@ export class CjsTwitchStateSource
         }
 
         const normalized = CjsToolRealtimeLivestreamContract.normalizeStateChange(change.data);
-        const identity = CjsTwitchStateSource.sourceKey(normalized.source);
+        const identity = TwitchStateSource.sourceKey(normalized.source);
         const current = this.#states.get(identity);
         const eventIdentity = `${identity}:${normalized.id}`;
 
@@ -231,7 +231,7 @@ export class CjsTwitchStateSource
         const normalized = CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(snapshot);
 
         this.#states = new Map(normalized.states.map(state => [
-            CjsTwitchStateSource.sourceKey(state.source),
+            TwitchStateSource.sourceKey(state.source),
             state,
         ]));
         this.#observedAt = normalized.observedAt;

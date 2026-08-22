@@ -1,10 +1,10 @@
 import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
 import { CjsToolRealtimeProtocol } from "../../realtime/CjsToolRealtimeProtocol.js";
-import { CjsTwitchEventSubSession } from "./CjsTwitchEventSubSession.js";
-import { CjsTwitchHelixClient } from "./CjsTwitchHelixClient.js";
+import { TwitchEventSubSession } from "./TwitchEventSubSession.js";
+import { TwitchHelixClient } from "./TwitchHelixClient.js";
 
 /** Composes static family declarations over one Twitch EventSub session. */
-export class CjsTwitchEventSubSource
+export class TwitchEventSubSource
 {
 
     #abortController;
@@ -99,13 +99,13 @@ export class CjsTwitchEventSubSource
 
         this.kind = "twitch.eventsub";
         this.#oauth = oauth;
-        this.#helix = helix ?? new CjsTwitchHelixClient({
+        this.#helix = helix ?? new TwitchHelixClient({
             oauth,
             fetch: fetchImplementation,
             endpoint: apiEndpoint,
         });
         this.#clock = clock;
-        this.#session = session ?? new CjsTwitchEventSubSession({
+        this.#session = session ?? new TwitchEventSubSession({
             ...(createWebSocket === undefined ? {} : { createWebSocket }),
             ...(endpoint === undefined ? {} : { endpoint }),
             clock,
@@ -139,7 +139,7 @@ export class CjsTwitchEventSubSource
             throw new Error("Twitch EventSub declarations are sealed after first startup");
         }
 
-        const registrationId = CjsTwitchEventSubSource.normalizeRegistrationId(id);
+        const registrationId = TwitchEventSubSource.normalizeRegistrationId(id);
 
         if (this.#declarations.has(registrationId))
         {
@@ -148,8 +148,8 @@ export class CjsTwitchEventSubSource
 
         const declaration = Object.freeze({
             id: registrationId,
-            requiredScopes: CjsTwitchEventSubSource.normalizeScopes(requiredScopes),
-            subscriptions: CjsTwitchEventSubSource.normalizeSubscriptions(subscriptions),
+            requiredScopes: TwitchEventSubSource.normalizeScopes(requiredScopes),
+            subscriptions: TwitchEventSubSource.normalizeSubscriptions(subscriptions),
         });
 
         this.#declarations.set(registrationId, declaration);
@@ -168,7 +168,7 @@ export class CjsTwitchEventSubSource
             await this.#stopPromise;
         }
 
-        const registrationId = CjsTwitchEventSubSource.normalizeRegistrationId(id);
+        const registrationId = TwitchEventSubSource.normalizeRegistrationId(id);
         const declaration = this.#declarations.get(registrationId);
 
         if (!declaration)
@@ -256,7 +256,7 @@ export class CjsTwitchEventSubSource
     /** Detaches one family and stops the shared source after the final user. */
     async Detach(id)
     {
-        const registrationId = CjsTwitchEventSubSource.normalizeRegistrationId(id);
+        const registrationId = TwitchEventSubSource.normalizeRegistrationId(id);
         const attachment = this.#attachments.get(registrationId);
 
         if (!attachment)
@@ -328,7 +328,7 @@ export class CjsTwitchEventSubSource
                 this.#state = "stopped";
             }
 
-            throw CjsTwitchEventSubSource.startError(error);
+            throw TwitchEventSubSource.startError(error);
         }
         finally
         {
@@ -476,7 +476,7 @@ export class CjsTwitchEventSubSource
 
     async #DispatchNotification(message)
     {
-        const key = CjsTwitchEventSubSource.messageSubscriptionKey(message);
+        const key = TwitchEventSubSource.messageSubscriptionKey(message);
 
         if (key === null)
         {
@@ -493,7 +493,7 @@ export class CjsTwitchEventSubSource
         await Promise.all([ ...this.#attachments.values() ].map(async attachment =>
         {
             if (!attachment.declaration.subscriptions.some(subscription =>
-                CjsTwitchEventSubSource.subscriptionKey(subscription) === key))
+                TwitchEventSubSource.subscriptionKey(subscription) === key))
             {
                 return;
             }
@@ -517,12 +517,12 @@ export class CjsTwitchEventSubSource
     async #DispatchRevocation(message)
     {
         this.#revoked = true;
-        const key = CjsTwitchEventSubSource.messageSubscriptionKey(message);
+        const key = TwitchEventSubSource.messageSubscriptionKey(message);
 
         await Promise.all([ ...this.#attachments.values() ].map(async attachment =>
         {
             if (key !== null && !attachment.declaration.subscriptions.some(subscription =>
-                CjsTwitchEventSubSource.subscriptionKey(subscription) === key))
+                TwitchEventSubSource.subscriptionKey(subscription) === key))
             {
                 return;
             }
@@ -693,7 +693,7 @@ export class CjsTwitchEventSubSource
     {
         return error instanceof CjsToolRealtimeError
             ? error
-            : CjsTwitchEventSubSession.connectionError(error);
+            : TwitchEventSubSession.connectionError(error);
     }
 
 }

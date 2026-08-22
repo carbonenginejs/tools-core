@@ -1,8 +1,8 @@
-import { CjsRealtimeTwitchChatNormalizer } from "./CjsRealtimeTwitchChatNormalizer.js";
-import { CjsTwitchEventSubSource } from "./CjsTwitchEventSubSource.js";
+import { TwitchChatNormalizer } from "./TwitchChatNormalizer.js";
+import { TwitchEventSubSource } from "./TwitchEventSubSource.js";
 
 /** Adds chat room and normalization policy to a static EventSub source. */
-export class CjsTwitchEventSubChatProvider
+export class TwitchEventSubChatProvider
 {
 
     #active;
@@ -43,10 +43,10 @@ export class CjsTwitchEventSubChatProvider
             throw new TypeError("Twitch EventSub chat source is invalid");
         }
 
-        const normalizedRooms = CjsTwitchEventSubChatProvider.normalizeRooms(rooms);
+        const normalizedRooms = TwitchEventSubChatProvider.normalizeRooms(rooms);
 
         this.kind = "twitch.eventsub";
-        this.#source = source ?? new CjsTwitchEventSubSource({
+        this.#source = source ?? new TwitchEventSubSource({
             oauth,
             fetch: fetchImplementation,
             helix,
@@ -135,7 +135,7 @@ export class CjsTwitchEventSubChatProvider
     {
         try
         {
-            this.#onMessage(CjsRealtimeTwitchChatNormalizer.fromEventSub(
+            this.#onMessage(TwitchChatNormalizer.fromEventSub(
                 message,
                 this.#clock(),
             ));

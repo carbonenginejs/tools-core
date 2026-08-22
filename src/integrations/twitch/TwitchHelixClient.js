@@ -4,7 +4,7 @@ import { CjsToolBoundedFetch } from "../../internal/CjsToolBoundedFetch.js";
 const DEFAULT_ENDPOINT = "https://api.twitch.tv/helix/";
 
 /** Applies shared Twitch OAuth identity, scope, and reactive refresh to Helix requests. */
-export class CjsTwitchHelixClient
+export class TwitchHelixClient
 {
 
     #endpoint;
@@ -37,7 +37,7 @@ export class CjsTwitchHelixClient
 
         this.#oauth = oauth;
         this.#fetch = fetchImplementation;
-        this.#endpoint = CjsTwitchHelixClient.normalizeEndpoint(endpoint);
+        this.#endpoint = TwitchHelixClient.normalizeEndpoint(endpoint);
         this.#requestTimeoutMs = requestTimeoutMs;
         Object.freeze(this);
     }
@@ -61,8 +61,8 @@ export class CjsTwitchHelixClient
         {
             return await CjsToolBoundedFetch.run(async requestSignal =>
             {
-                const url = CjsTwitchHelixClient.createUrl(this.#endpoint, route, query);
-                const normalizedMethod = CjsTwitchHelixClient.normalizeMethod(method);
+                const url = TwitchHelixClient.createUrl(this.#endpoint, route, query);
+                const normalizedMethod = TwitchHelixClient.normalizeMethod(method);
                 let credentials = await this.#oauth.Acquire({
                     requiredScopes,
                     expectedUserId,

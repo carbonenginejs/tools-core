@@ -2,10 +2,10 @@ import {
     CjsToolRealtimeLivestreamContract,
     LIVESTREAM_ACTIVITY_FAMILY,
 } from "../../realtime/livestream/CjsToolRealtimeLivestreamContract.js";
-import { CjsTwitchActivitySource } from "./CjsTwitchActivitySource.js";
+import { TwitchActivitySource } from "./TwitchActivitySource.js";
 
 /** Exposes Twitch EventSub activity through a live provider-neutral service. */
-export class CjsRealtimeTwitchActivityService
+export class TwitchActivityService
 {
 
     #accepting;
@@ -44,7 +44,7 @@ export class CjsRealtimeTwitchActivityService
             throw new TypeError("Twitch activity service requires exactly one provider or source");
         }
 
-        const activitySource = source ?? new CjsTwitchActivitySource({ provider });
+        const activitySource = source ?? new TwitchActivitySource({ provider });
 
         if (activitySource.kind !== "twitch.eventsub"
             || !Array.isArray(activitySource.topics)
@@ -60,7 +60,7 @@ export class CjsRealtimeTwitchActivityService
         }
 
         this.id = id;
-        this.#room = CjsRealtimeTwitchActivityService.normalizeRoom(room);
+        this.#room = TwitchActivityService.normalizeRoom(room);
         this.#recentEventLimit = recentEventLimit;
         this.#accepting = false;
         this.#context = null;
@@ -169,7 +169,7 @@ export class CjsRealtimeTwitchActivityService
             return;
         }
 
-        if (!CjsRealtimeTwitchActivityService.matchesRoom(this.#room, normalized.source))
+        if (!TwitchActivityService.matchesRoom(this.#room, normalized.source))
         {
             return;
         }

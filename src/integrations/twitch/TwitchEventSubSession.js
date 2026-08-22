@@ -5,7 +5,7 @@ import { CjsToolRealtimeError } from "../../realtime/CjsToolRealtimeError.js";
 const DEFAULT_ENDPOINT = "wss://eventsub.wss.twitch.tv/ws";
 
 /** Owns one family-neutral Twitch EventSub WebSocket session lifecycle. */
-export class CjsTwitchEventSubSession
+export class TwitchEventSubSession
 {
 
     #active;
@@ -81,7 +81,7 @@ export class CjsTwitchEventSubSession
 
         this.#createWebSocket = createWebSocket;
         this.#clock = clock;
-        this.#endpoint = CjsTwitchEventSubSession.normalizeEndpoint(endpoint, false);
+        this.#endpoint = TwitchEventSubSession.normalizeEndpoint(endpoint, false);
         this.#keepaliveGraceMs = keepaliveGraceMs;
         this.#reconnectBaseMs = reconnectBaseMs;
         this.#reconnectMaxMs = reconnectMaxMs;
@@ -139,7 +139,7 @@ export class CjsTwitchEventSubSession
             this.#reconnectTimer = null;
             this.#CloseAll();
 
-            throw CjsTwitchEventSubSession.startError(error);
+            throw TwitchEventSubSession.startError(error);
         }
     }
 
@@ -200,7 +200,7 @@ export class CjsTwitchEventSubSession
 
         if (this.#primary)
         {
-            CjsTwitchEventSubSession.closeSocket(this.#primary.socket, true);
+            TwitchEventSubSession.closeSocket(this.#primary.socket, true);
         }
         else
         {
@@ -210,7 +210,7 @@ export class CjsTwitchEventSubSession
 
     #Open(url, { recreateSubscriptions, migrationSource = null })
     {
-        const endpoint = CjsTwitchEventSubSession.normalizeEndpoint(
+        const endpoint = TwitchEventSubSession.normalizeEndpoint(
             url,
             url !== this.#endpoint,
         );
@@ -222,7 +222,7 @@ export class CjsTwitchEventSubSession
         }
         catch (error)
         {
-            return Promise.reject(CjsTwitchEventSubSession.connectionError(error));
+            return Promise.reject(TwitchEventSubSession.connectionError(error));
         }
 
         if (!socket || typeof socket.on !== "function" || typeof socket.close !== "function")
@@ -309,7 +309,7 @@ export class CjsTwitchEventSubSession
             return;
         }
 
-        const text = CjsTwitchEventSubSession.messageText(data);
+        const text = TwitchEventSubSession.messageText(data);
         let message;
 
         try
@@ -460,7 +460,7 @@ export class CjsTwitchEventSubSession
         if (!record.settled)
         {
             record.settled = true;
-            record.reject(CjsTwitchEventSubSession.connectionError());
+            record.reject(TwitchEventSubSession.connectionError());
         }
 
         const migrationPending = [ ...this.#records ].some(candidate =>
@@ -490,10 +490,10 @@ export class CjsTwitchEventSubSession
         if (!record.settled)
         {
             record.settled = true;
-            record.reject(CjsTwitchEventSubSession.connectionError(error));
+            record.reject(TwitchEventSubSession.connectionError(error));
         }
 
-        CjsTwitchEventSubSession.closeSocket(record.socket, true);
+        TwitchEventSubSession.closeSocket(record.socket, true);
     }
 
     #ResetKeepalive(record, message)
@@ -519,7 +519,7 @@ export class CjsTwitchEventSubSession
             }
 
             this.#EmitStatus("reconnecting", "keepalive_timeout", true);
-            CjsTwitchEventSubSession.closeSocket(record.socket, true);
+            TwitchEventSubSession.closeSocket(record.socket, true);
         }, record.keepaliveSeconds * 1000 + this.#keepaliveGraceMs);
         record.keepaliveTimer.unref?.();
     }
@@ -576,7 +576,7 @@ export class CjsTwitchEventSubSession
         if (!record.settled)
         {
             record.settled = true;
-            record.reject(CjsTwitchEventSubSession.connectionError());
+            record.reject(TwitchEventSubSession.connectionError());
         }
 
         record.socket.close(1000, "provider shutdown");
@@ -681,7 +681,7 @@ export class CjsTwitchEventSubSession
     {
         return error instanceof CjsToolRealtimeError
             ? error
-            : CjsTwitchEventSubSession.connectionError(error);
+            : TwitchEventSubSession.connectionError(error);
     }
 
 }

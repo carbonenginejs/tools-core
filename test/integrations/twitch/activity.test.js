@@ -4,10 +4,10 @@ import test from "node:test";
 import {
     LIVESTREAM_ACTIVITY_TOPICS,
 } from "../../../src/realtime/livestream/CjsToolRealtimeLivestreamContract.js";
-import { CjsRealtimeTwitchActivityNormalizer } from "../../../src/integrations/twitch/CjsRealtimeTwitchActivityNormalizer.js";
-import { CjsRealtimeTwitchActivityService } from "../../../src/integrations/twitch/CjsRealtimeTwitchActivityService.js";
-import { CjsTwitchActivitySource } from "../../../src/integrations/twitch/CjsTwitchActivitySource.js";
-import { CjsTwitchEventSubActivityProvider } from "../../../src/integrations/twitch/CjsTwitchEventSubActivityProvider.js";
+import { TwitchActivityNormalizer } from "../../../src/integrations/twitch/TwitchActivityNormalizer.js";
+import { TwitchActivityService } from "../../../src/integrations/twitch/TwitchActivityService.js";
+import { TwitchActivitySource } from "../../../src/integrations/twitch/TwitchActivitySource.js";
+import { TwitchEventSubActivityProvider } from "../../../src/integrations/twitch/TwitchEventSubActivityProvider.js";
 
 class CjsActivityTestEventSubSource
 {
@@ -250,7 +250,7 @@ test("normalizes supported Twitch EventSub activity families", () =>
 
     for (const fixture of fixtures)
     {
-        const activity = CjsRealtimeTwitchActivityNormalizer.fromEventSub(
+        const activity = TwitchActivityNormalizer.fromEventSub(
             CjsActivityTestSupport.notification(
                 fixture.type,
                 fixture.version,
@@ -270,7 +270,7 @@ test("registers selected activity topics once over the shared EventSub source", 
 {
     const source = new CjsActivityTestEventSubSource();
     const activities = [];
-    const provider = new CjsTwitchEventSubActivityProvider({
+    const provider = new TwitchEventSubActivityProvider({
         source,
         registrationId: "alerts",
         rooms: [ { id: "200" }, { id: "100" } ],
@@ -322,16 +322,16 @@ test("shares one activity provider across aggregate and exact room services", as
 {
     const topic = LIVESTREAM_ACTIVITY_TOPICS.FOLLOW_RECEIVED;
     const provider = new CjsActivityTestProvider([ topic ]);
-    const source = new CjsTwitchActivitySource({ provider });
+    const source = new TwitchActivitySource({ provider });
     const aggregateMessages = [];
     const exactMessages = [];
     const aggregateContext = CjsActivityTestSupport.context(aggregateMessages);
     const exactContext = CjsActivityTestSupport.context(exactMessages);
-    const aggregate = new CjsRealtimeTwitchActivityService({
+    const aggregate = new TwitchActivityService({
         id: "twitch-activity-all",
         source,
     });
-    const exact = new CjsRealtimeTwitchActivityService({
+    const exact = new TwitchActivityService({
         id: "twitch-activity-room-100",
         source,
         room: { id: "100" },
@@ -347,7 +347,7 @@ test("shares one activity provider across aggregate and exact room services", as
     {
         provider.Emit({
             topic,
-            data: CjsRealtimeTwitchActivityNormalizer.fromEventSub(
+            data: TwitchActivityNormalizer.fromEventSub(
                 CjsActivityTestSupport.notification(
                     "channel.follow",
                     "2",
