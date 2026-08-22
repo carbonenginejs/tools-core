@@ -247,10 +247,51 @@ test("the proxy serves the book, and says so when nothing is configured", async 
     const answer = await fetch(`${root}/v1/market/orders?region=10000002&type=34`);
 
     assert.equal(answer.status, 200);
-    assert.match(answer.headers.get("cache-control") ?? "", /max-age=\d+/u,
-        "cacheable until ESI's own expiry, which is the only honest number");
+    // Capped, and deliberately NOT ESI's own window. History expires when CCP
+    // recomputes it, which measured at nine and a half hours away; passed
+    // through as max-age that is most of a day in which a reader cannot
+    // refresh a page and get anything different.
+    const age = Number(/max-age=(\d+)/u.exec(answer.headers.get("cache-control") ?? "")?.[1]);
+
+    assert.ok(Number.isFinite(age), "a market answer says how long it may be held");
+    assert.ok(age <= 60, `a client was told it could hold this for ${age} seconds`);
     assert.equal((await answer.json()).orders.length, 1);
 
     // A malformed ask is the caller's mistake, not an upstream failure.
     assert.equal((await fetch(`${root}/v1/market/orders?region=10000002`)).status, 400);
+});
+
+test("a long ESI window is held here, but not handed to a browser", async context =>
+{
+    // The two numbers answer different questions. How long THIS service holds
+    // an answer is ESI's to decide - asking CCP again inside their window
+    // cannot produce anything newer. How long a browser may hold it is ours,
+    // and capping it costs nothing upstream: a client re-asking is answered
+    // from the copy already held here.
+    const { CjsToolHttpProxy } = await import("../src/index.js");
+    const day = new Date(Date.now() + 9.5 * 60 * 60 * 1000).toUTCString();
+    const esi = Esi({ history: [ { date: "2026-08-20", average: 1, highest: 2, lowest: 1, order_count: 1, volume: 1 } ], expires: day });
+    const market = new CjsToolMarket({ esi });
+    const proxy = new CjsToolHttpProxy({ indexes: { Open() {} }, market });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const root = `http://127.0.0.1:${server.address().port}`;
+    const answer = await fetch(`${root}/v1/market/history?region=10000002&type=34`);
+    const age = Number(/max-age=(\d+)/u.exec(answer.headers.get("cache-control") ?? "")?.[1]);
+    const body = await answer.json();
+
+    assert.ok(age <= 60, `a browser was told to hold nine hours of history for ${age} seconds`);
+    assert.ok(Date.parse(body.expiresAt) - Date.now() > 8 * 60 * 60 * 1000,
+        "and the real window is still on the answer, so a consumer can see it");
+
+    // Held here for the full window: a second ask does not reach CCP.
+    await fetch(`${root}/v1/market/history?region=10000002&type=34`);
+    assert.equal(esi.reads.filter(path => path.includes("/history")).length, 1);
 });

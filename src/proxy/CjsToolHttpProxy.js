@@ -43,6 +43,21 @@ export const TOOLS_SERVICE_PROTOCOL_VERSION = 1;
  */
 const ALLOW_ORIGIN = process.env.CJS_TOOL_ALLOW_ORIGIN ?? "*";
 
+/**
+ * The longest a browser or CDN may hold a market answer, in seconds.
+ *
+ * Not the same as how long this service holds one, which is ESI's window and is
+ * often much longer — price history expires when CCP recomputes it, which
+ * measured at nine and a half hours away. Passing that through as `max-age`
+ * meant a reader could not refresh a page and get anything different for most
+ * of a day.
+ *
+ * A minute costs nothing upstream, because a client re-asking is answered from
+ * the copy this service is already holding. CCP sees the same number of
+ * requests either way.
+ */
+const MARKET_MAX_PUBLIC_AGE_SECONDS = 60;
+
 // Spread into three responses, so an empty object is how "send none" is said —
 // there is no branch at the call sites to keep in step.
 const CORS_HEADERS = ALLOW_ORIGIN === "none" ? Object.freeze({}) : Object.freeze({
@@ -461,12 +476,28 @@ export class CjsToolHttpProxy
                 throw error;
             }
 
-            // Cacheable until ESI's own expiry, which is the only honest
-            // number: asking again before then cannot produce a newer answer,
-            // because the same cached document comes back from CCP.
+            // Two different questions, deliberately given two different answers.
+            //
+            // How long THIS SERVICE holds an answer is ESI's to decide, and it
+            // is held for the full window: asking CCP again before their expiry
+            // cannot produce anything newer, because the same cached document
+            // comes back.
+            //
+            // How long a BROWSER OR CDN may hold it is ours, and it is capped
+            // low. Passing ESI's window straight through looked right on the
+            // order book, where it is minutes, and was wrong on history, where
+            // it is most of a day - measured at `max-age=34708`, which is nine
+            // and a half hours of a reader being unable to refresh a page and
+            // get anything different (operator, 2026-08-22).
+            //
+            // The cap costs nothing upstream. A client re-asking every minute
+            // is answered from the copy this service is already holding, so
+            // CCP sees exactly as many requests either way; all that changes is
+            // how quickly a reader can see a new answer once there is one.
             const remaining = Math.max(0, Math.floor((Date.parse(answer.expiresAt) - Date.now()) / 1000));
+            const age = Math.min(MARKET_MAX_PUBLIC_AGE_SECONDS, remaining);
 
-            WriteJson(response, 200, answer, { "cache-control": `public, max-age=${remaining}` });
+            WriteJson(response, 200, answer, { "cache-control": `public, max-age=${age}` });
 
             return;
         }
