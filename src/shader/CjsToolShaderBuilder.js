@@ -13,6 +13,28 @@ const BuilderVersion = "0.1.0";
 export class CjsToolShaderBuilder
 {
 
+    /**
+     * What this builder is called in the artifacts it writes.
+     *
+     * DECLARED, not read off the constructor. `this.constructor.name` was
+     * what wrote the `builder` field of every build report and the
+     * `provenance.builder` of every overlay, and a class name is not a
+     * durable identity: a minifier renames it (operator, 2026-08-22), so a
+     * bundled build would have stamped `t` or `Bn` into files that outlive
+     * the process and are compared by hash. Nothing would have failed - the
+     * reports would simply have recorded a builder nobody can identify.
+     *
+     * It also decouples the provenance from the class name, which matters
+     * while the package is renaming classes to the CjsTool convention: the
+     * name in an artifact is a promise to whoever reads it later, and it
+     * should change when we mean it to, not because a file was tidied.
+     *
+     * A subclass must declare its own. The base is abstract in practice, and
+     * a subclass that forgets is caught by the one thing that can catch it:
+     * the report it writes says so.
+     */
+    static builderId = "CjsToolShaderBuilder";
+
     #backend;
 
     #extension;
@@ -92,7 +114,7 @@ export class CjsToolShaderBuilder
         if (shaderTarget.format !== expectedFormat)
         {
             throw new Error(
-                `${this.constructor.name} cannot build ${shaderTarget.format} target ${shaderTarget.id}`,
+                `${this.constructor.builderId} cannot build ${shaderTarget.format} target ${shaderTarget.id}`,
             );
         }
 
@@ -563,7 +585,7 @@ export class CjsToolShaderBuilder
             schema: "carbon.shader-build-report",
             version: 1,
             status: "catalog",
-            builder: this.constructor.name,
+            builder: this.constructor.builderId,
             builderVersion: BuilderVersion,
             backend: this.#backend,
             shaderTarget: shaderTarget.id,
@@ -610,7 +632,7 @@ export class CjsToolShaderBuilder
                 ? "incomplete"
                 : "complete",
             generatedAt: generatedAt === null ? null : new Date(generatedAt).toISOString(),
-            builder: this.constructor.name,
+            builder: this.constructor.builderId,
             builderVersion: BuilderVersion,
             backend: this.#backend,
             formatPackage: this.#formatPackage,
@@ -664,7 +686,7 @@ export class CjsToolShaderBuilder
             provenance: {
                 kind: "shader-build",
                 shaderTarget: shaderTarget.id,
-                builder: this.constructor.name,
+                builder: this.constructor.builderId,
                 builderVersion: BuilderVersion,
                 reportSha256: report.reportSha256,
             },
