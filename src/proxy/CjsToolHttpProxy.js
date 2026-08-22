@@ -115,6 +115,7 @@ export class CjsToolHttpProxy
         sde = null,
         skinrStore = null,
         plexRate = null,
+        market = null,
         identity = null,
         characters = null,
         audio = null,
@@ -167,6 +168,11 @@ export class CjsToolHttpProxy
             throw new TypeError("CjsToolHttpProxy PLEX rate must provide Read()");
         }
 
+        if (market !== null && typeof market.Orders !== "function")
+        {
+            throw new TypeError("CjsToolHttpProxy market service must provide Orders()");
+        }
+
         if (identity !== null && typeof identity.Character !== "function")
         {
             throw new TypeError("CjsToolHttpProxy identity service must provide Character()");
@@ -203,6 +209,8 @@ export class CjsToolHttpProxy
         this.skinrStore = skinrStore;
         // A live market reading, injected like every other service here.
         this.plexRate = plexRate;
+        // Regional order books and price history.
+        this.market = market;
         // Public character identity: names and affiliation, no scope needed.
         this.identity = identity;
         this.characters = characters;
@@ -231,6 +239,7 @@ export class CjsToolHttpProxy
             skinr: sde !== null,
             skinrStore: skinrStore !== null,
             plexRate: plexRate !== null,
+            market: market !== null,
             identity: identity !== null,
             weapons: sde !== null,
             map: sde !== null,
@@ -406,6 +415,58 @@ export class CjsToolHttpProxy
             }
 
             WriteJson(response, 200, answer);
+
+            return;
+        }
+
+        // The regional order book, and what a type has been trading at.
+        //
+        // Under `/v1/` for the same reason as the PLEX price: a live market
+        // figure is not an attribute of a client build. What a type costs today
+        // has nothing to do with which files the client shipped with.
+        if (request.method === "GET"
+            && (url.pathname === "/v1/market/orders" || url.pathname === "/v1/market/history"))
+        {
+            if (!this.market)
+            {
+                WriteJson(response, 501, { error: "No market service configured" });
+
+                return;
+            }
+
+            const asking = {
+                regionID: url.searchParams.get("region"),
+                typeID: url.searchParams.get("type"),
+            };
+
+            let answer = null;
+
+            try
+            {
+                answer = url.pathname.endsWith("history")
+                    ? await this.market.History(asking)
+                    : await this.market.Orders(asking);
+            }
+            catch (error)
+            {
+                // A missing or malformed region or type is the caller's
+                // mistake, and saying so beats a 502 that blames CCP.
+                if (error instanceof TypeError)
+                {
+                    WriteJson(response, 400, { error: error.message });
+
+                    return;
+                }
+
+                throw error;
+            }
+
+            // Cacheable until ESI's own expiry, which is the only honest
+            // number: asking again before then cannot produce a newer answer,
+            // because the same cached document comes back from CCP.
+            const remaining = Math.max(0, Math.floor((Date.parse(answer.expiresAt) - Date.now()) / 1000));
+
+            WriteJson(response, 200, answer, { "cache-control": `public, max-age=${remaining}` });
 
             return;
         }

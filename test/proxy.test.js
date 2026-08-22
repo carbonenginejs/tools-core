@@ -61,6 +61,8 @@ test("serves health without the removed legacy SOF routes", async context =>
             skinr: false,
             skinrStore: false,
             plexRate: false,
+        market: false,
+            market: false,
             identity: false,
             weapons: false,
             map: false,
@@ -486,6 +488,7 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
         skinr: true,
         skinrStore: false,
         plexRate: false,
+        market: false,
         identity: false,
         weapons: true,
         map: true,
@@ -613,6 +616,7 @@ test("serves the combined schema-v9 character document", async context =>
         skinr: false,
         skinrStore: false,
         plexRate: false,
+        market: false,
         identity: false,
         weapons: false,
         map: false,
@@ -802,6 +806,7 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
         skinr: false,
         skinrStore: false,
         plexRate: false,
+        market: false,
         identity: false,
         weapons: false,
         map: false,
@@ -1190,6 +1195,9 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
         // an ESI login, which is why the live hub lost both its ISK and PLEX
         // figures while a developer with a token saw them fine.
         plexRate: true,
+        // Tokenless for the same reason: /markets/{region}/orders is public, so a
+        // service nobody has signed in on still answers prices.
+        market: true,
         // True even unauthenticated, and that is the point of this line: the
         // routes public identity reads need no scope, so a server nobody has
         // signed in on still answers who a character is. It read `false` while

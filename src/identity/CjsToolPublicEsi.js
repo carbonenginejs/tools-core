@@ -60,32 +60,7 @@ export class CjsToolPublicEsi
      */
     async Get(path)
     {
-        const response = await CjsBoundedFetch.request(this.fetch, `${this.root}${path}`, {
-            method: "GET",
-            headers: {
-                accept: "application/json",
-                "x-compatibility-date": this.compatibilityDate,
-            },
-        }, {
-            label: `ESI ${path}`,
-            timeoutMs: this.requestTimeoutMs,
-            maxBytes: this.maxResponseBytes,
-        });
-
-        if (!response.ok)
-        {
-            const error = new Error(`ESI ${path} failed (${response.status})`);
-
-            error.statusCode = response.status === 404 ? 404 : 502;
-            error.upstreamStatus = response.status;
-            throw error;
-        }
-
-        return CjsBoundedFetch.readJson(response, {
-            label: `ESI ${path}`,
-            timeoutMs: this.requestTimeoutMs,
-            maxBytes: this.maxResponseBytes,
-        });
+        return (await this.Read(path)).body;
     }
 
     /**
@@ -103,14 +78,37 @@ export class CjsToolPublicEsi
      */
     async Post(path, body)
     {
+        return (await this.Read(path, { method: "POST", body })).body;
+    }
+
+    /**
+     * A public read, with the response's HEADERS.
+     *
+     * Most callers want the body and nothing else, which is what `Get` and
+     * `Post` are. Market data is the exception and needs two things that only
+     * live in the headers: `x-pages`, because a region's order book does not fit
+     * in one response, and `expires`, because ESI says how long its own answer
+     * stays true and re-asking sooner is rude at best and rate-limited at worst.
+     *
+     * @param {String} path
+     * @param {Object} [options]
+     * @param {String} [options.method]
+     * @param {*} [options.body] - JSON-serialisable, for a POST
+     * @returns {Promise<{body: *, headers: Headers, status: Number}>}
+     */
+    async Read(path, { method = "GET", body = undefined } = {})
+    {
+        const headers = {
+            accept: "application/json",
+            "x-compatibility-date": this.compatibilityDate,
+        };
+
+        if (body !== undefined) headers["content-type"] = "application/json";
+
         const response = await CjsBoundedFetch.request(this.fetch, `${this.root}${path}`, {
-            method: "POST",
-            headers: {
-                accept: "application/json",
-                "content-type": "application/json",
-                "x-compatibility-date": this.compatibilityDate,
-            },
-            body: JSON.stringify(body),
+            method,
+            headers,
+            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         }, {
             label: `ESI ${path}`,
             timeoutMs: this.requestTimeoutMs,
@@ -126,11 +124,15 @@ export class CjsToolPublicEsi
             throw error;
         }
 
-        return CjsBoundedFetch.readJson(response, {
-            label: `ESI ${path}`,
-            timeoutMs: this.requestTimeoutMs,
-            maxBytes: this.maxResponseBytes,
-        });
+        return {
+            body: await CjsBoundedFetch.readJson(response, {
+                label: `ESI ${path}`,
+                timeoutMs: this.requestTimeoutMs,
+                maxBytes: this.maxResponseBytes,
+            }),
+            headers: response.headers,
+            status: response.status,
+        };
     }
 
 }

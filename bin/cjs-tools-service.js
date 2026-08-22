@@ -20,7 +20,7 @@ import {
 } from "../src/index.js";
 import { CjsToolCharacterRepository } from "../src/character/index.js";
 import { CjsToolSkinrStore } from "../src/skin/index.js";
-import { CjsToolPlexRate } from "../src/market/index.js";
+import { CjsToolMarket, CjsToolPlexRate } from "../src/market/index.js";
 import { CjsToolPublicEsi, CjsToolPublicIdentity } from "../src/identity/index.js";
 import { CjsToolEsiClient, CjsToolEveSso, CjsToolTokenFile } from "../src/auth/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
@@ -159,6 +159,9 @@ async function main()
         // the estimate and the price it sits beside - while a developer with a
         // token saw them fine.
         plexRate: new CjsToolPlexRate({ esi: new CjsToolPublicEsi() }),
+        // Regional order books. Tokenless like the rest: /markets/{region}/orders
+        // is public, so a service nobody has logged into still answers prices.
+        market: new CjsToolMarket({ esi: new CjsToolPublicEsi() }),
         // Always the TOKENLESS reader. The routes it needs are public, and
         // preferring the authenticated client whenever one exists made the
         // feature worse rather than better: a deployment with a client id but no
