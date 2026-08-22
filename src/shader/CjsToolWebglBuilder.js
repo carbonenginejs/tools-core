@@ -4,8 +4,8 @@ import { CjsToolShaderBuilder } from "./CjsToolShaderBuilder.js";
 export class CjsToolWebglBuilder extends CjsToolShaderBuilder
 {
 
-    /** Written into every report and overlay this builder produces. */
-    static builderId = "CjsToolWebglBuilder";
+    /** Written as `_type` into every report and overlay this builder produces. */
+    static className = "CjsToolWebglBuilder";
 
     constructor(options = {})
     {
