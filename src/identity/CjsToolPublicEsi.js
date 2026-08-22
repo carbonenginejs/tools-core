@@ -86,6 +86,51 @@ export class CjsToolPublicEsi
         });
     }
 
+    /**
+     * POSTs to a public ESI path.
+     *
+     * Two of the public routes are POSTs and neither is a write:
+     * `/universe/ids` turns names into ids and `/universe/names` turns ids into
+     * names, both taking a LIST so a caller can ask about several things in one
+     * request. They are POSTs because the question is a body, not because they
+     * change anything.
+     *
+     * @param {String} path - e.g. "/universe/ids"
+     * @param {*} body - JSON-serialisable
+     * @returns {Promise<Object|Array>}
+     */
+    async Post(path, body)
+    {
+        const response = await CjsBoundedFetch.request(this.fetch, `${this.root}${path}`, {
+            method: "POST",
+            headers: {
+                accept: "application/json",
+                "content-type": "application/json",
+                "x-compatibility-date": this.compatibilityDate,
+            },
+            body: JSON.stringify(body),
+        }, {
+            label: `ESI ${path}`,
+            timeoutMs: this.requestTimeoutMs,
+            maxBytes: this.maxResponseBytes,
+        });
+
+        if (!response.ok)
+        {
+            const error = new Error(`ESI ${path} failed (${response.status})`);
+
+            error.statusCode = response.status === 404 ? 404 : 502;
+            error.upstreamStatus = response.status;
+            throw error;
+        }
+
+        return CjsBoundedFetch.readJson(response, {
+            label: `ESI ${path}`,
+            timeoutMs: this.requestTimeoutMs,
+            maxBytes: this.maxResponseBytes,
+        });
+    }
+
 }
 
 export default CjsToolPublicEsi;

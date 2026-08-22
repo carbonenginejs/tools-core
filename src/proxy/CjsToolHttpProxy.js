@@ -312,6 +312,61 @@ export class CjsToolHttpProxy
             return;
         }
 
+        // Who somebody is, from what a reader typed.
+        //
+        // The route beneath this one answers when you already have an id. This
+        // one answers when what you have is a NAME, which is the question every
+        // "who am I flying for" field actually asks - and the reason it belongs
+        // here rather than in each consumer is that the two hard parts are not
+        // obvious: `/universe/ids` matches case-sensitively, and an id is just a
+        // number so only its category says what kind of thing it is.
+        if (request.method === "GET" && url.pathname === "/v1/identity/resolve")
+        {
+            if (!this.identity)
+            {
+                WriteJson(response, 501, { error: "No identity service configured" });
+
+                return;
+            }
+
+            const term = url.searchParams.get("q") ?? "";
+            const kind = url.searchParams.get("kind") ?? "";
+
+            let answer = null;
+
+            try
+            {
+                answer = await this.identity.Resolve({ term, kind });
+            }
+            catch (error)
+            {
+                // An unknown kind is the caller's mistake, and saying so is more
+                // use than a 502 that blames CCP.
+                if (error instanceof TypeError)
+                {
+                    WriteJson(response, 400, { error: error.message });
+
+                    return;
+                }
+
+                throw error;
+            }
+
+            if (!answer)
+            {
+                // Nothing of that kind is called that. A 404 rather than an empty
+                // record, so a consumer cannot mistake "no such pilot" for "a
+                // pilot with no name".
+                WriteJson(response, 404, { error: `No ${kind} matches`, kind, term });
+
+                return;
+            }
+
+            WriteJson(response, 200, answer);
+
+            return;
+        }
+
         // Public character identity. Under `/v1/` for the same reason as the
         // SKINR store: who somebody is has nothing to do with a client build.
         if (request.method === "GET" && url.pathname.startsWith("/v1/identity/characters/"))
