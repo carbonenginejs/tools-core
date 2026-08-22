@@ -1,5 +1,19 @@
 /**
- * The regional order book, and what a type has been trading at.
+ * The regional order book from ESI, and what a type has been trading at.
+ *
+ * ## Why the name ends in `Esi`
+ *
+ * Because "market" is two different things in this package and they must not
+ * share a name. The static export carries `marketGroups` and a `marketGroupID`
+ * on every type — the browse TREE, offline, versioned with a build, and already
+ * read by `CjsToolWeaponBuilder`. This is the other one: live prices from a
+ * network service, with expiry, paging and upstream failure.
+ *
+ * A bare `CjsToolMarket` would have claimed the family name for one of the two,
+ * and the offline half is the one a future `CjsToolMarketGroups` will want to
+ * sit beside. `CjsTool + family + role + specialization` is the package's own
+ * rule, so the source goes last: the family is Market and ESI is which market
+ * this is, exactly as `CjsToolShaderBuilderWebgl` is which shader builder.
  *
  * A market question is a question about EVE, not about whichever tool is
  * asking it, so it belongs here rather than in a consumer. It was written
@@ -51,7 +65,7 @@ const PAGE_SIZE = 1000;
 /** More pages than any real order book, so a broken `x-pages` cannot spin. */
 const MAX_PAGES = 40;
 
-export class CjsToolMarket
+export class CjsToolMarketEsi
 {
 
     #esi;
@@ -306,4 +320,4 @@ function Numeric(value, what)
     return number;
 }
 
-export default CjsToolMarket;
+export default CjsToolMarketEsi;
