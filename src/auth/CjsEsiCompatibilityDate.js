@@ -11,10 +11,11 @@
  * character name resolved anywhere until 2026-08-19, and nothing in the failure
  * said what was wrong with it.
  *
- * Three defaults in two repositories is three chances to make that mistake
- * again, and the one that is wrong will not be the one anybody is looking at:
- * before this existed, the two clients here pinned 2026-08-18 while skindr's
- * server and its market service pinned 2026-08-14, and nothing knew.
+ * Every default is another chance to make that mistake, and the one that is
+ * wrong will not be the one anybody is looking at. Before this existed the
+ * two clients here agreed with each other and disagreed with a consumer that
+ * had written its own — for weeks, silently, because both dates were in the
+ * past and both therefore worked.
  *
  * ## Moving it
  *

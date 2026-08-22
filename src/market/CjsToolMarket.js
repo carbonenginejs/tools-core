@@ -1,17 +1,21 @@
 /**
  * The regional order book, and what a type has been trading at.
  *
- * A market question is a question about EVE, not about whichever site is
- * asking it. This lived in skindr because that is where somebody first needed
- * a price, and it stayed there long enough that the SKINR costing — which is
- * the same question with a shopping list in front of it — could not move here
- * without it (operator, 2026-08-22: tools-core should own a market endpoint).
+ * A market question is a question about EVE, not about whichever tool is
+ * asking it, so it belongs here rather than in a consumer. It was written
+ * downstream first, which is the usual way round: somebody needs a price
+ * before anybody needs a market layer.
+ *
+ * The cost of leaving it there is what settled it. Anything that prices a
+ * BUNDLE of types — a fitting, a set of components, a build — is the same
+ * question with a shopping list in front of it, and cannot be written here
+ * while the order book lives somewhere else.
  *
  * ## What this owns, and what it does not
  *
  * It owns the ESI-facing half: paging, the wire shape, resolving the ids in an
  * order to names, and honouring how long ESI says its own answer stays true.
- * It does not own presentation, sorting, chart geometry, or what a website
+ * It does not own presentation, sorting, chart geometry, or what a consumer
  * decides to do while it waits.
  *
  * ## Two things about the wire that are easy to get wrong
