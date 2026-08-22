@@ -16,6 +16,7 @@ import {
     CjsToolHttpProxy,
     CjsToolIndex,
     CjsToolTargetRegistry,
+    ESI_COMPATIBILITY_DATE,
 } from "../src/index.js";
 import { CjsToolCharacter } from "../src/character/index.js";
 import { CreateCharacterDocuments } from "./character-library-fixture.js";
@@ -70,6 +71,10 @@ test("serves health without the removed legacy SOF routes", async context =>
             sofCatalog: false,
             auth: false,
         },
+        // Reported so a consumer that also calls ESI can agree with this service
+        // rather than pinning its own date - the failure that guards against is
+        // silent and total. See CjsEsiCompatibilityDate.
+        esiCompatibilityDate: ESI_COMPATIBILITY_DATE,
     });
 
     for (const route of [ "/v1/sof/values", "/v1/sof/document" ])

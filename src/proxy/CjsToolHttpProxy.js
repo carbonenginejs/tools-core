@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import http from "node:http";
 
+import { ESI_COMPATIBILITY_DATE } from "../auth/CjsEsiCompatibilityDate.js";
 import { CjsToolEveSso } from "../auth/CjsToolEveSso.js";
 import { CjsToolBlack } from "../black/CjsToolBlack.js";
 import { CjsIndexAnswerCatalog } from "../indexing/CjsIndexAnswerCatalog.js";
@@ -284,6 +285,14 @@ export class CjsToolHttpProxy
                 protocol: TOOLS_SERVICE_PROTOCOL,
                 protocolVersion: TOOLS_SERVICE_PROTOCOL_VERSION,
                 capabilities: this.capabilities,
+                // The ESI pin this service talks to CCP with.
+                //
+                // Reported so a consumer that also calls ESI can agree with us
+                // rather than declaring its own: the failure it prevents is
+                // silent and total - a date in the FUTURE is rejected on every
+                // route, and this package shipped one for weeks without
+                // resolving a single name.
+                esiCompatibilityDate: ESI_COMPATIBILITY_DATE,
             });
 
             return;

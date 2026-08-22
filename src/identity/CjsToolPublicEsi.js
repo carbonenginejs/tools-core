@@ -1,5 +1,7 @@
 import { CjsBoundedFetch } from "../internal/CjsBoundedFetch.js";
 
+import { ESI_COMPATIBILITY_DATE } from "../auth/CjsEsiCompatibilityDate.js";
+
 const ESI_ROOT = "https://esi.evetech.net";
 
 /**
@@ -32,7 +34,7 @@ export class CjsToolPublicEsi
      *   and it must be a date that has already passed; see `CjsToolEsiClient`.
      */
     constructor({
-        compatibilityDate = "2026-08-18",
+        compatibilityDate = ESI_COMPATIBILITY_DATE,
         root = ESI_ROOT,
         fetch: fetchImplementation = globalThis.fetch,
         requestTimeoutMs = 20000,
