@@ -333,6 +333,7 @@ test("audio repository opens the prepared exact-build library and index source",
 
     context.after(() => fs.rm(directory, { force: true, recursive: true }));
     await cache.WriteCustomLibrary({
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: "123",
@@ -437,6 +438,7 @@ test("audio repository reads only the v2 artifact", async context =>
 
     context.after(() => fs.rm(directory, { force: true, recursive: true }));
     await cache.WriteCustomLibrary({
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: "123",
@@ -465,6 +467,7 @@ test("audio repository reads only the v2 artifact", async context =>
     );
 
     await cache.WriteCustomLibrary({
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: "123",

@@ -1,9 +1,9 @@
-import { CjsToolIndexProvider, normalizeBuildReference } from "./CjsToolIndexProvider.js";
+import { CjsToolIndexTargetProfile, normalizeBuildReference } from "./CjsToolIndexTargetProfile.js";
 import { CjsToolBoundedFetch } from "../internal/CjsToolBoundedFetch.js";
 import * as utils from "../utils.js";
 
 /**
- * Resolves an exact build or provider channel to one exact remote build.
+ * Resolves an exact build or target client to one exact remote build.
  */
 export class CjsToolIndexBuildResolver
 {
@@ -50,38 +50,39 @@ export class CjsToolIndexBuildResolver
     }
 
     /**
-     * Resolves an exact build, latest build, or provider client to one exact build.
+     * Resolves an exact build, latest build, or target client to one exact build.
      */
-    async Resolve(providerValue, buildValue, clientValue = null)
+    async Resolve(profileValue, buildValue, clientValue = null)
     {
-        const provider = CjsToolIndexProvider.from(providerValue);
-        const buildRef = normalizeBuildReference(buildValue ?? provider.defaultBuildRef);
+        const profile = CjsToolIndexTargetProfile.from(profileValue);
+        const buildRef = normalizeBuildReference(buildValue ?? profile.defaultBuildRef);
         const clientRef = clientValue === null || clientValue === undefined
             ? null
             : normalizeBuildReference(clientValue);
 
         if (buildRef === "latest")
         {
-            return this.#ResolveCached(provider, clientRef, () =>
+            return this.#ResolveCached(profile, clientRef, () =>
             {
                 if (clientRef)
                 {
-                    const client = resolveClient(provider, clientRef);
+                    const client = resolveClient(profile, clientRef);
 
-                    return this.#ResolveClient(provider, client, buildRef);
+                    return this.#ResolveClient(profile, client, buildRef);
                 }
 
-                return this.#ResolveLatest(provider, buildRef);
+                return this.#ResolveLatest(profile, buildRef);
             });
         }
 
         if (utils.isExactBuild(buildRef))
         {
-            const client = clientRef ? resolveClient(provider, clientRef) : null;
+            const client = clientRef ? resolveClient(profile, clientRef) : null;
 
             return utils.freezeData({
-                game: provider.game,
-                provider: provider.id,
+                target: profile.target,
+                game: profile.game,
+                provider: profile.provider,
                 buildRef,
                 build: buildRef,
                 client: client?.id ?? null,
@@ -97,12 +98,13 @@ export class CjsToolIndexBuildResolver
             throw new Error("Use either a client option or a friendly build reference, not both");
         }
 
-        const client = resolveClient(provider, buildRef);
+        const client = resolveClient(profile, buildRef);
 
-        return this.#ResolveClient(provider, client, buildRef);
+        return this.#ResolveClient(profile, client, buildRef);
     }
 
-    #ResolveCached(provider, clientRef, resolver)
+    /** Selects the cached result from available exact-build index evidence. */
+    #ResolveCached(profile, clientRef, resolver)
     {
         const now = Number(this.#now());
 
@@ -111,7 +113,7 @@ export class CjsToolIndexBuildResolver
             throw new TypeError("CjsToolIndexBuildResolver now returned an invalid time");
         }
 
-        const key = `${provider.game}\0${provider.id}\0${clientRef ?? "*"}`;
+        const key = `${profile.target}\0${clientRef ?? "*"}`;
         const cached = this.#latest.get(key);
 
         if (cached && cached.expiresAt > now)
@@ -119,7 +121,7 @@ export class CjsToolIndexBuildResolver
             return cached.value;
         }
 
-        const ttl = provider.game.toLowerCase() === "eve" && provider.id === "ccp"
+        const ttl = profile.target === "eve"
             ? utils.getEveLatestBuildCacheTTL(now)
             : 5 * 60 * 1000;
         const value = Promise.resolve().then(resolver);
@@ -138,27 +140,28 @@ export class CjsToolIndexBuildResolver
     }
 
     /**
-     * Resolves the highest numeric build exposed by any provider client.
+     * Resolves the highest numeric build exposed by any target client.
      */
-    async #ResolveLatest(provider, buildRef)
+    async #ResolveLatest(profile, buildRef)
     {
-        const clients = Object.values(provider.clients);
+        const clients = Object.values(profile.clients);
 
         if (!clients.length)
         {
-            throw new Error(`Provider ${provider.id} has no clients for latest`);
+            throw new Error(`Target ${profile.target} has no clients for latest`);
         }
 
         const candidates = await Promise.all(
-            clients.map((client) => this.#ReadClientMetadata(provider, client)),
+            clients.map((client) => this.#ReadClientMetadata(profile, client)),
         );
         candidates.sort((left, right) => compareBuilds(right.build, left.build));
 
         const latest = candidates[0];
 
         return utils.freezeData({
-            game: provider.game,
-            provider: provider.id,
+            target: profile.target,
+            game: profile.game,
+            provider: profile.provider,
             buildRef,
             build: latest.build,
             client: latest.client.id,
@@ -170,15 +173,16 @@ export class CjsToolIndexBuildResolver
     }
 
     /**
-     * Resolves one named provider client to its exact remote build.
+     * Resolves one named target client to its exact remote build.
      */
-    async #ResolveClient(provider, client, buildRef)
+    async #ResolveClient(profile, client, buildRef)
     {
-        const candidate = await this.#ReadClientMetadata(provider, client);
+        const candidate = await this.#ReadClientMetadata(profile, client);
 
         return utils.freezeData({
-            game: provider.game,
-            provider: provider.id,
+            target: profile.target,
+            game: profile.game,
+            provider: profile.provider,
             buildRef,
             build: candidate.build,
             client: candidate.client.id,
@@ -190,12 +194,12 @@ export class CjsToolIndexBuildResolver
     }
 
     /**
-     * Reads and validates the metadata document for one provider client.
+     * Reads and validates the metadata document for one target client.
      */
-    async #ReadClientMetadata(provider, client)
+    async #ReadClientMetadata(profile, client)
     {
         const metadataUrl = utils.joinUrl(
-            provider.remote.metadataBaseUrl,
+            profile.remote.metadataBaseUrl,
             `eveclient_${client.metadataToken}.json`,
         );
         const response = await CjsToolBoundedFetch.request(
@@ -234,13 +238,13 @@ function parseRemoteBuild(metadata)
     });
 }
 
-function resolveClient(provider, value)
+function resolveClient(profile, value)
 {
-    const client = provider.ResolveClient(value);
+    const client = profile.ResolveClient(value);
 
     if (!client)
     {
-        throw new Error(`Unknown client for ${provider.id}: ${value}`);
+        throw new Error(`Unknown client for ${profile.target}: ${value}`);
     }
 
     return client;

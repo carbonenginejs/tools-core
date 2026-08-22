@@ -32,6 +32,10 @@ export class CjsToolSdeRepository
 
     #targets;
 
+    /**
+     * Creates a SDE repository sde repository from caller-supplied
+     * configuration.
+     */
     constructor(options = {})
     {
         this.#archive = options.archive ?? new CjsToolSdeArchive();
@@ -45,12 +49,12 @@ export class CjsToolSdeRepository
         // older build possible at all.
         this.autoPrepare = options.autoPrepare !== false;
         this.version = NormalizeVersion(options.version ?? "v1");
-        // Which providers have an acquisition channel of their own. The archive
-        // answers for those; a provider absent here has no channel to acquire
-        // from and can only be answered by a database already prepared on disk,
-        // however it was built.
+        // Acquisition is selected by target. Provider remains provenance
+        // metadata and must never decide which remote or preparer is used.
+        // A target absent here can only be answered by a database already
+        // prepared on disk, however it was built.
         this.#preparers = new Map(Object.entries(
-            options.preparers ?? { ccp: this.#archive },
+            options.preparers ?? { eve: this.#archive },
         ));
 
         if (!(this.#cache instanceof CjsToolCache))
@@ -157,10 +161,10 @@ export class CjsToolSdeRepository
     /**
      * Selects a target's own SDE when it has one, before any borrowing.
      *
-     * A target whose provider has an acquisition channel always goes through
+     * A target with an acquisition channel always goes through
      * that channel, so nothing here changes for it. A target without one can
-     * still have a database on disk under its own game and provider, prepared
-     * by hand. When it does, that database is the answer, because a target
+     * still have a database on disk under its own target root, prepared by
+     * hand. When it does, that database is the answer, because a target
      * declaring another target as its topic source is stating a fallback, not
      * a preference: borrowed data is the least-wrong answer available, never
      * the right one.
@@ -181,7 +185,7 @@ export class CjsToolSdeRepository
     {
         const requested = this.#targets.RequireTopic(targetValue, "sde");
 
-        if (this.#preparers.has(requested.provider))
+        if (this.#preparers.has(requested.id))
         {
             return null;
         }
@@ -245,9 +249,14 @@ export class CjsToolSdeRepository
         }
     }
 
+    /**
+     * Coordinates SDE repository open behavior against current immutable source
+     * evidence.
+     */
     async #Open(resolution)
     {
         const databasePath = this.#cache.GetCustomPath({
+            target: resolution.target,
             game: resolution.game,
             provider: resolution.provider,
             build: resolution.build,
@@ -255,12 +264,10 @@ export class CjsToolSdeRepository
             version: this.version,
             extension: "sqlite",
         });
-        // Only a provider with its own channel may be auto-prepared. Without
-        // this guard a request for a provider with nothing on disk would
-        // acquire another provider's archive and write it into the requesting
-        // provider's path, producing a file whose location claims one provider
-        // and whose contents are another's.
-        const preparer = this.#preparers.get(resolution.provider) ?? null;
+        // Only a target with its own channel may be auto-prepared. Without this
+        // guard a request for a target with nothing on disk could acquire a
+        // different target's archive and write it under the requesting target.
+        const preparer = this.#preparers.get(resolution.target) ?? null;
         let database;
 
         if (await FileExists(databasePath))
@@ -342,8 +349,8 @@ export class CjsToolSdeRepository
             const error = new Error(
                 preparer
                     ? `EVE SDE build ${resolution.build} is not prepared; run cjs-sde-prepare`
-                    : `No ${resolution.provider} SDE is prepared for build ${resolution.build}; `
-                        + `${resolution.provider} has no acquisition channel, so one must be `
+                    : `No ${resolution.target} SDE is prepared for build ${resolution.build}; `
+                        + `${resolution.target} has no acquisition channel, so one must be `
                         + "generated and placed on disk",
             );
 
@@ -382,6 +389,7 @@ export class CjsToolSdeRepository
     async #PreparedBuild(identity, build)
     {
         const databasePath = this.#cache.GetCustomPath({
+            target: identity.target ?? identity.id,
             game: identity.game,
             provider: identity.provider,
             build,
@@ -412,10 +420,11 @@ export class CjsToolSdeRepository
     {
         // Derived from the cache rather than rebuilt here. This directory was
         // spelled out a second time and drifted the moment the layout changed
-        // from game/provider to target; asking the cache for a path inside it
+        // to target; asking the cache for a path inside it
         // keeps one owner for the shape.
         const buildsDirectory = path.dirname(path.dirname(this.#cache.GetCustomPath({
             ...identity,
+            target: identity.target ?? identity.id,
             build: PLACEHOLDER_BUILD,
             name: "sde",
             version: this.version,
@@ -472,6 +481,7 @@ export class CjsToolSdeSource
 
     #dnaIndex;
 
+    /** Creates a SDE repository sde source from caller-supplied configuration. */
     constructor(database, resolution)
     {
         this.#database = database;
@@ -559,6 +569,7 @@ export class CjsToolSdeSource
         await this.#database.Close();
     }
 
+    /** Returns the identity value selected from current SDE repository state. */
     async #GetIdentity()
     {
         if (!this.#identity)

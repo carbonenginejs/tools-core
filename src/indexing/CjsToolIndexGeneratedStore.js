@@ -55,7 +55,7 @@ export class CjsToolIndexGeneratedStore
         for (const entry of entries)
         {
             const cached = await this.#cache.ReadPayload(
-                provider,
+                target,
                 "res",
                 entry.location,
             );
@@ -115,13 +115,13 @@ export class CjsToolIndexGeneratedStore
         };
 
         await this.#cache.WriteIndex(
-            game,
-            provider,
+            target,
             build,
             indexFile,
             indexBytes,
         );
         await this.#cache.cache.WriteCustom({
+            target,
             game,
             provider,
             build,
@@ -167,8 +167,7 @@ export class CjsToolIndexGeneratedStore
         for (const descriptor of Object.values(manifest.groups))
         {
             const cached = await this.#cache.ReadIndex(
-                game,
-                provider,
+                target,
                 build,
                 descriptor.indexFile,
             );
@@ -233,6 +232,7 @@ export class CjsToolIndexGeneratedStore
     async #ReadManifest(identity)
     {
         const manifestPath = this.#cache.cache.GetCustomPath({
+            target: identity.target,
             game: identity.game,
             provider: identity.provider,
             build: identity.build,

@@ -2,15 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
     CjsToolIndexBuildResolver,
-    CjsToolIndexProvider,
-    CjsToolIndexProviderRegistry,
+    CjsToolIndexTargetProfile,
+    CjsToolIndexTargetProfileRegistry,
     CjsToolIndex,
-    DefaultProviderData,
+    DefaultIndexProfileData,
 } from "../../src/index.js";
 
-const Provider = Object.freeze({
+const Profile = Object.freeze({
+    target: "test",
     game: "Eve",
-    id: "test",
+    provider: "synthetic",
     defaultBuildRef: "latest",
     remote: Object.freeze({
         metadataBaseUrl: "https://metadata.test",
@@ -49,7 +50,7 @@ test("returns a friendly build's complete app/res index graph", async () =>
         ].join("\n")),
         "https://app.test/dd/linux": textResponse(row("res:/linux.red", "linux/source")),
     });
-    const source = await createReader(fetch).Open({ provider: "test", build: "latest" });
+    const source = await createReader(fetch).Open({ target: "test", build: "latest" });
 
     assert.equal(source.game, "Eve");
     assert.equal(source.buildRef, "latest");
@@ -101,7 +102,7 @@ test("resolves latest inside the requested client only", async () =>
         "https://indexes.test/eveonline_42.txt": textResponse(row("app:/bin/file.bin", "app/file")),
     }, requests);
     const source = await createReader(fetch).Open({
-        provider: "test",
+        target: "test",
         client: "live",
         build: "latest",
     });
@@ -122,7 +123,7 @@ test("caches latest metadata and refreshes it after the deployment-window TTL", 
     // interval is five minutes. Outside it the resolver waits hours, which is
     // the whole point of the schedule.
     let now = Date.parse("2026-07-20T11:10:00Z");
-    const provider = new CjsToolIndexProvider({ ...Provider, id: "ccp" });
+    const profile = new CjsToolIndexTargetProfile({ ...Profile, target: "eve", provider: "ccp" });
     const resolver = new CjsToolIndexBuildResolver({
         now: () => now,
         fetch: createFetch({
@@ -131,12 +132,12 @@ test("caches latest metadata and refreshes it after the deployment-window TTL", 
         }, requests),
     });
 
-    assert.equal((await resolver.Resolve(provider, "latest")).build, "43");
-    assert.equal((await resolver.Resolve(provider, "latest")).build, "43");
+    assert.equal((await resolver.Resolve(profile, "latest")).build, "43");
+    assert.equal((await resolver.Resolve(profile, "latest")).build, "43");
     assert.equal(requests.length, 2);
 
     now += 5 * 60 * 1000;
-    assert.equal((await resolver.Resolve(provider, "latest")).build, "43");
+    assert.equal((await resolver.Resolve(profile, "latest")).build, "43");
     assert.equal(requests.length, 4);
 });
 
@@ -147,7 +148,7 @@ test("uses exact builds without fetching channel metadata", async () =>
         "https://indexes.test/eveonline_77.txt": textResponse(row("app:/bin/file.bin", "app/file")),
     }, requests);
     const source = await createReader(fetch).Open({
-        provider: "test",
+        target: "test",
         build: 77,
     });
 
@@ -167,19 +168,19 @@ test("bounds index metadata and streamed index response work", async () =>
     });
 
     await assert.rejects(
-        resolver.Resolve(new CjsToolIndexProvider(Provider), "latest", "live"),
+        resolver.Resolve(new CjsToolIndexTargetProfile(Profile), "latest", "live"),
         error => error.code === "request_timeout",
     );
 
     const tool = new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
         fetch: async () => streamResponse("123456789"),
         cache: null,
         maxIndexBytes: 8,
     });
 
     await assert.rejects(
-        tool.Open({ provider: "test", build: "77" }),
+        tool.Open({ target: "test", build: "77" }),
         error => error.code === "response_too_large",
     );
 });
@@ -196,12 +197,12 @@ test("bounds streamed resource payloads before cache validation", async () =>
         return streamResponse("12345");
     };
     const tool = new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
         fetch,
         cache: null,
         maxPayloadBytes: 4,
     });
-    const source = await tool.Open({ provider: "test", build: "77" });
+    const source = await tool.Open({ target: "test", build: "77" });
 
     await assert.rejects(
         source.Read("app:/bin/file.bin"),
@@ -209,16 +210,16 @@ test("bounds streamed resource payloads before cache validation", async () =>
     );
 });
 
-test("built-in latest is not a client alias and a Chinese provider owns exactly one client", () =>
+test("built-in latest is not a client alias and each Chinese target owns exactly one client", () =>
 {
-    const ccp = new CjsToolIndexProvider(DefaultProviderData.find(
-        (provider) => provider.game === "Eve" && provider.id === "ccp",
+    const ccp = new CjsToolIndexTargetProfile(DefaultIndexProfileData.find(
+        (profile) => profile.target === "eve",
     ));
-    const infinity = new CjsToolIndexProvider(DefaultProviderData.find(
-        (provider) => provider.id === "infinity",
+    const infinity = new CjsToolIndexTargetProfile(DefaultIndexProfileData.find(
+        (profile) => profile.target === "infinity",
     ));
-    const serenity = new CjsToolIndexProvider(DefaultProviderData.find(
-        (provider) => provider.id === "serenity",
+    const serenity = new CjsToolIndexTargetProfile(DefaultIndexProfileData.find(
+        (profile) => profile.target === "serenity",
     ));
 
     assert.equal(ccp.ResolveClient("latest"), null);
@@ -226,18 +227,18 @@ test("built-in latest is not a client alias and a Chinese provider owns exactly 
     assert.equal(infinity.ResolveClient("latest"), null);
     assert.equal(infinity.ResolveClient("tq"), null);
     assert.equal(infinity.ResolveClient("infinity").id, "infinity");
-    // The split is the assertion: neither Chinese provider can answer for the
+    // The split is the assertion: neither Chinese target can answer for the
     // other, so `latest` on one can never resolve to the other's build.
     assert.equal(infinity.ResolveClient("serenity"), null);
     assert.equal(serenity.ResolveClient("infinity"), null);
     assert.equal(serenity.ResolveClient("serenity").id, "serenity");
 });
 
-test("registers one provider independently for Eve and Frontier and resolves Frontier latest metadata", async () =>
+test("registers independent target profiles for Eve and Frontier and resolves Frontier latest metadata", async () =>
 {
-    const registry = new CjsToolIndexProviderRegistry();
-    const eve = registry.Get("ccp", "Eve");
-    const frontier = registry.Get("ccp", "Frontier");
+    const registry = new CjsToolIndexTargetProfileRegistry();
+    const eve = registry.Get("eve");
+    const frontier = registry.Get("frontier");
 
     assert.equal(eve.game, "Eve");
     assert.equal(frontier.game, "Frontier");
@@ -271,7 +272,7 @@ test("registers one provider independently for Eve and Frontier and resolves Fro
 test("rejects separate client and friendly build references", async () =>
 {
     await assert.rejects(
-        () => createReader(createFetch({})).Open({ provider: "test", client: "live", build: "preview" }),
+        () => createReader(createFetch({})).Open({ target: "test", client: "live", build: "preview" }),
         /either a client option or a friendly build reference/u,
     );
 });
@@ -286,7 +287,7 @@ test("finds extension-only files without layering extension groups", async () =>
         "https://app.test/aa/main": textResponse(row("res:/main.red", "main/source")),
         "https://app.test/bb/windows": textResponse(row("res:/windows.red", "windows/source")),
     });
-    const source = await createReader(fetch).Open({ provider: "test", build: "77" });
+    const source = await createReader(fetch).Open({ target: "test", build: "77" });
 
     assert.equal(
         source.Resolve("res:/windows.red").sourceUrl,
@@ -309,7 +310,7 @@ test("reads app and explicitly selected res payloads as ArrayBuffers", async () 
         "https://app.test/app/file": binaryResponse("app-bytes"),
         "https://res.test/res/file": binaryResponse("res-bytes"),
     });
-    const source = await createReader(fetch).Open({ provider: "test", build: "77" });
+    const source = await createReader(fetch).Open({ target: "test", build: "77" });
     const appBytes = Buffer.from(await source.Read("app:/bin/file.bin"));
     const resBytes = Buffer.from(await source.Read("res:/data/file.bin"));
 
@@ -320,7 +321,7 @@ test("reads app and explicitly selected res payloads as ArrayBuffers", async () 
 function createReader(fetch)
 {
     return new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
         fetch,
         cache: null,
     });

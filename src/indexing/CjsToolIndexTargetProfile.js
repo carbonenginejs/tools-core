@@ -1,31 +1,35 @@
-const ProviderIdPattern = /^[a-z0-9][a-z0-9._-]*$/u;
+const IdentityPattern = /^[a-z0-9][a-z0-9._-]*$/u;
 const GameNames = Object.freeze({
     eve: "Eve",
     frontier: "Frontier",
 });
 
 /**
- * Immutable remote-provider configuration.
+ * Immutable remote-acquisition profile selected by target.
+ *
+ * `provider` and `game` are provenance metadata. Only `target` selects this
+ * profile, its clients, endpoints, build metadata, indexes, and cache paths.
  */
-export class CjsToolIndexProvider
+export class CjsToolIndexTargetProfile
 {
 
     #clients;
 
     /**
-     * Creates a validated immutable remote provider profile.
+     * Creates a validated immutable target acquisition profile.
      */
     constructor(data)
     {
         if (!data || typeof data !== "object" || Array.isArray(data))
         {
-            throw new TypeError("Provider profile must be an object");
+            throw new TypeError("Index target profile must be an object");
         }
 
+        this.target = normalizeIndexTargetId(data.target);
         this.game = normalizeGame(data.game ?? "Eve");
         this.gameId = this.game.toLowerCase();
-        this.id = normalizeProviderId(data.id);
-        this.label = normalizeOptionalString(data.label) ?? this.id;
+        this.provider = normalizeProviderId(data.provider);
+        this.label = normalizeOptionalString(data.label) ?? this.target;
         this.defaultBuildRef = normalizeBuildReference(data.defaultBuildRef ?? "latest");
         this.remote = normalizeRemote(data.remote);
         this.#clients = normalizeClients(data.clients ?? data.versions ?? {});
@@ -37,7 +41,7 @@ export class CjsToolIndexProvider
     }
 
     /**
-     * Resolves a provider client name, metadata token, or alias.
+     * Resolves a target client name, metadata token, or alias.
      */
     ResolveClient(value)
     {
@@ -55,13 +59,14 @@ export class CjsToolIndexProvider
     }
 
     /**
-     * Serializes the provider without its private lookup map.
+     * Serializes the profile without its private lookup map.
      */
     toJSON()
     {
         return {
+            target: this.target,
             game: this.game,
-            id: this.id,
+            provider: this.provider,
             label: this.label,
             defaultBuildRef: this.defaultBuildRef,
             remote: this.remote,
@@ -78,7 +83,7 @@ export class CjsToolIndexProvider
     }
 
     /**
-     * Normalizes an existing provider or provider-shaped object.
+     * Normalizes an existing profile or target-profile-shaped object.
      */
     static from(value)
     {
@@ -130,9 +135,22 @@ export function normalizeProviderId(value)
 {
     const id = normalizeOptionalString(value)?.toLowerCase();
 
-    if (!id || !ProviderIdPattern.test(id))
+    if (!id || !IdentityPattern.test(id))
     {
         throw new TypeError(`Invalid provider id: ${value}`);
+    }
+
+    return id;
+}
+
+/** Normalizes the unique identity used to select an acquisition profile. */
+export function normalizeIndexTargetId(value)
+{
+    const id = normalizeOptionalString(value)?.toLowerCase();
+
+    if (!id || !IdentityPattern.test(id))
+    {
+        throw new TypeError(`Invalid index target id: ${value}`);
     }
 
     return id;
@@ -142,7 +160,7 @@ function normalizeRemote(value)
 {
     if (!value || typeof value !== "object" || Array.isArray(value))
     {
-        throw new TypeError("Provider remote configuration must be an object");
+        throw new TypeError("Index target remote configuration must be an object");
     }
 
     return Object.freeze({
@@ -159,14 +177,14 @@ function normalizeRemoteUrl(value, name)
 
     if (!text)
     {
-        throw new TypeError(`Provider remote.${name} is required`);
+        throw new TypeError(`Index target remote.${name} is required`);
     }
 
     const url = new URL(text);
 
     if (url.protocol !== "https:" && url.protocol !== "http:")
     {
-        throw new TypeError(`Provider remote.${name} must use HTTP(S)`);
+        throw new TypeError(`Index target remote.${name} must use HTTP(S)`);
     }
 
     return url.toString().replace(/\/$/u, "");
@@ -176,7 +194,7 @@ function normalizeClients(value)
 {
     if (!value || typeof value !== "object" || Array.isArray(value))
     {
-        throw new TypeError("Provider clients must be an object");
+        throw new TypeError("Index target clients must be an object");
     }
 
     const clients = new Map();
@@ -187,14 +205,14 @@ function normalizeClients(value)
 
         if (!rawClient || typeof rawClient !== "object" || Array.isArray(rawClient))
         {
-            throw new TypeError(`Provider client ${id} must be an object`);
+            throw new TypeError(`Target client ${id} must be an object`);
         }
 
         const metadataToken = normalizeOptionalString(rawClient.metadataToken);
 
         if (!metadataToken)
         {
-            throw new TypeError(`Provider client ${id} requires metadataToken`);
+            throw new TypeError(`Target client ${id} requires metadataToken`);
         }
 
         // The folder this client installs into, under whatever root the

@@ -5,11 +5,11 @@ import path from "node:path";
 import process from "node:process";
 import {
     CjsToolIndexCache,
-    CjsToolIndexProvider,
-    CjsToolIndexProviderRegistry,
+    CjsToolIndexTargetProfile,
+    CjsToolIndexTargetProfileRegistry,
     CjsToolIndex,
     CjsToolTargetRegistry,
-    DefaultProviderData,
+    DefaultIndexProfileData,
     hasPathWildcard,
 } from "../src/index.js";
 import { parseArguments } from "../src/indexing/cli/parseArguments.js";
@@ -39,18 +39,12 @@ async function main()
         return;
     }
 
-    const providers = await createProviderRegistry(args.providerFile);
+    const profiles = await createProfileRegistry(args.profileFile);
     const targets = new CjsToolTargetRegistry();
-    const explicitTarget = args.target ? targets.Resolve({
-        target: args.target,
-        game: args.game,
-        provider: args.provider,
-    }) : null;
-    const game = explicitTarget?.game ?? args.game ?? providers.defaultGame;
-    const provider = explicitTarget?.provider ?? args.provider ?? providers.defaultProvider;
-    const target = explicitTarget ?? targets.Find(game, provider);
-    const build = args.build ?? providers.Get(provider, game).defaultBuildRef;
-    const client = args.client ?? target?.client;
+    const target = targets.Get(args.target ?? profiles.defaultTarget);
+    const profile = profiles.Get(target.id);
+    const build = args.build ?? profile.defaultBuildRef;
+    const client = args.client ?? target.client;
     const cache = args.noCache
         ? null
         : new CjsToolIndexCache({
@@ -58,14 +52,12 @@ async function main()
                 ? path.resolve(String(args.cache))
                 : path.resolve(".cache", "tool-core"),
         });
-    const tool = new CjsToolIndex({ providers, cache });
+    const tool = new CjsToolIndex({ profiles, cache });
 
     if (command === "inspect" || command === "indexes")
     {
         const indexes = await tool.ReadIndexes({
-            target: target?.id,
-            game,
-            provider,
+            target: target.id,
             build,
             client,
         });
@@ -80,9 +72,7 @@ async function main()
     }
 
     const source = await tool.Open({
-        target: target?.id,
-        game,
-        provider,
+        target: target.id,
         build,
         client,
     });
@@ -307,20 +297,20 @@ function summarizeGroup(group)
     };
 }
 
-async function createProviderRegistry(providerFile)
+async function createProfileRegistry(profileFile)
 {
-    if (!providerFile)
+    if (!profileFile)
     {
-        return new CjsToolIndexProviderRegistry();
+        return new CjsToolIndexTargetProfileRegistry();
     }
 
-    const custom = JSON.parse(await fs.readFile(path.resolve(String(providerFile)), "utf8"));
-    const customProfile = new CjsToolIndexProvider(custom);
-    const providers = DefaultProviderData.filter(
-        (provider) => provider.id !== customProfile.id || provider.game !== customProfile.game,
+    const custom = JSON.parse(await fs.readFile(path.resolve(String(profileFile)), "utf8"));
+    const customProfile = new CjsToolIndexTargetProfile(custom);
+    const profiles = DefaultIndexProfileData.filter(
+        (profile) => profile.target !== customProfile.target,
     );
 
-    return new CjsToolIndexProviderRegistry([ ...providers, customProfile ]);
+    return new CjsToolIndexTargetProfileRegistry([ ...profiles, customProfile ]);
 }
 
 function PrintJson(value)
@@ -333,10 +323,10 @@ function printHelp()
     process.stdout.write(`CarbonEngineJS tools-core index\n\n`);
     process.stdout.write(`Inspect:  node bin/cjs-tool-index.js --target:eve --build:latest\n`);
     process.stdout.write(`Frontier: node bin/cjs-tool-index.js --target:frontier --build:latest\n`);
-    process.stdout.write(`Client:   node bin/cjs-tool-index.js --provider:netease --client:infinity --build:latest\n`);
-    process.stdout.write(`Indexes:  node bin/cjs-tool-index.js indexes --provider:ccp --build:latest --out:indexes\n`);
-    process.stdout.write(`File:     node bin/cjs-tool-index.js --provider:ccp --build:latest --res:path/file.dds --out:files\n`);
+    process.stdout.write(`Client:   node bin/cjs-tool-index.js --target:infinity --build:latest\n`);
+    process.stdout.write(`Indexes:  node bin/cjs-tool-index.js indexes --target:eve --build:latest --out:indexes\n`);
+    process.stdout.write(`File:     node bin/cjs-tool-index.js --target:eve --build:latest --res:path/file.dds --out:files\n`);
     process.stdout.write(`Wildcard: node bin/cjs-tool-index.js --res:audio/*.bnk --out:files\n`);
     process.stdout.write(`Regex:    node bin/cjs-tool-index.js --regex:^res:/audio/.+\\.wem$ --out:files\n\n`);
-    process.stdout.write(`Options: --target:name --game:name --provider:name --client:name --index:name --cache:path --concurrency:4 --limit:100 --all --refresh --no-cache\n`);
+    process.stdout.write(`Options: --target:name --client:name --profile-file:path --index:name --cache:path --concurrency:4 --limit:100 --all --refresh --no-cache\n`);
 }

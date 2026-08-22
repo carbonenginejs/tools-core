@@ -20,7 +20,7 @@ test("uses the shared index, ResFiles, and deterministic custom paths", async ()
         path.join(directory, "ResFiles", storagePath)
     );
     assert.equal(
-        cache.GetIndexPath("ccp", 3435006, "resfileindex.txt"),
+        cache.GetIndexPath("eve", 3435006, "resfileindex.txt"),
         path.join(
             directory,
             "targets",
@@ -32,7 +32,7 @@ test("uses the shared index, ResFiles, and deterministic custom paths", async ()
         )
     );
     assert.equal(
-        cache.GetIndexPath("Frontier", "ccp", 3438337, "resfileindex.txt"),
+        cache.GetIndexPath("frontier", 3438337, "resfileindex.txt"),
         path.join(
             directory,
             "targets",
@@ -44,7 +44,7 @@ test("uses the shared index, ResFiles, and deterministic custom paths", async ()
         )
     );
     assert.equal(
-        cache.GetCustomPath({ provider: "ccp", build: 3435006, name: "character", version: "v7" }),
+        cache.GetCustomPath({ target: "eve", build: 3435006, name: "character", version: "v7" }),
         path.join(
             directory,
             "custom",
@@ -57,7 +57,7 @@ test("uses the shared index, ResFiles, and deterministic custom paths", async ()
     );
     assert.equal(
         cache.GetCustomPath({
-            provider: "ccp",
+            target: "eve",
             build: 3435006,
             name: "sde",
             version: "v1",
@@ -87,12 +87,12 @@ test("uses the shared index, ResFiles, and deterministic custom paths", async ()
 test("rejects friendly builds and paths outside the cache", () =>
 {
     const cache = new CjsToolCache("cache");
-    assert.throws(() => cache.GetCustomPath({ provider: "ccp", build: "latest", name: "character" }), /exact build/);
+    assert.throws(() => cache.GetCustomPath({ target: "eve", build: "latest", name: "character" }), /exact build/);
     assert.throws(() => cache.GetRemoteFilePath("../outside"), /storage path/);
     assert.throws(() => cache.GetRemoteFilePath("8f/../outside"), /storage path/);
     assert.throws(
         () => cache.GetCustomPath({
-            provider: "ccp",
+            target: "eve",
             build: 1,
             name: "sde",
             extension: "../sqlite",

@@ -27,8 +27,8 @@ Options:
   --report <file>        Build report output; defaults beside the JSON artifact.
   --build <id>           Exact numeric source build.
   --target <name>        Audited library target; defaults to eve.
-  --game <name>          Optional target game selector.
-  --provider <id>        Optional target provider selector.
+  --game <name>          Optional target game-metadata assertion.
+  --provider <id>        Optional target provider-metadata assertion.
   --generated-at <time>  Optional reproducible generation timestamp.
   --compact              Emit compact library JSON.
   --help, -h             Show this help.

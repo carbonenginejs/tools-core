@@ -285,30 +285,30 @@ Persistent target-specific resource overlays stored outside disposable caches.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsToolIndexProvider -->
-## `CjsToolIndexProvider`
+<!-- class:CjsToolIndexTargetProfile -->
+## `CjsToolIndexTargetProfile`
 
-Immutable remote-provider configuration.
+Immutable target-selected acquisition profile. Game and provider are metadata.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsToolIndexProvider.js`
+- Source: `src/indexing/CjsToolIndexTargetProfile.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsToolIndexProviderRegistry -->
-## `CjsToolIndexProviderRegistry`
+<!-- class:CjsToolIndexTargetProfileRegistry -->
+## `CjsToolIndexTargetProfileRegistry`
 
-Immutable registry of remote provider profiles.
+Immutable registry of target-keyed acquisition profiles.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsToolIndexProviderRegistry.js`
+- Source: `src/indexing/CjsToolIndexTargetProfileRegistry.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
 <!-- class:CjsToolIndexReader -->
 ## `CjsToolIndexReader`
 
-Reads the complete immutable app/res index graph for one provider/build.
+Reads the complete immutable app/res index graph for one target/build.
 
 - Export: `@carbonenginejs/tools-core/index`
 - Source: `src/indexing/CjsToolIndexReader.js`

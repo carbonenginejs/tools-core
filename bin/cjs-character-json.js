@@ -15,8 +15,8 @@ const HELP = `Usage:
 Options:
   --out, -o <file>       Write canonical JSON and a deterministic .json.gz sibling.
   --source-target <name> Audited library target; defaults to eve.
-  --source-game <name>   Optional target game selector.
-  --source-provider <id> Optional target provider selector.
+  --source-game <name>   Optional target game-metadata assertion.
+  --source-provider <id> Optional target provider-metadata assertion.
   --source-build <id>    Exact numeric source build.
   --generated-at <time>  Optional reproducible generation timestamp.
   --compact              Emit compact JSON.

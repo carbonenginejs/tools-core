@@ -22,7 +22,7 @@ of which I did not write and have not read".
 ```sh
 git log --oneline @{u}..              # what is about to go public
 git diff @{u}.. --stat                # the shape of it
-git log -p @{u}.. -- src/ providers/  # the substance
+git log -p @{u}.. -- src/              # the substance
 ```
 
 `git status -s` as well: an unpushed branch and a dirty tree usually mean someone
@@ -36,27 +36,33 @@ from becoming part of your release.
    for. If a commit's provenance is unclear, ask before pushing rather than
    after.
 2. **Credentials and operator data.** Tokens, cookies, session state, `.env`
-   contents, cache paths that name a person's machine. `providers/` and
-   `data.local/` are worth a specific look.
+   contents, cache paths that name a person's machine. `data.local/` is worth
+   a specific look.
 3. **References to private repositories.** Several organization repositories are
    private, and naming one in a comment here publishes the fact that it exists
    and what it does. Three such comments were found and reworded on 2026-08-16;
    the phrasing that replaced them describes the capability instead — "an
    externally generated or custom SDE" rather than the tool that generates one.
 4. **Anything that reads as internal correspondence.** Handover notes, review
-   findings, and interim decisions belong in the private documentation
-   repository. A file that argues it is safe because the npm artifact does not
-   copy it has misunderstood the risk: the repository itself is public.
+   findings, and interim decisions do not belong in this public repository. A
+   file that argues it is safe because the npm artifact does not copy it has
+   misunderstood the risk: the repository itself is public.
 
 ## Publishing
 
-`files` in `package.json` decides the artifact: `bin/`, `docs/`, `providers/`,
-`scripts/`, `src/`, and the three root files. `test/` is not published, but it is
+`files` in `package.json` decides the artifact: `bin/`, `docs/`, `scripts/`,
+`src/`, and the three root files. `test/` is not published, but it is
 still in a public repository, so review it on the same terms.
 
+`prepack` runs the package linter. The linter resolves npm's own dry-run file
+inventory and rejects unreviewed roots, build output, archives, caches,
+dependency trees, agent/tool state, internal documentation markers, and local
+machine paths. The generated Carbon scanner reports under
+`scripts/carbon-blue/reports/` are explicitly excluded from the allowlist.
+
 Below 1.0.0 a caret pins the minor, so `^0.6.0` does not admit 0.7.0. Widening
-the ranges of every in-organization consumer belongs in the same publish, not the
-next one. `../docs/standards/versioning-and-publishing.md` owns that rule.
+the ranges of every in-organization consumer belongs in the same publish, not
+the next one.
 
 ## Related documentation
 

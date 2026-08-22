@@ -24,6 +24,7 @@ test("opens exact and friendly schema-v9 libraries from the shared cache", async
 
     context.after(() => fs.rm(directory, { force: true, recursive: true }));
     await cache.WriteCustomLibrary({
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: "3450001",
@@ -77,6 +78,7 @@ test("rejects the retired character-library envelope", async context =>
 
     context.after(() => fs.rm(directory, { force: true, recursive: true }));
     await cache.WriteCustom({
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: "3450001",
@@ -101,6 +103,7 @@ test("requires matching prepared character-library source identity", async conte
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
     const cache = new CjsToolCache(directory);
     const identity = {
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: "3450001",
@@ -136,6 +139,7 @@ test("rejected artifacts do not poison repository retry", async context =>
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "cjs-character-repository-"));
     const cache = new CjsToolCache(directory);
     const identity = {
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: "3450001",
@@ -174,6 +178,7 @@ test("rejects malformed prepared character-library payloads explicitly", async c
 
     context.after(() => fs.rm(directory, { force: true, recursive: true }));
     await cache.WriteCustom({
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: "3450001",

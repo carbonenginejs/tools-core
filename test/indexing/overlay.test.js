@@ -10,14 +10,15 @@ import {
     CjsToolIndexOverlaySource,
     CjsToolIndexOverlayStore,
     CjsToolIndexCache,
-    CjsToolIndexProviderRegistry,
+    CjsToolIndexTargetProfileRegistry,
     CjsToolIndex,
     CjsToolTargetRegistry,
 } from "../../src/index.js";
 
-const Provider = Object.freeze({
+const Profile = Object.freeze({
+    target: "eve",
     game: "Eve",
-    id: "test",
+    provider: "test",
     defaultBuildRef: "latest",
     remote: Object.freeze({
         metadataBaseUrl: "https://metadata.test",
@@ -37,9 +38,10 @@ const Targets = new CjsToolTargetRegistry([ {
     topics: [ "app", "res" ],
 } ]);
 
-const CrossProvider = Object.freeze({
-    ...Provider,
-    id: "alternate",
+const CrossProfile = Object.freeze({
+    ...Profile,
+    target: "netease",
+    provider: "alternate",
     remote: Object.freeze({
         metadataBaseUrl: "https://alternate-metadata.test",
         indexBaseUrl: "https://alternate-indexes.test",
@@ -108,7 +110,7 @@ test("composes persistent overrides and fallbacks around the official res index"
 
     const requests = [];
     const tool = new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
         targets: Targets,
         overlays: store,
         cache: null,
@@ -246,7 +248,7 @@ test("inherits only explicitly named browser shader overlays across EVE provider
     });
 
     const tool = new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider, CrossProvider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile, CrossProfile ]),
         targets: CrossProviderTargets,
         overlays: store,
         cache: null,
@@ -273,7 +275,7 @@ test("inherits only explicitly named browser shader overlays across EVE provider
     );
 });
 
-test("matches a large composed provider index without overflowing the argument stack", async context =>
+test("matches a large composed target index without overflowing the argument stack", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
     const sourceDirectory = path.join(directory, "source");
@@ -300,7 +302,7 @@ test("matches a large composed provider index without overflowing the argument s
     });
 
     const tool = new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
         targets: Targets,
         overlays: store,
         cache: null,
@@ -387,7 +389,7 @@ test("fetches remote fallback overlays through the disposable shared cache", asy
 
     const requests = [];
     const tool = new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
         targets: Targets,
         overlays: store,
         cache: new CjsToolIndexCache({ directory: path.join(directory, "cache") }),
@@ -432,7 +434,7 @@ test("serves exact-build generated index groups from hash-safe cached payloads",
 
     const requests = [];
     const tool = new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
         targets: Targets,
         cache,
         fetch: createFetch({
@@ -520,7 +522,7 @@ test("keeps concurrent remote overlays with the same locator isolated", async co
 
     const requests = [];
     const tool = new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
         targets: Targets,
         overlays: store,
         cache: null,
@@ -574,7 +576,7 @@ test("rejects overlay names that collide with official indexes", async context =
     });
 
     const tool = new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
         targets: Targets,
         overlays: store,
         cache: null,

@@ -56,6 +56,7 @@ async function Main(argv)
 
     const cache = new CjsToolCache(options.cache);
     const outputPath = cache.GetCustomPath({
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: requestedBuild,

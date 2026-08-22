@@ -210,6 +210,7 @@ test("auto-prepares over an invalid cached SDE database", async context =>
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-sde-recovery-"));
     const cache = new CjsToolCache(directory);
     const databasePath = cache.GetCustomPath({
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: 3435006,
@@ -261,6 +262,7 @@ test("resolves EVE SDE latest and refuses it to targets with no SDE of their own
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-sde-repository-"));
     const cache = new CjsToolCache(directory);
     const databasePath = cache.GetCustomPath({
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: 3435006,

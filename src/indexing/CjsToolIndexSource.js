@@ -23,7 +23,7 @@ export class CjsToolIndexSource
     #requestTimeoutMs;
 
     /**
-     * Opens cached payload reads over one immutable provider/build index.
+     * Opens cached payload reads over one immutable target/build index.
      */
     constructor({
         indexes,
@@ -130,7 +130,7 @@ export class CjsToolIndexSource
         }
 
         const cached = await this.#cache.ReadPayload(
-            this.provider,
+            this.target,
             resolution.root,
             resolution.record.location,
         );
@@ -203,6 +203,10 @@ export class CjsToolIndexSource
         return Object.freeze(results);
     }
 
+    /**
+     * Acquires resolution metadata through the configured exact-build index
+     * source.
+     */
     async #FetchResolution(resolution, options)
     {
         const key = CreateInflightKey(resolution, options);
@@ -235,6 +239,10 @@ export class CjsToolIndexSource
         }
     }
 
+    /**
+     * Coordinates exact-build index owns resolution behavior against current
+     * immutable source evidence.
+     */
     #OwnsResolution(resolution)
     {
         let owned;
@@ -254,19 +262,18 @@ export class CjsToolIndexSource
             && owned.sourceUrl === resolution.sourceUrl
             && owned.root === resolution.root
             && owned.target === resolution.target
-            && owned.game === resolution.game
-            && owned.provider === resolution.provider
             && owned.buildRef === resolution.buildRef
             && owned.build === resolution.build
             && owned.client === resolution.client;
     }
 
+    /** Reads or fetch payload data through the active exact-build index boundary. */
     async #ReadOrFetchPayload(resolution, options)
     {
         if (!options.refresh)
         {
             const cached = await this.#cache?.ReadPayload(
-                this.provider,
+                this.target,
                 resolution.root,
                 resolution.record.location,
             );
@@ -316,7 +323,7 @@ export class CjsToolIndexSource
             resolution.logicalPath,
         );
         const cachePath = await this.#cache?.WritePayload(
-            this.provider,
+            this.target,
             resolution.root,
             resolution.record.location,
             bytes,
@@ -360,8 +367,6 @@ function CreateInflightKey(resolution, options)
 
     return [
         resolution.target ?? "",
-        resolution.game ?? "",
-        resolution.provider ?? "",
         resolution.build ?? "",
         resolution.root,
         resolution.logicalPath,

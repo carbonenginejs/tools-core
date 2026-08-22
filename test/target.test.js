@@ -17,20 +17,20 @@ test("maps short public targets to internal source identities", () =>
         provider: "ccp",
         client: "tranquility",
         libraries: [ "audio", "character", "shader", "skin", "skinr", "weapons" ],
-        topics: [ "app", "map", "res", "sde", "skin", "skinr", "types", "weapons" ],
+        topics: [ "app", "icons", "map", "res", "sde", "skin", "skinr", "types", "weapons" ],
     });
     assert.equal(frontier.game, "Frontier");
     assert.equal(frontier.provider, "ccp");
     assert.equal(frontier.client, "stillness");
     assert.deepEqual(frontier.libraries, [ "audio", "shader" ]);
     assert.deepEqual(frontier.topics, [ "app", "res" ]);
-    // Two Chinese targets on two providers, each naming exactly one client.
+    // Two Chinese targets share provider metadata but each names one client.
     // The single `netease` target they replace named none, so `latest` on it
     // resolved to whichever of two different games had the higher build.
     for (const [ target, id ] of [ [ serenity, "serenity" ], [ infinity, "infinity" ] ])
     {
         assert.equal(target.game, "Eve");
-        assert.equal(target.provider, id);
+        assert.equal(target.provider, "netease");
         assert.equal(target.client, id);
         assert.deepEqual(target.overlaySources, [ {
             target: "eve",
@@ -41,11 +41,14 @@ test("maps short public targets to internal source identities", () =>
         // sources map, so `sde` now resolves to the target itself rather than
         // to EVE, and a request it cannot answer fails instead of being
         // answered by somebody else's data.
-        assert.deepEqual(target.topics, [ "app", "map", "res", "sde", "skin", "skinr", "types", "weapons" ]);
+        assert.deepEqual(target.topics, [ "app", "icons", "map", "res", "sde", "skin", "skinr", "types", "weapons" ]);
         assert.deepEqual(target.topicSources, {});
         assert.equal(targets.ResolveTopicSource(id, "sde"), target);
     }
-    assert.equal(targets.Find("frontier", "ccp"), frontier);
+    assert.throws(
+        () => targets.Resolve({ game: "Frontier", provider: "ccp" }),
+        /requires target/,
+    );
 });
 
 test("keeps unaudited library targets disabled", () =>
@@ -61,6 +64,7 @@ test("keeps unaudited library targets disabled", () =>
     assert.equal(targets.RequireLibrary("eve", "skinr").id, "eve");
     assert.equal(targets.RequireLibrary("eve", "weapons").id, "eve");
     assert.equal(targets.RequireTopic("eve", "sde").id, "eve");
+    assert.equal(targets.RequireTopic("eve", "icons").id, "eve");
     assert.equal(targets.RequireTopic("eve", "skin").id, "eve");
     assert.equal(targets.RequireTopic("eve", "skinr").id, "eve");
     assert.equal(targets.RequireTopic("eve", "weapons").id, "eve");

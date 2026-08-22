@@ -41,9 +41,13 @@ const Tables = Object.freeze({
             _key: 100,
             graphicID: 1000,
             groupID: 509,
+            iconID: 355,
             marketGroupID: 640,
+            metaGroupID: 2,
+            metaLevel: 5,
             name: { en: "Test Light Missile Launcher" },
             published: true,
+            techLevel: 2,
         },
         101: {
             _key: 101,
@@ -110,13 +114,22 @@ test("builds weapon TypeID, graphics, and exact dogma ammunition joins", () =>
     assert.equal(weapon.graphicFile.endsWith("Light_T1.red"), true);
     assert.equal(weapon.resPath, "res:/dx9/model/turret/launcher/light/light_t1.black");
     assert.equal(weapon.kind, "launcher");
+    assert.equal(weapon.slot, "launchers");
+    assert.equal(weapon.iconID, 355);
+    assert.equal(weapon.metaGroupID, 2);
+    assert.equal(weapon.metaLevel, 5);
+    assert.equal(weapon.techLevel, 2);
+    assert.equal(weapon.published, true);
     assert.deepEqual(weapon.chargeGroupIDs, [ 384, 394 ]);
     assert.deepEqual(weapon.ammunitionTypeIDs, [ 200, 201 ]);
     assert.equal(library.types[101], undefined);
     assert.equal(ammunition.graphicRole, "impact");
     assert.equal(ammunition.resPath.endsWith("light_impact_inferno.black"), true);
+    assert.equal(ammunition.projectileGraphicID, 3000);
     assert.deepEqual(ammunition.weaponTypeIDs, [ 100 ]);
     assert.equal(library.projectiles[3000].graphicRole, "projectile");
+    assert.deepEqual(library.projectiles[3000].name, { en: "Light Missile" });
+    assert.deepEqual(library.projectiles[3000].ammunitionTypeIDs, [ 200 ]);
     assert.equal(library.projectiles[4000], undefined);
     assert.deepEqual(library.names["test light missile launcher"], [ {
         kind: "weapon",
@@ -187,8 +200,91 @@ test("applies charge size when joining turret ammunition", () =>
     const library = CjsToolWeapon.build({ ...BuildOptions(), tables });
 
     assert.equal(library.types[110].kind, "turret");
+    assert.equal(library.types[110].slot, "turrets");
     assert.deepEqual(library.types[110].ammunitionTypeIDs, [ 210 ]);
     assert.equal(library.ammunition[211].weaponTypeIDs.includes(110), false);
+});
+
+test("maps authored weapon branches and capital size to runtime slot collections", () =>
+{
+    const tables = structuredClone(Tables);
+
+    for (const [ branchID, branchName, childID ] of [
+        [ 88, "Energy Turrets", 888 ],
+        [ 1014, "Bomb Launchers", 1015 ],
+        [ 2431, "Precursor Turrets", 2432 ],
+        [ 2741, "Vorton Projectors", 2742 ],
+    ])
+    {
+        tables.marketGroups[branchID] = {
+            _key: branchID,
+            name: { en: branchName },
+            parentGroupID: 10,
+        };
+        tables.marketGroups[childID] = {
+            _key: childID,
+            name: { en: `${branchName} family` },
+            parentGroupID: branchID,
+        };
+    }
+
+    tables.groups[53] = { _key: 53, categoryID: 7, name: { en: "Energy Weapon" } };
+    tables.groups[86] = { _key: 86, categoryID: 8, name: { en: "Frequency Crystal" } };
+    tables.graphics[1001] = { _key: 1001, graphicFile: "res:/turret/energy/xl/test.red" };
+    tables.graphics[1002] = { _key: 1002, graphicFile: "res:/turret/launcher/bomb/test.red" };
+    tables.graphics[1003] = { _key: 1003, graphicFile: "res:/turret/atomic/test.red" };
+    tables.graphics[1004] = { _key: 1004, graphicFile: "res:/turret/chain/test.red" };
+
+    for (const [ typeID, graphicID, marketGroupID, groupID, chargeGroupID, chargeSize ] of [
+        [ 110, 1001, 888, 53, 86, 4 ],
+        [ 111, 1002, 1015, 509, 384, null ],
+        [ 112, 1003, 2432, 53, 86, 1 ],
+        [ 113, 1004, 2742, 53, 86, 1 ],
+    ])
+    {
+        tables.types[typeID] = {
+            _key: typeID,
+            graphicID,
+            groupID,
+            marketGroupID,
+            name: { en: `Weapon ${typeID}` },
+            published: true,
+        };
+        tables.typeDogma[typeID] = { _key: typeID, dogmaAttributes: [
+            { attributeID: 128, value: chargeSize },
+            { attributeID: 604, value: chargeGroupID },
+        ] };
+    }
+
+    tables.types[210] = {
+        _key: 210,
+        groupID: 86,
+        marketGroupID: 920,
+        name: { en: "Capital Crystal" },
+        published: true,
+    };
+    tables.typeDogma[210] = { _key: 210, dogmaAttributes: [
+        { attributeID: 128, value: 4 },
+        { attributeID: 137, value: 53 },
+    ] };
+    tables.types[211] = {
+        _key: 211,
+        groupID: 86,
+        marketGroupID: 920,
+        name: { en: "Small Crystal" },
+        published: true,
+    };
+    tables.typeDogma[211] = { _key: 211, dogmaAttributes: [
+        { attributeID: 128, value: 1 },
+        { attributeID: 137, value: 53 },
+    ] };
+
+    const library = CjsToolWeapon.build({ ...BuildOptions(), tables });
+
+    assert.equal(library.types[110].slot, "xlTurrets");
+    assert.equal(library.types[111].slot, "bombs");
+    assert.equal(library.types[112].slot, "atomics");
+    assert.equal(library.types[113].slot, "chains");
 });
 
 test("serves whole weapon library and exact compatibility routes", async context =>

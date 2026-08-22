@@ -93,6 +93,7 @@ export class CjsToolCharacterRepository
         for (const version of [ "v10", "v9", "v8", "v7" ])
         {
             const candidate = this.#cache.GetCustomPath({
+                target: target.id,
                 game: target.game,
                 provider: target.provider,
                 build,

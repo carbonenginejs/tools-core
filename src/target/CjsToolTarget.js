@@ -2,14 +2,15 @@ import {
     normalizeBuildReference,
     normalizeGame,
     normalizeProviderId,
-} from "../indexing/CjsToolIndexProvider.js";
+} from "../indexing/CjsToolIndexTargetProfile.js";
 
 const TargetIdPattern = /^[a-z0-9][a-z0-9._-]*$/u;
 
-/** Immutable public target alias over one internal game/provider identity. */
+/** Immutable public target identity with game/provider provenance metadata. */
 export class CjsToolTarget
 {
 
+    /** Creates a target profile target from caller-supplied configuration. */
     constructor(data)
     {
         if (!data || typeof data !== "object" || Array.isArray(data))
@@ -74,6 +75,7 @@ export class CjsToolTarget
         });
     }
 
+    /** Returns the serializable metadata form of this target profile. */
     toJSON()
     {
         return {
@@ -86,6 +88,7 @@ export class CjsToolTarget
         };
     }
 
+    /** Creates a validated profile or target value from plain caller input. */
     static from(value)
     {
         return value instanceof this ? value : new this(value);
@@ -93,6 +96,7 @@ export class CjsToolTarget
 
 }
 
+/** Validates and canonicalizes one caller-supplied target identifier. */
 export function normalizeTargetId(value)
 {
     const id = String(value ?? "").trim().toLowerCase();

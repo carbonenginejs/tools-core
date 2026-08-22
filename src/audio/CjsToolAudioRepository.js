@@ -172,6 +172,7 @@ export class CjsToolAudioRepository
     {
         let data = null;
         const filePath = this.#cache.GetCustomPath({
+            target: target.id,
             game: target.game,
             provider: target.provider,
             build: sourceIdentity.build,
@@ -330,6 +331,7 @@ export class CjsToolAudioRepository
         }
 
         await this.#cache.WriteCustomLibrary({
+            target: target.id,
             game: target.game,
             provider: target.provider,
             build: sourceIdentity.build,
@@ -366,6 +368,7 @@ export class CjsToolAudioRepository
         });
 
         await this.#cache.WriteCustomLibrary({
+            target: target.id,
             game: target.game,
             provider: target.provider,
             build: sourceIdentity.build,

@@ -6,12 +6,14 @@ import path from "node:path";
 import test from "node:test";
 import {
     CjsToolIndexCache,
-    CjsToolIndexProviderRegistry,
+    CjsToolIndexTargetProfileRegistry,
     CjsToolIndex,
 } from "../../src/index.js";
 
-const Provider = Object.freeze({
-    id: "test",
+const Profile = Object.freeze({
+    target: "test",
+    game: "Eve",
+    provider: "synthetic",
     defaultBuildRef: "latest",
     remote: Object.freeze({
         metadataBaseUrl: "https://metadata.test",
@@ -42,7 +44,7 @@ test("matches wildcard and regex selections without duplicate prefetch downloads
         "https://res.test/aa/a": binaryResponse("a"),
         "https://res.test/aa/b": binaryResponse("b"),
     }, requests);
-    const source = await createService(fetch).Open({ provider: "test", build: "77" });
+    const source = await createService(fetch).Open({ target: "test", build: "77" });
     const wildcard = source.Match("staticdata/*.bin");
     const regex = source.Match("^res:/staticdata/[ab]\\.bin$", { type: "regex" });
     const files = await source.FetchMatching("staticdata/*.bin", { concurrency: 2 });
@@ -75,7 +77,7 @@ test("reuses validated index and payload bytes from the local cache", async (con
         createFetch(responses, firstRequests),
         new CjsToolIndexCache({ directory }),
     );
-    const firstSource = await first.Open({ provider: "test", build: "77" });
+    const firstSource = await first.Open({ target: "test", build: "77" });
     const ownedResolution = firstSource.Resolve("res:/data/cached.bin");
 
     await assert.rejects(
@@ -92,7 +94,7 @@ test("reuses validated index and payload bytes from the local cache", async (con
         createFetch(responses, secondRequests),
         new CjsToolIndexCache({ directory }),
     );
-    const secondSource = await second.Open({ provider: "test", build: "77" });
+    const secondSource = await second.Open({ target: "test", build: "77" });
     const secondFile = await secondSource.Fetch("res:/data/cached.bin");
 
     assert.deepEqual(firstRequests, [
@@ -111,7 +113,7 @@ test("reuses validated index and payload bytes from the local cache", async (con
 function createService(fetch, cache = null)
 {
     return new CjsToolIndex({
-        providers: new CjsToolIndexProviderRegistry([ Provider ]),
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
         fetch,
         cache,
     });

@@ -12,6 +12,10 @@ export class CjsToolSofRepository
 
     #maximumCatalogs;
 
+    /**
+     * Creates a SOF repository sof repository from caller-supplied
+     * configuration.
+     */
     constructor({
         createSof = options => EveSOF.Create(options),
         maximumCatalogs = 4,
@@ -64,6 +68,10 @@ export class CjsToolSofRepository
         return loading;
     }
 
+    /**
+     * Coordinates SOF repository open source behavior against current immutable
+     * source evidence.
+     */
     async #OpenSource(source)
     {
         const resFileIndex = Object.freeze([...new Set(
@@ -88,6 +96,7 @@ export class CjsToolSofCatalog
 
     #sof;
 
+    /** Creates a SOF repository sof catalog from caller-supplied configuration. */
     constructor({ source, sof })
     {
         RequireSof(sof);
@@ -102,71 +111,88 @@ export class CjsToolSofCatalog
         Object.freeze(this);
     }
 
+    /** Returns normalized hull summaries in deterministic source order. */
     ListHulls()
     {
         return this.#sof.dataMgr.ListHullDataNames();
     }
 
+    /** Returns normalized faction summaries in deterministic source order. */
     ListFactions()
     {
         return this.#sof.dataMgr.ListFactionDataNames();
     }
 
+    /** Returns normalized race summaries in deterministic source order. */
     ListRaces()
     {
         return this.#sof.dataMgr.ListRaceDataNames();
     }
 
+    /** Returns normalized material summaries in deterministic source order. */
     ListMaterials()
     {
         return this.#sof.dataMgr.ListMaterialDataNames();
     }
 
+    /** Returns normalized layout summaries in deterministic source order. */
     ListLayouts()
     {
         return this.#sof.dataMgr.ListLayoutDataNames();
     }
 
+    /** Returns normalized pattern summaries in deterministic source order. */
     ListPatterns()
     {
         return this.#sof.dataMgr.ListPatternDataNames();
     }
 
+    /** Returns patterns applicable to one normalized hull selection. */
     ListHullPatterns(hull)
     {
         return this.#sof.dataMgr.ListPatternDataNamesForHull(hull);
     }
 
+    /** Returns one hull record by canonical SOF name. */
     GetHull(name)
     {
         return this.#sof.dataMgr.GetHullDataJson(name);
     }
 
+    /** Returns one faction record by canonical SOF name. */
     GetFaction(name)
     {
         return this.#sof.dataMgr.GetFactionDataJson(name);
     }
 
+    /** Returns one race record by canonical SOF name. */
     GetRace(name)
     {
         return this.#sof.dataMgr.GetRaceDataJson(name);
     }
 
+    /** Returns one material record by canonical SOF name. */
     GetMaterial(name)
     {
         return this.#sof.dataMgr.GetMaterialDataJson(name);
     }
 
+    /** Returns one layout record by canonical SOF name. */
     GetLayout(name)
     {
         return this.#sof.dataMgr.GetLayoutDataJson(name);
     }
 
+    /** Returns one hull-specific pattern projection by canonical names. */
     GetPatternHull(pattern, hull)
     {
         return this.#sof.dataMgr.GetPatternHullDataJson(pattern, hull);
     }
 
+    /**
+     * Parses one DNA string against the catalog without constructing runtime
+     * objects.
+     */
     InspectDna(dna)
     {
         return this.#sof.InspectDna(RequireDna(dna));
@@ -263,10 +289,10 @@ function RequireSource(source)
         );
     }
 
-    if (!source.target || !source.game || !source.provider || !source.build)
+    if (!source.target || !source.build)
     {
         throw new TypeError(
-            "CjsToolSofRepository requires an exact target/game/provider/build identity",
+            "CjsToolSofRepository requires an exact target/build identity",
         );
     }
 }
@@ -317,10 +343,7 @@ function CreateSourceKey(source)
 {
     return [
         source.target,
-        source.game,
-        source.provider,
         source.build,
-        source.client ?? "",
     ].join("\0");
 }
 

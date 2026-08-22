@@ -2,6 +2,8 @@ export * from "./audio/index.js";
 export * from "./black/index.js";
 export * from "./build/index.js";
 export * from "./cache/index.js";
+export * from "./fsd/index.js";
+export * from "./icons/index.js";
 export * from "./indexing/index.js";
 export * from "./library/index.js";
 export * from "./prefetch/index.js";

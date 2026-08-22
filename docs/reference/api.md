@@ -14,6 +14,8 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | `./black` | Indexed Black-to-public-JSON reads | `CjsToolBlack` |
 | `./cache` | Shared cache layout and access | `CjsToolCache` |
 | `./character` | Schema-v7 character-library target policy, lossless decoded-definition retention, additive typed compilation, source-catalog gathering, effective version materialization, and prepared-document loading | `CjsToolCharacter`, `CjsToolCharacterBuilder`, `CjsToolCharacterCatalogGatherer`, `CjsToolCharacterDefinitionCompiler`, `CjsToolCharacterRepository` |
+| `./fsd` | Read-only structural inspection of modern FSD64/cFSD bytes | `CjsToolFsdInspectReader` |
+| `./icons` | Exact-build SDE icon identifiers composed into loadable resource paths | `CjsToolIcons`, `NormalizeIconResourcePath` |
 | `./index` | Exact-build app/res indexes, overlays, and validated bytes | `CjsToolIndex`, `CjsToolIndexOverlayStore` |
 | `./integrations/kick` | Signed Kick webhook normalization | `KickWebhookHandler`, `KickActivityService`, `KickStateService` |
 | `./integrations/twitch` | Twitch OAuth, Helix, IRC/EventSub, chat, activity, and state | Public `Twitch*` classes |
@@ -29,7 +31,7 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | `./realtime/websocket` | Node WebSocket gateway and transport | `CjsToolRealtimeGatewayWebsocket`, `CjsToolRealtimeTransportWebsocket` |
 | `./schema` | Carbon schema scanning, checking, and class emission | `CjsFormatCarbon` |
 | `./service` | HTTP/realtime composition and standalone listener | `CjsToolServiceHost`, `CjsToolRealtimeServer` |
-| `./sde` | Exact-build JSONL SDE preparation and queries | `CjsToolSde`, archive/database/repository classes |
+| `./sde` | Exact-build archive or profile-driven SDE preparation and queries | `CjsToolSde`, `CjsToolSdeBuild`, profile/archive/database/repository classes |
 | `./shader` | Exact-build shader catalog and build orchestration | `CjsToolShaderTargetRegistry`, `CjsToolShaderBuilderWebgl`, `CjsToolShaderBuilderWebgpu` |
 | `./skin` | SKIN and SKINR generated libraries | `CjsToolSkin`, `CjsToolSkinBuilder`, `CjsToolSkinrBuilder` |
 | `./sof` | Exact-build SOF catalogs and self-contained SOF bundles | `CjsToolSofRepository`, `CjsToolSofCatalog`, `CjsToolSofBundle` |

@@ -3,17 +3,17 @@ import { CjsToolBoundedFetch } from "../internal/CjsToolBoundedFetch.js";
 import { CjsToolIndexBuildResolver } from "./CjsToolIndexBuildResolver.js";
 import { CjsToolIndexCache } from "./CjsToolIndexCache.js";
 import { parseIndexGroup } from "./CjsToolIndexGroup.js";
-import { CjsToolIndexProviderRegistry } from "./CjsToolIndexProviderRegistry.js";
+import { CjsToolIndexTargetProfileRegistry } from "./CjsToolIndexTargetProfileRegistry.js";
 import { CjsToolIndexGraph } from "./CjsToolIndexGraph.js";
 import * as utils from "../utils.js";
 
 /**
- * Reads the complete immutable app/res index graph for one provider/build.
+ * Reads the complete immutable app/res index graph for one target/build.
  */
 export class CjsToolIndexReader
 {
 
-    #providers;
+    #profiles;
 
     #fetch;
 
@@ -29,7 +29,7 @@ export class CjsToolIndexReader
      * Creates a complete remote index reader with optional local caching.
      */
     constructor({
-        providers = new CjsToolIndexProviderRegistry(),
+        profiles = new CjsToolIndexTargetProfileRegistry(),
         fetch = globalThis.fetch,
         cache = null,
         requestTimeoutMs = 30000,
@@ -37,9 +37,9 @@ export class CjsToolIndexReader
         maxIndexBytes = 64 * 1024 * 1024,
     } = {})
     {
-        if (!(providers instanceof CjsToolIndexProviderRegistry))
+        if (!(profiles instanceof CjsToolIndexTargetProfileRegistry))
         {
-            throw new TypeError("CjsToolIndexReader providers must be a CjsToolIndexProviderRegistry");
+            throw new TypeError("CjsToolIndexReader profiles must be a CjsToolIndexTargetProfileRegistry");
         }
 
         if (typeof fetch !== "function")
@@ -56,7 +56,7 @@ export class CjsToolIndexReader
         CjsToolBoundedFetch.normalizeLimit(maxMetadataBytes, "maxMetadataBytes");
         CjsToolBoundedFetch.normalizeLimit(maxIndexBytes, "maxIndexBytes");
 
-        this.#providers = providers;
+        this.#profiles = profiles;
         this.#fetch = fetch;
         this.#builds = new CjsToolIndexBuildResolver({
             fetch,
@@ -72,9 +72,9 @@ export class CjsToolIndexReader
     /**
      * Resolves a friendly or exact build without opening its file indexes.
      */
-    async ResolveBuild({ game, provider, build, client } = {})
+    async ResolveBuild({ target, game, provider, build, client } = {})
     {
-        const profile = this.#providers.Get(provider, game);
+        const profile = this.#ResolveProfile({ target, game, provider });
 
         return this.#builds.Resolve(profile, build ?? profile.defaultBuildRef, client);
     }
@@ -84,12 +84,11 @@ export class CjsToolIndexReader
      */
     async Read({ target, game, provider, build, client } = {})
     {
-        const profile = this.#providers.Get(provider, game);
+        const profile = this.#ResolveProfile({ target, game, provider });
         const buildReference = await this.#builds.Resolve(profile, build ?? profile.defaultBuildRef, client);
         const appIndexUrl = utils.joinUrl(profile.remote.indexBaseUrl, `eveonline_${buildReference.build}.txt`);
         const appIndex = await this.#ReadGroup({
-            game: profile.game,
-            provider: profile.id,
+            target: profile.target,
             build: buildReference.build,
             cacheFileName: "appfileindex.txt",
             sourceUrl: appIndexUrl,
@@ -102,8 +101,7 @@ export class CjsToolIndexReader
         {
             const sourceUrl = utils.joinUrl(profile.remote.appBaseUrl, resource.location);
             const group = await this.#ReadGroup({
-                game: profile.game,
-                provider: profile.id,
+                target: profile.target,
                 build: buildReference.build,
                 cacheFileName: path.posix.basename(resource.relativePath),
                 sourceUrl,
@@ -120,8 +118,7 @@ export class CjsToolIndexReader
         const { main = null, ...extensions } = indexes;
 
         return new CjsToolIndexGraph({
-            target,
-            provider: profile,
+            profile,
             buildReference,
             appIndex,
             mainResIndex: main,
@@ -129,11 +126,11 @@ export class CjsToolIndexReader
         });
     }
 
+    /** Reads group data through the active exact-build index boundary. */
     async #ReadGroup(options)
     {
         const cached = await this.#cache?.ReadIndex(
-            options.game,
-            options.provider,
+            options.target,
             options.build,
             options.cacheFileName,
         );
@@ -187,8 +184,7 @@ export class CjsToolIndexReader
         const group = parseIndexGroup(bytes.toString("utf8"), {
             ...options,
             cachePath: this.#cache?.GetIndexPath(
-                options.game,
-                options.provider,
+                options.target,
                 options.build,
                 options.cacheFileName,
             ) ?? null,
@@ -196,14 +192,33 @@ export class CjsToolIndexReader
         });
 
         await this.#cache?.WriteIndex(
-            options.game,
-            options.provider,
+            options.target,
             options.build,
             options.cacheFileName,
             bytes,
         );
 
         return group;
+    }
+
+    /** Selects the profile result from available exact-build index evidence. */
+    #ResolveProfile({ target, game, provider })
+    {
+        const profile = this.#profiles.Get(target);
+
+        if (game !== undefined && game !== null
+            && String(game).toLowerCase() !== profile.game.toLowerCase())
+        {
+            throw new Error(`Target ${profile.target} does not use game ${game}`);
+        }
+
+        if (provider !== undefined && provider !== null
+            && String(provider).toLowerCase() !== profile.provider)
+        {
+            throw new Error(`Target ${profile.target} does not use provider ${provider}`);
+        }
+
+        return profile;
     }
 
     /** Applies both the configured ceiling and an exact declared byte length. */

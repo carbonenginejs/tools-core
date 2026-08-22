@@ -23,9 +23,10 @@ function CreateCache()
 }
 
 /** Writes one prepared SDE where the repository looks for it. */
-async function PrepareExport(cache, { provider, build, ...metadata })
+async function PrepareExport(cache, { target = "eve", provider = "ccp", build, ...metadata })
 {
     const databasePath = cache.GetCustomPath({
+        target,
         game: "Eve",
         provider,
         build,
@@ -35,7 +36,7 @@ async function PrepareExport(cache, { provider, build, ...metadata })
     });
     const database = await CjsToolSdeDatabase.create(databasePath);
 
-    await database.ImportTables(TablesFor(provider), { build, provider, ...metadata });
+    await database.ImportTables(TablesFor(target), { target, build, provider, ...metadata });
     await database.Close();
 
     return databasePath;
@@ -60,13 +61,13 @@ test("a target with its own prepared SDE is answered from it, not the borrowed o
 {
     const cache = CreateCache();
 
-    await PrepareExport(cache, { provider: "infinity", build: 3466057, target: "infinity" });
+    await PrepareExport(cache, { target: "infinity", provider: "netease", build: 3466057 });
 
     const repository = new CjsToolSdeRepository({ cache, archive: CreateUnreachableArchive() });
     const resolution = await repository.ResolveTargetBuild("infinity", "latest");
 
     assert.equal(resolution.target, "infinity");
-    assert.equal(resolution.provider, "infinity");
+    assert.equal(resolution.provider, "netease");
     assert.equal(resolution.build, "3466057");
     assert.equal(resolution.source, "prepared-export");
     assert.equal(resolution.borrowedFrom, null);
@@ -83,8 +84,8 @@ test("a generated SDE is matched exactly and never trails to another build", asy
 {
     const cache = CreateCache();
 
-    await PrepareExport(cache, { provider: "infinity", build: 3466057, target: "infinity" });
-    await PrepareExport(cache, { provider: "infinity", build: 3400000, target: "infinity" });
+    await PrepareExport(cache, { target: "infinity", provider: "netease", build: 3466057 });
+    await PrepareExport(cache, { target: "infinity", provider: "netease", build: 3400000 });
 
     const repository = new CjsToolSdeRepository({ cache, archive: CreateUnreachableArchive() });
 
@@ -111,7 +112,7 @@ test("a generated SDE is matched exactly and never trails to another build", asy
     const missing = await repository.ResolveTargetBuild("infinity", 3450000);
 
     assert.equal(missing.target, "infinity");
-    assert.equal(missing.provider, "infinity");
+    assert.equal(missing.provider, "netease");
     assert.equal(missing.borrowedFrom, null);
     assert.notEqual(missing.source, "prepared-export");
     await assert.rejects(() => repository.OpenTarget("infinity", 3450000));
@@ -159,7 +160,7 @@ test("a target with no SDE of its own is refused, not answered from another's", 
 
     // Neither is answered from the EVE SDE. They resolve a build — see the
     // defect note at the foot of this file — but opening refuses, because
-    // `#Open` will not prepare a provider that has no channel of its own.
+    // `#Open` will not prepare a target that has no channel of its own.
     for (const target of [ "serenity", "infinity" ])
     {
         await assert.rejects(() => repository.OpenTarget(target, "latest"));
@@ -168,7 +169,7 @@ test("a target with no SDE of its own is refused, not answered from another's", 
     // The EVE SDE is untouched and still answers for EVE.
     const eve = await repository.OpenTarget("eve", "latest");
 
-    assert.equal((await eve.Table("skins").Get("11542")).payload.internalName, "ccp skin");
+    assert.equal((await eve.Table("skins").Get("11542")).payload.internalName, "eve skin");
 
     await repository.Close();
 });
@@ -200,7 +201,7 @@ test("the official target is unaffected and still reports no borrowing", async (
     assert.equal(resolution.borrowedFrom, null);
 });
 
-test("a provider with no channel is never auto-prepared from another target's archive", async () =>
+test("a target with no channel is never auto-prepared from another target's archive", async () =>
 {
     const cache = CreateCache();
     const repository = new CjsToolSdeRepository({ cache, archive: CreateUnreachableArchive() });
@@ -213,8 +214,9 @@ test("a provider with no channel is never auto-prepared from another target's ar
     await assert.rejects(() => repository.OpenTarget("infinity", 3466057));
 
     const infinityPath = cache.GetCustomPath({
+        target: "infinity",
         game: "Eve",
-        provider: "infinity",
+        provider: "netease",
         build: 3466057,
         name: "sde",
         version: "v1",

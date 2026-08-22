@@ -1,5 +1,5 @@
 import { CjsToolIndexReader } from "./CjsToolIndexReader.js";
-import { CjsToolIndexProviderRegistry } from "./CjsToolIndexProviderRegistry.js";
+import { CjsToolIndexTargetProfileRegistry } from "./CjsToolIndexTargetProfileRegistry.js";
 import { CjsToolIndexOverlaySource } from "./CjsToolIndexOverlaySource.js";
 import { CjsToolIndexOverlayStore } from "./CjsToolIndexOverlayStore.js";
 import { CjsToolIndexGeneratedStore } from "./CjsToolIndexGeneratedStore.js";
@@ -30,7 +30,7 @@ export class CjsToolIndex
 
     #requestTimeoutMs;
 
-    #providers;
+    #profiles;
 
     #targets;
 
@@ -40,7 +40,7 @@ export class CjsToolIndex
 
     /** Creates the standalone source service with a local cache by default. */
     constructor({
-        providers = new CjsToolIndexProviderRegistry(),
+        profiles = new CjsToolIndexTargetProfileRegistry(),
         targets = new CjsToolTargetRegistry(),
         fetch = globalThis.fetch,
         cache = new CjsToolIndexCache(),
@@ -66,6 +66,11 @@ export class CjsToolIndex
             throw new TypeError("CjsToolIndex targets must be a CjsToolTargetRegistry");
         }
 
+        if (!(profiles instanceof CjsToolIndexTargetProfileRegistry))
+        {
+            throw new TypeError("CjsToolIndex profiles must be a CjsToolIndexTargetProfileRegistry");
+        }
+
         if (overlays !== null && !(overlays instanceof CjsToolIndexOverlayStore))
         {
             throw new TypeError(
@@ -77,7 +82,7 @@ export class CjsToolIndex
 
         this.#fetch = fetch;
         this.#cache = cache;
-        this.#providers = providers;
+        this.#profiles = profiles;
         this.#targets = targets;
         this.#overlays = overlays;
         this.#generated = cache
@@ -86,7 +91,7 @@ export class CjsToolIndex
         this.#requestTimeoutMs = requestTimeoutMs;
         this.#maxPayloadBytes = maxPayloadBytes;
         this.#indexes = new CjsToolIndexReader({
-            providers,
+            profiles,
             fetch,
             cache,
             requestTimeoutMs,
@@ -112,7 +117,7 @@ export class CjsToolIndex
     {
         return this.#targets.List().map(target =>
         {
-            // Each target names one default client but a provider publishes
+            // Each target names one default client but a profile may publish
             // several, and a consumer offering a choice has no other way to
             // learn what they are — the alternative is a hardcoded list that
             // silently drifts from this registry.
@@ -122,13 +127,13 @@ export class CjsToolIndex
             // `eveclient_<TOKEN>.json`, case sensitive, so `eveclient_tq.json`
             // is a 404. Anything fetching that file needs the token, not the
             // name it was listed under.
-            const provider = this.#providers.Has(target.provider, target.game)
-                ? this.#providers.Get(target.provider, target.game)
+            const profile = this.#profiles.Has(target.id)
+                ? this.#profiles.Get(target.id)
                 : null;
 
             return utils.freezeData({
                 ...target,
-                clients: Object.entries(provider?.clients ?? {}).map(([ id, client ]) => ({
+                clients: Object.entries(profile?.clients ?? {}).map(([ id, client ]) => ({
                     id,
                     token: client.metadataToken ?? null,
                 })),
@@ -137,7 +142,7 @@ export class CjsToolIndex
     }
 
     /**
-     * Lists a provider's clients and the build each is currently on.
+     * Lists a target's clients and the build each is currently on.
      *
      * A client name and `latest` exist to answer "which build" — that is all
      * they are for, and this is the route that asks. Everything downstream
@@ -145,20 +150,19 @@ export class CjsToolIndex
      * something different tomorrow and an SDE labelled with one cannot be
      * matched to the resources it was built from.
      *
-     * **Always an array, whatever the count.** Most providers here have exactly
+     * **Always an array, whatever the count.** Most targets here have exactly
      * one client — `serenity`, `infinity`, and `ccp` under Frontier — and a
      * shape that collapses to a bare object for those forces every caller to
      * handle two shapes, which is how the single-client case ends up untested.
      *
      * One client failing to resolve does not fail the request. Each entry
-     * carries its own `error` instead, because a provider is often asked about
+     * carries its own `error` instead, because a target is often asked about
      * precisely when one of its clients is unreachable, and an all-or-nothing
      * answer hides the ones that are fine.
      *
      * @param {object} [options] Lookup options.
-     * @param {string} [options.game] Game name; defaults to the registry's.
-     * @param {string} [options.provider] Provider id; defaults to the registry's.
-     * @returns {Promise<object>} Game, provider, and the client array.
+     * @param {string} [options.target] Target id; defaults to the registry's.
+     * @returns {Promise<object>} Target, game/provider metadata, and clients.
      */
     /**
      * Everything a target is, addressed by the one key that identifies it.
@@ -184,7 +188,7 @@ export class CjsToolIndex
             throw error;
         }
 
-        const { clients } = await this.ListClients({ game: entry.game, provider: entry.provider });
+        const { clients } = await this.ListClients({ target: entry.id });
 
         return utils.freezeData({
             target: entry.id,
@@ -194,28 +198,17 @@ export class CjsToolIndex
         });
     }
 
+    /** Returns the built-in client profiles available for index acquisition. */
     async ListClients(options = {})
     {
-        const game = options.game ?? this.#providers.defaultGame;
-        const providerId = options.provider ?? this.#providers.defaultProvider;
-
-        if (!this.#providers.Has(providerId, game))
-        {
-            const error = new TypeError(`Unknown provider "${providerId}" for game "${game}"`);
-
-            error.code = "CJS_TOOL_PROVIDER_UNKNOWN";
-            throw error;
-        }
-
-        const provider = this.#providers.Get(providerId, game);
+        const profile = this.#profiles.Get(options.target);
         const clients = await Promise.all(
-            Object.entries(provider.clients ?? {}).map(async ([ id, client ]) =>
+            Object.entries(profile.clients ?? {}).map(async ([ id, client ]) =>
             {
                 try
                 {
                     const resolved = await this.ResolveBuild({
-                        game,
-                        provider: providerId,
+                        target: profile.target,
                         build: "latest",
                         client: id,
                     });
@@ -236,7 +229,12 @@ export class CjsToolIndex
             }),
         );
 
-        return utils.freezeData({ game, provider: providerId, clients });
+        return utils.freezeData({
+            target: profile.target,
+            game: profile.game,
+            provider: profile.provider,
+            clients,
+        });
     }
 
     /**
@@ -311,7 +309,7 @@ export class CjsToolIndex
         return this.#policy;
     }
 
-    /** Reads the complete provider/build app/res index graph. */
+    /** Reads the complete target/build app/res index graph. */
     async ReadIndexes(options = {})
     {
         return this.#indexes.Read(this.#NormalizeSourceOptions(options));
@@ -331,7 +329,7 @@ export class CjsToolIndex
         });
     }
 
-    /** Opens a complete provider/build index as a cached byte source. */
+    /** Opens a complete target/build index as a cached byte source. */
     async Open(options = {})
     {
         const indexes = await this.ReadIndexes(options);
@@ -435,25 +433,38 @@ export class CjsToolIndex
         });
     }
 
+    /**
+     * Coordinates exact-build index normalize source options behavior against
+     * current immutable source evidence.
+     */
     #NormalizeSourceOptions(options)
     {
         if (options.target === undefined || options.target === null)
         {
-            return options;
+            throw new TypeError("Index operations require target; game and provider are metadata only");
         }
 
-        const target = this.#targets.Resolve({
-            target: options.target,
-            game: options.game,
-            provider: options.provider,
-        });
+        const profile = this.#profiles.Get(options.target);
+        const publicTarget = this.#targets.List()
+            .find(candidate => candidate.id === profile.target) ?? null;
+
+        if (options.game !== undefined
+            && String(options.game).trim().toLowerCase() !== profile.game.toLowerCase())
+        {
+            throw new Error(`Target ${profile.target} does not use game ${options.game}`);
+        }
+        if (options.provider !== undefined
+            && String(options.provider).trim().toLowerCase() !== profile.provider)
+        {
+            throw new Error(`Target ${profile.target} does not use provider ${options.provider}`);
+        }
 
         return {
             ...options,
-            target: target.id,
-            game: target.game,
-            provider: target.provider,
-            client: options.client ?? target.client,
+            target: profile.target,
+            game: profile.game,
+            provider: profile.provider,
+            client: options.client ?? publicTarget?.client,
         };
     }
 

@@ -1,7 +1,9 @@
-export const DefaultProviderData = Object.freeze([
+/** Remote acquisition profiles keyed only by public target identity. */
+export const DefaultIndexProfileData = Object.freeze([
     Object.freeze({
+        target: "eve",
         game: "Eve",
-        id: "ccp",
+        provider: "ccp",
         label: "EVE Online resources",
         defaultBuildRef: "latest",
         remote: Object.freeze({
@@ -29,36 +31,15 @@ export const DefaultProviderData = Object.freeze([
             chaos: Object.freeze({ metadataToken: "CHAOS" }),
         }),
     }),
-    // Serenity and Infinity are separate providers rather than one provider
-    // with two clients. They are not two shards of one service: Infinity has a
-    // different map and different game mechanics from Serenity, and each of the
-    // two carries SKINs the other does not.
-    //
-    // Two reasons it has to be the provider and not just the client:
-    //
-    //   - `latest` on a provider resolves to the highest build across its
-    //     clients. Under one provider that was a race between two different
-    //     games, won by whichever had moved most recently.
-    //   - a prepared SDE is cached by game and provider. Theirs are *generated*
-    //     per client rather than acquired, so under one provider the second one
-    //     built would overwrite the first.
-    //
-    // Their remote blocks are identical today and are still written out twice.
-    // A provider owns everything about itself; two of them agreeing on a URL is
-    // a fact about this moment, not a relationship, and factoring it out would
-    // make one provider moving its CDN look like a change to the other.
-    //
-    // Splitting them costs no downloads. Resource files are stored under one
-    // flat `ResFiles/` root addressed by their own fnv+md5, with no game,
-    // provider or build in the path, so identical bytes are fetched once
-    // however many providers name them, and these two share 130,209 of about
-    // 131,000 files. Only *generated* artifacts are namespaced by game and
-    // provider, and they have to be: they are built rather than downloaded, so
-    // there is no content hash to make them agree, and two of them under one
-    // provider id would overwrite each other.
+    // Serenity and Infinity are distinct acquisition/output identities even
+    // though NetEase publishes both. The target selects one client, build
+    // stream, cache tree, and SDE profile; provider is provenance metadata only.
+    // Their remote blocks remain explicit because an endpoint may diverge later
+    // without changing either target's public identity.
     Object.freeze({
+        target: "serenity",
         game: "Eve",
-        id: "serenity",
+        provider: "netease",
         label: "Serenity resources",
         defaultBuildRef: "latest",
         remote: Object.freeze({
@@ -72,8 +53,9 @@ export const DefaultProviderData = Object.freeze([
         }),
     }),
     Object.freeze({
+        target: "infinity",
         game: "Eve",
-        id: "infinity",
+        provider: "netease",
         label: "Infinity resources",
         defaultBuildRef: "latest",
         remote: Object.freeze({
@@ -87,8 +69,9 @@ export const DefaultProviderData = Object.freeze([
         }),
     }),
     Object.freeze({
+        target: "frontier",
         game: "Frontier",
-        id: "ccp",
+        provider: "ccp",
         label: "EVE Frontier resources",
         defaultBuildRef: "latest",
         remote: Object.freeze({

@@ -21,6 +21,11 @@ const WEAPON_BRANCH_IDS = Object.freeze([
     3726, // Breacher Pod Launchers
 ]);
 const LAUNCHER_BRANCH_IDS = new Set([ 140, 1014, 3726 ]);
+const SPECIAL_BRANCH_SLOTS = Object.freeze({
+    1014: "bombs",
+    2431: "atomics",
+    2741: "chains",
+});
 const CHARGE_SIZE_ATTRIBUTE_ID = 128;
 const CHARGE_GROUP_ATTRIBUTE_IDS = Object.freeze([ 604, 605, 606, 609, 610 ]);
 const LAUNCHER_GROUP_ATTRIBUTE_IDS = Object.freeze([ 137, 602, 603, 2076, 2077, 2078 ]);
@@ -33,6 +38,7 @@ export class CjsToolWeaponBuilder
 
     static schema = "carbonenginejs.weaponLibrary";
 
+    /** Builds one deterministic weapon library from exact-build SDE tables. */
     static build(options = {})
     {
         const tables = options.tables ?? options;
@@ -81,6 +87,8 @@ export class CjsToolWeaponBuilder
                 `weapon type ${typeID} market group`,
             );
             const branchID = weaponBranches[marketGroupID];
+            const kind = LAUNCHER_BRANCH_IDS.has(branchID) ? "launcher" : "turret";
+            const chargeSize = NormalizeOptionalId(dogma.get(CHARGE_SIZE_ATTRIBUTE_ID));
 
             weaponTypes[typeID] = {
                 typeID,
@@ -90,9 +98,15 @@ export class CjsToolWeaponBuilder
                 graphicID,
                 graphicFile,
                 resPath: ToBlackPath(graphicFile),
-                kind: LAUNCHER_BRANCH_IDS.has(branchID) ? "launcher" : "turret",
+                kind,
+                slot: WeaponSlot(branchID, kind, chargeSize),
+                published: true,
+                ...OptionalIdField("iconID", type.iconID),
+                ...OptionalIdField("metaGroupID", type.metaGroupID),
+                ...OptionalNumberField("metaLevel", type.metaLevel),
+                ...OptionalNumberField("techLevel", type.techLevel),
                 chargeGroupIDs,
-                ...OptionalChargeSize(dogma),
+                ...(chargeSize === null ? {} : { chargeSize }),
                 ammunitionTypeIDs: [],
             };
         }
@@ -137,6 +151,9 @@ export class CjsToolWeaponBuilder
         BuildCompatibility(weaponTypes, ammunition);
 
         const projectiles = BuildProjectileGraphics(graphics);
+
+        AttachProjectileGraphics(ammunition, projectiles, groups);
+
         const selectedGroups = BuildGroups(groups, weaponTypes, ammunition);
         const selectedMarketGroups = BuildMarketGroups(
             marketGroups,
@@ -234,10 +251,78 @@ function BuildProjectileGraphics(graphics)
             graphicFile,
             resPath: ToBlackPath(graphicFile),
             graphicRole: "projectile",
+            name: ProjectileFallbackName(graphicFile),
+            ammunitionTypeIDs: [],
         };
     }
 
     return projectiles;
+}
+
+/** Joins ammunition impact graphics to the projectile in the same authored folder. */
+function AttachProjectileGraphics(ammunition, projectiles, groups)
+{
+    const projectileByFolder = new Map();
+    const groupCounts = new Map();
+
+    for (const projectile of Object.values(projectiles))
+    {
+        const folder = ResourceFolder(projectile.graphicFile);
+
+        if (projectileByFolder.has(folder))
+        {
+            throw new Error(`Projectile resource folder is ambiguous: ${folder}`);
+        }
+
+        projectileByFolder.set(folder, projectile);
+        groupCounts.set(projectile.graphicID, new Map());
+    }
+
+    for (const item of Object.values(ammunition))
+    {
+        if (!item.graphicFile) continue;
+
+        const projectile = projectileByFolder.get(ResourceFolder(item.graphicFile));
+
+        if (!projectile) continue;
+
+        item.projectileGraphicID = projectile.graphicID;
+        projectile.ammunitionTypeIDs.push(item.typeID);
+
+        const counts = groupCounts.get(projectile.graphicID);
+
+        counts.set(item.groupID, (counts.get(item.groupID) ?? 0) + 1);
+    }
+
+    for (const projectile of Object.values(projectiles))
+    {
+        projectile.ammunitionTypeIDs.sort(CompareIds);
+
+        const preferred = [ ...groupCounts.get(projectile.graphicID) ]
+            .sort(([ leftID, leftCount ], [ rightID, rightCount ]) =>
+                rightCount - leftCount || CompareIds(leftID, rightID))[0];
+        const name = preferred ? NormalizeName(groups.get(preferred[0])?.name) : null;
+
+        if (name) projectile.name = name;
+    }
+}
+
+/** Returns the authored resource folder shared by an impact and projectile. */
+function ResourceFolder(value)
+{
+    const normalized = String(value ?? "").replaceAll("\\", "/").toLocaleLowerCase("en-US");
+    const index = normalized.lastIndexOf("/");
+
+    return index < 0 ? "" : normalized.slice(0, index + 1);
+}
+
+/** Supplies a readable fallback for projectile folders with no current ammunition. */
+function ProjectileFallbackName(value)
+{
+    const folder = ResourceFolder(value).split("/").filter(Boolean).at(-1) ?? "projectile";
+    const word = folder.slice(0, 1).toLocaleUpperCase("en-US") + folder.slice(1);
+
+    return { en: `${word} Missile` };
 }
 
 function BuildGroups(groups, weaponTypes, ammunition)
@@ -533,6 +618,16 @@ function OptionalChargeSize(attributes)
     return chargeSize === null ? {} : { chargeSize };
 }
 
+/** Selects the runtime-trinity slot collection that accepts one weapon. */
+function WeaponSlot(branchID, kind, chargeSize)
+{
+    if (SPECIAL_BRANCH_SLOTS[branchID]) return SPECIAL_BRANCH_SLOTS[branchID];
+    if (kind === "launcher") return "launchers";
+    if (chargeSize === 4) return "xlTurrets";
+
+    return "turrets";
+}
+
 function GraphicRole(graphicFile)
 {
     return /_impact(?:_[^/.]+)?\.red$/iu.test(graphicFile) ? "impact" : "graphic";
@@ -582,6 +677,21 @@ function OptionalIdField(name, value)
     const id = NormalizeOptionalId(value);
 
     return id === null ? {} : { [name]: id };
+}
+
+/** Returns one optional finite numeric field without inventing a default. */
+function OptionalNumberField(name, value)
+{
+    if (value === undefined || value === null || value === "") return {};
+
+    const number = Number(value);
+
+    if (!Number.isFinite(number))
+    {
+        throw new TypeError(`${name} must be a finite number: ${value}`);
+    }
+
+    return { [name]: number };
 }
 
 function NormalizeOptionalId(value)

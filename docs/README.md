@@ -44,6 +44,7 @@ format/runtime packages
 - [Public API and subpaths](reference/api.md)
 - [Class catalogs](reference/classes/README.md)
 - [Build generated libraries](guides/generated-libraries.md)
+- [Build a profile-driven SDE](guides/sde-builds.md)
 - [Prepare exact-build cache inputs](guides/prefetch.md)
 - [Build a SOF bundle](guides/sof-bundles.md)
 - [Run the local service](guides/local-service.md)
@@ -56,6 +57,7 @@ format/runtime packages
 
 - [Cache and persistent overlays](concepts/cache-and-overlays.md)
 - [Exact-build cache prefetch](guides/prefetch.md)
+- [Profile-driven SDE builds](guides/sde-builds.md)
 - [Chat and livestream source topology](concepts/chat-and-livestream-sources.md)
 - [Local HTTP route reference](reference/http-routes.md)
 - [Maintained class catalogs](reference/classes/README.md)

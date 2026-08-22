@@ -1,5 +1,5 @@
 // Builds the deterministic audio library JSON from local inputs. Performs no
-// remote reads - use @carbonenginejs/tools-core/index for provider/build/
+// remote reads - use @carbonenginejs/tools-core/index for target/build
 // index/download work first, then supply local inputs here (mirrors
 // build_character_library.js).
 //
@@ -100,7 +100,7 @@ async function Main(argv)
 
     const audio = new CjsToolAudio();
     const target = audio.ResolveTarget({
-        target: options.target ?? undefined,
+        target: options.target ?? "eve",
         game: options.game ?? undefined,
         provider: options.provider ?? undefined,
     });
@@ -217,6 +217,7 @@ async function Main(argv)
     const outPath = options.out
         ? path.resolve(options.out)
         : cache.GetCustomPath({
+            target: target.id,
             game: target.game,
             provider: target.provider,
             build: sourceBuild,

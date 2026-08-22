@@ -5,7 +5,7 @@ export const DefaultTargetData = Object.freeze([
         provider: "ccp",
         client: "tranquility",
         libraries: Object.freeze([ "audio", "character", "shader", "skin", "skinr", "weapons" ]),
-        topics: Object.freeze([ "app", "res", "sde", "map", "types", "skin", "skinr", "weapons" ]),
+        topics: Object.freeze([ "app", "res", "sde", "icons", "map", "types", "skin", "skinr", "weapons" ]),
     }),
     Object.freeze({
         id: "frontier",
@@ -39,7 +39,7 @@ export const DefaultTargetData = Object.freeze([
     Object.freeze({
         id: "serenity",
         game: "Eve",
-        provider: "serenity",
+        provider: "netease",
         client: "serenity",
         // Every table the three libraries below read is present in this
         // target's own SDE, and all three builders were run to completion on
@@ -53,7 +53,7 @@ export const DefaultTargetData = Object.freeze([
         // SDE-backed and none has been run against this target at all. The
         // character readers in particular pin one reference build's contents.
         libraries: Object.freeze([ "skin", "skinr", "weapons" ]),
-        topics: Object.freeze([ "app", "res", "sde", "map", "types", "skin", "skinr", "weapons" ]),
+        topics: Object.freeze([ "app", "res", "sde", "icons", "map", "types", "skin", "skinr", "weapons" ]),
         overlaySources: Object.freeze([ Object.freeze({
             target: "eve",
             names: Object.freeze([ "legacy-gles" ]),
@@ -62,7 +62,7 @@ export const DefaultTargetData = Object.freeze([
     Object.freeze({
         id: "infinity",
         game: "Eve",
-        provider: "infinity",
+        provider: "netease",
         client: "infinity",
         // Every table the three libraries below read is present in this
         // target's own SDE, and all three builders were run to completion on
@@ -76,7 +76,7 @@ export const DefaultTargetData = Object.freeze([
         // SDE-backed and none has been run against this target at all. The
         // character readers in particular pin one reference build's contents.
         libraries: Object.freeze([ "skin", "skinr", "weapons" ]),
-        topics: Object.freeze([ "app", "res", "sde", "map", "types", "skin", "skinr", "weapons" ]),
+        topics: Object.freeze([ "app", "res", "sde", "icons", "map", "types", "skin", "skinr", "weapons" ]),
         overlaySources: Object.freeze([ Object.freeze({
             target: "eve",
             names: Object.freeze([ "legacy-gles" ]),

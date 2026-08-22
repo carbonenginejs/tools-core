@@ -36,6 +36,7 @@ test("shared cache places both library artifacts under one exact build", async c
     context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
 
     const result = await cache.WriteCustomLibrary({
+        target: "eve",
         provider: "ccp",
         build: "3436472",
         name: "skin",

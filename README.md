@@ -33,16 +33,16 @@ const resolved = source.Resolve(
 console.log(resolved);
 ```
 
-Friendly build names resolve once; subsequent reads retain the exact target,
-provider, and numeric build. Indexed payloads are checked against declared size
-and MD5 before they are returned or cached.
+Friendly build names resolve once; subsequent reads retain the exact target and
+numeric build. Provider and game are provenance metadata. Indexed payloads are
+checked against declared size and MD5 before they are returned or cached.
 
 ## What it owns
 
 - app/resource index acquisition and the shared exact-build cache;
 - profile-driven exact-build cache preparation before tools or services start;
-- prepared SDE databases and deterministic audio, character, SKIN, SKINR,
-  weapon, and shader outputs;
+- prepared SDE databases, composed icon resource paths, and deterministic
+  audio, character, SKIN, SKINR, weapon, and shader outputs;
 - self-contained SOF bundles for consumers without Carbon or a DDS decoder;
 - schema scanning and class-emission tooling;
 - optional loopback HTTP, authenticated realtime, WebSocket, webhook, and
@@ -63,6 +63,7 @@ are retained losslessly; typed catalogs are additive indexes.
 - [Architecture and boundaries](docs/architecture.md)
 - [Public API and subpaths](docs/reference/api.md)
 - [Build generated libraries](docs/guides/generated-libraries.md)
+- [Build a profile-driven SDE](docs/guides/sde-builds.md)
 - [Prepare exact-build cache inputs](docs/guides/prefetch.md)
 - [Build a SOF bundle](docs/guides/sof-bundles.md)
 - [Run the local service](docs/guides/local-service.md)

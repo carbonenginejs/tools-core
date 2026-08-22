@@ -14,6 +14,10 @@ export class CjsToolIndexOverlaySource
 
     #source;
 
+    /**
+     * Creates a exact-build index index overlay source from caller-supplied
+     * configuration.
+     */
     constructor({ source, overlays })
     {
         if (!(source instanceof CjsToolIndexSource))
@@ -159,7 +163,7 @@ export class CjsToolIndexOverlaySource
         const sourcePaths = new Set(sourceResults.map((item) => item.logicalPath));
         const results = [ ...overrideResults ];
 
-        // Complete provider indexes are large enough to exceed the JavaScript
+        // Complete target indexes are large enough to exceed the JavaScript
         // argument stack if their entries are spread into push().
         for (const item of sourceResults)
         {
@@ -231,6 +235,10 @@ export class CjsToolIndexOverlaySource
         return Object.freeze(results);
     }
 
+    /**
+     * Acquires resolution metadata through the configured exact-build index
+     * source.
+     */
     async #FetchResolution(resolution, options)
     {
         if (!resolution.overlay)
@@ -268,6 +276,7 @@ export class CjsToolIndexOverlaySource
         });
     }
 
+    /** Selects the overlay result from available exact-build index evidence. */
     #ResolveOverlay(logicalPath, mode)
     {
         // Later overlays clobber earlier records of the same logical path:
@@ -280,6 +289,10 @@ export class CjsToolIndexOverlaySource
         return matches.length ? matches[matches.length - 1] : null;
     }
 
+    /**
+     * Coordinates exact-build index match overlays behavior against current
+     * immutable source evidence.
+     */
     #MatchOverlays(pattern, mode, options)
     {
         const resultsByPath = new Map();

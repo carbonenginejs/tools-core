@@ -13,12 +13,13 @@ export {
     parseIndexEntry,
 } from "./CjsToolIndexEntry.js";
 export {
-    CjsToolIndexProvider,
+    CjsToolIndexTargetProfile,
     normalizeBuildReference,
     normalizeGame,
+    normalizeIndexTargetId,
     normalizeProviderId,
-} from "./CjsToolIndexProvider.js";
-export { CjsToolIndexProviderRegistry } from "./CjsToolIndexProviderRegistry.js";
+} from "./CjsToolIndexTargetProfile.js";
+export { CjsToolIndexTargetProfileRegistry } from "./CjsToolIndexTargetProfileRegistry.js";
 export { CjsToolIndexSource } from "./CjsToolIndexSource.js";
 export { CjsToolIndexOverlaySource } from "./CjsToolIndexOverlaySource.js";
 export { CjsToolIndexOverlay, CjsToolIndexOverlayStore } from "./CjsToolIndexOverlayStore.js";
@@ -26,5 +27,5 @@ export { CjsToolIndexCache } from "./CjsToolIndexCache.js";
 export { CjsToolIndexGraph } from "./CjsToolIndexGraph.js";
 export { CjsToolIndexAnswerCatalog } from "./CjsToolIndexAnswerCatalog.js";
 export { CjsToolIndex } from "./CjsToolIndex.js";
-export { DefaultProviderData } from "./defaultProviders.js";
+export { DefaultIndexProfileData } from "./defaultIndexProfiles.js";
 export { createPathMatcher, hasPathWildcard } from "./pathMatcher.js";

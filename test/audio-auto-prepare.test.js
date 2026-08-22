@@ -629,6 +629,7 @@ test("audio repository optionally materializes embedded WEMs as generated resour
         },
     ];
     await cache.WriteCustomLibrary({
+        target: "eve",
         game: "Eve",
         provider: "ccp",
         build: "125",

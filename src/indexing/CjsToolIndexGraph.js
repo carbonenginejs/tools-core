@@ -1,26 +1,25 @@
 import { normalizeLogicalPath } from "./CjsToolIndexEntry.js";
-import { CjsToolIndexProvider } from "./CjsToolIndexProvider.js";
-import { normalizeTargetId } from "../target/CjsToolTarget.js";
+import { CjsToolIndexTargetProfile } from "./CjsToolIndexTargetProfile.js";
 import { createPathMatcher } from "./pathMatcher.js";
 import * as utils from "../utils.js";
 
 /**
- * Complete immutable app/res index graph for one provider and exact build.
+ * Complete immutable app/res index graph for one target and exact build.
  */
 export class CjsToolIndexGraph
 {
 
-    #providerProfile;
+    #profile;
 
     /**
      * Creates a complete build index without merging its component groups.
      */
-    constructor({ target = null, provider, buildReference, appIndex, mainResIndex = null, extensions = {} })
+    constructor({ profile, buildReference, appIndex, mainResIndex = null, extensions = {} })
     {
-        this.#providerProfile = CjsToolIndexProvider.from(provider);
-        this.target = target === null ? null : normalizeTargetId(target);
-        this.game = this.#providerProfile.game;
-        this.provider = this.#providerProfile.id;
+        this.#profile = CjsToolIndexTargetProfile.from(profile);
+        this.target = this.#profile.target;
+        this.game = this.#profile.game;
+        this.provider = this.#profile.provider;
         this.buildRef = buildReference.buildRef;
         this.build = buildReference.build;
         this.client = buildReference.client;
@@ -138,6 +137,10 @@ export class CjsToolIndexGraph
             left.logicalPath.localeCompare(right.logicalPath)));
     }
 
+    /**
+     * Coordinates exact-build index find resource matches behavior against
+     * current immutable source evidence.
+     */
     #FindResourceMatches(matcher, indexName)
     {
         const groups = indexName === undefined || indexName === null || indexName === "all"
@@ -174,6 +177,10 @@ export class CjsToolIndexGraph
         });
     }
 
+    /**
+     * Coordinates exact-build index find exact resource matches behavior against
+     * current immutable source evidence.
+     */
     #FindExactResourceMatches(logicalPath, indexName)
     {
         const groups = indexName === undefined || indexName === null || indexName === "all"
@@ -201,12 +208,16 @@ export class CjsToolIndexGraph
         return [ this.#CreateResolution(winner.resource, winner.groups) ];
     }
 
+    /**
+     * Coordinates exact-build index create resolution behavior against current
+     * immutable source evidence.
+     */
     #CreateResolution(resource, groups)
     {
         const root = resource.prefix;
         const baseUrl = root === "app"
-            ? this.#providerProfile.remote.appBaseUrl
-            : this.#providerProfile.remote.resBaseUrl;
+            ? this.#profile.remote.appBaseUrl
+            : this.#profile.remote.resBaseUrl;
         const indexNames = groups.map((group) => group.name);
 
         return utils.freezeData({

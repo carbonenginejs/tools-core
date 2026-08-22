@@ -3,19 +3,13 @@
 Status: Evolving
 Scope: Every generated library under `<cache>/custom/**` - character, audio, skin, skinr, weapons
 Audience: Anyone changing a builder, a repository, or the service warm-up
-Summary: What this package's builders do today, why it is wrong, and what to change. The cross-package rules live in the organization documentation; this page is the local view.
+Summary: Defines when generated libraries are stale and how builders prove whether work can be reused.
 
-## Where the rules live
+## Scope
 
-The addressing format, the hash-safe/local-exact distinction and the service
-contract are cross-package, and are owned by
-`/docs/architecture/resource-addressing-and-staleness.md` in the organization
-documentation repository. They were established during the 2026-07 index work
-and recorded in `recovery/org-agents/AGENT-FACTS.md:1155-1167` - read the owning
-page before treating anything here as new.
-
-This page is the package-local view: what these builders do today and what to
-change.
+This page is the public package contract for generated-library reuse. The
+[cache and overlay contract](cache-and-overlays.md) defines the index identities
+used here; this page defines how builders apply them to staleness.
 
 ## The rule
 
@@ -29,7 +23,7 @@ the inputs themselves.
 ## What we do today, and why it is wrong
 
 `CjsToolCharacterRepository` keys a prepared library by
-`game/provider/build/character/<schemaVersion>`, tries `v10`, then `v9`, then
+`targets/<target>/builds/<build>/character_<schemaVersion>`, tries `v10`, then `v9`, then
 `v8`, then `v7`, and validates only that the identity fields *inside* the artifact match
 what was requested - target, game, provider, build. There is no hash of the
 inputs, no mtime, and no record of what produced it.
@@ -63,9 +57,8 @@ builder then redoes all the work it just proved was unnecessary.
 
 EVE resources are content addressed - the stored file name carries an FNV-1 hash
 of the logical path and an md5 of the contents, and the index repeats that md5 as
-the entry's `checksum`. The format, its verification and the one open question
-about it are owned by
-`/docs/architecture/resource-addressing-and-staleness.md`.
+the entry's `checksum`. The [cache and overlay contract](cache-and-overlays.md)
+defines how tools-core retains and composes that identity.
 
 The consequence for builders here: **do not compute digests.** A builder that
 hashes its inputs is recomputing a number the index handed it, and for audio it
@@ -111,8 +104,8 @@ nothing about that row changes when the file behind it changes.
 **The distinction already exists in the code: `artifactKind`**, `hash-safe`
 versus `local-exact`, set at `CjsToolIndexGraph.js:223` and
 `CjsToolIndexOverlayStore.js:496` and surfaced as the `x-carbon-artifact-kind`
-response header. The ownership table is in
-`/docs/architecture/resource-addressing-and-staleness.md`.
+response header. The ownership table is in the
+[cache and overlay contract](cache-and-overlays.md).
 
 So the staleness service invents no predicate and sniffs no checksum columns: it
 filters on `artifactKind === "hash-safe"` and treats everything else as changed.
@@ -212,8 +205,8 @@ its meaning changes without any local state changing.
 Prefer an exact, tested build over `latest` wherever a reference is retained.
 `latest` resolves differently on different days, which makes it unusable as a
 cache key and unreproducible in a report. Resolve it once at the edge, retain
-the exact numeric build, and key everything from that - `AGENTS.md` states this
-as a repository boundary, and staleness is one of the reasons it exists.
+the exact numeric build, and key everything from that. A moving reference is
+not a reproducible cache identity.
 
 ## Checking
 

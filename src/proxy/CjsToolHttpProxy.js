@@ -12,6 +12,7 @@ import { CjsToolMap } from "../map/CjsToolMap.js";
 import { CjsToolDogma, DOGMA_SECTIONS, NormalizeTypeID } from "../dogma/CjsToolDogma.js";
 import { CjsToolDogmaProfile } from "../dogma/CjsToolDogmaProfile.js";
 import { CjsToolIndustry } from "../industry/CjsToolIndustry.js";
+import { CjsToolIcons } from "../icons/CjsToolIcons.js";
 import { CjsToolTypes } from "../types/CjsToolTypes.js";
 import { CjsToolFitting } from "../fitting/CjsToolFitting.js";
 import { CjsToolSkills } from "../skills/CjsToolSkills.js";
@@ -114,6 +115,8 @@ export class CjsToolHttpProxy
     #dogmas;
 
     #types;
+
+    #icons;
 
     #industries;
 
@@ -240,6 +243,7 @@ export class CjsToolHttpProxy
         this.#maps = new Map();
         this.#dogmas = new Map();
         this.#types = new Map();
+        this.#icons = new Map();
         this.#industries = new Map();
         this.#localisations = new Map();
         this.#fittings = new Map();
@@ -257,6 +261,7 @@ export class CjsToolHttpProxy
             market: market !== null,
             identity: identity !== null,
             weapons: sde !== null,
+            icons: sde !== null,
             map: sde !== null,
             dogma: sde !== null,
             industry: sde !== null,
@@ -670,6 +675,13 @@ export class CjsToolHttpProxy
             if (targetRoute.topic === "types")
             {
                 await this.#HandleTypesRoute(targetRoute, url, response);
+
+                return;
+            }
+
+            if (targetRoute.topic === "icons")
+            {
+                await this.#HandleIconsRoute(targetRoute, response);
 
                 return;
             }
@@ -2401,6 +2413,7 @@ export class CjsToolHttpProxy
         await this.#WriteSkinrPattern(route, skin, response);
     }
 
+    /** Generates a SOF pattern from one caller-supplied SKINR design. */
     async #HandleSkinrPatternRoute(request, route, response)
     {
         if (!this.sde)
@@ -2469,6 +2482,7 @@ export class CjsToolHttpProxy
         );
     }
 
+    /** Serves one generated SKIN or SKINR library route. */
     async #HandleSkinRoute(route, url, response)
     {
         if (!this.sde)
@@ -3205,6 +3219,67 @@ export class CjsToolHttpProxy
         return this.#types.get(key);
     }
 
+    /** Serves the composed icon catalog or one exact icon record. */
+    async #HandleIconsRoute(route, response)
+    {
+        if (!this.sde)
+        {
+            WriteJson(response, 501, { error: "SDE service is not configured" });
+
+            return;
+        }
+
+        const source = await this.sde.OpenTarget(route.target, route.build);
+        const headers = { ...CreateSdeHeaders(source), "x-carbon-answer": "icons" };
+        const segments = String(route.path ?? "").split("/").filter(Boolean);
+        const icons = this.#GetIcons(source);
+
+        if (!segments.length)
+        {
+            WriteJson(response, 200, await icons.List(), headers);
+
+            return;
+        }
+
+        if (segments.length !== 1)
+        {
+            WriteJson(response, 404, { error: "Icons route not found" }, headers);
+
+            return;
+        }
+
+        let record = null;
+
+        try
+        {
+            record = await icons.Get(segments[0]);
+        }
+        catch (error)
+        {
+            if (!(error instanceof TypeError)) throw error;
+        }
+
+        if (!record)
+        {
+            WriteJson(response, 404, { error: `Icon not found: ${segments[0]}` }, headers);
+
+            return;
+        }
+
+        WriteJson(response, 200, record, headers);
+    }
+
+    /** Returns one composed icon catalog per open exact-build source. */
+    #GetIcons(source)
+    {
+        const key = [ source.target, source.game, source.provider, source.build ].join("\0");
+
+        if (!this.#icons.has(key)) this.#icons.set(key, new CjsToolIcons(source));
+
+        return this.#icons.get(key);
+    }
+
+    /** Returns one dogma composer per open exact-build source. */
     async #GetDogma(source)
     {
         const key = [ source.target, source.game, source.provider, source.build ].join("\0");
@@ -3282,6 +3357,7 @@ export class CjsToolHttpProxy
         return this.#maps.get(key);
     }
 
+    /** Opens or reuses one exact-build weapon library. */
     async #GetWeaponLibrary(target, build)
     {
         const source = await this.sde.OpenTarget(target, build);

@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
 import {
     CjsToolIndexOverlayStore,
-    CjsToolIndexProviderRegistry,
+    CjsToolIndexTargetProfileRegistry,
     CjsToolHttpProxy,
     CjsToolIndex,
     CjsToolTargetRegistry,
@@ -65,6 +65,7 @@ test("serves health without the removed legacy SOF routes", async context =>
             market: false,
             identity: false,
             weapons: false,
+            icons: false,
             map: false,
             dogma: false,
             industry: false,
@@ -491,6 +492,7 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
         market: false,
         identity: false,
         weapons: true,
+        icons: true,
         map: true,
         dogma: true,
         industry: true,
@@ -619,6 +621,7 @@ test("serves the combined schema-v9 character document", async context =>
         market: false,
         identity: false,
         weapons: false,
+        icons: false,
         map: false,
         dogma: false,
         industry: false,
@@ -809,6 +812,7 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
         market: false,
         identity: false,
         weapons: false,
+        icons: false,
         map: false,
         dogma: false,
         industry: false,
@@ -1066,9 +1070,10 @@ test("serves the shared browser shader overlay through `netease` resource endpoi
             names: [ "legacy-gles" ],
         } ],
     } ]);
-    const providers = new CjsToolIndexProviderRegistry([ {
+    const profiles = new CjsToolIndexTargetProfileRegistry([ {
+        target: "netease",
         game: "Eve",
-        id: "netease",
+        provider: "netease",
         defaultBuildRef: "latest",
         remote: {
             metadataBaseUrl: "https://metadata.test",
@@ -1091,7 +1096,7 @@ test("serves the shared browser shader overlay through `netease` resource endpoi
     };
     const indexes = new CjsToolIndex({
         targets,
-        providers,
+        profiles,
         overlays: overlayStore,
         cache: null,
         fetch: async url =>
@@ -1205,6 +1210,7 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
         // the live site showed UNKNOWN CAPSULEER for everybody.
         identity: true,
         weapons: true,
+        icons: true,
         map: true,
         dogma: true,
         industry: true,

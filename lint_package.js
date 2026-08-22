@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
@@ -38,6 +39,7 @@ for (const sourceRoot of sourceRoots)
 await LintJavaScript(fileURLToPath(import.meta.url), errors);
 await LintManifest(errors);
 await LintDocument("README.md", errors);
+await LintPublishBoundary(errors);
 
 if (errors.length)
 {
@@ -157,6 +159,16 @@ async function LintJavaScript(file, lintErrors)
 async function LintManifest(lintErrors)
 {
     const manifest = JSON.parse(await fs.readFile(path.join(root, "package.json"), "utf8"));
+    const expectedFiles = [
+        "bin/",
+        "docs/",
+        "scripts/",
+        "!scripts/carbon-blue/reports/",
+        "src/",
+        "README.md",
+        "LICENSE",
+        "NOTICE",
+    ];
 
     if (manifest.name !== "@carbonenginejs/tools-core")
     {
@@ -169,6 +181,11 @@ async function LintManifest(lintErrors)
         {
             lintErrors.push(`package.json: missing ${script} script`);
         }
+    }
+
+    if (JSON.stringify(manifest.files) !== JSON.stringify(expectedFiles))
+    {
+        lintErrors.push("package.json: public files allowlist changed; review and update the publish-boundary gate deliberately");
     }
 }
 
@@ -187,6 +204,109 @@ async function LintDocument(name, lintErrors)
         if (/^(?:file:|[a-z]:[\\/]|[\\/]{1,2})/iu.test(target))
         {
             lintErrors.push(`${name}: external filesystem link is not allowed: ${target}`);
+        }
+    }
+}
+
+/**
+ * Inspects npm's resolved tarball list and rejects generated or internal files.
+ */
+async function LintPublishBoundary(lintErrors)
+{
+    const npmArguments = [
+        "pack",
+        "--dry-run",
+        "--json",
+        "--ignore-scripts",
+        "--cache",
+        path.join(os.tmpdir(), "carbonenginejs-tools-core-npm-cache"),
+    ];
+    const npmExecPath = process.env.npm_execpath;
+    const command = npmExecPath
+        ? process.execPath
+        : process.platform === "win32" ? "npm.cmd" : "npm";
+    const args = npmExecPath ? [ npmExecPath, ...npmArguments ] : npmArguments;
+    const result = spawnSync(command, args, {
+        cwd: root,
+        encoding: "utf8",
+        shell: !npmExecPath && process.platform === "win32",
+    });
+
+    if (result.status !== 0)
+    {
+        lintErrors.push(`npm pack --dry-run failed: ${(result.stderr || result.error?.message || "unknown error").trim()}`);
+        return;
+    }
+
+    let reports;
+
+    try
+    {
+        reports = JSON.parse(result.stdout);
+    }
+    catch (error)
+    {
+        lintErrors.push(`npm pack --dry-run returned invalid JSON: ${error.message}`);
+        return;
+    }
+
+    const files = reports?.[0]?.files;
+
+    if (!Array.isArray(files))
+    {
+        lintErrors.push("npm pack --dry-run did not return a file inventory");
+        return;
+    }
+
+    const allowedRoots = new Set([ "bin", "docs", "scripts", "src" ]);
+    const allowedRootFiles = new Set([ "LICENSE", "NOTICE", "README.md", "package.json" ]);
+    const forbiddenPath = /(^|\/)(?:\.agents?|\.cache|\.claude|\.codex|\.scratch|\.tmp|coverage|data\.local|dist|node_modules|private|reports?|tests?)(\/|$)|(^|\/)(?:AGENTS|CLAUDE|DECORATOR-TODOS)\.md$|(^|\/)package-lock\.json$|\.(?:7z|bak|db|gz|log|map|min\.js|sqlite3?|tar|tgz|tmp|wasm|zip)$/iu;
+    const internalMarkers = [
+        /\b(?:AGENTS|CLAUDE)\.md\b/u,
+        /(?:^|[^\w])\.(?:agents?|claude|codex)(?:[\\/]|$)/mu,
+        /recovery[\\/]org-agents/iu,
+        /\borganization documentation\b/iu,
+        /\bprivate documentation repository\b/iu,
+        /\.\.\/docs\/(?:architecture|contracts|internal|research|standards)\//iu,
+    ];
+    const publicTextExtensions = new Set([ ".cjs", ".js", ".json", ".jsonl", ".md", ".mjs" ]);
+
+    for (const entry of files)
+    {
+        const packedPath = String(entry.path ?? "").replaceAll("\\", "/");
+        const slash = packedPath.indexOf("/");
+        const packedRoot = slash === -1 ? packedPath : packedPath.slice(0, slash);
+
+        if (slash === -1 ? !allowedRootFiles.has(packedPath) : !allowedRoots.has(packedRoot))
+        {
+            lintErrors.push(`package artifact: path is outside the reviewed allowlist: ${packedPath}`);
+            continue;
+        }
+
+        if (forbiddenPath.test(packedPath))
+        {
+            lintErrors.push(`package artifact: generated, private, or internal path is forbidden: ${packedPath}`);
+            continue;
+        }
+
+        if (!publicTextExtensions.has(path.extname(packedPath)))
+        {
+            continue;
+        }
+
+        const source = await fs.readFile(path.join(root, ...packedPath.split("/")), "utf8");
+
+        for (const marker of internalMarkers)
+        {
+            if (marker.test(source))
+            {
+                lintErrors.push(`package artifact: internal documentation marker ${marker} found in ${packedPath}`);
+            }
+        }
+
+        if (packedPath.endsWith(".md") && /\b[A-Z]:[\\/]/u.test(source))
+        {
+            lintErrors.push(`package artifact: absolute machine path found in ${packedPath}`);
         }
     }
 }

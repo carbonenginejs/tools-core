@@ -16,10 +16,10 @@ constructing the root facade.
 
 Tools-core owns:
 
-- provider/build resolution and validated app/resource index acquisition;
+- target/build resolution and validated app/resource index acquisition;
 - the shared exact-build cache and persistent resource overlays;
-- prepared exact-build SDE databases and Node-side generated
-  library orchestration;
+- prepared exact-build SDE databases, target-keyed SDE build profiles, and
+  Node-side generated library orchestration;
 - schema scanning and class-emission tooling;
 - Node HTTP, WebSocket, webhook, credential, filesystem-watch, and command-line
   orchestration;
@@ -61,13 +61,29 @@ clients remain optional consumers of the resulting service.
 ## Exact-build data path
 
 Friendly build names such as `latest` are resolved once. Every subsequent
-index, cache, builder, and response retains the exact target, provider, and
-numeric build. Indexed bytes are checked against declared size and MD5 before
-they are returned or published into the cache.
+index, cache, builder, and response retains the exact target and numeric build.
+Game and provider travel with results as provenance metadata; neither selects a
+remote, cache tree, SDE profile, or output path. Indexed bytes are checked
+against declared size and MD5 before they are returned or published into the
+cache.
+
+## SDE build profiles
+
+`CjsToolSdeBuildProfile` supplies a target's source mappings, reviewed readers,
+projections, required-table policy, and named derivations. The generic builder
+contains no NetEase branch. Serenity and Infinity are separate profiles and
+separate `targets/<target>/builds/<build>` artifact identities even though both
+record `provider: "netease"`. A future EVE profile can use the same contract
+with `target: "eve"` and `provider: "ccp"`.
 
 Generated libraries use CarbonEngineJS-owned camelCase fields with capitalized
 identity suffixes such as `typeID` and `graphicID`. Provider-owned opaque
 records retain their wire spelling.
+
+Raw `sde/*` routes retain published table values as source evidence. Composed
+topics own consumer-facing normalization: the `icons` topic, for example,
+turns the SDE's mixed-case `iconFile` into one explicit loadable `resPath`
+without changing the underlying `sde/icons` answer.
 
 ## Service path
 

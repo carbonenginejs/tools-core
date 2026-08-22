@@ -36,21 +36,16 @@ export class CjsToolCache
     /**
      * Gets one exact target/build index path.
      *
-     * Keyed by target, which is the identity. The previous key was
-     * `game + provider`, which separated the four targets only by accident:
-     * Eve+ccp, Frontier+ccp, Eve+serenity and Eve+infinity happen to be
-     * distinct pairs and nothing enforced that they would stay so, while a
-     * duplicate target id throws in the registry.
-     *
-     * Accepts the legacy `(game, provider, build, fileName)` form and resolves
-     * it to a target, so a caller that has not been moved yet lands in the same
-     * directory as one that has, rather than quietly writing a second copy
-     * beside it. That shim is what makes this migratable in steps; it goes when
-     * the last caller does.
+     * Target is the only operational identity; game and provider never select
+     * a cache tree.
      */
-    GetIndexPath(...args)
+    GetIndexPath(targetOrIdentity, buildValue, fileNameValue)
     {
-        const { target, build, fileName } = NormalizeIndexArguments(args);
+        const { target, build, fileName } = NormalizeIndexArguments(
+            targetOrIdentity,
+            buildValue,
+            fileNameValue,
+        );
 
         return SafeJoin(
             this.directory,
@@ -72,7 +67,7 @@ export class CjsToolCache
             version = "v1",
             extension = "json",
         } = identity ?? {};
-        const target = ResolveIdentityTarget(identity);
+        const target = identity?.target;
         const fileName = [
             SafeToken(name, "custom name"),
             SafeToken(version, "custom version")
@@ -90,35 +85,18 @@ export class CjsToolCache
     }
 
     /** Reads cached index bytes or returns null when absent. */
-    async ReadIndex(game, provider, build, fileName)
+    async ReadIndex(target, build, fileName)
     {
-        if (fileName === undefined)
-        {
-            fileName = build;
-            build = provider;
-            provider = game;
-            game = "Eve";
-        }
-
-        const cachePath = this.GetIndexPath(game, provider, build, fileName);
+        const cachePath = this.GetIndexPath(target, build, fileName);
         const bytes = await ReadIfPresent(cachePath);
 
         return bytes ? Object.freeze({ cachePath, bytes }) : null;
     }
 
-    /** Replaces cached index bytes at their exact provider/build path. */
-    async WriteIndex(game, provider, build, fileName, bytes)
+    /** Replaces cached index bytes at their exact target/build path. */
+    async WriteIndex(target, build, fileName, bytes)
     {
-        if (bytes === undefined)
-        {
-            bytes = fileName;
-            fileName = build;
-            build = provider;
-            provider = game;
-            game = "Eve";
-        }
-
-        const cachePath = this.GetIndexPath(game, provider, build, fileName);
+        const cachePath = this.GetIndexPath(target, build, fileName);
 
         await WriteReplace(cachePath, ToUint8Array(bytes));
 
@@ -214,66 +192,22 @@ function NormalizeStoragePath(value)
     return segments;
 }
 
-/**
- * The four targets, by the `game + provider` pair that used to key them.
- *
- * A translation table for callers still passing the old pair, not a second
- * registry: it exists so a partly-migrated tree cannot end up with two
- * directories for one target, and it is deleted with the last legacy caller.
- * An unknown pair is an error rather than a guess — writing to a directory
- * named after a coincidence is what this change exists to stop.
- */
-const LEGACY_TARGETS = Object.freeze({
-    "eve/ccp": "eve",
-    "frontier/ccp": "frontier",
-    "eve/serenity": "serenity",
-    "eve/infinity": "infinity",
-});
-
-/** Resolves an identity object to a target, accepting the legacy pair. */
-function ResolveIdentityTarget(identity)
+/** Reads a target/build/file identity in object or positional form. */
+function NormalizeIndexArguments(targetOrIdentity, buildValue, fileNameValue)
 {
-    if (identity?.target) return String(identity.target).toLowerCase();
-
-    const game = identity?.game ?? "Eve";
-    const provider = identity?.provider;
-
-    if (!provider)
+    if (targetOrIdentity && typeof targetOrIdentity === "object")
     {
-        throw new TypeError("Cache identity requires a target");
+        return {
+            target: targetOrIdentity.target,
+            build: targetOrIdentity.build,
+            fileName: buildValue ?? targetOrIdentity.fileName,
+        };
     }
-
-    const key = `${String(game).toLowerCase()}/${String(provider).toLowerCase()}`;
-
-    // A pair with no registered target still needs somewhere to go: the index
-    // layer can be opened by provider alone, without the target registry, and
-    // a third-party provider profile has no target at all. Those get a compound
-    // scope rather than an error or a guess - `eve-test`, never `eve` and never
-    // `test`, so an unregistered pair can neither collide with a target's
-    // directory nor with another pair's.
-    return LEGACY_TARGETS[key] ?? key.replace("/", "-");
-}
-
-/** Reads `(target|game, provider, build, fileName)` in either shape. */
-function NormalizeIndexArguments(args)
-{
-    // Legacy: (game, provider, build, fileName), and the three-argument form
-    // that omitted the game.
-    if (args.length >= 3)
-    {
-        const [ game, provider, build, fileName ] = args.length === 3
-            ? [ "Eve", args[0], args[1], args[2] ]
-            : args;
-
-        return { target: ResolveIdentityTarget({ game, provider }), build, fileName };
-    }
-
-    const [ identity, fileName ] = args;
 
     return {
-        target: ResolveIdentityTarget(identity),
-        build: identity?.build,
-        fileName: fileName ?? identity?.fileName,
+        target: targetOrIdentity,
+        build: buildValue,
+        fileName: fileNameValue,
     };
 }
 

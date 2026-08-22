@@ -13,7 +13,7 @@ bodies of data, and they carry different build numbers:
 | Facet | What it is | Serves |
 | --- | --- | --- |
 | `resources` | the client build the target reports; the file index is keyed by it | `res`, `app`, `resources`, `sof`, `audio`, `character`, `resfiles`, `billboards`, `cubes`, `nebulas` |
-| `sde` | the newest SDE, published on its own schedule | `sde`, `map`, `skin`, `skinr`, `weapons`, `dogma`, `industry`, `fitting`, `skills` |
+| `sde` | the newest SDE, published on its own schedule | `sde`, `icons`, `map`, `skin`, `skinr`, `weapons`, `dogma`, `industry`, `fitting`, `skills` |
 
 The SDE normally trails the client build for a window after each patch, so for
 part of most days these are different numbers. `/<target>/<ref>/build` reports
@@ -343,7 +343,8 @@ GET /eve/<sde-build>/sde/<table>/<id>
 GET /eve/<sde-build>/sde/<table>?query=<text>
 GET /eve/<sde-build>/sde/<table>?field=groupID&value=25
 GET /eve/<sde-build>/sde/skins?field=types&contains=587
-GET /netease/latest/sde[/<table>[/<id>]]
+GET /serenity/latest/sde[/<table>[/<id>]]
+GET /infinity/latest/sde[/<table>[/<id>]]
 ```
 
 These routes read the SDE's tables as they were published. They are
@@ -353,6 +354,31 @@ supported consumer surface, because language resolution, per-world labels,
 derivations and sidecars all live in the composed topics, and those are exactly
 what a table read leaves a consumer to get wrong. Reaching for `sde/*` in a
 product means an endpoint is missing.
+
+## Icon routes
+
+```text
+GET /<target>/<sde-build>/icons
+GET /<target>/<sde-build>/icons/<iconID>
+```
+
+The collection is keyed by icon identifier; detail returns the same record:
+
+```json
+{
+  "iconID": 355,
+  "resPath": "res:/ui/texture/icons/13_64_10.png"
+}
+```
+
+`resPath` is lower-case and always has an explicit extension. Existing
+extensions such as `.jpg` are retained; a source path with no extension denotes
+a PNG. Consumers fetch it through the ordinary resource route.
+
+This is not a duplicate of CCP's image service. That service accepts a
+`typeID` at `types/<typeID>/icon`; an SDE `iconID` identifies a UI/category icon
+and has no image-service category. Raw source spelling remains available from
+`sde/icons` for inspection.
 
 ## DNA routes
 
@@ -386,9 +412,9 @@ which a path would force every caller to encode. `total` is the count before
 `limit`, so a caller can tell a page from the whole answer.
 
 A DNA is matched as a record, not a string: only the first three segments are
-positional, and the clauses may appear in any order. Ranking, exactness and the
-index's shape are settled in the organization documentation,
-`contracts/dna-reverse-index.md`.
+positional, the clauses may appear in any order, and ranking prefers exact
+record matches before partial matches. `BuildDnaIndex` owns the stored index
+shape and `QueryDnaIndex` owns this matching contract.
 
 SDE `latest` resolves independently from app/resource `latest`, and **an SDE is
 never guaranteed to match the current client build**, because the two are
@@ -397,10 +423,9 @@ its own SDE build, never as an attribute of the resource build, and never put
 the `build` field of an SDE response onto a resource route. Resolve both facets
 once from `/<target>/latest/build`. See [Build references](#build-references).
 
-Some targets have no SDE of their own here. Their `sde`, `skin`, `skinr`, and
-`weapons` routes answer from the `eve` SDE as an explicit approximate fallback,
-and the response body reports the `eve` target, the `ccp` provider and the
-answering SDE build so that the substitution is never silent.
+Serenity and Infinity use their own generated SDEs. They never answer from the
+EVE SDE as an implicit provider fallback; when a target has no prepared source,
+the request fails rather than returning another world's data.
 
 Preparation is therefore forward-looking with a staleness fallback. A missing
 SDE is prepared on its first request by default (`--no-sde-auto-prepare`
@@ -1219,8 +1244,14 @@ GET /eve/<sde-build>/weapons/groups[/<groupID>]
 ```
 
 Ammunition compatibility comes from dogma charge groups and size, not filename
-or market-name guessing. Projectile graphics remain a separate official
-launcher catalog.
+or market-name guessing. Weapon records expose `slot` as the runtime collection
+name (`turrets`, `xlTurrets`, `launchers`, `bombs`, `atomics`, or `chains`) and
+retain `iconID`, meta/tech fields, and the explicit `published` state.
+
+Projectile graphics remain a separate official launcher catalog. Each
+ammunition record names its `projectileGraphicID` when its authored impact
+graphic shares the projectile's resource folder; projectile records carry the
+matching ammunition identifiers and a source-derived display name.
 
 ## Related documentation
 

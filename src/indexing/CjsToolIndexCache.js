@@ -32,7 +32,7 @@ export class CjsToolIndexCache
     /**
      * Gets the deterministic cache path for one content-addressed payload.
      */
-    GetPayloadPath(_provider, _root, location)
+    GetPayloadPath(_target, _root, location)
     {
         return this.cache.GetRemoteFilePath(location);
     }
@@ -56,7 +56,7 @@ export class CjsToolIndexCache
     /**
      * Reads cached payload bytes or returns null when absent.
      */
-    async ReadPayload(_provider, _root, location)
+    async ReadPayload(_target, _root, location)
     {
         return this.cache.ReadRemote(location);
     }
@@ -64,7 +64,7 @@ export class CjsToolIndexCache
     /**
      * Writes immutable payload bytes to their content-addressed location.
      */
-    async WritePayload(_provider, _root, location, bytes)
+    async WritePayload(_target, _root, location, bytes)
     {
         return (await this.cache.WriteRemote(location, bytes)).cachePath;
     }

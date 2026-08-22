@@ -26,6 +26,7 @@ export class CjsToolSdeDatabase
 
     #readOnly;
 
+    /** Creates a SDE repository sde database from caller-supplied configuration. */
     constructor(database, filePath, readOnly)
     {
         this.#database = database;
@@ -360,6 +361,10 @@ export class CjsToolSdeDatabase
         }
     }
 
+    /**
+     * Coordinates SDE repository derive behavior against current immutable
+     * source evidence.
+     */
     async #Derive()
     {
         const written = await RunDerivations(this, {
@@ -473,6 +478,10 @@ export class CjsToolSdeDatabase
         await CloseDatabase(database);
     }
 
+    /**
+     * Coordinates SDE repository initialize behavior against current immutable
+     * source evidence.
+     */
     async #Initialize()
     {
         await Run(this.#database, "PRAGMA foreign_keys = ON");
@@ -505,6 +514,10 @@ export class CjsToolSdeDatabase
         `);
     }
 
+    /**
+     * Coordinates SDE repository verify behavior against current immutable
+     * source evidence.
+     */
     async #Verify()
     {
         const version = await Get(this.#database, "PRAGMA user_version");
@@ -524,6 +537,10 @@ export class CjsToolSdeDatabase
         }
     }
 
+    /**
+     * Coordinates SDE repository import table behavior against current immutable
+     * source evidence.
+     */
     async #ImportTable(entry, tableName)
     {
         await Run(
@@ -579,6 +596,10 @@ export class CjsToolSdeDatabase
         return rowCount;
     }
 
+    /**
+     * Coordinates SDE repository import records behavior against current
+     * immutable source evidence.
+     */
     async #ImportRecords(tableName, records)
     {
         const rows = records instanceof Map
@@ -639,6 +660,7 @@ export class CjsToolSdeTable
 
     #database;
 
+    /** Creates a SDE repository sde table from caller-supplied configuration. */
     constructor(database, name)
     {
         this.#database = database;
@@ -755,12 +777,9 @@ function NormalizeImportMetadata(options)
         message: `Invalid exact SDE build "${options.build}"`,
     });
 
-    // The acquirable archive belongs to one provider alone, so those remain the
-    // defaults. A target without one builds the same database from data
-    // assembled by hand and must be able to say so: a database labelled
-    // `eve`/`ccp` while holding another provider's records is indistinguishable
-    // from the real thing on disk, and the cache path is keyed by game and
-    // provider.
+    // These defaults describe the official EVE archive. Target is the cache
+    // and routing identity; game and provider are retained only as provenance
+    // metadata so an exported database can accurately describe its source.
     return Object.freeze({
         schema: DATABASE_SCHEMA,
         version: DATABASE_VERSION,

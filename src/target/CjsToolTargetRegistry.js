@@ -1,6 +1,6 @@
 import { CjsToolTarget, normalizeTargetId } from "./CjsToolTarget.js";
 import { DefaultTargetData } from "./defaultTargets.js";
-import { normalizeGame, normalizeProviderId } from "../indexing/CjsToolIndexProvider.js";
+import { normalizeGame, normalizeProviderId } from "../indexing/CjsToolIndexTargetProfile.js";
 
 /** Immutable registry for short public target aliases. */
 export class CjsToolTargetRegistry
@@ -8,6 +8,10 @@ export class CjsToolTargetRegistry
 
     #targets;
 
+    /**
+     * Creates a target profile target registry from caller-supplied
+     * configuration.
+     */
     constructor(targets = DefaultTargetData)
     {
         this.#targets = new Map();
@@ -33,6 +37,7 @@ export class CjsToolTargetRegistry
         Object.freeze(this);
     }
 
+    /** Returns the registered item for one canonical identifier. */
     Get(value = this.defaultTarget)
     {
         const id = normalizeTargetId(value);
@@ -49,54 +54,33 @@ export class CjsToolTargetRegistry
         return target;
     }
 
-    Find(game, provider)
-    {
-        const normalizedGame = normalizeGame(game);
-        const normalizedProvider = normalizeProviderId(provider);
-
-        return this.List().find((target) =>
-            target.game === normalizedGame && target.provider === normalizedProvider) ?? null;
-    }
-
+    /** Resolves an alias or identifier to one registered canonical target. */
     Resolve({ target, game, provider } = {})
     {
-        if (target !== undefined && target !== null)
+        if (target === undefined || target === null)
         {
-            const resolved = this.Get(target);
-
-            if (game !== undefined && normalizeGame(game) !== resolved.game)
-            {
-                throw new Error(`Target ${resolved.id} does not use game ${game}`);
-            }
-
-            if (provider !== undefined && normalizeProviderId(provider) !== resolved.provider)
-            {
-                throw new Error(`Target ${resolved.id} does not use provider ${provider}`);
-            }
-
-            return resolved;
+            throw new TypeError("Target resolution requires target; game and provider are metadata only");
         }
 
-        if (game === undefined && provider === undefined)
+        const resolved = this.Get(target);
+
+        if (game !== undefined && normalizeGame(game) !== resolved.game)
         {
-            return this.Get();
+            throw new Error(`Target ${resolved.id} does not use game ${game}`);
         }
 
-        if (game === undefined || provider === undefined)
+        if (provider !== undefined && normalizeProviderId(provider) !== resolved.provider)
         {
-            throw new TypeError("Target resolution requires both game and provider");
-        }
-
-        const resolved = this.Find(game, provider);
-
-        if (!resolved)
-        {
-            throw new Error(`Target not found for ${game}/${provider}`);
+            throw new Error(`Target ${resolved.id} does not use provider ${provider}`);
         }
 
         return resolved;
     }
 
+    /**
+     * Returns one required target library or throws a descriptive configuration
+     * error.
+     */
     RequireLibrary(target, library)
     {
         const resolved = typeof target === "string" ? this.Get(target) : CjsToolTarget.from(target);
@@ -133,6 +117,7 @@ export class CjsToolTargetRegistry
         return this.RequireTopic(requested.ResolveTopicSource(topic), topic);
     }
 
+    /** Returns registered items in deterministic declaration order. */
     List()
     {
         return Object.freeze([...this.#targets.values()]);

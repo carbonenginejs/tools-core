@@ -5,8 +5,7 @@ import { parseArguments } from "../../src/indexing/cli/parseArguments.js";
 test("accepts colon, equals, and separate CLI option values", () =>
 {
     const args = parseArguments([
-        "--provider:ccp",
-        "--game:Frontier",
+        "--profile-file:profiles.json",
         "--target:frontier",
         "--build=latest",
         "--all",
@@ -19,8 +18,7 @@ test("accepts colon, equals, and separate CLI option values", () =>
     assert.deepEqual(args, {
         _: [],
         target: "frontier",
-        game: "Frontier",
-        provider: "ccp",
+        profileFile: "profiles.json",
         build: "latest",
         res: "staticdata/types.bin",
         out: "D:\\source-files",
