@@ -15,7 +15,7 @@
 // --enrichment accepts a caller-supplied plain-JSON metadata overlay.
 import fs from "node:fs";
 import path from "node:path";
-import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
+import { CjsFileIndex } from "@carbonenginejs/runtime/tools/fileindex";
 import {
     CjsToolAudio,
     CjsToolAudioBuilder,

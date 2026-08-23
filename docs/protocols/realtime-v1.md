@@ -6,7 +6,7 @@ Audience: Integrators and realtime client implementers
 Summary: Defines the authenticated HTTP and WebSocket contract for CarbonEngineJS tool services.
 
 This document defines the version 1 boundary implemented by `tools-core` and
-consumed by `tools-browser` or other process clients. The executable examples
+consumed through `@carbonenginejs/runtime/tools/realtime` or other process clients. The executable examples
 are checked in beside it as
 `realtime-v1.transcript.json`. Package tests replay those
 transcripts through the real hub so that documentation and implementation do

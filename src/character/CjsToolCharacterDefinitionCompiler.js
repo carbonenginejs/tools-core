@@ -1,4 +1,4 @@
-import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
+import { CjsFileIndex } from "@carbonenginejs/runtime/tools/fileindex";
 
 const CONFIGURATION_EXTENSIONS = new Set([ ".black", ".red" ]);
 const GEOMETRY_EXTENSIONS = new Set([ ".gr2" ]);

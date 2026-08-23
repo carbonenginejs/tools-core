@@ -15,7 +15,7 @@ a non-owning composition for applications that provide their own server.
 Remote index and Twitch requests use bounded fetches, package output excludes
 generated Carbon scan reports, provider delivery is serialized before
 publication, and browser-side realtime reconciliation belongs to
-`@carbonenginejs/tools-browser`.
+`@carbonenginejs/runtime/tools`.
 
 ## Planned hardening
 
@@ -66,7 +66,7 @@ future capabilities. Their requirements are recorded in
 [Realtime operations](reference/realtime-operations.md); none are part of the
 current receive-side provider contract.
 
-Protocol primitives duplicated temporarily between tools-core and
-tools-browser should be consolidated only after the browser package has a
-released compatibility boundary. Provider-specific authentication, account
-policy, and user interfaces remain embedding-application concerns.
+The conformance suite now consumes the combined runtime's browser protocol
+surface directly. Tools-core retains the server-side `CjsTool` identity and
+checks it against that wire contract. Provider-specific authentication,
+account policy, and user interfaces remain embedding-application concerns.

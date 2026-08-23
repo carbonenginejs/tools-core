@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
+import { CjsFileIndex } from "@carbonenginejs/runtime/tools/fileindex";
 import {
     CjsToolCharacterCatalogGatherer,
     CjsToolCharacterDefinitionCompiler,

@@ -5,8 +5,8 @@ libraries, local services, and realtime provider integrations.
 
 Use tools-core when a build or application needs Node filesystems, persistent
 caches, credentials, servers, command-line orchestration, or generated
-artifacts. Browser clients belong in `@carbonenginejs/tools-browser`; runtime
-packages never import this package.
+artifacts. Browser clients belong in `@carbonenginejs/runtime/tools`; runtime
+code never imports this package.
 
 ## Install
 

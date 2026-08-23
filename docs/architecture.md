@@ -28,7 +28,7 @@ Tools-core owns:
 Tools-core does not own:
 
 - browser clients or browser-safe remote readers, which belong in
-  `@carbonenginejs/tools-browser`;
+  `@carbonenginejs/runtime/tools`;
 - runtime-owned audio-library construction and raw-resource decoding, which
   tools-core calls with an injected exact-build index/cache source;
 - runtime-owned character-library schema, hydration, and deterministic
@@ -115,6 +115,6 @@ enters a service. Registered services receive canonical values, not raw sockets.
 ## Current limitations
 
 The checked-in launcher does not enable the authenticated realtime host.
-Browser-client protocol consumption remains in
-tools-browser. Consolidating duplicated protocol primitives across the two
-packages is follow-up work after tools-browser has a released semver boundary.
+Browser-client protocol consumption remains in `@carbonenginejs/runtime/tools`.
+The conformance suite imports that client and wire surface directly from the
+combined runtime and proves it agrees with tools-core's server protocol.

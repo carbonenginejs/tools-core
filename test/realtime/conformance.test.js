@@ -7,17 +7,16 @@ import { WebSocket } from "ws";
 
 import {
     CjsRealtimeClient as CjsBrowserRealtimeClient,
-} from "@carbonenginejs/tools-browser/realtime";
+} from "@carbonenginejs/runtime/tools/realtime";
 import {
-    // tools-browser OWNS this name, and it is not ours to rename: the two
-    // packages each have a CjsRealtimeProtocol and this test exists to check
-    // they agree. Only the tools-core one took the CjsTool prefix.
+    // The runtime tools surface owns this client-side name. This test exists
+    // to prove it agrees with tools-core's CjsTool-prefixed server protocol.
     CjsRealtimeProtocol as CjsBrowserRealtimeProtocol,
     REALTIME_PROTOCOL as BROWSER_REALTIME_PROTOCOL,
     REALTIME_PROTOCOL_VERSION as BROWSER_REALTIME_PROTOCOL_VERSION,
     REALTIME_ROUTE as BROWSER_REALTIME_ROUTE,
     REALTIME_SUBPROTOCOL as BROWSER_REALTIME_SUBPROTOCOL,
-} from "@carbonenginejs/tools-browser/realtime/wire";
+} from "@carbonenginejs/runtime/tools/realtime/wire";
 import {
     REALTIME_PROTOCOL,
     REALTIME_PROTOCOL_VERSION,

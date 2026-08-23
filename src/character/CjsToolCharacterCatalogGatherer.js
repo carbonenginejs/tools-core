@@ -1,4 +1,4 @@
-import { CjsFileIndex } from "@carbonenginejs/tools-browser/fileindex";
+import { CjsFileIndex } from "@carbonenginejs/runtime/tools/fileindex";
 import { CjsPngFormat } from "@carbonenginejs/runtime-resource/formats/png";
 import { CjsCharacterTextureMetadata } from "@carbonenginejs/runtime-character";
 import { CjsToolCache } from "../cache/CjsToolCache.js";
