@@ -9,6 +9,10 @@ import {
     SCHEMA_VERSION
 } from "./schema.js";
 import { DEFAULT_FIELD_RESOLUTIONS } from "./schemaFieldResolutions.js";
+import {
+    normalizeSchemaClassPurpose,
+    resolveSchemaClassPurpose
+} from "./schemaClassPurposes.js";
 
 export const OUTPUT_JSON = "json";
 export const OUTPUT_RAW = "raw";
@@ -741,6 +745,10 @@ const SOURCE_LINE_CACHE = new Map();
 
 function renderClassSchema(classInfo, classMap, version, enumNames, carbonRoot = null, familyName = null, values = DEFAULT_VALUES)
 {
+    const className = classInfo.name;
+    const purpose = normalizeSchemaClassPurpose(hasOwn(classInfo, "purpose")
+        ? classInfo.purpose
+        : resolveSchemaClassPurpose(classInfo.family || familyName, className));
     const sourceRefs = createSourceRefs();
     const reviewNotes = Array.isArray(classInfo.reviewNotes) ? [ ...classInfo.reviewNotes ] : [];
     const source = compactObject({
@@ -779,8 +787,9 @@ function renderClassSchema(classInfo, classMap, version, enumNames, carbonRoot =
     return {
         schemaVersion: version,
         family: classInfo.family,
-        blueClass: classInfo.name,
-        cppClass: classInfo.name,
+        blueClass: className,
+        cppClass: className,
+        ...(purpose ? { purpose } : {}),
         declarationKind: classInfo.declarationKind || null,
         sourceRefs: sourceRefs.toJSON(),
         bases: classInfo.bases || [],

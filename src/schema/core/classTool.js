@@ -13,6 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeSchemaClassPurpose } from "./schemaClassPurposes.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_SCHEMA_ROOT = path.resolve(HERE, "..", "schema");
@@ -3518,6 +3519,7 @@ export function renderClassFile(expected, options = {})
     const isJs = Boolean(options.js);
     const className = meta.className;
     const family = meta.family || doc.family || "unknown";
+    const purpose = normalizeSchemaClassPurpose(doc.purpose);
     const runtimeBase = resolveRuntimeBase(options, isJs);
     const baseClass = runtimeBase.className;
     const baseImport = runtimeBase.importPath;
@@ -3610,8 +3612,10 @@ export function renderClassFile(expected, options = {})
     const jsClassName = toJsClassIdentity(className);
 
     lines.push("");
-    lines.push(`/** ${jsClassName} (${family}) - generated${meta.shapeHash ? ` from schema shapeHash ${shortHash(meta.shapeHash)}` : ""}. */`);
-    lines.push(`@type.define({ className: "${jsClassName}", family: "${family}" })`);
+    lines.push(purpose
+        ? `/** ${purpose} */`
+        : `/** ${jsClassName} (${family}) - generated${meta.shapeHash ? ` from schema shapeHash ${shortHash(meta.shapeHash)}` : ""}. */`);
+    lines.push(`@type.define({ className: "${jsClassName}", family: "${family}"${purpose ? `, purpose: ${JSON.stringify(purpose)}` : ""} })`);
     lines.push(`export class ${jsClassName} extends ${baseClass}`);
     lines.push("{");
     lines.push("");

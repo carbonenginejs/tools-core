@@ -60,6 +60,16 @@ or conversion. It applies the same boundary to runtime-character's
 combined-library builder. Browser remote
 clients remain optional consumers of the resulting service.
 
+## Schema staging
+
+Carbon schema and class generation writes to tools-core staging; the consuming
+runtime reviews and installs accepted output. Family-qualified reviewed class
+purposes live in the schema tool beside the emitter because they are
+CarbonEngineJS metadata, not text extracted from Carbon declarations. The
+schema carries an optional `purpose`, and generated class JSDoc plus
+`@type.define` metadata use it verbatim after whitespace normalization. Unknown
+classes retain the deterministic shape-hash fallback.
+
 ## Exact-build data path
 
 Friendly build names such as `latest` are resolved once. Every subsequent

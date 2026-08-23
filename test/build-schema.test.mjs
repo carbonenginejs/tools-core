@@ -114,6 +114,7 @@ function createFixture(root)
                         "m_pass2Field"
                     ),
                     makeClass("RootOnly", [ "trinity/trinity/RootOnly.h" ], "m_rootField"),
+                    makeClass("Tr2AtlasTexture", [ "trinity/trinity/Tr2AtlasTexture.h" ], "m_atlasField"),
                     makeClass(
                         "NestedOnly",
                         [ "trinity/trinity/Eve/NestedOnly.h" ],
@@ -190,6 +191,10 @@ test("two-pass build gives pass two trinityCore authority and unions enums", () 
         assert.ok(includeShared.fields.some(field => field.cppName === "m_pass1Field"));
         assert.ok(trinityShared.fields.some(field => field.cppName === "m_pass2Field"));
         assert.equal(fs.existsSync(path.join(outputRoot, "trinityCore", "RootOnly.json")), true);
+        assert.equal(
+            JSON.parse(fs.readFileSync(path.join(outputRoot, "trinityCore", "Tr2AtlasTexture.json"), "utf8")).purpose,
+            "Describes one named subtexture's resource path, pixel rectangle, and owning atlas dimensions."
+        );
         assert.equal(fs.existsSync(path.join(outputRoot, "trinityCore", "NestedOnly.json")), false);
         assert.equal(fs.existsSync(path.join(outputRoot, "trinityCore", "_PrivateRoot.json")), false);
         assert.equal(fs.existsSync(path.join(outputRoot, "trinityCore", "StaleTrinity.json")), false);

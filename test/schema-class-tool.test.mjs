@@ -260,6 +260,35 @@ test("emitted decal stubs include all renderable and pickable pure contracts", (
     }
 });
 
+test("emitted classes use schema purposes and retain the deterministic fallback", () =>
+{
+    const expected = {
+        fields: [],
+        methods: [],
+        meta: {
+            className: "Tr2AtlasTexture",
+            family: "trinityCore",
+            shapeHash: "sha256:1234567890abcdef"
+        }
+    };
+    const purpose = "Describes one named subtexture's resource path, pixel rectangle, and owning atlas dimensions.";
+    const source = renderClassFile(expected, {
+        doc: { family: "trinityCore", purpose: `  ${purpose}\n` },
+        js: true
+    });
+
+    assert.ok(source.includes(`/** ${purpose} */`));
+    assert.ok(source.includes(`family: "trinityCore", purpose: ${JSON.stringify(purpose)}`));
+
+    const fallback = renderClassFile(expected, { doc: { family: "trinityCore" }, js: true });
+    assert.ok(fallback.includes("generated from schema shapeHash 12345678"));
+    assert.equal(fallback.includes("purpose:"), false);
+    assert.throws(
+        () => renderClassFile(expected, { doc: { purpose: "Invalid */ purpose." }, js: true }),
+        /cannot close a JSDoc comment/
+    );
+});
+
 test("renamed Blue methods require Carbon provenance and one implementation status", () =>
 {
     const parsed = parseClassFile(`

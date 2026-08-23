@@ -1279,6 +1279,32 @@ test("read accepts JSON text, UTF-8 bytes, and JSON file paths", () =>
     fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test("class schemas carry reviewed family-qualified purposes", () =>
+{
+    const report = structuredClone(sampleReport);
+    const family = report.families[0];
+    const classInfo = family.classes[0];
+    family.name = "trinityCore";
+    family.root = "trinity/trinity";
+    family.classes = [ classInfo ];
+    classInfo.name = "Tr2AtlasTexture";
+    classInfo.family = "trinityCore";
+
+    const schema = CjsFormatCarbon.read(report);
+    const generated = schema.families[0].classes[0];
+    assert.equal(
+        generated.purpose,
+        "Describes one named subtexture's resource path, pixel rectangle, and owning atlas dimensions."
+    );
+    assert.equal(CjsFormatCarbon.read(JSON.stringify(schema)).families[0].classes[0].purpose, generated.purpose);
+
+    classInfo.purpose = "  Explicit\n   reviewed purpose.  ";
+    assert.equal(
+        CjsFormatCarbon.read(report).families[0].classes[0].purpose,
+        "Explicit reviewed purpose."
+    );
+});
+
 test("inspect summarizes emitted schemas", () =>
 {
     assert.deepEqual(CjsFormatCarbon.inspect(sampleReport), {
