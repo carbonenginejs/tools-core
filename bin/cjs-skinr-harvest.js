@@ -41,12 +41,23 @@ LoadToolEnv();
 
 const dataDirectory = resolveDataRoot();
 const tokens = new CjsToolTokenFile({ directory: path.join(dataDirectory, "auth") });
-const sso = new CjsToolEveSso({
-    clientId: String(process.env.CJS_ESI_CLIENT_ID ?? "").trim(),
-    callback: String(process.env.CJS_ESI_CALLBACK ?? "").trim(),
-    scopes: String(process.env.CJS_ESI_SCOPES ?? "").split(/\s+/u).filter(Boolean),
-});
-const session = await tokens.Read();
+const clientId = String(process.env.CJS_ESI_CLIENT_ID ?? "").trim();
+// Built only where there is something to build it from.
+//
+// `CjsToolEveSso` throws on an empty clientId, and this was constructing one
+// before deciding whether a token was wanted - so the harvest died on its
+// fourth line, with "EVE SSO requires a clientId", on exactly the machine the
+// comment below describes as the one to run it on. A server nobody has signed
+// in on could not run a harvest that does not need anybody signed in
+// (2026-08-25).
+const sso = clientId
+    ? new CjsToolEveSso({
+        clientId,
+        callback: String(process.env.CJS_ESI_CALLBACK ?? "").trim(),
+        scopes: String(process.env.CJS_ESI_SCOPES ?? "").split(/\s+/u).filter(Boolean),
+    })
+    : null;
+const session = sso ? await tokens.Read() : null;
 
 // A token is preferred and not required.
 //
@@ -59,7 +70,7 @@ const session = await tokens.Read();
 // Signed in, the authenticated client is used: a token raises the shared
 // rate limit, and a harvest walking thirty pages is the caller most likely
 // to want that headroom.
-const esi = session?.refreshToken
+const esi = sso && session?.refreshToken
     ? new CjsToolEsiClient({ sso, tokens, compatibilityDate: options.compatibilityDate })
     : new CjsToolPublicEsi({ compatibilityDate: options.compatibilityDate });
 const designs = new CjsToolSkinrDesigns({ esi });
