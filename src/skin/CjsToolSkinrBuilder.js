@@ -198,6 +198,7 @@ export class CjsToolSkinrBuilder
         );
 
         const typesToFactions = BuildTypeFactions(tables.types, groups);
+        const typesToShipTreeGroups = BuildTypeShipTreeGroups(tables.types, groups);
         const skinrSlotsToMaterialLayerByFactionId = this.skinrSlotsToMaterialLayerByFactionId;
 
         ValidateReferences({
@@ -212,6 +213,7 @@ export class CjsToolSkinrBuilder
             shipTreeElements,
             shipTreeGroups,
             typeElements,
+            typesToShipTreeGroups,
             typesToSlotConfigurations,
         });
 
@@ -240,6 +242,7 @@ export class CjsToolSkinrBuilder
             shipTreeGroups,
             typeElements,
             typesToFactions,
+            typesToShipTreeGroups,
             typesToSlotConfigurations,
         });
     }
@@ -379,6 +382,38 @@ function BuildTypeFactions(table, groups)
     return result;
 }
 
+/**
+ * Which ship-tree group each ship belongs to.
+ *
+ * The edge that makes the tier thresholds usable. `tierThresholds` is keyed by
+ * `shipTreeGroupID` and every consumer starts from a `typeID`, so without this
+ * the whole complexity model is a table nobody can enter: the same components
+ * are a different tier on a frigate and on a titan, and there was no way to
+ * say which.
+ *
+ * The field is on the TYPE record - there is no ship list on the group - so
+ * this is a projection of data the builder already holds, not a new source.
+ *
+ * Ships only (categoryID 6) and absent rather than null where a type has no
+ * group, matching BuildTypeFactions.
+ */
+function BuildTypeShipTreeGroups(table, groups)
+{
+    const result = {};
+
+    for (const [ typeID, record ] of tableEntries(table, "types"))
+    {
+        const group = requireRecord(groups, record.groupID, "Type group");
+
+        if (group.categoryID !== 6) continue;
+        if (record.shipTreeGroupID === undefined || record.shipTreeGroupID === null) continue;
+
+        result[typeID] = normalizeId(record.shipTreeGroupID, `type ${typeID} ship tree group`);
+    }
+
+    return result;
+}
+
 function ValidateReferences(data)
 {
     for (const component of Object.values(data.components))
@@ -430,6 +465,14 @@ function ValidateReferences(data)
                 `Faction slot conversion for factionID ${factionID} must map cosmetic slots 1-4 onto material layers 1-4 one to one`,
             );
         }
+    }
+
+    // Every ship-tree group a type claims must be one this library carries,
+    // because a group is only useful for the tier thresholds folded into it.
+    // A dangling id would price as tier 0 - free - rather than fail.
+    for (const groupID of Object.values(data.typesToShipTreeGroups))
+    {
+        requireRecord(data.shipTreeGroups, groupID, "Ship tree group");
     }
 
     for (const configurationID of Object.values(data.typesToSlotConfigurations))
