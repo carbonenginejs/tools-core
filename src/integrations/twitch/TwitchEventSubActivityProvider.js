@@ -83,6 +83,10 @@ export class TwitchEventSubActivityProvider
 
     #topicNames;
 
+    /**
+     * Declares room-scoped activity subscriptions over a shared or internally
+     * composed EventSub source.
+     */
     constructor({
         oauth,
         rooms,
@@ -206,6 +210,10 @@ export class TwitchEventSubActivityProvider
         this.#onStatus = null;
     }
 
+    /**
+     * Normalizes an EventSub notification to canonical activity or reports
+     * invalid provider data.
+     */
     #HandleNotification(message)
     {
         try

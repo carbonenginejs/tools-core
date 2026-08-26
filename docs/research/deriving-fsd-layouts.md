@@ -349,7 +349,7 @@ found nothing, which upgrades the earlier conclusion from "appears derived" to
 
 Ten files per build, `de es fr it ja ko ru zh en-us` plus `main`, and they are
 genuinely Python pickles rather than FSD. Their header — `(S'en-us'\np1\n(dp` —
-is **protocol 0**, which the reader in `runtime-resource` already decodes. The
+is **protocol 0**, which the reader in `@carbonenginejs/runtime/resource` already decodes. The
 English file is 40 MB and the NetEase Chinese file 75 MB.
 
 Entries read `I<id>\n(V<text>\nNN`, so an index can be built by scan without
@@ -477,4 +477,4 @@ to account for.
 - [Documentation home](../README.md)
 - [Architecture and boundaries](../architecture.md)
 - The reviewed runtime readers ship from
-  `@carbonenginejs/runtime-resource/formats/fsd/64/readers`.
+  `@carbonenginejs/runtime/resource/formats/fsd/64/readers`.

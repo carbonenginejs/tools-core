@@ -195,6 +195,7 @@ test("builds API-shaped developer SKIN maps and reverse indexes", () =>
     assert.equal(library.skinMaterialSets[1000].custommaterial1, undefined);
     assert.deepEqual(library.names["special ship"], [ {
         graphicID: 46,
+        groupID: 25,
         kind: "type",
         skinID: null,
         typeID: 100,
@@ -205,6 +206,7 @@ test("builds API-shaped developer SKIN maps and reverse indexes", () =>
     // the document separates them from hulls.
     assert.deepEqual(library.names["not a ship"], [ {
         graphicID: null,
+        groupID: 99,
         kind: "type",
         skinID: null,
         typeID: 200,

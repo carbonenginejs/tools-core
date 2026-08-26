@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { CjsToolCore } from "../src/index.js";
 
-test("resolves identity to DNA and returns runtime-sof carbon.document JSON", () =>
+test("resolves identity to DNA and returns runtime SOF carbon.document JSON", () =>
 {
     const core = new CjsToolCore({
         cache: {},
@@ -29,21 +29,28 @@ test("keeps compact graph projection outside the current contract", () =>
 test("builds plain SOF model values as the recommended boundary", async () =>
 {
     const seen = [];
-    const registry = { marker: true };
+    let prepareDefaultsCount = 0;
     const core = new CjsToolCore({
         cache: {},
-        sofRegistry: registry,
+        async prepareSofDefaults()
+        {
+            prepareDefaultsCount++;
+        },
         sde: { ResolveDna: value => `${value.hull}:${value.faction}:${value.race}` },
         sof: {
             BuildValuesFromDNA(dna, options)
             {
-                seen.push(options.registry);
+                seen.push(options.populateDefaults === true);
                 return { _type: "EveShip2", _id: 1, dna, mesh: { _type: "Tr2Mesh" } };
             },
             async BuildValuesFromDNAAsync(dna, options)
             {
-                seen.push(options.registry);
-                return { _type: "EveShip2", dna };
+                seen.push(options.populateDefaults === true);
+                return {
+                    _type: "EveShip2",
+                    dna,
+                    ...(options.populateDefaults ? { display: true } : {}),
+                };
             }
         }
     });
@@ -56,22 +63,24 @@ test("builds plain SOF model values as the recommended boundary", async () =>
     const asyncValues = await core.BuildSofValuesAsync("rifter:minmatar:minmatar");
     assert.equal(asyncValues._type, "EveShip2");
 
-    // The configured hydration registry threads into every values build.
-    assert.deepEqual(seen, [registry, registry]);
+    const expanded = await core.BuildSofExpandedValuesAsync("rifter:minmatar:minmatar");
+    assert.equal(expanded._type, "EveShip2");
+    assert.equal(expanded.display, true);
+    assert.equal(prepareDefaultsCount, 1);
+
+    assert.deepEqual(seen, [false, false, true]);
 });
 
 test("rejects a carbon.document offered as model values", () =>
 {
     const documentCore = new CjsToolCore({
         cache: {},
-        sofRegistry: {},
         sof: { BuildValuesFromDNA: () => ({ schema: "carbon.document", nodes: [], roots: {} }) }
     });
     assert.throws(() => documentCore.BuildSofValues("rifter:minmatar:minmatar"), /carbon.document where plain model values/);
 
     const untypedCore = new CjsToolCore({
         cache: {},
-        sofRegistry: {},
         sof: { BuildValuesFromDNA: () => ({ dna: "x" }) }
     });
     assert.throws(() => untypedCore.BuildSofValues("rifter:minmatar:minmatar"), /root _type/);

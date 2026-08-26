@@ -15,6 +15,10 @@ const ManifestVersion = 1;
 export class CjsToolIndexOverlayStore
 {
 
+    /**
+     * Anchors persistent overlay discovery and import beneath one resolved data
+     * directory.
+     */
     constructor(directory = path.resolve(process.cwd(), "data.local"))
     {
         this.directory = path.resolve(directory);
@@ -349,6 +353,10 @@ export class CjsToolIndexOverlayStore
         }
     }
 
+    /**
+     * Validates an overlay manifest and index before opening an immutable
+     * build-compatible view.
+     */
     async #OpenOverlay(directory, target, build, expected)
     {
         const manifestPath = safeJoin(directory, "overlay.json");
@@ -404,6 +412,10 @@ export class CjsToolIndexOverlay
 
     #payloadDirectory;
 
+    /**
+     * Freezes an opened overlay's identity, provenance, index, and
+     * payload-location contract.
+     */
     constructor(options)
     {
         this.schema = options.schema;
@@ -478,6 +490,10 @@ export class CjsToolIndexOverlay
         return safeJoin(this.#payloadDirectory, CjsToolIndexEntry.from(record).location);
     }
 
+    /**
+     * Projects an index record into the target-qualified resolution shape
+     * consumed by readers.
+     */
     #CreateResolution(record)
     {
         return utils.freezeData({

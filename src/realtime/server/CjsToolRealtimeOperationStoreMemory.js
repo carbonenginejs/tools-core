@@ -9,6 +9,10 @@ export class CjsToolRealtimeOperationStoreMemory
 
     #entries;
 
+    /**
+     * Configures an in-memory idempotency store with injected time, retention,
+     * and capacity bounds.
+     */
     constructor({
         clock = () => Date.now(),
         retentionMs = 15 * 60 * 1000,

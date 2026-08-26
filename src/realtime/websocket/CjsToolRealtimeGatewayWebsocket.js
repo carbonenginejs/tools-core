@@ -27,6 +27,10 @@ export class CjsToolRealtimeGatewayWebsocket
 
     #webSocketServer;
 
+    /**
+     * Configures WebSocket route, origin, subprotocol, payload, buffering,
+     * heartbeat, and shutdown policy.
+     */
     constructor({
         hub,
         allowedOrigins = [],
@@ -152,6 +156,10 @@ export class CjsToolRealtimeGatewayWebsocket
         }
     }
 
+    /**
+     * Validates route, network, origin, subprotocol, and capacity before
+     * accepting an HTTP upgrade.
+     */
     #HandleUpgrade(request, socket, head)
     {
         if (this.#draining)
@@ -229,6 +237,10 @@ export class CjsToolRealtimeGatewayWebsocket
         });
     }
 
+    /**
+     * Adapts an accepted socket to a hub connection and installs protocol,
+     * heartbeat, and cleanup handlers.
+     */
     #HandleConnection(socket, request)
     {
         const transport = new CjsToolRealtimeTransportWebsocket({
@@ -287,6 +299,10 @@ export class CjsToolRealtimeGatewayWebsocket
         });
     }
 
+    /**
+     * Revalidates sessions, terminates idle sockets, and pings every remaining
+     * connection.
+     */
     #Heartbeat()
     {
         const now = Date.now();
@@ -311,6 +327,10 @@ export class CjsToolRealtimeGatewayWebsocket
         }
     }
 
+    /**
+     * Applies missing-origin policy or exact normalized allowlist matching to an
+     * upgrade request.
+     */
     #IsAllowedOrigin(origin)
     {
         if (origin === null || origin === undefined || origin === "")
@@ -330,6 +350,10 @@ export class CjsToolRealtimeGatewayWebsocket
         }
     }
 
+    /**
+     * Lazily creates the no-server WebSocket adapter with compression disabled
+     * and payload bounded.
+     */
     #CreateWebSocketServer()
     {
         if (this.#webSocketServer !== null)
@@ -350,6 +374,10 @@ export class CjsToolRealtimeGatewayWebsocket
             this.#HandleConnection(socket, request));
     }
 
+    /**
+     * Removes one socket exactly once and tells its protocol connection that
+     * transport ended.
+     */
     #CleanupSocket(socket, connection)
     {
         if (this.#records.delete(socket))

@@ -5,7 +5,7 @@ Copyright (c) 2026 CarbonEngineJS contributors.
 
 This package contains CarbonEngineJS original code for CCP-compatible index
 interoperability, prepared SDE joins, character-library generation, caching,
-tool orchestration, and optional HTTP access. Its runtime-sof integration uses
+tool orchestration, and optional HTTP access. Its runtime SOF integration uses
 the public CarbonEngineJS runtime boundary. It contains no copied CCP or
 CarbonEngine source code.
 

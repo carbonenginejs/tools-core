@@ -25,7 +25,7 @@ cjs-sde-build --target infinity --build 3466057 --out ./infinity.sqlite
 ```
 
 The command resolves a friendly build once, reads containers through
-runtime-resource, applies the selected profile's projections, writes through
+the runtime resource layer, applies the selected profile's projections, writes through
 `CjsToolSdeDatabase.ImportTables`, and publishes registered named derivations.
 
 ## API
@@ -44,5 +44,5 @@ on NetEase or CCP, so a future `target: "eve"`, `provider: "ccp"` profile uses
 the same path.
 
 Modern FSD/cFSD decoding belongs to
-`@carbonenginejs/runtime-resource/formats/fsd/64`. Tools-core's `./fsd` subpath
+`@carbonenginejs/runtime/resource/formats/fsd/64`. Tools-core's `./fsd` subpath
 only provides read-only structural inspection and generator-side research.

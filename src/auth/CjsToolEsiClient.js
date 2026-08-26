@@ -105,6 +105,10 @@ export class CjsToolEsiClient
         });
     }
 
+    /**
+     * Issues an authenticated, bounded ESI GET request without decoding its
+     * response body.
+     */
     #Send(path, accessToken)
     {
         return CjsToolBoundedFetch.request(this.fetch, `${this.root}${path}`, {
@@ -156,6 +160,10 @@ export class CjsToolEsiClient
         return this.#refreshing;
     }
 
+    /**
+     * Exchanges a refresh token and atomically preserves identity fields while
+     * storing rotated credentials.
+     */
     async #Refresh(refreshToken)
     {
         const tokens = await this.sso.Refresh(refreshToken);

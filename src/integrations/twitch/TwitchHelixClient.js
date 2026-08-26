@@ -15,6 +15,10 @@ export class TwitchHelixClient
 
     #requestTimeoutMs;
 
+    /**
+     * Binds OAuth acquisition and bounded fetch behavior to a validated Helix
+     * endpoint.
+     */
     constructor({
         oauth,
         fetch: fetchImplementation = globalThis.fetch,
@@ -117,6 +121,10 @@ export class TwitchHelixClient
         }
     }
 
+    /**
+     * Sends one authenticated JSON-capable Helix request and maps transport
+     * failure to a retryable error.
+     */
     async #Send(url, method, body, credentials, signal)
     {
         const headers = {

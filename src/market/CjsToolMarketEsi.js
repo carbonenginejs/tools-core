@@ -65,6 +65,10 @@ const PAGE_SIZE = 1000;
 /** More pages than any real order book, so a broken `x-pages` cannot spin. */
 const MAX_PAGES = 40;
 
+/**
+ * Reads bounded, paginated regional market orders and attaches exact observed
+ * provenance.
+ */
 export class CjsToolMarketEsi
 {
 
@@ -131,6 +135,10 @@ export class CjsToolMarketEsi
         return { entries: this.#entries.size, names: this.#names.size };
     }
 
+    /**
+     * Collects bounded order-book pages, resolves locations, and records
+     * observation and expiry times.
+     */
     async #ReadOrders(regionID, typeID)
     {
         const rows = [];
@@ -164,6 +172,10 @@ export class CjsToolMarketEsi
         };
     }
 
+    /**
+     * Projects regional price-history rows with stable field names and cache
+     * provenance.
+     */
     async #ReadHistory(regionID, typeID)
     {
         const answer = await this.#esi.Read(`/markets/${regionID}/history?type_id=${typeID}`);
@@ -297,6 +309,10 @@ export class CjsToolMarketEsi
         }
     }
 
+    /**
+     * Evicts the oldest held observations until the bounded cache is within
+     * capacity.
+     */
     #Trim()
     {
         while (this.#entries.size > MAX_ENTRIES)

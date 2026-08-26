@@ -9,7 +9,7 @@ import readline from "node:readline";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
+import { CjsCharacterLibrary } from "@carbonenginejs/runtime/character";
 import {
     CjsToolIndexOverlayStore,
     CjsToolIndexTargetProfileRegistry,
@@ -98,6 +98,7 @@ test("serves exact-build GPU-free SOF catalogs and DNA model values", async cont
     let openTargetCount = 0;
     let openSofCount = 0;
     const builtDna = [];
+    const expandedDna = [];
     const source = {
         target: "eve",
         game: "Eve",
@@ -125,6 +126,10 @@ test("serves exact-build GPU-free SOF catalogs and DNA model values", async cont
         ListHullPatterns: hull => hull === "ab1_t1"
             ? [ "alpha", "stripes" ]
             : hull === "zz1_t1" ? [] : null,
+        async ListHullPatternsAsync(hull)
+        {
+            return this.ListHullPatterns(hull);
+        },
         GetHull: name => name === "ab1_t1" ? { name: "ab1_t1" } : null,
         GetFaction: name => name === "amarrbase" ? { name: "amarrbase" } : null,
         GetRace: name => name === "amarr" ? { name: "amarr" } : null,
@@ -132,11 +137,20 @@ test("serves exact-build GPU-free SOF catalogs and DNA model values", async cont
             ? { name: "gold", parameters: { PaintColor: [1, 2, 3, 4] } }
             : null,
         GetLayout: name => name === "antennae" ? { name: "antennae" } : null,
+        async GetHullAsync(name) { return this.GetHull(name); },
+        async GetFactionAsync(name) { return this.GetFaction(name); },
+        async GetRaceAsync(name) { return this.GetRace(name); },
+        async GetMaterialAsync(name) { return this.GetMaterial(name); },
+        async GetLayoutAsync(name) { return this.GetLayout(name); },
         GetPatternHull(pattern, hull)
         {
             return pattern === "stripes" && hull === "ab1_t1"
                 ? { layerAndProjection: [{ layer: { textureName: "PatternTex" } }] }
                 : null;
+        },
+        async GetPatternHullAsync(pattern, hull)
+        {
+            return this.GetPatternHull(pattern, hull);
         },
         InspectDna(dna)
         {
@@ -150,6 +164,7 @@ test("serves exact-build GPU-free SOF catalogs and DNA model values", async cont
             }
             return { buildable: true, valid: true, error: null };
         },
+        async InspectDnaAsync(dna) { return this.InspectDna(dna); },
         GetDnaVisibilityGroups(dna)
         {
             if (dna.includes(":unbuildable")) return null;
@@ -163,12 +178,28 @@ test("serves exact-build GPU-free SOF catalogs and DNA model values", async cont
                 sets: [],
             };
         },
+        async GetDnaVisibilityGroupsAsync(dna)
+        {
+            return this.GetDnaVisibilityGroups(dna);
+        },
         async BuildValuesAsync(dna)
         {
             builtDna.push(dna);
             if (dna.includes(":unbuildable")) return null;
 
             return { _type: "EveShip2", dna };
+        },
+        async BuildExpandedValuesAsync(dna)
+        {
+            expandedDna.push(dna);
+            if (dna.includes(":unbuildable")) return null;
+
+            return {
+                _type: "EveShip2",
+                dna,
+                display: true,
+                reflectionMode: 3,
+            };
         },
     };
     const proxy = new CjsToolHttpProxy({
@@ -278,6 +309,18 @@ test("serves exact-build GPU-free SOF catalogs and DNA model values", async cont
     assert.equal((await literal.json())._type, "EveShip2");
     assert.equal((await encoded.json())._type, "EveShip2");
     assert.deepEqual(builtDna, [ literalDna, literalDna ]);
+
+    const expanded = await fetch(`${root}/dna/${encodedDna}/expanded`);
+    assert.equal(expanded.status, 200);
+    assert.equal(expanded.headers.get("x-carbon-answer"), "sof-dna-expanded");
+    assert.deepEqual(await expanded.json(), {
+        _type: "EveShip2",
+        dna: literalDna,
+        display: true,
+        reflectionMode: 3,
+    });
+    assert.deepEqual(expandedDna, [ literalDna ]);
+
     assert.equal((await fetch(
         `${root}/dna/ab1_t1:amarrbase:amarr/document`,
     )).status, 400);
@@ -1185,6 +1228,7 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
     assert.equal(Object.hasOwn(bootstrap, "token"), false);
     assert.equal(bootstrap.cacheDirectory, path.resolve(cacheDirectory));
     assert.equal(bootstrap.dataDirectory, path.resolve(dataDirectory));
+    assert.equal(bootstrap.sofLoadMode, "lazy");
     assert.deepEqual(bootstrap.capabilities, {
         resources: true,
         audio: true,

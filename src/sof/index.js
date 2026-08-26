@@ -3,6 +3,10 @@ export {
     CjsToolSofRepository,
 } from "./CjsToolSofRepository.js";
 export {
+    ExpandSofDefaults,
+    PrepareSofDefaults,
+} from "./ExpandSofDefaults.js";
+export {
     CjsToolSofBundle,
     EncodePng,
     RestoreNormalZ,

@@ -4,10 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
+import { CjsCharacterLibrary } from "@carbonenginejs/runtime/character";
 import {
     CjsFsd64ReaderSetCharacterStaticData,
-} from "@carbonenginejs/runtime-resource/formats/fsd/64/readers";
+} from "@carbonenginejs/runtime/resource/formats/fsd/64/readers";
 import { CjsToolCache } from "../src/cache/index.js";
 import {
     CjsToolCharacter,

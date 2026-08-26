@@ -1,5 +1,5 @@
 import { deflateSync } from "node:zlib";
-import { CjsDdsFormat } from "@carbonenginejs/runtime-resource/formats/dds";
+import { CjsDdsFormat } from "@carbonenginejs/runtime/resource/formats/dds";
 
 export const SOF_BUNDLE_SCHEMA = "carbon.sof-bundle";
 export const SOF_BUNDLE_VERSION = 1;
@@ -24,6 +24,7 @@ export class CjsToolSofBundle
 
     #writeFile;
 
+    /** Binds SOF bundle output to an injected writer and the runtime DDS decoder. */
     constructor({ dds = new CjsDdsFormat(), writeFile } = {})
     {
         if (typeof writeFile !== "function")
@@ -99,6 +100,10 @@ export class CjsToolSofBundle
         return manifest;
     }
 
+    /**
+     * Fetches and writes one referenced resource, recording misses and
+     * preserving undecodable textures raw.
+     */
     async #WriteResource(source, logicalPath, directory, convert, missing)
     {
         let bytes;
@@ -143,6 +148,10 @@ export class CjsToolSofBundle
         }
     }
 
+    /**
+     * Decodes DDS pixels, restores two-channel normal Z values, and encodes a
+     * PNG.
+     */
     #ConvertTexture(bytes)
     {
         const header = this.#dds.Inspect(bytes);

@@ -141,6 +141,10 @@ export const DOGMA_SECTIONS = Object.freeze({
 /** The section used when a caller names none. */
 export const DEFAULT_SECTIONS = Object.freeze([ "fitting" ]);
 
+/**
+ * Evaluates exact-build hull dogma attributes against an explicit skill profile
+ * with modifier traces.
+ */
 export class CjsToolDogma
 {
 

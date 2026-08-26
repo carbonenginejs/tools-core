@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { resFileAddress } from "@carbonenginejs/runtime-utils/resfile";
+import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 
 import {
     CjsToolIndexOverlaySource,

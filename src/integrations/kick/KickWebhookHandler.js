@@ -38,6 +38,10 @@ export class KickWebhookHandler
 
     #publicKey;
 
+    /**
+     * Imports Kick's signing key and configures accepted message age and
+     * future-clock skew.
+     */
     constructor({
         publicKey = KICK_WEBHOOK_PUBLIC_KEY,
         maxMessageAgeMs = 10 * 60 * 1000,

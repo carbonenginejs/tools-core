@@ -28,6 +28,10 @@ export class TwitchStateSource
 
     #states;
 
+    /**
+     * Materializes provider snapshots and ordered state changes for multiple
+     * consumers with bounded deduplication.
+     */
     constructor({ provider, recentEventLimit = 4096 } = {})
     {
         if (!provider || provider.kind !== "twitch.eventsub"
@@ -152,6 +156,10 @@ export class TwitchStateSource
         return this.#lane.Enqueue(() => this.#Snapshot());
     }
 
+    /**
+     * Serializes an incoming state change and reports malformed updates as
+     * degraded status.
+     */
     #QueueChange(change)
     {
         this.#lane.Enqueue(() => this.#Apply(change)).catch(() =>
@@ -164,11 +172,19 @@ export class TwitchStateSource
         });
     }
 
+    /**
+     * Serializes provider-condition fanout behind state mutations without
+     * surfacing consumer failure.
+     */
     #QueueStatus(status)
     {
         this.#lane.Enqueue(() => this.#NotifyStatus(status)).catch(() => undefined);
     }
 
+    /**
+     * Applies a unique canonical change to seeded state and notifies every
+     * consumer independently.
+     */
     #Apply(change)
     {
         if (change?.topic !== LIVESTREAM_STATE_TOPICS.CHANGED)
@@ -226,6 +242,10 @@ export class TwitchStateSource
         }
     }
 
+    /**
+     * Replaces materialized state from a validated provider snapshot and records
+     * its observation time.
+     */
     #Replace(snapshot)
     {
         const normalized = CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(snapshot);
@@ -237,6 +257,10 @@ export class TwitchStateSource
         this.#observedAt = normalized.observedAt;
     }
 
+    /**
+     * Returns a newly normalized snapshot of the current materialized channel
+     * states.
+     */
     #Snapshot()
     {
         return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot({
@@ -245,6 +269,10 @@ export class TwitchStateSource
         });
     }
 
+    /**
+     * Fans one provider condition out without allowing a failed consumer to
+     * interrupt siblings.
+     */
     #NotifyStatus(status)
     {
         for (const consumer of this.#consumers.values())
@@ -260,6 +288,10 @@ export class TwitchStateSource
         }
     }
 
+    /**
+     * Clears materialized states, observation time, replay memory, and running
+     * state after shutdown.
+     */
     #Reset()
     {
         this.#observedAt = null;

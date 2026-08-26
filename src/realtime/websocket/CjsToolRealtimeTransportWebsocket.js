@@ -6,6 +6,10 @@ export class CjsToolRealtimeTransportWebsocket
 
     #socket;
 
+    /**
+     * Validates a ws-compatible socket and installs its maximum buffered-byte
+     * policy.
+     */
     constructor({ socket, maxBufferedBytes })
     {
         if (!socket || typeof socket.send !== "function" || typeof socket.close !== "function")

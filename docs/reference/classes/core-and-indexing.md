@@ -18,7 +18,7 @@ Front-facing audio-library build tool.
 <!-- class:CjsToolAudioBuilder -->
 ## `CjsToolAudioBuilder`
 
-Node target-policy wrapper around the runtime-audio optional library builder.
+Node target-policy wrapper around the runtime audio optional library builder.
 
 - Export: `@carbonenginejs/tools-core/audio`
 - Source: `src/audio/CjsToolAudioBuilder.js`
@@ -58,7 +58,7 @@ Opens exact-build prepared audio libraries and their indexed byte sources.
 <!-- class:CjsToolSofRepository -->
 ## `CjsToolSofRepository`
 
-Opens and retains exact-build runtime-sof catalogs from composed resource sources.
+Opens exact-build runtime SOF catalogs lazily by default, with an explicit full `data.black` mode.
 
 - Export: `@carbonenginejs/tools-core/sof`
 - Source: `src/sof/CjsToolSofRepository.js`
@@ -68,7 +68,7 @@ Opens and retains exact-build runtime-sof catalogs from composed resource source
 <!-- class:CjsToolSofCatalog -->
 ## `CjsToolSofCatalog`
 
-Provides read-only catalog and DNA answers for one exact runtime-sof build.
+Provides read-only catalog and asynchronous lazy detail/DNA answers for one exact runtime SOF build.
 
 - Export: `@carbonenginejs/tools-core/sof`
 - Source: `src/sof/CjsToolSofRepository.js`

@@ -58,6 +58,10 @@ export class CjsToolSkinrBuilder
      */
     static skinrSlotsToMaterialLayerByFactionId = factionSlotDefinitions.slotsToMaterialLayerByFactionId;
 
+    /**
+     * Normalizes SKINR components, slots, tiers, and authored faction
+     * material-layer mappings.
+     */
     static build(options = {})
     {
         const tables = options.tables ?? options;

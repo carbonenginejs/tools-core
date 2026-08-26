@@ -13,6 +13,10 @@ export class CjsToolRealtimeHttpRouter
 
     #hub;
 
+    /**
+     * Binds discovery, snapshots, and content reads to explicit origins and
+     * optional loopback policy.
+     */
     constructor({ hub, allowedOrigins = [], loopbackOnly = true } = {})
     {
         if (!hub || typeof hub.Discover !== "function")
@@ -173,6 +177,10 @@ export class CjsToolRealtimeHttpRouter
         }
     }
 
+    /**
+     * Normalizes a candidate browser origin and tests exact membership in the
+     * allowlist.
+     */
     #IsAllowedOrigin(origin)
     {
         try
@@ -187,6 +195,7 @@ export class CjsToolRealtimeHttpRouter
         }
     }
 
+    /** Creates the private-network CORS response headers for one accepted origin. */
     #CorsHeaders(origin)
     {
         if (origin === null)

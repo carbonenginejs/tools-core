@@ -289,6 +289,31 @@ test("emitted classes use schema purposes and retain the deterministic fallback"
     );
 });
 
+test("emitted math fields import the combined runtime math subpath", () =>
+{
+    const doc = {
+        family: "trinityCore",
+        blueClass: "CjsGeneratedVectorHolder",
+        cppClass: "CjsGeneratedVectorHolder",
+        blue: { isExposed: true },
+        attributes: [{
+            name: "position",
+            member: "m_position",
+            cppType: "Vector3",
+            beType: "FLOATARRAY",
+            wireType: "floatArray",
+            length: 3,
+            flags: [ "READWRITE" ],
+        }],
+        fields: [],
+        methods: [],
+    };
+    const source = renderClassFile(deriveExpectedFields(doc), { doc, js: true });
+
+    assert.match(source, /from "@carbonenginejs\/runtime\/math\/vec3";/);
+    assert.doesNotMatch(source, /from "@carbonenginejs\/runtime\/vec3";/);
+});
+
 test("renamed Blue methods require Carbon provenance and one implementation status", () =>
 {
     const parsed = parseClassFile(`

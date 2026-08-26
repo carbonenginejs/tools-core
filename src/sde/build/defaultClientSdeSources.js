@@ -6,7 +6,7 @@
  * format: the three skin tables are `.static` SQLite containers whose values
  * are JSON, the map tables are `.static` containers whose layout ships beside
  * them as a `.schema`, the rest are FSD containers that need a registered
- * layout in runtime-resource, and `materialSets` has no client-side origin at all.
+ * layout in the runtime resource layer, and `materialSets` has no client-side origin at all.
  *
  * This list is not the goal. The goal is every table CCP's export publishes -
  * 102 of them - and what is here is the compulsory set plus the dogma family.

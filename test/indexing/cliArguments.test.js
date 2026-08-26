@@ -10,6 +10,7 @@ test("accepts colon, equals, and separate CLI option values", () =>
         "--build=latest",
         "--all",
         "--audio-individual-media",
+        "--sof-full",
         "--res",
         "staticdata/types.bin",
         "--out:D:\\source-files",
@@ -24,5 +25,6 @@ test("accepts colon, equals, and separate CLI option values", () =>
         out: "D:\\source-files",
         all: true,
         audioIndividualMedia: true,
+        sofFull: true,
     });
 });

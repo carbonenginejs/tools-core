@@ -618,7 +618,7 @@ function OptionalChargeSize(attributes)
     return chargeSize === null ? {} : { chargeSize };
 }
 
-/** Selects the runtime-trinity slot collection that accepts one weapon. */
+/** Selects the runtime Trinity slot collection that accepts one weapon. */
 function WeaponSlot(branchID, kind, chargeSize)
 {
     if (SPECIAL_BRANCH_SLOTS[branchID]) return SPECIAL_BRANCH_SLOTS[branchID];

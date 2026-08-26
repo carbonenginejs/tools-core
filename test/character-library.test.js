@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
+import { CjsCharacterLibrary } from "@carbonenginejs/runtime/character";
 import * as rootApi from "../src/index.js";
 import {
     CjsToolCharacter,

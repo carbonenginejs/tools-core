@@ -9,6 +9,10 @@ const ProfilePattern = /^effect\.[a-z0-9][a-z0-9._-]*$/u;
 export class CjsToolShaderTarget
 {
 
+    /**
+     * Validates and freezes one declarative shader build target and its
+     * qualification policy.
+     */
     constructor(data)
     {
         if (!data || typeof data !== "object" || Array.isArray(data))
@@ -182,6 +186,10 @@ export class CjsToolShaderTarget
         return this.CreateCatalog(sourcePaths, { build: exactBuild, targets });
     }
 
+    /**
+     * Serializes the immutable target definition to its stable data
+     * representation.
+     */
     toJSON()
     {
         return {
@@ -198,6 +206,10 @@ export class CjsToolShaderTarget
         };
     }
 
+    /**
+     * Retains an existing target instance or validates a new one from plain
+     * data.
+     */
     static from(value)
     {
         return value instanceof this ? value : new this(value);

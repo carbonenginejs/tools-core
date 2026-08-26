@@ -8,6 +8,10 @@ export class CjsToolWeapon
 
     #targets;
 
+    /**
+     * Binds offline weapon builds to the registry of targets that support the
+     * library.
+     */
     constructor({ targets = new CjsToolTargetRegistry() } = {})
     {
         if (!(targets instanceof CjsToolTargetRegistry))
@@ -19,6 +23,10 @@ export class CjsToolWeapon
         Object.freeze(this);
     }
 
+    /**
+     * Resolves target metadata and requires that the selected target supports
+     * weapon artifacts.
+     */
     ResolveTarget({ target, game, provider } = {})
     {
         const resolved = this.#targets.Resolve({ target, game, provider });
@@ -28,6 +36,10 @@ export class CjsToolWeapon
         return resolved;
     }
 
+    /**
+     * Validates source identity and delegates deterministic weapon-library
+     * construction to the table builder.
+     */
     Build(options = {})
     {
         const target = this.ResolveTarget({
@@ -48,6 +60,10 @@ export class CjsToolWeapon
         });
     }
 
+    /**
+     * Loads the required tables and builds a weapon artifact using the source's
+     * exact identity.
+     */
     async BuildFromSource(source)
     {
         if (!source || typeof source.LoadTables !== "function")
@@ -64,11 +80,13 @@ export class CjsToolWeapon
         });
     }
 
+    /** Runs a one-shot table-backed weapon build with default services. */
     static build(options = {})
     {
         return new this().Build(options);
     }
 
+    /** Runs a one-shot source-backed weapon build with default services. */
     static buildFromSource(source)
     {
         return new this().BuildFromSource(source);

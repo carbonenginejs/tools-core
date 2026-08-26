@@ -64,6 +64,7 @@
   },
   "files": [
     "bin/",
+    "definitions/",
     "docs/",
     "scripts/",
     "!scripts/carbon-blue/reports/",
@@ -73,7 +74,7 @@
     "NOTICE"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=18.20"
   },
   "scripts": {
     "prepack": "npm run lint",
@@ -102,12 +103,6 @@
   },
   "dependencies": {
     "@carbonenginejs/runtime": "file:../runtime/npm",
-    "@carbonenginejs/runtime-audio": "^0.4.1",
-    "@carbonenginejs/runtime-character": "^0.4.0",
-    "@carbonenginejs/runtime-resource": "^0.22.0",
-    "@carbonenginejs/runtime-sof": "^0.3.5",
-    "@carbonenginejs/runtime-trinity": "^0.11.2",
-    "@carbonenginejs/runtime-utils": "^0.1.6",
     "better-sqlite3": "^11.10.0",
     "unzipper": "^0.12.5",
     "ws": "^8.21.1"

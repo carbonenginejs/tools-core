@@ -29,6 +29,10 @@ export class CjsToolWebhookStreamService
 
     #webhookDescription;
 
+    /**
+     * Configures a standalone authenticated webhook endpoint and its bounded
+     * realtime publication stream.
+     */
     constructor({
         id,
         family,
@@ -164,6 +168,10 @@ export class CjsToolWebhookStreamService
         return operation;
     }
 
+    /**
+     * Authenticates and normalizes one delivery, then atomically publishes new
+     * events with replay protection.
+     */
     async #Process(request)
     {
         const authenticatedRequest = Object.freeze({
@@ -224,6 +232,10 @@ export class CjsToolWebhookStreamService
         }
     }
 
+    /**
+     * Caches a completed delivery fingerprint and response within the bounded
+     * replay window.
+     */
     #Remember(delivery)
     {
         this.#recentDeliveries.set(delivery.deliveryId, Object.freeze({

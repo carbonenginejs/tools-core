@@ -66,7 +66,7 @@ is reading hundreds of megabytes to derive a value that was already in the file
 name.
 
 `CjsToolIndexOverlayStore.validateContentAddress` checks the shape;
-`runtime-utils/resfile` derives and parses it.
+`@carbonenginejs/runtime/utils/resfile` derives and parses it.
 
 ## Track builds, not libraries
 

@@ -112,6 +112,10 @@ export class CjsToolSdeArchive
         }
     }
 
+    /**
+     * Reads the latest-build feed and resolves its selected exact SDE archive
+     * record.
+     */
     async #ResolveLatest()
     {
         const response = await this.#Fetch(this.#latestUrl);
@@ -263,6 +267,10 @@ export class CjsToolSdeArchive
         });
     }
 
+    /**
+     * Fetches one archive endpoint with a bounded timeout and validates the HTTP
+     * response.
+     */
     async #Fetch(url)
     {
         const controller = new AbortController();

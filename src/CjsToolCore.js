@@ -1,7 +1,6 @@
-import { CjsClassRegistry } from "@carbonenginejs/runtime-utils/document";
-import { EveSOF } from "@carbonenginejs/runtime-sof";
-import * as runtimeTrinity from "@carbonenginejs/runtime-trinity";
+import { EveSOF } from "@carbonenginejs/runtime/sof";
 import { CjsToolCache } from "./cache/CjsToolCache.js";
+import { PrepareSofDefaults } from "./sof/ExpandSofDefaults.js";
 
 /** Public Node composition root for cache, identity, and graph tooling. */
 export class CjsToolCore
@@ -9,16 +8,13 @@ export class CjsToolCore
 
     /**
      * Creates a composition facade over injected SDE and SOF services.
-     *
-     * `options.sofRegistry` may supply the class registry used to hydrate SOF
-     * values; by default the runtime-trinity classes are registered lazily.
      */
     constructor(options = {})
     {
         this.cache = options.cache || new CjsToolCache(options.cacheDirectory);
         this.sde = options.sde || null;
         this.sof = options.sof || new EveSOF();
-        this.sofRegistry = options.sofRegistry || null;
+        this.prepareSofDefaults = options.prepareSofDefaults || PrepareSofDefaults;
     }
 
     /** Resolves a type/graphic/skin selection into one SOF DNA string. */
@@ -58,16 +54,26 @@ export class CjsToolCore
      */
     BuildSofValues(dna, options = {})
     {
-        return ValidateValues(this.sof.BuildValuesFromDNA(RequireDna(dna), this.SofValueOptions(options)));
+        return ValidateValues(this.sof.BuildValuesFromDNA(RequireDna(dna), options));
     }
 
     /** Returns the complete async plain model-values graph. */
     async BuildSofValuesAsync(dna, options = {})
     {
-        const build = typeof this.sof.BuildValuesFromDNAAsync === "function"
-            ? this.sof.BuildValuesFromDNAAsync(RequireDna(dna), this.SofValueOptions(options))
-            : this.sof.BuildValuesFromDNA(RequireDna(dna), this.SofValueOptions(options));
-        return ValidateValues(await build);
+        return ValidateValues(await this.sof.BuildValuesFromDNAAsync(
+            RequireDna(dna),
+            options,
+        ));
+    }
+
+    /** Returns async SOF values with registered class defaults filled in. */
+    async BuildSofExpandedValuesAsync(dna, options = {})
+    {
+        await this.prepareSofDefaults();
+        return this.BuildSofValuesAsync(dna, {
+            ...options,
+            populateDefaults: true,
+        });
     }
 
     /** Resolves a prepared identity selection and builds its SOF values. */
@@ -82,8 +88,17 @@ export class CjsToolCore
         return this.BuildSofValuesAsync(await this.ResolveDnaAsync(selection), options);
     }
 
+    /** Resolves a prepared identity selection and expands its SOF defaults. */
+    async BuildTypeSofExpandedValuesAsync(selection, options = {})
+    {
+        return this.BuildSofExpandedValuesAsync(
+            await this.ResolveDnaAsync(selection),
+            options,
+        );
+    }
+
     /**
-     * Returns runtime-sof's device-free carbon.document JSON graph.
+     * Returns the runtime SOF layer's device-free carbon.document JSON graph.
      *
      * Compatibility/diagnostic API: the node-table document remains available
      * for explicit graph tooling (fragment import, lossless unknown fields,
@@ -97,10 +112,10 @@ export class CjsToolCore
     /** Async compatibility/diagnostic carbon.document build. */
     async BuildSofDocumentAsync(dna, options = {})
     {
-        const build = typeof this.sof.BuildFromDNAAsync === "function"
-            ? this.sof.BuildFromDNAAsync(RequireDna(dna), options)
-            : this.sof.BuildFromDNA(RequireDna(dna), options);
-        return ValidateDocument(await build);
+        return ValidateDocument(await this.sof.BuildFromDNAAsync(
+            RequireDna(dna),
+            options,
+        ));
     }
 
     /** Resolves a prepared identity selection and builds its SOF document. */
@@ -113,19 +128,6 @@ export class CjsToolCore
     async BuildTypeSofDocumentAsync(selection, options = {})
     {
         return this.BuildSofDocumentAsync(await this.ResolveDnaAsync(selection), options);
-    }
-
-    /** Threads the hydration class registry into a values build. */
-    SofValueOptions(options = {})
-    {
-        if (options.registry) return options;
-
-        if (!this.sofRegistry)
-        {
-            this.sofRegistry = CjsClassRegistry.fromMaps({ constructors: runtimeTrinity });
-        }
-
-        return { ...options, registry: this.sofRegistry };
     }
 
 }
@@ -151,12 +153,12 @@ function ValidateDocument(value)
 
     if (!value || typeof value !== "object" || Array.isArray(value))
     {
-        throw new TypeError("runtime-sof must return a carbon.document object or null");
+        throw new TypeError("The runtime SOF layer must return a carbon.document object or null");
     }
 
     if (value.schema !== "carbon.document")
     {
-        throw new TypeError(`runtime-sof returned unsupported document schema "${value.schema}"`);
+        throw new TypeError(`The runtime SOF layer returned unsupported document schema "${value.schema}"`);
     }
 
     return value;
@@ -171,12 +173,12 @@ function ValidateValues(value)
 
     if (!value || typeof value !== "object" || Array.isArray(value))
     {
-        throw new TypeError("runtime-sof must return a model-values object or null");
+        throw new TypeError("The runtime SOF layer must return a model-values object or null");
     }
 
     if (value.schema === "carbon.document" || value.nodes !== undefined || value.roots !== undefined)
     {
-        throw new TypeError("runtime-sof returned a carbon.document where plain model values were required");
+        throw new TypeError("The runtime SOF layer returned a carbon.document where plain model values were required");
     }
 
     if (typeof value._type !== "string" || !value._type)

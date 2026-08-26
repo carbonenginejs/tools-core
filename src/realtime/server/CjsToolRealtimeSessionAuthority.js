@@ -13,6 +13,10 @@ export class CjsToolRealtimeSessionAuthority
 
     #generation;
 
+    /**
+     * Normalizes capability grants and binds their expiry checks to an injected
+     * clock.
+     */
     constructor({ grants = [], clock = () => Date.now() } = {})
     {
         if (!Array.isArray(grants))
@@ -224,6 +228,10 @@ export class CjsToolRealtimeSessionAuthority
         }
     }
 
+    /**
+     * Validates a session and returns its required per-service authorization
+     * scope.
+     */
     #GetServiceScope(session, serviceId)
     {
         this.ValidateSession(session);

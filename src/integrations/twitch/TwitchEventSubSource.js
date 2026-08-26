@@ -45,6 +45,10 @@ export class TwitchEventSubSource
 
     #validationTimer;
 
+    /**
+     * Composes OAuth, Helix, and WebSocket session services for unioned family
+     * subscriptions.
+     */
     constructor({
         oauth,
         fetch: fetchImplementation = globalThis.fetch,
@@ -285,6 +289,10 @@ export class TwitchEventSubSource
         await this.#StopSource();
     }
 
+    /**
+     * Acquires credentials, starts the shared session, and schedules periodic
+     * authorization validation.
+     */
     async #StartSource()
     {
         try
@@ -336,6 +344,10 @@ export class TwitchEventSubSource
         }
     }
 
+    /**
+     * Coalesces shutdown, aborts startup, drains source work, and resets
+     * credentials and lifecycle state.
+     */
     #StopSource()
     {
         if (this.#state === "stopped")
@@ -379,6 +391,10 @@ export class TwitchEventSubSource
         return this.#stopPromise;
     }
 
+    /**
+     * Deduplicates registered declarations and creates their subscriptions for a
+     * fresh session identity.
+     */
     async #HandleWelcome({ sessionId, recreateSubscriptions, signal })
     {
         if (!recreateSubscriptions)
@@ -424,6 +440,10 @@ export class TwitchEventSubSource
         await this.#CreateSubscriptions([ ...subscriptions.values() ], signal);
     }
 
+    /**
+     * Creates all EventSub subscriptions within one parent-linked timeout and
+     * validates acceptance.
+     */
     async #CreateSubscriptions(subscriptions, parentSignal)
     {
         const abortController = new AbortController();
@@ -474,6 +494,10 @@ export class TwitchEventSubSource
         }
     }
 
+    /**
+     * Routes a cloned notification only to matching family attachments and
+     * isolates consumer rejection.
+     */
     async #DispatchNotification(message)
     {
         const key = TwitchEventSubSource.messageSubscriptionKey(message);
@@ -514,6 +538,10 @@ export class TwitchEventSubSource
         }));
     }
 
+    /**
+     * Marks authorization revoked and informs every attachment whose declaration
+     * matches the subscription.
+     */
     async #DispatchRevocation(message)
     {
         this.#revoked = true;
@@ -538,6 +566,10 @@ export class TwitchEventSubSource
         }));
     }
 
+    /**
+     * Revalidates identity, reconnects after token rotation, and suspends
+     * sessions on unavailable authorization.
+     */
     async #ValidateAuthorization()
     {
         if (this.#state !== "running" || this.#revoked)
@@ -579,6 +611,7 @@ export class TwitchEventSubSource
         }
     }
 
+    /** Keeps background source work drainable while containing its rejection. */
     #Track(operation)
     {
         const tracked = Promise.resolve(operation).then(
@@ -590,6 +623,10 @@ export class TwitchEventSubSource
         tracked.then(() => this.#operations.delete(tracked));
     }
 
+    /**
+     * Freezes the latest provider condition and broadcasts independent copies to
+     * all attachments.
+     */
     #EmitStatus(status)
     {
         this.#lastStatus = Object.freeze({

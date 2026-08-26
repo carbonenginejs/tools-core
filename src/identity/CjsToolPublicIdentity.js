@@ -48,6 +48,10 @@ const KINDS = Object.freeze({
  */
 const MAX_TERM = 100;
 
+/**
+ * Resolves and briefly caches public character, corporation, and alliance
+ * identity observations.
+ */
 export class CjsToolPublicIdentity
 {
 
@@ -130,6 +134,10 @@ export class CjsToolPublicIdentity
         }
     }
 
+    /**
+     * Builds a character observation with corporation and optional alliance
+     * details from ESI.
+     */
     async #Resolve(id)
     {
         const character = await this.#esi.Get(`/characters/${id}`);
@@ -213,6 +221,10 @@ export class CjsToolPublicIdentity
         }
     }
 
+    /**
+     * Resolves a typed name or numeric term to a frozen public identity
+     * observation.
+     */
     async #ResolveTerm(text, wanted)
     {
         const id = /^\d+$/u.test(text)
@@ -299,6 +311,10 @@ export class CjsToolPublicIdentity
         return Number(found?.id) || null;
     }
 
+    /**
+     * Looks up universe-name records and converts request failures to an empty
+     * result.
+     */
     async #PostNames(ids)
     {
         try

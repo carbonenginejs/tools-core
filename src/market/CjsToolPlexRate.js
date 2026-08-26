@@ -50,6 +50,10 @@ const PLEX_TYPE_ID = 44992;
 const PLEX_REGION_ID = 19000001;
 const DEFAULT_TTL_MS = 60 * 60 * 1000;
 
+/**
+ * Maintains a non-blocking observed PLEX-to-ISK reference from the global order
+ * book.
+ */
 export class CjsToolPlexRate
 {
 
@@ -106,6 +110,10 @@ export class CjsToolPlexRate
         return this.#rate?.value ?? null;
     }
 
+    /**
+     * Refreshes the cached conversion from the best global buy order with an
+     * average-price fallback.
+     */
     async #Refresh()
     {
         // The real order book first, the published average only as a fallback.

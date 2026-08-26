@@ -38,7 +38,7 @@ import {
     ReadEmbeddedSchemaContainer,
     ReadSchemaBoundContainer,
     ReadStaticContainer,
-} from "@carbonenginejs/runtime-resource/formats/static";
+} from "@carbonenginejs/runtime/resource/formats/static";
 
 /**
  * Schema-bound containers, whose layout ships beside them as a `.schema`.

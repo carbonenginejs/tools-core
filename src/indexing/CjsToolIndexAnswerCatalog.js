@@ -12,6 +12,10 @@ export class CjsToolIndexAnswerCatalog
 
     #hullInserts;
 
+    /**
+     * Snapshots normalized resource paths and derives immutable answer-category
+     * indexes.
+     */
     constructor(source)
     {
         if (!source || typeof source.Match !== "function")
@@ -250,6 +254,7 @@ export class CjsToolIndexAnswerCatalog
         }));
     }
 
+    /** Returns an immutable subset of catalog paths accepted by a predicate. */
     #Select(predicate)
     {
         return Object.freeze(this.#paths.filter(predicate));

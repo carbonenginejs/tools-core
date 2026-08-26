@@ -79,6 +79,7 @@ export const FITTING_CATEGORIES = Object.freeze({
     87: "fighter"
 });
 
+/** Joins parsed fitting text to exact-build type, category, and slot-effect data. */
 export class CjsToolFitting
 {
 
@@ -92,6 +93,7 @@ export class CjsToolFitting
 
     #categories;
 
+    /** Initializes lazy fitting indexes over an exact-build table source. */
     constructor(source)
     {
         this.#source = source;
@@ -354,6 +356,10 @@ export class CjsToolFitting
         return index;
     }
 
+    /**
+     * Reads one table record and returns its payload without the source
+     * envelope.
+     */
     async #Row(table, id)
     {
         const record = await this.#source.Table(table).Get(String(id));

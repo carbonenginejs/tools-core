@@ -58,6 +58,10 @@ export const NAME_EVIDENCE = Object.freeze({
     idOnly: "id-only"
 });
 
+/**
+ * Corroborates missing English type names across structurally matching target
+ * records.
+ */
 export class CjsToolLocalisation
 {
 
@@ -214,6 +218,10 @@ export class CjsToolLocalisation
         return gaps;
     }
 
+    /**
+     * Reads one type record from a selected source and unwraps its payload
+     * envelope.
+     */
     async #Row(source, id)
     {
         const record = await source.Table("types").Get(String(id));

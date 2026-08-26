@@ -8,6 +8,10 @@ export class CjsToolAudio
 
     #targets;
 
+    /**
+     * Binds audio-library operations to the registry that resolves exact target
+     * builds.
+     */
     constructor({ targets = new CjsToolTargetRegistry() } = {})
     {
         if (!(targets instanceof CjsToolTargetRegistry))
@@ -50,6 +54,10 @@ export class CjsToolAudio
         }, { targets: this.#targets });
     }
 
+    /**
+     * Runs a one-shot library build through a facade with the default target
+     * registry.
+     */
     static build(options = {})
     {
         return new this().Build(options);

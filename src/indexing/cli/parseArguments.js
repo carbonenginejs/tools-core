@@ -9,6 +9,7 @@ const BooleanOptions = new Set([
     "prefetch-refresh",
     "refresh",
     "sde-auto-prepare",
+    "sof-full",
 ]);
 
 /**

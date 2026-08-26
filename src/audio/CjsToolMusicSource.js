@@ -3,7 +3,7 @@ import path from "node:path";
 
 import {
     installMusicLibrary,
-} from "@carbonenginejs/runtime-audio/library";
+} from "@carbonenginejs/runtime/audio/library";
 
 const AUDIO_MEDIA_TYPES = Object.freeze({
     ".flac": "audio/flac",
@@ -31,7 +31,7 @@ export class CjsToolMusicSource
      * Creates a source over one caller-owned catalog and local music root.
      *
      * @param {object} options Source options.
-     * @param {object} options.library Runtime-audio music-library document.
+     * @param {object} options.library Runtime audio-library document.
      * @param {string} options.directory Local music root.
      */
     constructor({ library, directory } = {})
@@ -103,7 +103,7 @@ export class CjsToolMusicSource
     }
 
     /**
-     * Returns an installable runtime-audio music library whose song URLs point
+     * Returns an installable runtime audio library whose song URLs point
      * at this service. Unavailable songs are omitted by default.
      */
     async GetLibrary({

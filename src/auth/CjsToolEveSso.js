@@ -223,6 +223,7 @@ export class CjsToolEveSso
         });
     }
 
+    /** Discards pending sign-in records whose callback deadline has elapsed. */
     #Sweep(now)
     {
         for (const [ key, value ] of this.#pending)

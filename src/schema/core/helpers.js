@@ -209,6 +209,10 @@ function cloneValues(values)
     };
 }
 
+/**
+ * Rejects a serialized class tag that is absent from the configured constructor
+ * registry.
+ */
 export function validateClassKey(classKeys, key, readerName)
 {
     if (!classKeys.includes(key))
@@ -217,6 +221,7 @@ export function validateClassKey(classKeys, key, readerName)
     }
 }
 
+/** Validates both a serialized class tag and the constructor registered for it. */
 export function validateClass(classKeys, type, Class, readerName)
 {
     validateClassKey(classKeys, type, readerName);
@@ -242,6 +247,10 @@ function mergeClasses(values, classes, classKeys, readerName)
     values.classes = next;
 }
 
+/**
+ * Normalizes reader options into a validated immutable configuration for one
+ * class registry.
+ */
 export function normalizeValues(base, options, classKeys, readerName)
 {
     if (!options || typeof options !== "object")
@@ -494,6 +503,10 @@ function isClassSchema(document)
         (Array.isArray(document.fields) || document.black || document.blue);
 }
 
+/**
+ * Converts a scan report or schema input into the requested normalized schema
+ * document.
+ */
 export function emitSchema(input, values, readerName)
 {
     const document = readInput(input, readerName);
@@ -2534,6 +2547,10 @@ function hydrateSchema(value, classes)
     return build(classes, "Schema", value);
 }
 
+/**
+ * Reads schema input as raw metadata or hydrates it through the configured
+ * constructors.
+ */
 export function readWithValues(input, values, readerName = "CjsFormatCarbon")
 {
     const schema = emitSchema(input, values, readerName);
@@ -2541,6 +2558,10 @@ export function readWithValues(input, values, readerName = "CjsFormatCarbon")
     return hydrateSchema(schema, values.classes);
 }
 
+/**
+ * Summarizes normalized schema identity, document kind, and contained class
+ * metadata.
+ */
 export function inspectWithValues(input, values, readerName = "CjsFormatCarbon")
 {
     const schema = emitSchema(input, { ...values, emit: OUTPUT_RAW }, readerName);
@@ -2586,12 +2607,17 @@ export function inspectWithValues(input, values, readerName = "CjsFormatCarbon")
     };
 }
 
+/**
+ * Projects normalized schema input into the Black-definition records consumed by
+ * runtime readers.
+ */
 export function readBlackDefinitionsWithValues(input, values, readerName = "CjsFormatCarbon")
 {
     const schema = emitSchema(input, { ...values, emit: OUTPUT_RAW }, readerName);
     return projectBlackDefinitions(schema, readerName);
 }
 
+/** Emits normalized schema files beneath a validated output root. */
 export function writeWithValues(input, outputRoot, values, readerName = "CjsFormatCarbon")
 {
     if (typeof outputRoot !== "string" || !outputRoot.trim())
@@ -2603,6 +2629,7 @@ export function writeWithValues(input, outputRoot, values, readerName = "CjsForm
     return writeSchemaFiles(schema, outputRoot, readerName);
 }
 
+/** Writes projected Black-definition modules beneath a validated output root. */
 export function writeBlackDefinitionsWithValues(input, outputRoot, values, readerName = "CjsFormatCarbon")
 {
     if (typeof outputRoot !== "string" || !outputRoot.trim())
@@ -3142,6 +3169,10 @@ function blackDefinitionDate(value)
     return match ? match[1] : null;
 }
 
+/**
+ * Recursively converts typed arrays and object graphs to JSON-compatible data
+ * while rejecting cycles.
+ */
 export function toJsonValue(value, seen = new WeakSet())
 {
     if (value === null || typeof value !== "object") return value;

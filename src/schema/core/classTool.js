@@ -18,7 +18,7 @@ import { normalizeSchemaClassPurpose } from "./schemaClassPurposes.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_SCHEMA_ROOT = path.resolve(HERE, "..", "schema");
 
-// Full @type.* kind list from runtime-utils/src/schema/CjsSchema.js (excluding class-level `define`).
+// Full @type.* kind list from runtime/src/global/schema/CjsSchema.js (excluding class-level `define`).
 export const KNOWN_TYPE_KINDS = new Set([
     "array", "boolean", "color", "expression", "float32", "float64",
     "int8", "int16", "int32", "int64", "list", "mat3", "mat4", "map",
@@ -64,7 +64,7 @@ function sourceEnum(values)
 
 // Shared enum vocabularies which are consumed by class decorators but are not
 // reliably present in the current Carbon scan. These mirror the maintained
-// runtime-trinity/runtime-utils definitions (and Carbon's Topology enum) without
+// combined-runtime Trinity/global definitions (and Carbon's Topology enum) without
 // introducing a package dependency from the schema authority back to a runtime
 // consumer. Scanner entries still take precedence whenever they resolve to one
 // qualified declaration.
@@ -1308,7 +1308,7 @@ function toJsClassIdentity(className)
     return String(className || "").split(".").filter(Boolean).join("");
 }
 
-// Carbon math value types. JavaScript models these with the runtime-utils math
+// Carbon math value types. JavaScript models these with the runtime global math
 // containers, so they never resolve to a class reference - not even behind a
 // pointer (see the pointer guard in inferKindFromCpp).
 const MATH_VALUE_CPP_TYPES = new Set([
@@ -1334,7 +1334,7 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
     // A pointer to a math VALUE type is still that value (Carbon passes
     // `const Vector4*` to hand over an array of them, e.g. the packed
     // spherical-harmonic coefficients). There is no Vector4 class to reference -
-    // JavaScript uses the runtime-utils math containers - so these must resolve
+    // JavaScript uses the runtime global math containers - so these must resolve
     // to their math kind rather than to a dangling objectRef.
     if (!MATH_VALUE_CPP_TYPES.has(named)
         && (/\*$/.test(type) || /^P(?:I)?[A-Z]\w+$/.test(named) || /(?:Ptr|Ref)$/.test(named)))
@@ -1624,6 +1624,11 @@ function parentHasEmittedClassBody(parent, schemaRoot, family)
 // Returns the concrete Carbon parent-class fact, if any. This is source/schema
 // metadata for downstream libraries to consume; it is not a runtime policy
 // default and does not imply that emitted classes must extend it.
+
+/**
+ * Resolves the emitted JavaScript base class for a scanned Carbon document and
+ * family.
+ */
 export function schemaBaseClassForDoc(doc, options = {})
 {
     const className = doc?.blueClass || doc?.cppClass || doc?.black?.className || null;
@@ -3284,6 +3289,10 @@ const SYMBOLS = {
     unicode: { ok: "✔", warn: "⚠", cross: "✖", info: "~" }
 };
 
+/**
+ * Renders a class-check result as either stable JSON or the human diagnostic
+ * form.
+ */
 export function renderReport(result, options = {})
 {
     if (options.json)
@@ -3293,6 +3302,10 @@ export function renderReport(result, options = {})
     return renderHumanReport(result, options);
 }
 
+/**
+ * Projects a class-check result into the versioned machine-readable report
+ * contract.
+ */
 export function buildJsonReport(result)
 {
     return {
@@ -3442,9 +3455,9 @@ function shortHash(hash)
 // Class emission
 // ---------------------------------------------------------------------------
 
-// Math kinds render as runtime-utils factory calls and use Float32Array in TypeScript.
+// Math kinds render as runtime factory calls and use Float32Array in TypeScript.
 // `color` reuses the vec4 factory/type. Project rule: vector/matrix/quaternion/color
-// values use @carbonenginejs/runtime-utils, never raw arrays or shared mutable constants.
+// values use @carbonenginejs/runtime, never raw arrays or shared mutable constants.
 const MATH_EMIT = {
     vec2: { ns: "vec2", type: "Float32Array" },
     vec3: { ns: "vec3", type: "Float32Array" },
@@ -3529,7 +3542,7 @@ export function renderClassFile(expected, options = {})
     const usesIo = fields.some(field => field.io || field.notify);
     const usesMethods = methods.length > 0;
 
-    // Enums routed to an external package (e.g. runtime-utils) are imported and
+    // Enums routed to a shared runtime subpath are imported and
     // aliased as class statics rather than inlined, so a single source owns the
     // vocabulary. Map: enumName -> { import: <exportName>, from: <subpath> }.
     const enumImportMap = options.enumImportMap || {};
@@ -3554,7 +3567,7 @@ export function renderClassFile(expected, options = {})
     // namespace, which is always imported.
     importNames.sort();
 
-    // Math fields use runtime-utils factories and built-in Float32Array types.
+    // Math fields use runtime factories and built-in Float32Array types.
     const mathNs = new Set();
     const factoryTypes = new Set();
     for (const field of fields)
@@ -3572,14 +3585,14 @@ export function renderClassFile(expected, options = {})
         lines.push(`//   ${headerRef}`);
     }
     lines.push(`// Generated by format-carbon carbon-class --emit. Verify against ${family}/${className}.json.`);
-    lines.push(`import { ${importNames.join(", ")} } from "@carbonenginejs/runtime-utils/schema";`);
+    lines.push(`import { ${importNames.join(", ")} } from "@carbonenginejs/runtime/schema";`);
     if (baseImport)
     {
         lines.push(`import { ${baseClass} } from "${baseImport}";`);
     }
     else
     {
-        lines.push(`import { ${baseClass} } from "@carbonenginejs/runtime-utils/model";`);
+        lines.push(`import { ${baseClass} } from "@carbonenginejs/runtime/model";`);
     }
     for (const factoryType of [...factoryTypes].sort())
     {
@@ -3588,7 +3601,7 @@ export function renderClassFile(expected, options = {})
     }
     for (const ns of [...mathNs].sort())
     {
-        lines.push(`import { ${ns} } from "@carbonenginejs/runtime-utils/${ns}";`);
+        lines.push(`import { ${ns} } from "@carbonenginejs/runtime/math/${ns}";`);
     }
     if (importedEnumNames.length)
     {
@@ -3666,7 +3679,7 @@ export function renderClassFile(expected, options = {})
     // KNOWN DEFECT: this inlines a SECOND frozen object for a vocabulary the
     // class does not own - the same one renderEnums() writes into the family's
     // enums.js. That is what minted the 85 duplicate enum identities collapsed
-    // out of runtime-trinity on 2026-08-10 (docs/standards/enum-placement.md),
+    // out of the Trinity layer on 2026-08-10 (docs/standards/enum-placement.md),
     // and a regen over that tree will mint them again.
     //
     // The fix is the import route below, which already emits the correct
@@ -3675,7 +3688,7 @@ export function renderClassFile(expected, options = {})
     // catalog to record which module owns each unowned vocabulary, which it
     // does not; enumCatalogIdentity() carries an owner CLASS or nothing.
     //
-    // Until then the backstop is consumer-side: runtime-trinity's
+    // Until then the backstop is consumer-side: the runtime Trinity layer's
     // enum-statics.test.js fails on any two distinct objects with equal
     // members, so a regen that reintroduces duplicates cannot pass silently.
     const referencedEnums = (Array.isArray(meta.referencedEnums) ? meta.referencedEnums : [])
@@ -3729,7 +3742,7 @@ function renderEnumValue(value)
  * Render enum declarations from schema enum entries. TypeScript mode emits a
  * literal-typed `interface XEnum`, a value-union `type XValue`, and a frozen `const X`.
  * JavaScript mode emits only the frozen `const X` value object.
- * Matches the runtime enum convention (see runtime-trinity/src/curves/enums.ts).
+ * Matches the runtime enum convention (see runtime/src/trinity/curves/enums.js).
  */
 export function renderEnums(enums, options = {})
 {

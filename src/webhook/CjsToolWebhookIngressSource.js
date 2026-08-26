@@ -35,6 +35,10 @@ export class CjsToolWebhookIngressSource
 
     #webhookDescription;
 
+    /**
+     * Configures shared authenticated ingress with bounded concurrency, pending
+     * work, and replay memory.
+     */
     constructor({
         id,
         handler,
@@ -242,6 +246,10 @@ export class CjsToolWebhookIngressSource
         return operation;
     }
 
+    /**
+     * Authenticates, normalizes, serially routes, and replay-protects one
+     * delivery across attached projections.
+     */
     async #Process(request, signal)
     {
         const authenticatedRequest = Object.freeze({ ...request, signal });
@@ -332,6 +340,10 @@ export class CjsToolWebhookIngressSource
         }
     }
 
+    /**
+     * Records per-event completion for a delivery identifier and evicts the
+     * oldest replay entries.
+     */
     #Remember(delivery)
     {
         if (delivery.deliveryId === null)

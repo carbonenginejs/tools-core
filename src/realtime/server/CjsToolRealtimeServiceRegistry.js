@@ -8,6 +8,10 @@ export class CjsToolRealtimeServiceRegistry
 
     #sealed;
 
+    /**
+     * Creates a mutable service registry that can later be sealed for
+     * deterministic startup.
+     */
     constructor()
     {
         this.#entries = new Map();

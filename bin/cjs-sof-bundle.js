@@ -20,7 +20,7 @@ Options:
   --raw-textures         Copy DDS payloads instead of decoding them to PNG.
   --help, -h             Show this help.
 
-Writes one self-contained SOF bundle: runtime-sof's GPU-free carbon.document,
+Writes one self-contained SOF bundle: the runtime SOF layer's GPU-free carbon.document,
 the geometry it references, and its textures decoded to PNG. Consumers that
 cannot run Carbon shaders or decode BC7/BC5 payloads (the Blender add-ons) read
 the bundle directly and never repeat SOF composition.

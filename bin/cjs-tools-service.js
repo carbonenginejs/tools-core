@@ -121,7 +121,8 @@ async function main()
         musicLibrary,
         musicDirectory,
     });
-    const sof = new CjsToolSofRepository();
+    const sofLoadMode = args.sofFull === true ? "full" : "lazy";
+    const sof = new CjsToolSofRepository({ loadMode: sofLoadMode });
     let prefetchReport = null;
 
     if (args.prefetch !== undefined)
@@ -214,6 +215,7 @@ async function main()
         pid: process.pid,
         cacheDirectory,
         dataDirectory,
+        sofLoadMode,
         capabilities: proxy.capabilities,
         ...(prefetchReport ? { prefetch: prefetchReport } : {}),
     })}\n`);
@@ -351,6 +353,7 @@ Options:
   --no-sde-auto-prepare     Disable default on-request EVE SDE preparation
   --no-audio-auto-prepare   Disable default on-request audio-library builds
   --audio-individual-media  Materialize embedded WEMs into a generated index
+  --sof-full               Load monolithic SOF data.black instead of lazy named records
   --music-library <file>    Optional neutral music-library JSON catalog
   --music-directory <dir>   Local root containing catalog playlist/song files
   --help                    Show this help
@@ -359,6 +362,10 @@ Generated artifacts are prepared on their first request by default: the data
 is forward-looking, and when a newer EVE SDE cannot be acquired the service
 answers from the newest prepared SDE it has (the SDE is never guaranteed to
 match the current remote game build).
+
+SOF opens lazily by default: generic.black is loaded first and named catalog
+records are fetched when a route needs them. Pass --sof-full for bulk catalog
+work that should decode data.black up front.
 
 The first stdout line is a JSON bootstrap record for local clients, including
 ccpwgl and Blender. Requested prefetch work finishes before the listener starts.

@@ -17,6 +17,10 @@ export class TwitchEventSubChatProvider
 
     #source;
 
+    /**
+     * Declares room-scoped chat subscriptions over a shared or internally
+     * composed EventSub source.
+     */
     constructor({
         oauth,
         rooms,
@@ -131,6 +135,10 @@ export class TwitchEventSubChatProvider
         this.#onStatus = null;
     }
 
+    /**
+     * Normalizes an EventSub notification to canonical chat or reports malformed
+     * provider data.
+     */
     #HandleNotification(message)
     {
         try

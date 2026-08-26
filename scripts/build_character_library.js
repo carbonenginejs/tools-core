@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
+import { CjsCharacterLibrary } from "@carbonenginejs/runtime/character";
 import { CjsFileIndex } from "@carbonenginejs/runtime/tools/fileindex";
 import { CjsToolCache } from "../src/cache/index.js";
 import { CjsToolIndexCache, CjsToolIndex } from "../src/indexing/index.js";

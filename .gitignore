@@ -56,6 +56,6 @@ _review/
 # Private manually-run tools
 /private/
 
-# The lockfile resolves sibling packages by path (file:../runtime-resource and
-# friends), so it publishes this machine's layout and is unusable anywhere else.
+# The lockfile resolves the combined runtime package by a sibling path, so it
+# publishes this machine's layout and is unusable anywhere else.
 /package-lock.json

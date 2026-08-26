@@ -1,6 +1,6 @@
 import {
     CjsAudioLibraryBuilder,
-} from "@carbonenginejs/runtime-audio/library-builder";
+} from "@carbonenginejs/runtime/audio/library-builder";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 
 const TargetRegistry = new CjsToolTargetRegistry();

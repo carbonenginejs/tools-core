@@ -27,6 +27,10 @@ export class CjsToolRealtimeServiceController
 
     #topicSequences;
 
+    /**
+     * Binds one normalized service to lifecycle, publication, subscription, and
+     * command serialization state.
+     */
     constructor({ service, description, clock, createId, maxPending })
     {
         this.description = description;
@@ -433,6 +437,10 @@ export class CjsToolRealtimeServiceController
         });
     }
 
+    /**
+     * Creates a generation-bound service context whose deferred commits re-enter
+     * the controller lane.
+     */
     #CreateExternalContext(actor)
     {
         const generation = this.#streamId;
@@ -452,6 +460,10 @@ export class CjsToolRealtimeServiceController
         });
     }
 
+    /**
+     * Validates stream and admission state before serializing deferred service
+     * work.
+     */
     #CommitExternal(generation, actor, callback)
     {
         this.#RequireGeneration(generation);
@@ -460,6 +472,10 @@ export class CjsToolRealtimeServiceController
         return this.#lane.Enqueue(() => this.#RunInline(generation, actor, callback));
     }
 
+    /**
+     * Runs one service callback in a scoped context and drains every nested
+     * commit before returning.
+     */
     async #RunInline(generation, actor, callback)
     {
         this.#RequireGeneration(generation);
@@ -532,6 +548,10 @@ export class CjsToolRealtimeServiceController
         }
     }
 
+    /**
+     * Validates and sequences one event before delivering matching global and
+     * targeted subscriptions.
+     */
     #PublishInline(topic, data, options, actor)
     {
         this.#RequirePublishable();
@@ -598,6 +618,10 @@ export class CjsToolRealtimeServiceController
         return event;
     }
 
+    /**
+     * Rewrites global sequence fields using one targeted subscription's
+     * independent cursor.
+     */
     #CreateTargetedDelivery(record, event)
     {
         record.sequence++;
@@ -612,6 +636,7 @@ export class CjsToolRealtimeServiceController
         });
     }
 
+    /** Evaluates a service-owned target matcher and requires a boolean decision. */
     #MatchesSubscription(record, topic, data)
     {
         if (record.target === null)
@@ -644,6 +669,10 @@ export class CjsToolRealtimeServiceController
         return matches;
     }
 
+    /**
+     * Returns either the global stream cursor or one targeted subscription's
+     * private sequence state.
+     */
     #SubscriptionCursor(record)
     {
         if (record.target === null)
@@ -658,6 +687,10 @@ export class CjsToolRealtimeServiceController
         });
     }
 
+    /**
+     * Runs the optional service-owned target cleanup inside the current stream
+     * context.
+     */
     async #CloseSubscription(record)
     {
         if (typeof this.#service.CloseSubscription !== "function")
@@ -677,6 +710,10 @@ export class CjsToolRealtimeServiceController
             this.#service.CloseSubscription(request, context));
     }
 
+    /**
+     * Closes a subscription set in order and reports the first cleanup failure
+     * after attempting all.
+     */
     async #CloseSubscriptions(records)
     {
         let failure = null;
@@ -699,6 +736,10 @@ export class CjsToolRealtimeServiceController
         }
     }
 
+    /**
+     * Requires the service lifecycle to be fully running before serving external
+     * reads.
+     */
     #RequireRunning()
     {
         if (this.status !== "running")
@@ -711,6 +752,10 @@ export class CjsToolRealtimeServiceController
         }
     }
 
+    /**
+     * Requires a starting or running lifecycle before accepting event
+     * publication.
+     */
     #RequirePublishable()
     {
         if (![ "starting", "running" ].includes(this.status))
@@ -723,6 +768,10 @@ export class CjsToolRealtimeServiceController
         }
     }
 
+    /**
+     * Requires the service to be admitting new work rather than draining or
+     * stopped.
+     */
     #RequireAccepting()
     {
         if (!this.#accepting)
@@ -735,6 +784,7 @@ export class CjsToolRealtimeServiceController
         }
     }
 
+    /** Rejects work captured from an absent or replaced service stream. */
     #RequireGeneration(generation)
     {
         if (generation === null || generation !== this.#streamId)

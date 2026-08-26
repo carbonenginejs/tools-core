@@ -2,6 +2,10 @@
 export class CjsToolRealtimeError extends Error
 {
 
+    /**
+     * Normalizes a protocol failure with stable wire code, retry, connection,
+     * HTTP, close, and detail policy.
+     */
     constructor(code, message, {
         retryable = false,
         connectionUsable = true,

@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-import { resFileAddress } from "@carbonenginejs/runtime-utils/resfile";
+import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 
 import { CjsToolCache } from "../cache/CjsToolCache.js";
 

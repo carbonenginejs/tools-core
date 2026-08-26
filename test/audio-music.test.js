@@ -10,7 +10,7 @@ import { gunzipSync } from "node:zlib";
 import { CjsToolAudioBuilder } from "../src/audio/index.js";
 import {
     CjsFsd64SchemaAudioMetadata,
-} from "@carbonenginejs/runtime-resource/formats/fsd/64/readers";
+} from "@carbonenginejs/runtime/resource/formats/fsd/64/readers";
 
 const TRACK_ID = 4101;
 const SEGMENT_ID = 4001;

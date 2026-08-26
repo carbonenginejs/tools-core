@@ -161,6 +161,7 @@ async function LintManifest(lintErrors)
     const manifest = JSON.parse(await fs.readFile(path.join(root, "package.json"), "utf8"));
     const expectedFiles = [
         "bin/",
+        "definitions/",
         "docs/",
         "scripts/",
         "!scripts/carbon-blue/reports/",
@@ -258,7 +259,7 @@ async function LintPublishBoundary(lintErrors)
         return;
     }
 
-    const allowedRoots = new Set([ "bin", "docs", "scripts", "src" ]);
+    const allowedRoots = new Set([ "bin", "definitions", "docs", "scripts", "src" ]);
     const allowedRootFiles = new Set([ "LICENSE", "NOTICE", "README.md", "package.json" ]);
     const forbiddenPath = /(^|\/)(?:\.agents?|\.cache|\.claude|\.codex|\.scratch|\.tmp|coverage|data\.local|dist|node_modules|private|reports?|tests?)(\/|$)|(^|\/)(?:AGENTS|CLAUDE|DECORATOR-TODOS)\.md$|(^|\/)package-lock\.json$|\.(?:7z|bak|db|gz|log|map|min\.js|sqlite3?|tar|tgz|tmp|wasm|zip)$/iu;
     const internalMarkers = [

@@ -46,6 +46,10 @@ export class TwitchEventSubSession
 
     #welcomeTimeoutMs;
 
+    /**
+     * Configures EventSub WebSocket creation, keepalive grace, welcome timeout,
+     * and reconnect backoff.
+     */
     constructor({
         createWebSocket = url => new WebSocket(url, { maxPayload: 64 * 1024 }),
         clock = () => Date.now(),
@@ -208,6 +212,10 @@ export class TwitchEventSubSession
         }
     }
 
+    /**
+     * Opens a validated EventSub socket and tracks its welcome, migration,
+     * message lane, and setup abort state.
+     */
     #Open(url, { recreateSubscriptions, migrationSource = null })
     {
         const endpoint = TwitchEventSubSession.normalizeEndpoint(
@@ -279,6 +287,10 @@ export class TwitchEventSubSession
         return operation;
     }
 
+    /**
+     * Serializes one socket message behind earlier records and converts handling
+     * failures into record failure.
+     */
     #EnqueueMessage(record, data)
     {
         const operation = record.messageLane.then(async () =>
@@ -302,6 +314,10 @@ export class TwitchEventSubSession
         this.#Track(operation);
     }
 
+    /**
+     * Parses and dispatches one EventSub envelope while enforcing lifecycle and
+     * message-type validity.
+     */
     async #HandleMessage(record, data)
     {
         if (!this.#active || record.closed || record.failed || record.intentional)
@@ -365,6 +381,10 @@ export class TwitchEventSubSession
         }
     }
 
+    /**
+     * Validates a welcome, creates subscriptions, promotes the socket, and
+     * completes any directed migration.
+     */
     async #HandleWelcome(record, message)
     {
         if (record.ready)
@@ -417,6 +437,10 @@ export class TwitchEventSubSession
         }
     }
 
+    /**
+     * Begins Twitch-directed socket migration without recreating subscriptions
+     * on the replacement session.
+     */
     #HandleReconnectInstruction(record, message)
     {
         const url = message?.payload?.session?.reconnect_url;
@@ -443,6 +467,10 @@ export class TwitchEventSubSession
         });
     }
 
+    /**
+     * Releases one closed socket record and schedules recovery when no valid
+     * migration or primary remains.
+     */
     #HandleClose(record)
     {
         clearTimeout(record.keepaliveTimer);
@@ -474,6 +502,10 @@ export class TwitchEventSubSession
         }
     }
 
+    /**
+     * Fails an unsettled socket setup, clears timers, aborts subscriptions, and
+     * closes transport.
+     */
     #FailRecord(record, error)
     {
         if (record.closed || record.failed)
@@ -496,6 +528,10 @@ export class TwitchEventSubSession
         TwitchEventSubSession.closeSocket(record.socket, true);
     }
 
+    /**
+     * Refreshes the socket deadline from the latest server timeout and closes
+     * stalled transport.
+     */
     #ResetKeepalive(record, message)
     {
         const seconds = message?.payload?.session?.keepalive_timeout_seconds;
@@ -524,6 +560,10 @@ export class TwitchEventSubSession
         record.keepaliveTimer.unref?.();
     }
 
+    /**
+     * Schedules one bounded exponential-backoff connection attempt when recovery
+     * is eligible.
+     */
     #ScheduleReconnect()
     {
         if (!this.#active || !this.#available || this.#revoked
@@ -556,6 +596,10 @@ export class TwitchEventSubSession
         this.#reconnectTimer.unref?.();
     }
 
+    /**
+     * Intentionally closes every tracked socket record during suspension or
+     * shutdown.
+     */
     #CloseAll()
     {
         for (const record of [ ...this.#records ])
@@ -564,6 +608,10 @@ export class TwitchEventSubSession
         }
     }
 
+    /**
+     * Marks one socket intentional, cancels its setup, settles waiters, and
+     * removes it from tracking.
+     */
     #CloseRecord(record)
     {
         record.intentional = true;
@@ -588,6 +636,10 @@ export class TwitchEventSubSession
         }
     }
 
+    /**
+     * Retains asynchronous session work until settlement and routes rejection to
+     * a supplied handler.
+     */
     #Track(operation, onError = () => undefined)
     {
         const tracked = Promise.resolve(operation).then(
@@ -599,6 +651,10 @@ export class TwitchEventSubSession
         tracked.then(() => this.#operations.delete(tracked));
     }
 
+    /**
+     * Emits one timestamped provider-condition observation to the registered
+     * session consumer.
+     */
     #EmitStatus(state, reasonCode, retryable)
     {
         this.#onStatus?.({

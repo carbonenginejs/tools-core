@@ -13,14 +13,20 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | `./audio` | Audio-library preparation, optional individual BNK media, exact-build media reads, and optional neutral music catalogs | `CjsToolAudio`, `CjsToolAudioBuilder`, `CjsToolAudioMediaBuilder`, `CjsToolAudioRepository`, `CjsToolAudioSource`, `CjsToolMusicSource` |
 | `./black` | Indexed Black-to-public-JSON reads | `CjsToolBlack` |
 | `./cache` | Shared cache layout and access | `CjsToolCache` |
-| `./character` | Schema-v7 character-library target policy, lossless decoded-definition retention, additive typed compilation, source-catalog gathering, effective version materialization, and prepared-document loading | `CjsToolCharacter`, `CjsToolCharacterBuilder`, `CjsToolCharacterCatalogGatherer`, `CjsToolCharacterDefinitionCompiler`, `CjsToolCharacterRepository` |
+| `./character` | Schema-v10 character-library target policy, lossless decoded-definition retention, additive typed compilation, source-catalog gathering, effective version materialization, and prepared-document loading | `CjsToolCharacter`, `CjsToolCharacterBuilder`, `CjsToolCharacterCatalogGatherer`, `CjsToolCharacterDefinitionCompiler`, `CjsToolCharacterRepository` |
+| `./dogma` | Published attribute evaluation and skill-profile application | `CjsToolDogma`, `CjsToolDogmaOperations`, `CjsToolDogmaProfile` |
+| `./fitting` | EVE fitting parsing, serialization, and slot classification | `CjsToolFitting`, `CjsToolFittingCodec`, `CjsToolFittingFlags` |
 | `./fsd` | Read-only structural inspection of modern FSD64/cFSD bytes | `CjsToolFsdInspectReader` |
 | `./icons` | Exact-build SDE icon identifiers composed into loadable resource paths | `CjsToolIcons`, `NormalizeIconResourcePath` |
+| `./identity` | Public ESI identity resolution and normalized identity graphs | `CjsToolPublicEsi`, `CjsToolPublicIdentity` |
 | `./index` | Exact-build app/res indexes, overlays, and validated bytes | `CjsToolIndex`, `CjsToolIndexOverlayStore` |
+| `./industry` | Blueprint, manufacturing-input, and reprocessing projections | `CjsToolIndustry` |
 | `./integrations/kick` | Signed Kick webhook normalization | `KickWebhookHandler`, `KickActivityService`, `KickStateService` |
 | `./integrations/twitch` | Twitch OAuth, Helix, IRC/EventSub, chat, activity, and state | Public `Twitch*` classes |
 | `./library` | Canonical JSON and deterministic gzip artifacts | `CjsToolLibraryArtifact` |
+| `./localisation` | Localized-name lookup and explicit gap handling | `CjsToolLocalisation`, `CjsToolLocalisationGuess` |
 | `./map` | Region/constellation/system/celestial documents, composed names, stargate orientation, and derived per-system lighting | `CjsToolMap`, `BuildMapIndex`, `BlackbodyColor`, `StargateDirection` |
+| `./market` | ESI order-book normalization and PLEX-rate projections | `CjsToolMarketEsi`, `CjsToolPlexRate` |
 | `./prefetch` | Exact-build cache preparation from explicit resource profiles | `CjsToolPrefetch` |
 | `./proxy` | Optional local query/resource HTTP adapter | `CjsToolHttpProxy` |
 | `./realtime` | Protocol constants and validation | `CjsToolRealtimeProtocol`, `CjsToolRealtimeError` |
@@ -34,7 +40,8 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | `./sde` | Exact-build archive or profile-driven SDE preparation and queries | `CjsToolSde`, `CjsToolSdeBuild`, profile/archive/database/repository classes |
 | `./shader` | Exact-build shader catalog and build orchestration | `CjsToolShaderTargetRegistry`, `CjsToolShaderBuilderWebgl`, `CjsToolShaderBuilderWebgpu` |
 | `./skin` | SKIN and SKINR generated libraries | `CjsToolSkin`, `CjsToolSkinBuilder`, `CjsToolSkinrBuilder` |
-| `./sof` | Exact-build SOF catalogs and self-contained SOF bundles | `CjsToolSofRepository`, `CjsToolSofCatalog`, `CjsToolSofBundle` |
+| `./skills` | Skill requirements, closures, and mastery projections | `CjsToolSkills` |
+| `./sof` | Exact-build SOF catalogs, class-default expansion, and self-contained SOF bundles | `CjsToolSofRepository`, `CjsToolSofCatalog`, `CjsToolSofBundle`, `ExpandSofDefaults`, `PrepareSofDefaults` |
 | `./target` | Audited public target identities and capabilities | `CjsToolTargetRegistry` |
 | `./webhook` | Bounded authenticated webhook ingress and projections | Router, ingress, projection, and stream service classes |
 | `./weapon` | Weapon/ammunition/projectile library joins | `CjsToolWeapon`, `CjsToolWeaponBuilder` |

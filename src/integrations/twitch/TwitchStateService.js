@@ -23,6 +23,10 @@ export class TwitchStateService
 
     #source;
 
+    /**
+     * Configures one optionally room-filtered state projection over a provider
+     * or shared source.
+     */
     constructor({ id, provider = null, source = null, room = null } = {})
     {
         if (typeof id !== "string" || id.length === 0)
@@ -149,6 +153,10 @@ export class TwitchStateService
         return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(this.#snapshot);
     }
 
+    /**
+     * Normalizes and room-filters one change before atomically updating the
+     * snapshot and publishing it.
+     */
     #OnChange(change)
     {
         if (!this.#accepting || change?.topic !== LIVESTREAM_STATE_TOPICS.CHANGED)
@@ -189,6 +197,10 @@ export class TwitchStateService
         this.#Track(operation);
     }
 
+    /**
+     * Keeps an accepted state publication drainable while containing its
+     * rejection.
+     */
     #Track(operation)
     {
         const tracked = Promise.resolve(operation).then(

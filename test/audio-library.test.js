@@ -12,10 +12,10 @@ import {
 } from "../src/audio/index.js";
 import {
   CjsAudioLibraryBuilder,
-} from "@carbonenginejs/runtime-audio/library-builder";
+} from "@carbonenginejs/runtime/audio/library-builder";
 import {
   CjsFsd64SchemaAudioMetadata,
-} from "@carbonenginejs/runtime-resource/formats/fsd/64/readers";
+} from "@carbonenginejs/runtime/resource/formats/fsd/64/readers";
 import * as publicAudioLibraryTools from "../src/audio/index.js";
 
 const INDEX_TEXT = [

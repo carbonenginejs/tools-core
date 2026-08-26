@@ -25,6 +25,10 @@ export class TwitchOAuthTokenProvider
 
     #validationIntervalMs;
 
+    /**
+     * Configures application identity, token callbacks, bounded validation,
+     * refresh, and cache timing.
+     */
     constructor({
         clientId,
         getAccessToken,
@@ -147,6 +151,10 @@ export class TwitchOAuthTokenProvider
         this.#record = null;
     }
 
+    /**
+     * Obtains, optionally refreshes, remotely validates, and caches an
+     * access-token identity record.
+     */
     async #Acquire(signal)
     {
         let accessToken;
@@ -260,6 +268,10 @@ export class TwitchOAuthTokenProvider
         return this.#record;
     }
 
+    /**
+     * Calls Twitch's token-validation endpoint and maps transport faults to
+     * retryable authorization errors.
+     */
     async #Validate(accessToken, signal)
     {
         try

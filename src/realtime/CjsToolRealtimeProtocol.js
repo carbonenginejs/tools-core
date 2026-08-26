@@ -404,6 +404,10 @@ export class CjsToolRealtimeProtocol
         return value;
     }
 
+    /**
+     * Recursively orders record keys while preserving array order for canonical
+     * JSON encoding.
+     */
     static #canonicalize(value)
     {
         if (Array.isArray(value))
@@ -426,6 +430,10 @@ export class CjsToolRealtimeProtocol
         return value;
     }
 
+    /**
+     * Validates JSON value types while enforcing configured depth and node-count
+     * limits.
+     */
     static #validateJsonValue(value, depth, maxDepth, maxNodes, state)
     {
         state.nodes++;

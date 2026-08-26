@@ -8,6 +8,10 @@ import { CjsToolWebhookProjectionService } from "../../webhook/CjsToolWebhookPro
 export class KickActivityService extends CjsToolWebhookProjectionService
 {
 
+    /**
+     * Specializes a shared webhook projection as the Kick livestream-activity
+     * service family.
+     */
     constructor({ id, source } = {})
     {
         super({

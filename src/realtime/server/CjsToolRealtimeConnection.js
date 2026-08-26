@@ -39,6 +39,10 @@ export class CjsToolRealtimeConnection
 
     #transport;
 
+    /**
+     * Binds one transport to hub identity, authentication deadline, bounded
+     * queues, and request replay state.
+     */
     constructor({ hub, transport, origin = null, clientAddress = null })
     {
         if (!transport || typeof transport.Send !== "function"
@@ -235,6 +239,10 @@ export class CjsToolRealtimeConnection
         await this.#pumpPromise;
     }
 
+    /**
+     * Parses, authenticates, rate-limits, and dispatches one client message with
+     * protocol-safe failure handling.
+     */
     async #ReceiveText(text)
     {
         if (this.#closed)
@@ -341,6 +349,10 @@ export class CjsToolRealtimeConnection
         }
     }
 
+    /**
+     * Authenticates the capability and queues the negotiated actor, scope,
+     * limit, and heartbeat envelope.
+     */
     #AcceptHello(message)
     {
         this.session = this.#hub.Authenticate(message.capability, { origin: this.origin });
@@ -371,6 +383,10 @@ export class CjsToolRealtimeConnection
         });
     }
 
+    /**
+     * Serializes and bounds one outbound message, closing the connection when
+     * resynchronization is required.
+     */
     #EnqueueMessage(message)
     {
         if (this.#closed)
@@ -412,6 +428,10 @@ export class CjsToolRealtimeConnection
         return true;
     }
 
+    /**
+     * Sends queued frames in order and closes transport after the first send
+     * failure.
+     */
     async #Pump()
     {
         while (!this.#closed && this.#outboundQueue.length)
@@ -434,6 +454,10 @@ export class CjsToolRealtimeConnection
         }
     }
 
+    /**
+     * Idempotently marks the connection closed and releases its timers and
+     * outbound queue.
+     */
     #CloseInternal()
     {
         if (this.#closed)

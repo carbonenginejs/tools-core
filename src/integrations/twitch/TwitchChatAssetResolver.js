@@ -21,6 +21,10 @@ export class TwitchChatAssetResolver
     #rooms;
     #ttlMs;
 
+    /**
+     * Configures bounded Helix metadata reads, emote probes, and expiring asset
+     * caches.
+     */
     constructor({
         helix,
         fetch: fetchImplementation = globalThis.fetch,
@@ -133,6 +137,10 @@ export class TwitchChatAssetResolver
         return CjsToolRealtimeChatContract.freeze({ room, emotes });
     }
 
+    /**
+     * Loads one Helix emote catalog once per TTL and caches normalized asset
+     * descriptions by ID.
+     */
     async #LoadCatalog(key, route, query, signal)
     {
         if (this.#Read(this.#catalogs, key))
@@ -160,6 +168,10 @@ export class TwitchChatAssetResolver
         this.#Write(this.#catalogs, key, true);
     }
 
+    /**
+     * Probes animated emote availability with a bounded HEAD request and falls
+     * back to a static asset.
+     */
     async #ProbeEmote(id, signal)
     {
         const animated = TwitchChatNormalizer.emoteAsset(
@@ -196,6 +208,7 @@ export class TwitchChatAssetResolver
         return asset;
     }
 
+    /** Reads and validates one bounded Helix JSON metadata response. */
     async #RequestJson(route, { query = null, signal = undefined } = {})
     {
         const response = await this.#helix.Request(route, { query, signal });
@@ -212,6 +225,10 @@ export class TwitchChatAssetResolver
         return response.json();
     }
 
+    /**
+     * Returns a live cached asset value and discards the entry when its TTL has
+     * elapsed.
+     */
     #Read(cache, key)
     {
         const entry = cache.get(key);
@@ -230,6 +247,7 @@ export class TwitchChatAssetResolver
         return entry.value;
     }
 
+    /** Stores an asset value with an expiry derived from the injected clock. */
     #Write(cache, key, value)
     {
         cache.set(key, {
@@ -238,6 +256,10 @@ export class TwitchChatAssetResolver
         });
     }
 
+    /**
+     * Canonicalizes a channel login to lowercase and enforces Twitch's
+     * identifier shape.
+     */
     static normalizeLogin(value)
     {
         const login = String(value ?? "").replace(/^#/u, "").toLowerCase();
@@ -250,6 +272,7 @@ export class TwitchChatAssetResolver
         return login;
     }
 
+    /** Extracts a frozen unique emote-ID list from IRC tags or an object map. */
     static emoteIds(value)
     {
         const ids = typeof value === "string"
@@ -262,6 +285,7 @@ export class TwitchChatAssetResolver
             typeof id === "string" && id.length > 0 && id.length <= 256)) ]);
     }
 
+    /** Accepts a URL only when it parses successfully and uses HTTPS. */
     static httpsUrl(value)
     {
         try
@@ -275,6 +299,7 @@ export class TwitchChatAssetResolver
         }
     }
 
+    /** Maps a supported image filename extension to its HTTP media type. */
     static imageContentType(value)
     {
         const pathname = new URL(value).pathname.toLowerCase();
@@ -285,6 +310,7 @@ export class TwitchChatAssetResolver
         return null;
     }
 
+    /** Retains a non-empty string and normalizes every other value to null. */
     static string(value)
     {
         return typeof value === "string" && value.length > 0 ? value : null;

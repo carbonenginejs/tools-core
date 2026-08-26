@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { CjsAudioLibrary } from "@carbonenginejs/runtime-audio/library";
+import { CjsAudioLibrary } from "@carbonenginejs/runtime/audio/library";
 
 import { CjsToolCache } from "../cache/CjsToolCache.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";

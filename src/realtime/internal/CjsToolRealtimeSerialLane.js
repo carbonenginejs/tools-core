@@ -10,6 +10,10 @@ export class CjsToolRealtimeSerialLane
 
     #tail;
 
+    /**
+     * Creates an ordered asynchronous lane with an optional finite pending-work
+     * bound.
+     */
     constructor({ maxPending = Number.POSITIVE_INFINITY } = {})
     {
         if (!(maxPending === Number.POSITIVE_INFINITY

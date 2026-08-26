@@ -191,7 +191,7 @@ a locally published copy.
 Audio routes answer from the prepared exact-build audio library; a missing
 library is built automatically from the build's own indexed inputs on its
 first request (`--no-audio-auto-prepare` disables this). The repository passes
-its validated index/cache source into runtime-audio's raw-resource builder and
+its validated index/cache source into the runtime audio raw-resource builder and
 stores `library.GetValues()`; the HTTP layer does not implement a second join.
 
 The ID route resolves one canonical positive decimal media ID through the
@@ -246,7 +246,7 @@ service, pin the resolved exact build even when the request used a friendly
 build reference, and currently unavailable songs are omitted.
 
 Song `GET` and `HEAD` are restricted to members of the configured,
-runtime-audio-validated catalog. The route never accepts an arbitrary
+catalog validated by the runtime audio layer. The route never accepts an arbitrary
 filesystem path. Successful song responses expose playlist/song IDs, media
 type, byte length, ETag, and standard single-range support.
 
@@ -271,9 +271,12 @@ view and otherwise returns the original path.
 
 ## GPU-free SOF routes
 
-The command-line service opens the selected exact resource build, fetches
-`res:/dx9/model/spaceobjectfactory/data.black`, and gives runtime-sof the
-complete composed `res:/` file list:
+The command-line service opens the selected exact resource build and gives the
+runtime SOF layer the complete composed `res:/` file list. Its default lazy
+mode boots `res:/dx9/model/spaceobjectfactory/generic.black`, enumerates
+collection names from the index without decoding them, and loads individual
+named Black records when a route needs them. Pass `--sof-full` to fetch and
+decode `res:/dx9/model/spaceobjectfactory/data.black` when the build is opened.
 
 ```text
 GET /eve/<build>/sof/hulls
@@ -291,22 +294,35 @@ GET /eve/<build>/sof/materials/<material>
 GET /eve/<build>/sof/layouts/<layout>
 GET /eve/<build>/sof/patterns/<pattern>/hulls/<hull>
 GET /eve/<build>/sof/dna/<dna>
+GET /eve/<build>/sof/dna/<dna>/expanded
 GET /eve/<build>/sof/dna/<dna>/visibilityGroups
 ```
 
 Collections are sorted unique canonical lowercase names. Detail lookups are
-case-insensitive and return runtime-sof's detached catalog record directly in
-JSON-compatible form. Runtime-sof owns the conversion of nested Maps, Sets,
-typed arrays, and model values; tools-core does not define a second catalog
-shape. The pattern/hull route returns only that one runtime-sof pattern
-application. The hull/patterns route returns the sorted canonical names of
-patterns with a runtime-sof application for that hull. A known hull without
-applications returns `[]`; an unknown hull returns `404`.
+case-insensitive and return the runtime SOF layer's detached catalog record
+directly in JSON-compatible form. The combined runtime SOF layer owns the
+conversion of nested Maps, Sets, typed arrays, and model values; tools-core does
+not define a second catalog shape. The pattern/hull route returns only that one
+runtime SOF pattern application. The hull/patterns route returns the sorted
+canonical names of patterns with a runtime SOF application for that hull. In
+lazy mode that one relation requires reading the indexed pattern records; use
+`--sof-full` for workloads that repeatedly scan whole catalogs. A known hull
+without applications returns `[]`; an unknown hull returns `404`.
 
-The DNA route returns runtime-sof's plain **model-values graph**: one nested,
+The DNA route returns the runtime SOF layer's plain **model-values graph**: one nested,
 JSON-compatible value carrying `_type` on polymorphic nodes and `_id`/`_ref`
 only where topology demands shared identity. A consumer rebuilds it directly
 with `RootClass.from(values)`.
+
+The `/expanded` suffix returns the same wrapper-free values shape with the
+registered runtime Trinity and audio class defaults filled in. Tools-core loads
+those class families, then asks the runtime SOF projection for
+`populateDefaults: true`; it does not maintain a second defaults algorithm. The
+plain-data operation uses `CjsSchema.applyDefaults`: constructors are used only
+to discover a class's cached field-initializer defaults, and the authored graph
+is never hydrated or initialized. Authored properties win, collections replace
+their defaults, structs merge, and `_id`/`_ref` are preserved. The unsuffixed
+route remains the canonical sparse SOF answer.
 
 The former `/document` suffix is intentionally not exposed. Document-building
 APIs remain internal compatibility/diagnostic surfaces while their non-HTTP
@@ -318,12 +334,11 @@ and the service treats a literal `?` after `/sof/dna/` as part of the DNA rather
 than discarding it as an HTTP query. A query parameter here would be read as DNA
 and the lookup would fail.
 
-Projecting values registers the audio graph classes, because SOF names
-`AudEmitter` in `TriObserverLocal.observer`. That subpath is data-only and
-creates no AudioContext, but it must resolve: a checkout that links
-`@carbonenginejs/runtime-audio` to its source directory rather than installing
-the published package exposes decorated source that plain Node cannot parse, and
-the values route reports that rather than failing obscurely.
+The sparse values route loads no graph classes. The `/expanded` route lazily
+loads both runtime Trinity and runtime audio class families because SOF names
+`AudEmitter` in `TriObserverLocal.observer`. Those subpaths are data-only and
+create no AudioContext, but every emitted `_type` must resolve; unknown fragment
+types fail explicitly.
 
 The `visibilityGroups` route reports how the DNA's faction gates the selected
 hulls' attachment sets: the groups the faction `declared`, the groups the hulls
@@ -1213,7 +1228,7 @@ GET /eve/<build>/character/library.json
 ```
 
 Both routes return the same complete schema-v10 model-shaped document. The
-runtime-character library owns hydration, document lookup, and graph
+`@carbonenginejs/runtime/character` owns hydration, document lookup, and graph
 relationships. The HTTP adapter does not expose the retired inferred
 part/name/category/LOD query surface.
 

@@ -22,6 +22,10 @@ export class TwitchChatSource
 
     #running;
 
+    /**
+     * Adapts an IRC or EventSub chat provider into shared consumers and
+     * reference-counted room leases.
+     */
     constructor({ provider, integrationId = null } = {})
     {
         if (!provider || !PROVIDER_KINDS.has(provider.kind)
@@ -194,6 +198,10 @@ export class TwitchChatSource
         });
     }
 
+    /**
+     * Fans one normalized chat message out without allowing a failed consumer to
+     * interrupt siblings.
+     */
     #OnMessage(message)
     {
         for (const consumer of this.#consumers.values())
@@ -209,6 +217,10 @@ export class TwitchChatSource
         }
     }
 
+    /**
+     * Fans one chat-provider condition out to every attached consumer
+     * independently.
+     */
     #OnStatus(status)
     {
         for (const consumer of this.#consumers.values())
@@ -224,6 +236,7 @@ export class TwitchChatSource
         }
     }
 
+    /** Releases every room lease held by one detaching consumer. */
     async #ReleaseConsumerRooms(consumer)
     {
         const leases = this.#leasesByConsumer.get(consumer);
@@ -239,6 +252,10 @@ export class TwitchChatSource
         }
     }
 
+    /**
+     * Removes one lease and parts the upstream room after its final consumer
+     * releases it.
+     */
     async #ReleaseRoom(consumer, leaseId)
     {
         const leases = this.#leasesByConsumer.get(consumer);

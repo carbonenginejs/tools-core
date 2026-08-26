@@ -121,7 +121,7 @@ their bank bytes.
 
 SoundbanksInfo remains the public authoring-name source. The runtime-owned raw
 resource path also decodes the exact-build `AudioMetadata` cFSD document
-through `runtime-resource` for every CLI and repository build. Catalog-only
+through `@carbonenginejs/runtime/resource` for every CLI and repository build. Catalog-only
 builds set `inspectBanks: false`; `--event-media`, `--sfx`, and `--music` opt
 into bank inspection without changing the cFSD path. Optional enrichment
 accepts a caller-owned plain JSON document containing `Events`, `SoundBanks`,
@@ -129,7 +129,7 @@ and `WemFileIDs` maps. Tools-core does not acquire or decode private metadata
 formats itself; enrichment only adds caller data after the decoded inputs.
 
 The deterministic audio-library join is implemented by
-`@carbonenginejs/runtime-audio/library-builder`. Tools-core supplies target validation,
+`@carbonenginejs/runtime/audio/library-builder`. Tools-core supplies target validation,
 exact-build acquisition, shared-cache reads, CLI output, and service routes
 through its `CjsToolAudioBuilder` wrapper. Browser applications may call the
 same builder with fetch or an injected byte source, load a plain/gzip prepared
@@ -143,8 +143,8 @@ source variants remain in the v2 catalog, while graph references contain only
 IDs from the selected language plus shared non-localized banks.
 
 `--sfx` implies event-media construction and adds the conservative authored
-SFX graph supported by runtime-audio. HIRC decoding remains owned by
-runtime-resource; unsupported actions, continuous containers, transitions,
+SFX graph supported by the runtime audio layer. HIRC decoding remains owned by
+the runtime resource layer; unsupported actions, continuous containers, transitions,
 and unresolved partial-bank references are omitted whole rather than silently
 approximated.
 
@@ -152,8 +152,8 @@ approximated.
 requires `common.bnk`, `music.bnk`, and `music_essential.bnk`, then adds the
 dynamic `music` graph to the same v2 document. The graph contains music nodes,
 play and stop event targets, and switch/state setter actions. Its HIRC payload
-decoding is delegated to `@carbonenginejs/runtime-resource`; tools-core owns
-the cache read and transactional artifact replacement. The runtime-audio
+decoding is delegated to `@carbonenginejs/runtime/resource`; tools-core owns
+the cache read and transactional artifact replacement. The runtime audio
 builder rejects parse failures, missing child nodes, and missing track media
 before either JSON artifact is replaced. `--sfx` and `--music` may be combined
 in one complete library.
@@ -235,7 +235,7 @@ resource stems are retained separately as `modelFamily`, with
 `modelFamilyOrigin: "matching-paired-resource-stem"`; the producer still does
 not choose among families. Tools-core then delegates
 the combined schema-v10 document to
-`@carbonenginejs/runtime-character/library-builder`.
+`@carbonenginejs/runtime/character/library-builder`.
 During repository auto-preparation, the runtime builder reads and decodes the
 twelve required cFSD documents through the exact-build source supplied by
 tools-core. The explicit build command still accepts prepared document inputs
@@ -284,7 +284,7 @@ texture candidate. The command acquires a missing indexed PNG through
 tools-core's normal exact-build resource source and validated shared `ResFiles`
 cache; it does not add a character-specific downloader. `.dds` and `.png`
 candidates share one extension-neutral metadata identity, and the corresponding
-`.png` is inspected with runtime-resource's `CjsPngFormat.inspect`. Exact raw
+`.png` is inspected with the runtime resource layer's `CjsPngFormat.inspect`. Exact raw
 `oFFs`/`pHYs` values and units are retained in `characterTextureMetadata`.
 Normalized millionths values are additive and labelled experimental character
 policy. The original DDS or PNG candidate is never removed or rewritten. A
@@ -338,6 +338,8 @@ hull.
 
 The root `CjsToolCore` facade may then resolve identity to SOF DNA.
 `BuildSofValues()` returns the recommended plain runtime model values;
+`BuildSofExpandedValuesAsync()` returns the same wrapper-free graph with
+registered Trinity/audio class defaults filled in for offline consumers;
 `BuildSofDocument()` returns the explicit `carbon.document` node table for
 diagnostic or graph tooling.
 

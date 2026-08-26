@@ -11,7 +11,7 @@ Everything below is a property of the EVE client and of CCP's exporter, so it
 holds for any publisher and any tool. It was written down inside the NetEase
 export tool first, which meant a reader of CCP data had no reason to find it.
 
-The rule the current owners follow: **a byte-layout fact belongs to runtime-resource's FSD schema;
+The rule the current owners follow: **a byte-layout fact belongs to the runtime resource FSD schema;
 a fact about one export belongs to that export's tool.**
 
 ## The client is not one data format
@@ -212,5 +212,5 @@ conflation.
 - [where an export table lives in the client](static-data-sources.md) — the
   datasets whose file is not named after them
 - The reviewed runtime readers under
-  `@carbonenginejs/runtime-resource/formats/fsd/64/readers` define what each
+  `@carbonenginejs/runtime/resource/formats/fsd/64/readers` define what each
   reader pins and what was verified.

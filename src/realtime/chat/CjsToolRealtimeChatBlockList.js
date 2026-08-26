@@ -7,6 +7,10 @@ import { CjsToolRealtimeChatContract } from "./CjsToolRealtimeChatContract.js";
 export class CjsToolRealtimeChatBlockList
 {
 
+    /**
+     * Normalizes and freezes bounded term and user selectors for deterministic
+     * chat filtering.
+     */
     constructor({ terms = [], users = [] } = {})
     {
         this.terms = CjsToolRealtimeChatBlockList.normalizeList(
@@ -54,6 +58,10 @@ export class CjsToolRealtimeChatBlockList
             || this.BlocksUser(message?.room, message?.author);
     }
 
+    /**
+     * Validates, canonicalizes, deduplicates, and freezes one bounded selector
+     * list.
+     */
     static normalizeList(value, label, normalize)
     {
         if (!Array.isArray(value) || value.length > 10000)

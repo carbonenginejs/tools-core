@@ -16,7 +16,7 @@ A bundle contains:
 
 ```text
 bundle.json      manifest: schema, target, provider, build, dna, resource map
-document.json    runtime-sof's GPU-free carbon.document
+document.json    runtime SOF's GPU-free carbon.document
 geometry/...     every referenced geometry resource, unchanged
 textures/...     every referenced texture, decoded to PNG by default
 ```
@@ -40,7 +40,7 @@ Options:
 
 ## Texture conversion
 
-DDS payloads are decoded through `runtime-resource`'s software decoder and
+DDS payloads are decoded through `@carbonenginejs/runtime/resource`'s software decoder and
 written as 8-bit RGBA PNG. Two-channel BC5/`ATI2` normal maps store only X and
 Y, so their Z is reconstructed as `sqrt(1 - x² - y²)` during conversion;
 without that step a generic image consumer reads a zero blue channel.
@@ -68,6 +68,11 @@ const manifest = await bundle.Write({ catalog, source, dna: "cf1_t1:caldaribase:
 
 `writeFile` receives bundle-relative paths, so callers choose the destination:
 a directory, an archive, or an in-memory store.
+
+The repository defaults to lazy SOF loading. A one-DNA bundle therefore reads
+`generic.black` and that DNA's named catalog closure instead of decoding the
+whole `data.black`. Pass `{ loadMode: "full" }` to
+`CjsToolSofRepository` only for a process that will scan many unrelated DNA.
 
 ## Related documentation
 

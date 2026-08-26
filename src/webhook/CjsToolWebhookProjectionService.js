@@ -17,6 +17,10 @@ export class CjsToolWebhookProjectionService
 
     #source;
 
+    /**
+     * Registers a provider-neutral realtime service projection over selected
+     * shared-ingress topics.
+     */
     constructor({
         id,
         family,
@@ -116,6 +120,10 @@ export class CjsToolWebhookProjectionService
         }
     }
 
+    /**
+     * Commits one admitted ingress event to its realtime topic while tracking
+     * drainable work.
+     */
     #OnEvent(event)
     {
         if (!this.#accepting || !this.#context)

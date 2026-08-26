@@ -1,11 +1,11 @@
-import { CjsBlackFormat } from "@carbonenginejs/runtime-resource/formats/black";
+import { CjsBlackFormat } from "@carbonenginejs/runtime/resource/formats/black";
 import * as utils from "../utils.js";
 
 /**
  * Front-facing Black (`.black`) resource reader: fetch through an index
  * source, then parse.
  *
- * Reads against `@carbonenginejs/runtime-resource`'s single checked-in Black
+ * Reads against `@carbonenginejs/runtime/resource`'s single checked-in Black
  * schema snapshot; there is no per-EVE-build schema selection. A resource
  * from a client build far from that snapshot's source tree can fail to parse
  * or silently misread fields if the binary layout drifted since the scan.

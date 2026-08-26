@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 
-import { CjsCharacterLibraryManager } from "@carbonenginejs/runtime-character";
+import { CjsCharacterLibraryManager } from "@carbonenginejs/runtime/character";
 import { CjsToolCache } from "../cache/CjsToolCache.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
@@ -149,7 +149,7 @@ export class CjsToolCharacterRepository
         return new CjsCharacterLibraryManager().InstallLibrary(prepared);
     }
 
-    /** Builds a missing base library through runtime-character's resource path. */
+    /** Builds a missing base library through the runtime character resource path. */
     async #AutoPrepare(target, build)
     {
         const source = await this.#indexes.OpenTarget(target.id, build, {

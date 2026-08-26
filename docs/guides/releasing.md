@@ -50,8 +50,8 @@ from becoming part of your release.
 
 ## Publishing
 
-`files` in `package.json` decides the artifact: `bin/`, `docs/`, `scripts/`,
-`src/`, and the three root files. `test/` is not published, but it is
+`files` in `package.json` decides the artifact: `bin/`, required JSON
+`definitions/`, `docs/`, `scripts/`, `src/`, and the three root files. `test/` is not published, but it is
 still in a public repository, so review it on the same terms.
 
 `prepack` runs the package linter. The linter resolves npm's own dry-run file

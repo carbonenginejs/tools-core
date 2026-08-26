@@ -46,6 +46,10 @@ export const MAX_SKILL_LEVEL = 5;
  */
 export const MAX_PROFILE_SKILLS = 1000;
 
+/**
+ * Normalizes skill levels and provenance into the deterministic input for Dogma
+ * evaluation.
+ */
 export class CjsToolDogmaProfile
 {
 
@@ -118,6 +122,10 @@ export class CjsToolDogmaProfile
         return new CjsToolDogmaProfile(mode, skills);
     }
 
+    /**
+     * Freezes a validated profile mode, ordered skill levels, and their stable
+     * content hash.
+     */
     constructor(mode, skills)
     {
         this.mode = mode;

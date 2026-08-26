@@ -14,6 +14,10 @@ export class TwitchActivitySource
 
     #running;
 
+    /**
+     * Adapts an EventSub activity provider into a shared multi-consumer source
+     * lifecycle.
+     */
     constructor({ provider } = {})
     {
         if (!provider || provider.kind !== "twitch.eventsub"
@@ -102,6 +106,10 @@ export class TwitchActivitySource
         });
     }
 
+    /**
+     * Fans one provider activity out to every consumer without allowing sibling
+     * interruption.
+     */
     #OnActivity(activity)
     {
         for (const consumer of this.#consumers.values())
@@ -117,6 +125,10 @@ export class TwitchActivitySource
         }
     }
 
+    /**
+     * Fans one provider status observation out to every attached consumer
+     * independently.
+     */
     #OnStatus(status)
     {
         for (const consumer of this.#consumers.values())

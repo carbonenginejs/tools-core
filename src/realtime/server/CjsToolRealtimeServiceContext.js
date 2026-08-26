@@ -12,6 +12,10 @@ export class CjsToolRealtimeServiceContext
 
     #publish;
 
+    /**
+     * Freezes actor and cancellation state with controller-owned clock,
+     * identity, commit, and publish capabilities.
+     */
     constructor({ actor, signal, clock, createId, commit, publish })
     {
         this.actor = Object.freeze(CjsToolRealtimeProtocol.cloneJson(actor));

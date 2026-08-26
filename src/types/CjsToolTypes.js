@@ -51,6 +51,10 @@ const MASTERY_TIERS = Object.freeze([
     "basic", "standard", "improved", "advanced", "elite",
 ]);
 
+/**
+ * Composes one type identity with derived fields that the published SDE does not
+ * carry.
+ */
 export class CjsToolTypes
 {
 
@@ -62,6 +66,10 @@ export class CjsToolTypes
 
     #corporations;
 
+    /**
+     * Initializes lazy type extras and corporation joins over one exact-build
+     * source.
+     */
     constructor(source, options = {})
     {
         this.#source = source;

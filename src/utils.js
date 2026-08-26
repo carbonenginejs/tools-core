@@ -2,11 +2,13 @@ import { createHash } from "node:crypto";
 
 import { NextCheckDelay } from "./build/CjsToolBuildSchedule.js";
 
+/** Reports whether a value is represented solely by decimal build digits. */
 export function isExactBuild(value)
 {
     return /^\d+$/u.test(String(value ?? "").trim());
 }
 
+/** Validates an exact build reference and returns its canonical decimal string. */
 export function normalizeExactBuild(value, options = {})
 {
     const build = String(value ?? "").trim();
@@ -19,6 +21,10 @@ export function normalizeExactBuild(value, options = {})
     return build;
 }
 
+/**
+ * Validates an exact build reference and returns it as a non-negative safe
+ * integer.
+ */
 export function normalizeExactBuildNumber(value, options = {})
 {
     const build = Number(value);
@@ -31,6 +37,7 @@ export function normalizeExactBuildNumber(value, options = {})
     return build;
 }
 
+/** Requires a non-null, non-array object and returns it unchanged. */
 export function requireObject(value, label)
 {
     if (!value || typeof value !== "object" || Array.isArray(value))
@@ -41,16 +48,22 @@ export function requireObject(value, label)
     return value;
 }
 
+/** Normalizes absent and empty values to null while stringifying supplied values. */
 export function optionalString(value)
 {
     return value === undefined || value === null || value === "" ? null : String(value);
 }
 
+/** Joins a base URL and relative path with exactly one separating slash. */
 export function joinUrl(baseUrl, relativePath)
 {
     return `${String(baseUrl).replace(/\/+$/u, "")}/${String(relativePath).replace(/^\/+/, "")}`;
 }
 
+/**
+ * Recursively freezes an object graph while safely retaining repeated
+ * references.
+ */
 export function freezeData(value, seen = new Set())
 {
     if (!value || typeof value !== "object" || seen.has(value))
@@ -68,6 +81,7 @@ export function freezeData(value, seen = new Set())
     return Object.freeze(value);
 }
 
+/** Rejects an absent or unsuccessful fetch response with URL and status context. */
 export function assertOkResponse(response, url)
 {
     if (!response?.ok)
@@ -76,6 +90,7 @@ export function assertOkResponse(response, url)
     }
 }
 
+/** Validates acquired resource bytes against indexed size and MD5 evidence. */
 export function validateResourceBytes(bytes, resource, label = resource?.logicalPath ?? "resource")
 {
     const buffer = Buffer.from(bytes);
@@ -102,6 +117,7 @@ export function validateResourceBytes(bytes, resource, label = resource?.logical
     return buffer;
 }
 
+/** Copies the visible byte window into a standalone ArrayBuffer. */
 export function toArrayBuffer(bytes)
 {
     const buffer = Buffer.from(bytes);

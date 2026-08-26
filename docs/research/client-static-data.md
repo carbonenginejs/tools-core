@@ -13,7 +13,7 @@ header contains, when text is a label and when it is inline, and every
 normalisation the exporter applies — is a property of the EVE client rather than
 of this tool. The ownership is split deliberately:
 
-- `runtime-resource/formats/fsd/64` owns reviewed decoding layouts;
+- `@carbonenginejs/runtime/resource/formats/fsd/64` owns reviewed decoding layouts;
 - tools-core owns layout derivation and evidence-producing inspection; and
 - organization static-data research owns cross-target record conventions and
   source relationships.

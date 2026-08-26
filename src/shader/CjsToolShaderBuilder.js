@@ -51,6 +51,10 @@ export class CjsToolShaderBuilder
 
     #targets;
 
+    /**
+     * Configures one backend builder with its format adapter, target registries,
+     * indexes, and overlay store.
+     */
     constructor({
         backend,
         extension,
@@ -363,6 +367,7 @@ export class CjsToolShaderBuilder
         }
     }
 
+    /** Opens an injected or indexed shader source at a validated exact build. */
     async #OpenSource(shaderTarget, build, injectedSource)
     {
         if (injectedSource)
@@ -392,6 +397,10 @@ export class CjsToolShaderBuilder
         return { source, exactBuild };
     }
 
+    /**
+     * Selects and deterministically orders the shader resource resolutions
+     * included in a build.
+     */
     #ResolveSources(source, shaderTarget, options)
     {
         let resolutions;
@@ -428,6 +437,10 @@ export class CjsToolShaderBuilder
             left.logicalPath.localeCompare(right.logicalPath));
     }
 
+    /**
+     * Reads, translates, validates, and stages one resolved shader artifact with
+     * its report entry.
+     */
     async #BuildEntry({
         source,
         resolution,
@@ -579,6 +592,7 @@ export class CjsToolShaderBuilder
         }
     }
 
+    /** Creates the versioned report for a catalog-only shader target inspection. */
     #CreateCatalogReport(shaderTarget, catalog, qualificationLevel)
     {
         return {
@@ -604,6 +618,10 @@ export class CjsToolShaderBuilder
         };
     }
 
+    /**
+     * Summarizes a completed backend build with exact identity, qualification,
+     * and per-entry outcomes.
+     */
     #CreateReport({
         shaderTarget,
         toolTarget,
@@ -654,6 +672,10 @@ export class CjsToolShaderBuilder
         };
     }
 
+    /**
+     * Publishes staged shader artifacts and their index as an exact-build
+     * generated overlay.
+     */
     async #InstallOverlay({
         shaderTarget,
         toolTarget,
@@ -723,6 +745,7 @@ export class CjsToolShaderBuilder
         }
     }
 
+    /** Lazily imports and caches the backend format adapter. */
     async #LoadFormat()
     {
         if (!this.#format)

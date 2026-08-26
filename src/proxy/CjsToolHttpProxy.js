@@ -1348,7 +1348,7 @@ export class CjsToolHttpProxy
         {
             const hull = RequireSofName(segments[1], "SOF hull");
             const catalog = await this.#GetSofCatalog(route.target, route.build);
-            const patterns = catalog.ListHullPatterns(hull);
+            const patterns = await catalog.ListHullPatternsAsync(hull);
             const headers = CreateAnswerHeaders(catalog, "sof-hull-patterns", { hull });
 
             if (patterns === null)
@@ -1405,7 +1405,9 @@ export class CjsToolHttpProxy
             // of the DNA and the lookup would 404.
             if (segments.length < 2
                 || segments.length > 3
-                || (segments.length === 3 && subTopic !== "visibilitygroups"))
+                || (segments.length === 3
+                    && subTopic !== "visibilitygroups"
+                    && subTopic !== "expanded"))
             {
                 WriteJson(response, 400, { error: "Malformed SOF DNA route" });
 
@@ -1414,10 +1416,12 @@ export class CjsToolHttpProxy
 
             const dna = RequireSofDna(segments[1]);
             const catalog = await this.#GetSofCatalog(route.target, route.build);
-            const inspection = catalog.InspectDna(dna);
+            const inspection = await catalog.InspectDnaAsync(dna);
             const headers = CreateAnswerHeaders(
                 catalog,
-                subTopic === "visibilitygroups" ? "sof-dna-visibilitygroups" : "sof-dna",
+                subTopic === "visibilitygroups"
+                    ? "sof-dna-visibilitygroups"
+                    : subTopic === "expanded" ? "sof-dna-expanded" : "sof-dna",
             );
 
             if (!inspection?.buildable)
@@ -1460,10 +1464,12 @@ export class CjsToolHttpProxy
                 return;
             }
 
-            // Values are the only HTTP boundary: the answer is valid CjsModel
-            // input, so a consumer rebuilds with `RootClass.from(values)` and
-            // needs no document hydrator.
-            const built = await catalog.BuildValuesAsync(dna);
+            // Both answers remain wrapper-free model values. The canonical
+            // route is sparse; /expanded applies cached class defaults as a
+            // plain-data projection for Blender and other offline consumers.
+            const built = subTopic === "expanded"
+                ? await catalog.BuildExpandedValuesAsync(dna)
+                : await catalog.BuildValuesAsync(dna);
 
             if (built === null)
             {
@@ -1488,11 +1494,11 @@ export class CjsToolHttpProxy
             patterns: "ListPatterns",
         };
         const detailMethods = {
-            hulls: "GetHull",
-            factions: "GetFaction",
-            races: "GetRace",
-            materials: "GetMaterial",
-            layouts: "GetLayout",
+            hulls: "GetHullAsync",
+            factions: "GetFactionAsync",
+            races: "GetRaceAsync",
+            materials: "GetMaterialAsync",
+            layouts: "GetLayoutAsync",
         };
 
         // `?detail=true` returns the records rather than just their names.
@@ -1515,7 +1521,7 @@ export class CjsToolHttpProxy
 
             for (const name of catalog[collectionMethods[topic]]())
             {
-                records[name] = catalog[detailMethods[topic]](name);
+                records[name] = await catalog[detailMethods[topic]](name);
             }
 
             WriteJson(response, 200, records, CreateAnswerHeaders(catalog, `sof-${topic}`));
@@ -1541,7 +1547,7 @@ export class CjsToolHttpProxy
         {
             const name = RequireSofName(segments[1], `SOF ${topic.slice(0, -1)}`);
             const catalog = await this.#GetSofCatalog(route.target, route.build);
-            const value = catalog[detailMethods[topic]](name);
+            const value = await catalog[detailMethods[topic]](name);
             const headers = CreateAnswerHeaders(catalog, `sof-${topic}`, {
                 ...(topic === "hulls" ? { hull: name } : {}),
             });
@@ -1567,7 +1573,7 @@ export class CjsToolHttpProxy
             const pattern = RequireSofName(segments[1], "SOF pattern");
             const hull = RequireSofName(segments[3], "SOF hull");
             const catalog = await this.#GetSofCatalog(route.target, route.build);
-            const value = catalog.GetPatternHull(pattern, hull);
+            const value = await catalog.GetPatternHullAsync(pattern, hull);
             const headers = CreateAnswerHeaders(catalog, "sof-pattern-hull", { hull });
 
             if (value === null)

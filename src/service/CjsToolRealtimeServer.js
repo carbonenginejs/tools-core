@@ -15,6 +15,10 @@ export class CjsToolRealtimeServer
 
     #server;
 
+    /**
+     * Composes realtime services, grants, origin policy, routers, and transport
+     * limits into one server.
+     */
     constructor({
         services = [],
         grants = [],

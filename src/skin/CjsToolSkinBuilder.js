@@ -23,6 +23,10 @@ export class CjsToolSkinBuilder
 
     static schema = "carbonenginejs.skinLibrary";
 
+    /**
+     * Normalizes SKIN tables and derives deterministic material, license, and
+     * type cross-indexes.
+     */
     static build(options = {})
     {
         const tables = options.tables ?? options;
@@ -137,6 +141,26 @@ function BuildNameIndex(typeTable, skins)
                 // real answer to a name. Which of them to OFFER is the
                 // consumer's call, and this is what lets it make one.
                 graphicID: type.graphicID ?? null,
+                // The group, for the same reason and one step further.
+                //
+                // A graphic separates a thing that can be drawn from a thing
+                // that merely has a name, and that is most of the way - but
+                // "most" leaves 18,721 rows, and they are turrets, station
+                // monuments and capture points as well as hulls. A consumer
+                // that wants SHIPS cannot get there from a graphic, because a
+                // turret has one too.
+                //
+                // The group carries the category, so one small field turns
+                // "drawable" into "which kind of drawable", and the consumer
+                // decides which kinds it wants. Neither this index nor the
+                // client should be in the business of listing ship groups by
+                // hand - the SDE already knows.
+                //
+                // Null where the types table has none, which is the same
+                // contract as the graphic above: the index answers what a thing
+                // is CALLED, and a row it cannot classify is still a real
+                // answer to a name.
+                groupID: type.groupID ?? null,
             });
         }
     }

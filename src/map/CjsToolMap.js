@@ -229,6 +229,10 @@ export class CjsToolMap
     // has already awaited #Skeleton(), so by then this is populated.
     #loaded;
 
+    /**
+     * Initializes lazy navigation, graphic, and derived-index caches over one
+     * exact-build source.
+     */
     constructor(source)
     {
         this.#source = source;
@@ -664,6 +668,10 @@ export class CjsToolMap
         }, expand?.has("scene") ? { nebula: this.#NebulaOf(region._key) } : {});
     }
 
+    /**
+     * Projects a localized constellation summary with an optional inherited
+     * nebula.
+     */
     #ConstellationSummary(constellation, language, expand)
     {
         return WithDerived({
@@ -674,6 +682,10 @@ export class CjsToolMap
         }, expand?.has("scene") ? { nebula: this.#NebulaFor(constellation.regionID) } : {});
     }
 
+    /**
+     * Projects localized system identity, hierarchy, security, and requested
+     * scene details.
+     */
     #SystemSummary(system, language, expand)
     {
         return WithDerived({
@@ -980,6 +992,10 @@ export class CjsToolMap
         return null;
     }
 
+    /**
+     * Reads the planet payload for an orbit identifier, returning null when it
+     * is absent.
+     */
     async #PlanetRecord(orbitID)
     {
         if (orbitID == null) return null;
@@ -1039,6 +1055,7 @@ export class CjsToolMap
         return file;
     }
 
+    /** Reads and memoizes one graphics-table payload by identifier. */
     async #Graphic(graphicID)
     {
         const cacheKey = `graphic:${graphicID}`;
@@ -1131,6 +1148,10 @@ export class CjsToolMap
         return this.#index;
     }
 
+    /**
+     * Loads the stored map derivation or builds an explicitly degraded in-memory
+     * fallback.
+     */
     async #LoadIndex()
     {
         const file = this.#source.DatabaseFile?.();

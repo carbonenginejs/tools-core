@@ -7,7 +7,7 @@ import fs from "node:fs/promises";
 
 import {
     installMusicLibrary,
-} from "@carbonenginejs/runtime-audio/library";
+} from "@carbonenginejs/runtime/audio/library";
 import {
     CjsToolAudioRepository,
     CjsToolAudioSource,

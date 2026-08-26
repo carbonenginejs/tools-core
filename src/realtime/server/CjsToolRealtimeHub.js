@@ -27,6 +27,10 @@ export class CjsToolRealtimeHub
 
     #lifecycleLane;
 
+    /**
+     * Composes authority, service registry, idempotency store, clocks,
+     * identities, and protocol limits.
+     */
     constructor({
         authority,
         registry = new CjsToolRealtimeServiceRegistry(),
@@ -91,6 +95,10 @@ export class CjsToolRealtimeHub
         return this.#lifecycleLane.Enqueue(() => this.#Stop());
     }
 
+    /**
+     * Seals registration and starts every service controller before marking the
+     * hub running.
+     */
     async #Start()
     {
         if (this.status === "running")
@@ -112,6 +120,10 @@ export class CjsToolRealtimeHub
         return this.ListRuntimeServices();
     }
 
+    /**
+     * Closes active connections, drains all service controllers, and returns the
+     * hub to stopped state.
+     */
     async #Stop()
     {
         if (this.status === "stopped")
@@ -319,6 +331,10 @@ export class CjsToolRealtimeHub
         return this.#clock();
     }
 
+    /**
+     * Returns the controller for a service identity or raises the protocol
+     * not-found error.
+     */
     #RequireController(serviceId)
     {
         const controller = this.#controllers.get(serviceId);
@@ -335,6 +351,10 @@ export class CjsToolRealtimeHub
         return controller;
     }
 
+    /**
+     * Installs a controller using the hub's clock, identity factory, and
+     * service-queue bound.
+     */
     #AddController(entry)
     {
         this.#controllers.set(entry.description.id, new CjsToolRealtimeServiceController({

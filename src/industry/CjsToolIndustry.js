@@ -48,6 +48,10 @@ export const INDUSTRY_TABLES = Object.freeze([ "types", "blueprints", "typeMater
  */
 export const PRIMARY_ACTIVITY = "manufacturing";
 
+/**
+ * Separates exact-build manufacturing inputs from reprocessing outputs for an
+ * SDE type.
+ */
 export class CjsToolIndustry
 {
 

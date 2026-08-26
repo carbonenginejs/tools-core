@@ -57,6 +57,10 @@ import path from "node:path";
 /** The append-only log, in the durable data root. */
 export const OBSERVATIONS_FILE = "observations.jsonl";
 
+/**
+ * Persists an append-only log of exact builds observed from each target and
+ * facet.
+ */
 export class CjsToolBuildObservations
 {
 
@@ -64,6 +68,10 @@ export class CjsToolBuildObservations
 
     #records;
 
+    /**
+     * Creates an immutable view over one observation-log directory and its
+     * normalized records.
+     */
     constructor(directory, records = [])
     {
         this.#directory = String(directory);
@@ -223,6 +231,7 @@ export class CjsToolBuildObservations
         };
     }
 
+    /** Selects observations for one case-insensitive target and exact facet. */
     #Match(target, facet)
     {
         const wantedTarget = String(target ?? "").toLowerCase();

@@ -247,7 +247,7 @@ container under another name, and a few have no located source at all.
 | `systemDbuffEmitters` | 1 |
 
 Deriving these is a solved tools-core procedure rather than a research problem;
-the accepted JSON-shaped layout lands on its namespaced runtime-resource FSD
+the accepted JSON-shaped layout lands on its namespaced runtime resource FSD
 schema class after the evidence and wrong-answer traps have been checked.
 
 ## The `.static` tables are nearly free
@@ -268,7 +268,7 @@ key inside the same file, so one projection pass yields both.
 `.static` is three families — 14 SQLite, 25 a length-prefixed pickle carrying
 its own schema, 6 binary against a `.schema` sibling — and `.fsdbinary` is a
 fourth thing again. All of that is a property of the EVE client rather than of
-this export. Runtime-resource owns container decoding, while organization
+this export. The combined runtime resource layer owns container decoding, while organization
 research records what the 32-byte header means and the exporter normalisations.
 
 All three `.static` families are read as of 2026-08-16.

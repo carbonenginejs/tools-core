@@ -34,6 +34,10 @@ export const SKINR_PRICE_KINDS = Object.freeze({
 });
 
 
+/**
+ * Harvests public SKINR design and listing observations from scope-free ESI
+ * routes.
+ */
 export class CjsToolSkinrDesigns
 {
 

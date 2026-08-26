@@ -54,6 +54,10 @@ export const REQUIREMENT_SLOTS = Object.freeze([
 /** How deep a prerequisite chain may run before we call it a cycle. */
 const MAX_DEPTH = 12;
 
+/**
+ * Builds direct and transitive exact-build skill requirements from SDE attribute
+ * pairs.
+ */
 export class CjsToolSkills
 {
 
@@ -63,6 +67,10 @@ export class CjsToolSkills
 
     #unlocks;
 
+    /**
+     * Initializes lazy skill-attribute and unlock indexes over one exact-build
+     * source.
+     */
     constructor(source)
     {
         this.#source = source;
@@ -537,6 +545,7 @@ export class CjsToolSkills
         return this.#attributes;
     }
 
+    /** Reads one SDE table row and unwraps its payload envelope. */
     async #Row(table, id)
     {
         const record = await this.#source.Table(table).Get(String(id));

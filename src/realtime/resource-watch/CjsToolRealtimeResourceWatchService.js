@@ -48,6 +48,10 @@ export class CjsToolRealtimeResourceWatchService
 
     #timers;
 
+    /**
+     * Configures a bounded, symlink-safe filesystem catalog and its debounced
+     * realtime observation policy.
+     */
     constructor({
         id,
         root,
@@ -342,6 +346,10 @@ export class CjsToolRealtimeResourceWatchService
         }
     }
 
+    /**
+     * Normalizes an observer path and queues it for initialization replay or
+     * settled reconciliation.
+     */
     #OnChange(change)
     {
         if (!this.#accepting)
@@ -375,6 +383,7 @@ export class CjsToolRealtimeResourceWatchService
         }
     }
 
+    /** Marks the live source degraded after its filesystem observer fails. */
     #OnObserverError()
     {
         if (this.#accepting)
@@ -383,6 +392,10 @@ export class CjsToolRealtimeResourceWatchService
         }
     }
 
+    /**
+     * Debounces one path reconciliation and collapses an overflowing pending set
+     * to a root rescan.
+     */
     #Schedule(relativePath, occurredAt)
     {
         if (!this.#accepting)
@@ -430,6 +443,10 @@ export class CjsToolRealtimeResourceWatchService
         this.#timers.set(relativePath, timer);
     }
 
+    /**
+     * Keeps reconciliation work drainable and maps rejection to a source-health
+     * reason.
+     */
     #Track(operation, failureCode)
     {
         const tracked = Promise.resolve(operation).then(
@@ -441,6 +458,10 @@ export class CjsToolRealtimeResourceWatchService
         tracked.then(() => this.#operations.delete(tracked));
     }
 
+    /**
+     * Retains initialization-time changes within the path bound, collapsing
+     * overflow to the root.
+     */
     #QueuePending(relativePath, occurredAt)
     {
         if (this.#pendingChanges.has(""))
@@ -462,6 +483,7 @@ export class CjsToolRealtimeResourceWatchService
         this.#pendingChanges.set(relativePath, occurredAt);
     }
 
+    /** Starts and tracks a best-effort degraded-status publication. */
     #TrackHealth(code)
     {
         const operation = this.#SetHealth(code);
@@ -473,6 +495,10 @@ export class CjsToolRealtimeResourceWatchService
         );
     }
 
+    /**
+     * Commits one changed source-health reason while tolerating shutdown or
+     * stream replacement.
+     */
     async #SetHealth(code)
     {
         if (!this.#accepting || !this.#context || this.#sourceStatus?.reasonCode === code)
@@ -503,6 +529,10 @@ export class CjsToolRealtimeResourceWatchService
         }
     }
 
+    /**
+     * Diffs a rescanned subtree into ordered remove, update, and add events
+     * under the catalog bound.
+     */
     async #Apply(relativePath, scanned, occurredAt, context)
     {
         const currentPaths = [ ...this.#catalog.keys() ].filter(candidate =>
@@ -556,6 +586,10 @@ export class CjsToolRealtimeResourceWatchService
         }
     }
 
+    /**
+     * Builds a fresh catalog for one normalized path by recursively inspecting
+     * its subtree.
+     */
     async #Scan(relativePath)
     {
         const catalog = new Map();
@@ -565,6 +599,10 @@ export class CjsToolRealtimeResourceWatchService
         return catalog;
     }
 
+    /**
+     * Recursively scans safe real paths while skipping links and enforcing depth
+     * and entry limits.
+     */
     async #ScanPath(relativePath, depth, catalog)
     {
         if (depth > this.#maxDepth)
@@ -645,6 +683,10 @@ export class CjsToolRealtimeResourceWatchService
         }
     }
 
+    /**
+     * Creates immutable file metadata and a revision-pinned realtime content
+     * reference.
+     */
     #CreateEntry(relativePath, fileStat)
     {
         const revision = CjsToolRealtimeResourceWatchService.createRevision(fileStat);
@@ -661,6 +703,10 @@ export class CjsToolRealtimeResourceWatchService
         });
     }
 
+    /**
+     * Resolves a relative catalog path and rejects any candidate outside the
+     * configured root.
+     */
     #PhysicalPath(relativePath)
     {
         const segments = relativePath === "" ? [] : relativePath.split("/");
@@ -676,6 +722,10 @@ export class CjsToolRealtimeResourceWatchService
         return candidate;
     }
 
+    /**
+     * Releases an injected observer through its function, PascalCase, or
+     * lowercase close contract.
+     */
     async #CloseObserver()
     {
         const observer = this.#observer;
@@ -696,6 +746,10 @@ export class CjsToolRealtimeResourceWatchService
         }
     }
 
+    /**
+     * Clears catalog, observer, health, pending changes, timers, operations, and
+     * lifecycle state.
+     */
     #Reset()
     {
         this.#catalog = new Map();

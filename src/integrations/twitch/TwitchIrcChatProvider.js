@@ -42,6 +42,10 @@ export class TwitchIrcChatProvider
 
     #validationIntervalMs;
 
+    /**
+     * Configures receive-only IRC rooms, OAuth validation, asset enrichment, and
+     * serialized provider lanes.
+     */
     constructor({
         oauth,
         rooms = [],
@@ -268,6 +272,10 @@ export class TwitchIrcChatProvider
         this.#operation = null;
     }
 
+    /**
+     * Creates an authenticated IRC client, installs adapter-owned handlers, and
+     * establishes transport.
+     */
     async #Connect(identity)
     {
         const client = this.#createClient(Object.freeze({
@@ -352,6 +360,10 @@ export class TwitchIrcChatProvider
         }
     }
 
+    /**
+     * Enriches IRC tags with optional assets and emits one canonical message
+     * while the provider is active.
+     */
     async #HandleMessage(channel, tags, text)
     {
         let assets = null;
@@ -382,6 +394,10 @@ export class TwitchIrcChatProvider
         }));
     }
 
+    /**
+     * Coalesces periodic authorization checks onto the provider's serialized
+     * lifecycle lane.
+     */
     #TrackValidation()
     {
         if (!this.#active || this.#operation)
@@ -410,6 +426,10 @@ export class TwitchIrcChatProvider
         );
     }
 
+    /**
+     * Revalidates chat identity, reconnects after token rotation, and closes
+     * transport on invalid authorization.
+     */
     async #ValidateAuthorization()
     {
         try
@@ -449,6 +469,10 @@ export class TwitchIrcChatProvider
         }
     }
 
+    /**
+     * Detaches every adapter handler before disconnecting and releasing the
+     * current IRC client.
+     */
     async #CloseClient()
     {
         const client = this.#client;
@@ -477,6 +501,7 @@ export class TwitchIrcChatProvider
         await client.disconnect();
     }
 
+    /** Emits one timestamped IRC provider condition to the attached source. */
     #EmitStatus(state, reasonCode, retryable)
     {
         this.#onStatus?.({

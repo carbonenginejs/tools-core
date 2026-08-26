@@ -12,6 +12,10 @@ export class CjsToolServiceHost
 
     #router;
 
+    /**
+     * Validates the realtime components and ordered HTTP routers hosted by one
+     * Node server.
+     */
     constructor({
         hub,
         realtimeRouter,

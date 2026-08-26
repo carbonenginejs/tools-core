@@ -45,7 +45,7 @@ import {
     CjsFsd64SchemaTypeLists,
     CjsFsd64SchemaTypeMaterials,
     CjsFsd64SchemaTypes,
-} from "@carbonenginejs/runtime-resource/formats/fsd/64/readers";
+} from "@carbonenginejs/runtime/resource/formats/fsd/64/readers";
 
 import { CJS_TOOL_SDE_CLIENT_SOURCES } from "./defaultClientSdeSources.js";
 import { CJS_TOOL_SDE_TABLE_PROJECTIONS } from "./tableProjections.js";

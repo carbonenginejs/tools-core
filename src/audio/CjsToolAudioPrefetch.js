@@ -6,6 +6,10 @@ export class CjsToolAudioPrefetch
 
     #audio;
 
+    /**
+     * Binds prefetch operations to a facade capable of opening target audio
+     * libraries.
+     */
     constructor({ audio } = {})
     {
         if (!audio || typeof audio.OpenTarget !== "function")

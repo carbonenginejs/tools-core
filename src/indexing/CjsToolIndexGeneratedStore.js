@@ -5,7 +5,7 @@ import path from "node:path";
 import {
     isResFileAddressFor,
     parseResFileAddress,
-} from "@carbonenginejs/runtime-utils/resfile";
+} from "@carbonenginejs/runtime/utils/resfile";
 
 import { CjsToolIndexCache } from "./CjsToolIndexCache.js";
 import { CjsToolIndexEntry } from "./CjsToolIndexEntry.js";

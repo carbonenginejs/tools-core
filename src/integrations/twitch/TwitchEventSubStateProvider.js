@@ -39,6 +39,10 @@ export class TwitchEventSubStateProvider
 
     #source;
 
+    /**
+     * Declares state subscriptions and snapshot acquisition for an exact room
+     * set over EventSub and Helix.
+     */
     constructor({
         oauth,
         rooms,
@@ -194,6 +198,10 @@ export class TwitchEventSubStateProvider
         this.#onStatus = null;
     }
 
+    /**
+     * Normalizes a state notification or emits a non-retryable invalid-data
+     * condition.
+     */
     #HandleNotification(message)
     {
         try
@@ -214,6 +222,10 @@ export class TwitchEventSubStateProvider
         }
     }
 
+    /**
+     * Joins current stream and channel rows into a canonical timestamped state
+     * snapshot.
+     */
     async #ReadHelix(signal)
     {
         const ids = this.#rooms.map(room => room.id);
@@ -238,6 +250,7 @@ export class TwitchEventSubStateProvider
         };
     }
 
+    /** Reads one bounded Helix state route and validates its data-array response. */
     async #ReadRoute(route, query, signal)
     {
         const response = await this.#helix.Request(route, { query, signal });

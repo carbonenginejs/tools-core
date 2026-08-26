@@ -8,6 +8,10 @@ import { gzipSync } from "node:zlib";
 export class CjsToolLibraryArtifact
 {
 
+    /**
+     * Serializes a library deterministically as newline-terminated UTF-8 JSON
+     * bytes.
+     */
     static encode(value, { compact = false } = {})
     {
         const text = `${JSON.stringify(value, null, compact ? 0 : 2)}\n`;
@@ -15,6 +19,7 @@ export class CjsToolLibraryArtifact
         return new TextEncoder().encode(text);
     }
 
+    /** Produces deterministic gzip bytes by fixing the archive timestamp. */
     static compress(jsonBytes, { gzipLevel = 9 } = {})
     {
         return gzipSync(jsonBytes, {
@@ -23,6 +28,10 @@ export class CjsToolLibraryArtifact
         });
     }
 
+    /**
+     * Writes a JSON library and its deterministic gzip companion to resolved
+     * artifact paths.
+     */
     static async write(filePath, value, options = {})
     {
         const jsonPath = path.resolve(filePath);

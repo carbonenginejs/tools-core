@@ -83,11 +83,16 @@ export const REASONS = Object.freeze({
     lastObserved: "last-observed",
 });
 
+/**
+ * Applies operator pins and holds to observed builds without performing
+ * discovery.
+ */
 export class CjsToolBuildPolicy
 {
 
     #targets;
 
+    /** Normalizes an operator policy document into an immutable target lookup. */
     constructor(document = {})
     {
         this.#targets = NormalizeTargets(document?.targets);

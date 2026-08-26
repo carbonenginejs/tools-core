@@ -28,6 +28,18 @@ prefetch report is written to stderr and included in the successful bootstrap
 record. See [Prepare exact-build cache inputs](prefetch.md) for profile,
 concurrency, refresh, bounded-fetch limits, and cache-boundary details.
 
+SOF loading is lazy by default. Opening one exact build reads `generic.black`;
+DNA and detail routes then fetch only the named hull, faction, race, material,
+pattern, and layout records they require. Use the monolithic path for bulk
+catalog work:
+
+```powershell
+npm run service -- --sof-full
+```
+
+That flag decodes `data.black` when the build is first opened. The bootstrap
+record reports the active choice as `sofLoadMode`.
+
 ## Route families
 
 The canonical route shape is `/{target}/{build}/{topic}[/{path}]`. Important
@@ -53,16 +65,19 @@ groups are:
 | `/eve/{build}/skin[...]` | SKIN library sections |
 | `/eve/{build}/skinr[...]` | SKINR library sections |
 | `/eve/{build}/weapons[...]` | Weapon, ammunition, projectile, and group queries |
-| `/eve/{build}/sof/{catalog}[...]` | GPU-free runtime-sof catalog collections and details |
-| `/eve/{build}/sof/dna/<dna>` | GPU-free runtime-sof model-values graph |
+| `/eve/{build}/sof/{catalog}[...]` | GPU-free runtime SOF catalog collections and details |
+| `/eve/{build}/sof/dna/<dna>` | GPU-free runtime SOF model-values graph |
+| `/eve/{build}/sof/dna/<dna>/expanded` | The same model-values graph with registered Trinity/audio defaults filled in |
 
 Specialized billboard, nebula, cube, and hull resource-path-insert routes
 provide derived answers that are not plain directory enumeration. Response
 headers expose the exact resolved build even when the request uses `latest`.
-The target/build SOF routes use the same exact resource source, decode
-`data.black` once per retained build, and pass the complete resource-file list
-to runtime-sof for resPathInsert existence checks. They return runtime-sof's
-catalog projections and model-values JSON without runtime-trinity hydration.
+The target/build SOF routes use the same exact resource source and pass the
+complete resource-file list to the runtime SOF layer for resPathInsert
+existence checks. Lazy mode enumerates collection names from that immutable
+index without decoding their records. It loads `generic.black` once per
+retained build and grows the runtime catalog only when a detail or DNA answer
+needs more data. `--sof-full` instead decodes `data.black` once up front.
 
 See the [local HTTP route reference](../reference/http-routes.md) for the
 complete implemented route families and query semantics.
@@ -90,7 +105,7 @@ npm run service -- \
 
 This adds playlist summaries, per-playlist availability, and song byte
 endpoints under `/{target}/{build}/audio/music`. The `/library` child returns
-a runtime-audio music library containing only currently available songs and
+a runtime audio music library containing only currently available songs and
 absolute service-owned URLs, so a browser application on another origin may
 install it without rewriting song paths. Only songs named by the validated
 source catalog are reachable.
@@ -115,8 +130,8 @@ through the normal exact-build index source.
 
 Generated artifacts are prepared on their first request by default: a missing
 EVE SDE downloads and prepares itself, and a missing audio library builds from
-the exact build's own indexed inputs through runtime-audio's resource builder.
-A missing character library follows the same runtime-character builder path
+the exact build's own indexed inputs through the runtime audio resource builder.
+A missing character library follows the same runtime character builder path
 when its required indexed cFSD inputs are available. Pass `--no-sde-auto-prepare` or
 `--no-audio-auto-prepare` to require deliberate preparation instead.
 

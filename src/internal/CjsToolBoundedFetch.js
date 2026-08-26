@@ -2,6 +2,10 @@
 export class CjsToolBoundedFetchError extends Error
 {
 
+    /**
+     * Creates a coded transport failure while retaining an optional underlying
+     * cause.
+     */
     constructor(code, message, { cause = undefined } = {})
     {
         super(message, { cause });
@@ -152,6 +156,10 @@ export class CjsToolBoundedFetch
         return CjsToolBoundedFetch.readBytesBody(response, maximum, label, signal);
     }
 
+    /**
+     * Selects a supported response-body reader and enforces cancellation and
+     * byte limits.
+     */
     static async readBytesBody(response, maximum, label, signal)
     {
         CjsToolBoundedFetch.requireActive(signal, `${label} body`);
@@ -282,6 +290,10 @@ export class CjsToolBoundedFetch
         }
     }
 
+    /**
+     * Consumes a Web readable stream into a bounded buffer and cancels it on
+     * failure.
+     */
     static async readWebStream(stream, maximum, label, signal)
     {
         const reader = stream.getReader();
@@ -327,6 +339,10 @@ export class CjsToolBoundedFetch
         return Buffer.concat(chunks, byteLength);
     }
 
+    /**
+     * Consumes a Node-style async byte stream into a bounded buffer with abort
+     * propagation.
+     */
     static async readAsyncIterable(stream, maximum, label, signal)
     {
         const chunks = [];
@@ -355,6 +371,10 @@ export class CjsToolBoundedFetch
         return Buffer.concat(chunks, byteLength);
     }
 
+    /**
+     * Parses a non-negative safe content-length header or reports that none was
+     * supplied.
+     */
     static contentLength(response)
     {
         const source = typeof response?.headers?.get === "function"
@@ -379,6 +399,7 @@ export class CjsToolBoundedFetch
         return value;
     }
 
+    /** Rejects an accumulated response size that exceeds the configured maximum. */
     static requireByteLength(byteLength, maximum, label)
     {
         if (byteLength > maximum)
@@ -387,6 +408,10 @@ export class CjsToolBoundedFetch
         }
     }
 
+    /**
+     * Constructs the stable coded error used when a remote body exceeds its
+     * limit.
+     */
     static responseTooLarge(label, maximum)
     {
         return new CjsToolBoundedFetchError(
@@ -395,6 +420,10 @@ export class CjsToolBoundedFetch
         );
     }
 
+    /**
+     * Converts byte buffers and typed-array views to a Node buffer without
+     * accepting other chunks.
+     */
     static toBuffer(value, label)
     {
         if (Buffer.isBuffer(value))
@@ -418,6 +447,7 @@ export class CjsToolBoundedFetch
         );
     }
 
+    /** Validates a configured bound as a positive safe integer. */
     static normalizeLimit(value, label)
     {
         if (!Number.isSafeInteger(value) || value < 1)

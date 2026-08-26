@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -351,11 +352,36 @@ test("SDE preparation CLI documents its exact-build cache artifact", () =>
 test("SDE preparation CLI writes every table to a loadable exact-build database", async context =>
 {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-sde-prepare-"));
+    const archive = CreatePreparedArchive();
+    const server = createServer((request, response) =>
+    {
+        if (request.url !== "/sde.zip")
+        {
+            response.writeHead(404).end();
+            return;
+        }
+
+        response.writeHead(200, {
+            "content-length": archive.length,
+            "content-type": "application/zip",
+        });
+        response.end(archive);
+    });
 
     context.after(() => fs.rmSync(directory, { force: true, recursive: true }));
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise((resolve, reject) =>
+    {
+        server.close(error => error ? reject(error) : resolve());
+    }));
 
-    const source = `data:application/zip;base64,${CreatePreparedArchive().toString("base64")}`;
-    const result = spawnSync(process.execPath, [
+    const address = server.address();
+    const source = `http://127.0.0.1:${address.port}/sde.zip`;
+    const result = await Spawn(process.execPath, [
         "bin/cjs-sde-prepare.js",
         "--build",
         "3435006",
@@ -393,6 +419,31 @@ test("SDE preparation CLI writes every table to a loadable exact-build database"
 function JsonLines(records)
 {
     return `${records.map(record => JSON.stringify(record)).join("\n")}\n`;
+}
+
+function Spawn(command, args, options = {})
+{
+    return new Promise((resolve, reject) =>
+    {
+        const child = spawn(command, args, {
+            ...options,
+            stdio: [ "ignore", "pipe", "pipe" ],
+        });
+        let stdout = "";
+        let stderr = "";
+
+        child.stdout.setEncoding("utf8");
+        child.stderr.setEncoding("utf8");
+        child.stdout.on("data", chunk => { stdout += chunk; });
+        child.stderr.on("data", chunk => { stderr += chunk; });
+        child.once("error", reject);
+        child.once("close", (status, signal) => resolve({
+            signal,
+            status,
+            stderr,
+            stdout,
+        }));
+    });
 }
 
 function CreatePreparedArchive()

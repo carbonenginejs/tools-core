@@ -18,6 +18,10 @@ export class CjsToolPrefetch
 
     #targets;
 
+    /**
+     * Validates index and target services and installs a unique set of named
+     * acquisition profiles.
+     */
     constructor({
         indexes,
         profiles = [],

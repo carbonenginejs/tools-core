@@ -1,6 +1,6 @@
 import {
     CjsCharacterLibraryBuilder,
-} from "@carbonenginejs/runtime-character/library-builder";
+} from "@carbonenginejs/runtime/character/library-builder";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 

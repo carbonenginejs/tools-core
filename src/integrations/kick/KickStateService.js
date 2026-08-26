@@ -32,6 +32,10 @@ export class KickStateService
 
     #source;
 
+    /**
+     * Registers a Kick state projection with its ingress source and optional
+     * initial snapshot reader.
+     */
     constructor({ id, source, readSnapshot } = {})
     {
         if (typeof id !== "string" || id.length === 0)
@@ -175,6 +179,10 @@ export class KickStateService
         return CjsToolRealtimeLivestreamContract.normalizeStateSnapshot(this.#snapshot);
     }
 
+    /**
+     * Normalizes an admitted Kick state change, updates the snapshot, and
+     * commits publication.
+     */
     #OnEvent(event)
     {
         if (!this.#accepting || event?.topic !== LIVESTREAM_STATE_TOPICS.CHANGED)
@@ -219,6 +227,10 @@ export class KickStateService
         return operation;
     }
 
+    /**
+     * Clears lifecycle, seed, context, and tracked-operation state after
+     * shutdown or failed startup.
+     */
     #Reset()
     {
         this.#accepting = false;

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { EveSOF } from "@carbonenginejs/runtime-sof";
-import { CjsToolSofRepository } from "../src/sof/index.js";
+import { EveSOF } from "@carbonenginejs/runtime/sof";
+import { CjsToolSofRepository, ExpandSofDefaults } from "../src/sof/index.js";
 
 test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
 {
@@ -17,6 +17,7 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
     let createCount = 0;
     let valuesCount = 0;
     let receivedFiles = null;
+    let prepareDefaultsCount = 0;
     const source = {
         target: "eve",
         game: "Eve",
@@ -43,17 +44,31 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
         },
     };
     const repository = new CjsToolSofRepository({
+        loadMode: "full",
+        async prepareDefaults()
+        {
+            prepareDefaultsCount++;
+        },
         createSof(options)
         {
             createCount++;
             receivedFiles = options.resFileIndex;
             const sof = EveSOF.Create(options);
 
-            sof.BuildValuesFromDNA = () =>
+            const buildValues = (dna, options = {}) =>
             {
                 valuesCount++;
-                throw new Error("runtime-trinity-backed values were not expected");
+                return {
+                    _type: "EveShip2",
+                    dna,
+                    ...(options.populateDefaults
+                        ? { display: true, reflectionMode: 3 }
+                        : {}),
+                };
             };
+            sof.BuildValuesFromDNA = buildValues;
+            sof.BuildValuesFromDNAAsync = async (dna, options) =>
+                buildValues(dna, options);
 
             return sof;
         },
@@ -96,6 +111,17 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
 
     assert.equal(document.schema, "carbon.document");
     assert.equal(valuesCount, 0);
+
+    const expanded = await first.BuildExpandedValuesAsync("ab1_t1:amarrbase:amarr");
+    assert.deepEqual(expanded, {
+        _type: "EveShip2",
+        dna: "ab1_t1:amarrbase:amarr",
+        display: true,
+        reflectionMode: 3,
+    });
+    assert.equal(valuesCount, 1);
+    assert.equal(prepareDefaultsCount, 1);
+    assert.equal(first.loadMode, "full");
     assert.equal(first.target, "eve");
     assert.equal(first.build, "3435006");
 
@@ -110,6 +136,145 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
     );
     assert.equal(first.GetDnaVisibilityGroups("missing:amarrbase:amarr"), null);
 });
+
+test("defaults to generic-first SOF loading and fetches indexed records on demand", async () =>
+{
+    const basePath = "res:/dx9/model/spaceobjectfactory";
+    const genericPath = `${basePath}/generic.black`;
+    const hullPath = `${basePath}/hulls/ab1_t1.black`;
+    const matchedPaths = [
+        "res:/alpha.dds",
+        SOF_DATA_PATH_FOR_TEST,
+        genericPath,
+        hullPath,
+    ];
+    const records = new Map([
+        [genericPath, { materialPrefixes: [], variants: [] }],
+        [hullPath, {
+            name: "ab1_t1",
+            buildClass: 0,
+            geometryResFilePath: "res:/ab1_t1.gr2",
+            opaqueAreas: [],
+        }],
+    ]);
+    const fetched = [];
+    let lazySource;
+    const source = {
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        buildRef: "latest",
+        build: "3435006",
+        client: "tranquility",
+        Match(pattern, options)
+        {
+            assert.equal(pattern, "res:/**");
+            assert.deepEqual(options, { root: "res" });
+            return matchedPaths.map(logicalPath => ({ logicalPath }));
+        },
+        async Fetch(logicalPath)
+        {
+            fetched.push(logicalPath);
+            return { bytes: records.get(logicalPath) };
+        },
+    };
+    const repository = new CjsToolSofRepository({
+        createSof(options)
+        {
+            assert.equal(Object.hasOwn(options, "black"), false);
+            assert.equal(typeof options.lazyData.source, "function");
+            lazySource = options.lazyData.source;
+
+            const sof = EveSOF.Create({
+                black: {
+                    hull: [],
+                    faction: [],
+                    race: [],
+                    material: [],
+                    layout: [],
+                    pattern: [],
+                    generic: { materialPrefixes: [], variants: [] },
+                },
+            });
+            const library = {
+                async FetchHull(name)
+                {
+                    const value = await lazySource(`${basePath}/hulls/${name}.black`);
+                    sof.dataMgr.UpdateHull(name, value);
+                    return value;
+                },
+            };
+
+            sof.InitializeAsync = () => lazySource(genericPath);
+            sof.GetSofLibraryBuilder = () => library;
+            return sof;
+        },
+    });
+    const catalog = await repository.OpenSource(source);
+
+    assert.equal(catalog.loadMode, "lazy");
+    assert.deepEqual(fetched, [genericPath]);
+    assert.deepEqual(catalog.ListHulls(), [ "ab1_t1" ]);
+    assert.equal(catalog.GetHull("ab1_t1"), null);
+    assert.equal((await catalog.GetHullAsync("AB1_T1")).name, "ab1_t1");
+    assert.equal((await catalog.GetHullAsync("ab1_t1")).name, "ab1_t1");
+    assert.equal(await catalog.GetHullAsync("missing"), null);
+    assert.deepEqual(fetched, [genericPath, hullPath]);
+});
+
+test("default lazy loading runs through the installed combined runtime", async () =>
+{
+    const basePath = "res:/dx9/model/spaceobjectfactory";
+    const genericPath = `${basePath}/generic.black`;
+    const hullPath = `${basePath}/hulls/ab1_t1.black`;
+    const records = new Map([
+        [genericPath, { materialPrefixes: [], variants: [] }],
+        [hullPath, {
+            name: "ab1_t1",
+            buildClass: 0,
+            geometryResFilePath: "res:/ab1_t1.gr2",
+            opaqueAreas: [],
+        }],
+    ]);
+    const fetched = [];
+    const source = {
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        buildRef: "latest",
+        build: "3435006",
+        client: "tranquility",
+        Match()
+        {
+            return [genericPath, hullPath].map(logicalPath => ({ logicalPath }));
+        },
+        async Fetch(logicalPath)
+        {
+            fetched.push(logicalPath);
+            return { bytes: records.get(logicalPath) };
+        },
+    };
+
+    const catalog = await new CjsToolSofRepository().OpenSource(source);
+
+    assert.deepEqual(fetched, [genericPath]);
+    assert.deepEqual(catalog.ListHulls(), [ "ab1_t1" ]);
+    assert.equal((await catalog.GetHullAsync("AB1_T1")).name, "ab1_t1");
+    assert.deepEqual(fetched, [genericPath, hullPath]);
+});
+
+test("default expansion applies registered combined-runtime class defaults", async () =>
+{
+    const sparse = { _type: "EveShip2" };
+    const expanded = await ExpandSofDefaults(sparse);
+
+    assert.notEqual(expanded, sparse);
+    assert.equal(expanded._type, "EveShip2");
+    assert.equal(expanded.display, true);
+    assert.equal(Object.hasOwn(sparse, "display"), false);
+});
+
+const SOF_DATA_PATH_FOR_TEST = "res:/dx9/model/spaceobjectfactory/data.black";
 
 function CreateData()
 {

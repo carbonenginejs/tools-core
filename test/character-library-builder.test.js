@@ -8,7 +8,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
 
-import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
+import { CjsCharacterLibrary } from "@carbonenginejs/runtime/character";
 import { CjsFileIndex } from "@carbonenginejs/runtime/tools/fileindex";
 import { CjsToolCache } from "../src/cache/index.js";
 import {

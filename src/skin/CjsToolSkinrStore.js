@@ -54,11 +54,19 @@ const DATABASE_VERSION = 1;
 export const SKINR_TARGET = "eve";
 
 
+/**
+ * Persists durable SKINR design and listing observations outside prepared SDE
+ * databases.
+ */
 export class CjsToolSkinrStore
 {
 
     #database;
 
+    /**
+     * Binds a SQLite database path and installs deterministic seeded shuffling
+     * for paged listings.
+     */
     constructor(database, filePath)
     {
         this.#database = database;
@@ -224,6 +232,10 @@ export class CjsToolSkinrStore
             .map(row => CjsToolSkinrDesigns.readSkinr(JSON.parse(row.payload)));
     }
 
+    /**
+     * Reads one persisted design payload with its first and last observation
+     * timestamps.
+     */
     #Design(skinrId)
     {
         return this.#database
@@ -591,11 +603,16 @@ export class CjsToolSkinrStore
         };
     }
 
+    /** Closes the underlying SQLite connection and releases its file handles. */
     Close()
     {
         this.#database.close();
     }
 
+    /**
+     * Creates and upgrades the durable metadata, design, listing, and
+     * observation schema.
+     */
     #Migrate()
     {
         this.#database.exec(

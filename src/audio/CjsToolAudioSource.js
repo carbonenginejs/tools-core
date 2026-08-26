@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import {
     CjsAudioLibrary,
     validateAudioLibraryDocument,
-} from "@carbonenginejs/runtime-audio/library";
+} from "@carbonenginejs/runtime/audio/library";
 
 import * as utils from "../utils.js";
 

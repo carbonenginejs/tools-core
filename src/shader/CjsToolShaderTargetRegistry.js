@@ -8,6 +8,10 @@ export class CjsToolShaderTargetRegistry
 
     #targets;
 
+    /**
+     * Builds an immutable-by-contract lookup of unique shader target
+     * definitions.
+     */
     constructor(targets = DefaultShaderTargetData)
     {
         this.#targets = new Map();
@@ -27,6 +31,7 @@ export class CjsToolShaderTargetRegistry
         Object.freeze(this);
     }
 
+    /** Returns a required target definition or throws a coded not-found error. */
     Get(value)
     {
         const id = normalizeTargetId(value);
@@ -43,6 +48,7 @@ export class CjsToolShaderTargetRegistry
         return target;
     }
 
+    /** Finds the definition matching a tool target and normalized output profile. */
     Find(target, outputProfile)
     {
         const targetId = normalizeTargetId(target);
@@ -52,6 +58,7 @@ export class CjsToolShaderTargetRegistry
             entry.target === targetId && entry.outputProfile === profile) ?? null;
     }
 
+    /** Returns a frozen snapshot of every registered target definition. */
     List()
     {
         return Object.freeze([...this.#targets.values()]);

@@ -39,6 +39,10 @@ export class TwitchChatService
 
     #subscriptionRooms;
 
+    /**
+     * Configures a room-scoped chat projection, content policy, clock, and
+     * bounded message replay window.
+     */
     constructor({
         id,
         provider = null,
@@ -253,6 +257,10 @@ export class TwitchChatService
         return CjsToolRealtimeChatContract.matchesRoomSelector(room, data.room);
     }
 
+    /**
+     * Normalizes, filters, deduplicates, and commits one provider message to the
+     * realtime topic.
+     */
     #OnMessage(message)
     {
         if (!this.#accepting)
@@ -307,6 +315,10 @@ export class TwitchChatService
         this.#Track(operation);
     }
 
+    /**
+     * Normalizes a provider condition and publishes it as service status when
+     * accepted.
+     */
     #OnStatus(status)
     {
         if (!this.#accepting)
@@ -337,6 +349,10 @@ export class TwitchChatService
         this.#Track(operation);
     }
 
+    /**
+     * Checks whether a message identity already exists in its room's recent
+     * window.
+     */
     #IsDuplicate(room, messageId)
     {
         const roomKey = CjsToolRealtimeChatContract.roomKey(room);
@@ -344,6 +360,7 @@ export class TwitchChatService
         return this.#recentByRoom.get(roomKey)?.ids.has(messageId) ?? false;
     }
 
+    /** Adds a message identity to its room's bounded replay window. */
     #Remember(room, messageId)
     {
         const roomKey = CjsToolRealtimeChatContract.roomKey(room);
@@ -364,6 +381,10 @@ export class TwitchChatService
         }
     }
 
+    /**
+     * Holds a publication promise until settlement so stop can drain accepted
+     * chat work.
+     */
     #Track(operation)
     {
         const tracked = Promise.resolve(operation).then(

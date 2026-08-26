@@ -1,4 +1,4 @@
-import { CjsFsd64Binary } from "@carbonenginejs/runtime-resource/formats/fsd/64";
+import { CjsFsd64Binary } from "@carbonenginejs/runtime/resource/formats/fsd/64";
 
 const DEFAULT_MAX_ROOT_FIELDS = 24;
 const DEFAULT_MAX_STRINGS = 160;

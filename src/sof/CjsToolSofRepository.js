@@ -1,6 +1,17 @@
-import { EveSOF } from "@carbonenginejs/runtime-sof";
+import { EveSOF } from "@carbonenginejs/runtime/sof";
+import { PrepareSofDefaults } from "./ExpandSofDefaults.js";
 
+const SOF_BASE_PATH = "res:/dx9/model/spaceobjectfactory";
 const SOF_DATA_PATH = "res:/dx9/model/spaceobjectfactory/data.black";
+const SOF_LOAD_MODES = new Set([ "lazy", "full" ]);
+const CATALOGS = Object.freeze({
+    hull: Object.freeze({ directory: "hulls", fetch: "FetchHull", get: "GetHullDataJson", list: "ListHullDataNames" }),
+    faction: Object.freeze({ directory: "factions", fetch: "FetchFaction", get: "GetFactionDataJson", list: "ListFactionDataNames" }),
+    race: Object.freeze({ directory: "races", fetch: "FetchRace", get: "GetRaceDataJson", list: "ListRaceDataNames" }),
+    material: Object.freeze({ directory: "materials", fetch: "FetchMaterial", get: "GetMaterialDataJson", list: "ListMaterialDataNames" }),
+    layout: Object.freeze({ directory: "layouts", fetch: "FetchLayout", get: "GetLayoutDataJson", list: "ListLayoutDataNames" }),
+    pattern: Object.freeze({ directory: "patterns", fetch: "FetchPattern", get: null, list: "ListPatternDataNames" }),
+});
 
 /** Cached exact-build SOF catalogs opened from composed index sources. */
 export class CjsToolSofRepository
@@ -10,20 +21,37 @@ export class CjsToolSofRepository
 
     #createSof;
 
+    #loadMode;
+
     #maximumCatalogs;
 
+    #prepareDefaults;
+
     /**
-     * Creates a SOF repository sof repository from caller-supplied
-     * configuration.
+     * Creates a SOF repository from caller-supplied configuration.
      */
     constructor({
-        createSof = options => EveSOF.Create(options),
+        createSof = CreateRuntimeSof,
+        loadMode = "lazy",
         maximumCatalogs = 4,
+        prepareDefaults = PrepareSofDefaults,
     } = {})
     {
         if (typeof createSof !== "function")
         {
             throw new TypeError("CjsToolSofRepository createSof must be a function");
+        }
+
+        if (!SOF_LOAD_MODES.has(loadMode))
+        {
+            throw new TypeError(
+                "CjsToolSofRepository loadMode must be \"lazy\" or \"full\"",
+            );
+        }
+
+        if (typeof prepareDefaults !== "function")
+        {
+            throw new TypeError("CjsToolSofRepository prepareDefaults must be a function");
         }
 
         if (!Number.isSafeInteger(maximumCatalogs) || maximumCatalogs < 1)
@@ -35,7 +63,9 @@ export class CjsToolSofRepository
 
         this.#catalogs = new Map();
         this.#createSof = createSof;
+        this.#loadMode = loadMode;
         this.#maximumCatalogs = maximumCatalogs;
+        this.#prepareDefaults = prepareDefaults;
         Object.freeze(this);
     }
 
@@ -76,16 +106,48 @@ export class CjsToolSofRepository
     {
         const resFileIndex = Object.freeze([...new Set(
             source.Match("res:/**", { root: "res" })
-                .map(item => String(item?.logicalPath ?? "").trim().toLowerCase())
+                .map(item => String(item.logicalPath).trim().toLowerCase())
                 .filter(Boolean),
         )].sort((left, right) => left.localeCompare(right)));
-        const file = await source.Fetch(SOF_DATA_PATH);
-        const sof = await this.#createSof({
-            black: file.bytes,
-            resFileIndex,
-        });
+        const catalogNames = CreateCatalogNames(resFileIndex);
+        let library = null;
+        let sof;
 
-        return new CjsToolSofCatalog({ source, sof });
+        if (this.#loadMode === "full")
+        {
+            const file = await source.Fetch(SOF_DATA_PATH);
+            sof = await this.#createSof({
+                black: file.bytes,
+                resFileIndex,
+            });
+        }
+        else
+        {
+            sof = await this.#createSof({
+                lazyData: {
+                    source: async (logicalPath, context = {}) =>
+                    {
+                        const file = await source.Fetch(
+                            logicalPath,
+                            context.signal === null ? {} : { signal: context.signal },
+                        );
+                        return file.bytes;
+                    },
+                },
+                resFileIndex,
+            });
+            await sof.InitializeAsync();
+            library = sof.GetSofLibraryBuilder();
+        }
+
+        return new CjsToolSofCatalog({
+            catalogNames,
+            library,
+            loadMode: this.#loadMode,
+            source,
+            sof,
+            prepareDefaults: this.#prepareDefaults,
+        });
     }
 
 }
@@ -96,10 +158,33 @@ export class CjsToolSofCatalog
 
     #sof;
 
-    /** Creates a SOF repository sof catalog from caller-supplied configuration. */
-    constructor({ source, sof })
+    #catalogNames;
+
+    #library;
+
+    #prepareDefaults;
+
+    /** Creates one SOF catalog from caller-supplied configuration. */
+    constructor({
+        catalogNames = CreateCatalogNames([]),
+        library = null,
+        loadMode = "full",
+        prepareDefaults = PrepareSofDefaults,
+        source,
+        sof,
+    })
     {
         RequireSof(sof);
+
+        if (!SOF_LOAD_MODES.has(loadMode))
+        {
+            throw new TypeError("CjsToolSofCatalog loadMode must be \"lazy\" or \"full\"");
+        }
+
+        if (typeof prepareDefaults !== "function")
+        {
+            throw new TypeError("CjsToolSofCatalog prepareDefaults must be a function");
+        }
 
         this.target = source.target;
         this.game = source.game;
@@ -107,44 +192,48 @@ export class CjsToolSofCatalog
         this.buildRef = source.buildRef ?? source.build;
         this.build = source.build;
         this.client = source.client ?? null;
+        this.loadMode = loadMode;
+        this.#catalogNames = catalogNames;
+        this.#library = library;
         this.#sof = sof;
+        this.#prepareDefaults = prepareDefaults;
         Object.freeze(this);
     }
 
     /** Returns normalized hull summaries in deterministic source order. */
     ListHulls()
     {
-        return this.#sof.dataMgr.ListHullDataNames();
+        return this.#List("hull");
     }
 
     /** Returns normalized faction summaries in deterministic source order. */
     ListFactions()
     {
-        return this.#sof.dataMgr.ListFactionDataNames();
+        return this.#List("faction");
     }
 
     /** Returns normalized race summaries in deterministic source order. */
     ListRaces()
     {
-        return this.#sof.dataMgr.ListRaceDataNames();
+        return this.#List("race");
     }
 
     /** Returns normalized material summaries in deterministic source order. */
     ListMaterials()
     {
-        return this.#sof.dataMgr.ListMaterialDataNames();
+        return this.#List("material");
     }
 
     /** Returns normalized layout summaries in deterministic source order. */
     ListLayouts()
     {
-        return this.#sof.dataMgr.ListLayoutDataNames();
+        return this.#List("layout");
     }
 
     /** Returns normalized pattern summaries in deterministic source order. */
     ListPatterns()
     {
-        return this.#sof.dataMgr.ListPatternDataNames();
+        return this.#List("pattern");
     }
 
     /** Returns patterns applicable to one normalized hull selection. */
@@ -153,10 +242,29 @@ export class CjsToolSofCatalog
         return this.#sof.dataMgr.ListPatternDataNamesForHull(hull);
     }
 
+    /** Loads one hull and every indexed pattern before listing applications. */
+    async ListHullPatternsAsync(hull)
+    {
+        if (this.#library)
+        {
+            if (!await this.#EnsureNamed("hull", hull)) return null;
+            await Promise.all(this.ListPatterns().map(name =>
+                this.#library.FetchPattern(name)));
+        }
+
+        return this.ListHullPatterns(hull);
+    }
+
     /** Returns one hull record by canonical SOF name. */
     GetHull(name)
     {
         return this.#sof.dataMgr.GetHullDataJson(name);
+    }
+
+    /** Loads and returns one hull record by canonical SOF name. */
+    async GetHullAsync(name)
+    {
+        return this.#GetNamedAsync("hull", name);
     }
 
     /** Returns one faction record by canonical SOF name. */
@@ -165,10 +273,22 @@ export class CjsToolSofCatalog
         return this.#sof.dataMgr.GetFactionDataJson(name);
     }
 
+    /** Loads and returns one faction record by canonical SOF name. */
+    async GetFactionAsync(name)
+    {
+        return this.#GetNamedAsync("faction", name);
+    }
+
     /** Returns one race record by canonical SOF name. */
     GetRace(name)
     {
         return this.#sof.dataMgr.GetRaceDataJson(name);
+    }
+
+    /** Loads and returns one race record by canonical SOF name. */
+    async GetRaceAsync(name)
+    {
+        return this.#GetNamedAsync("race", name);
     }
 
     /** Returns one material record by canonical SOF name. */
@@ -177,16 +297,43 @@ export class CjsToolSofCatalog
         return this.#sof.dataMgr.GetMaterialDataJson(name);
     }
 
+    /** Loads and returns one material record by canonical SOF name. */
+    async GetMaterialAsync(name)
+    {
+        return this.#GetNamedAsync("material", name);
+    }
+
     /** Returns one layout record by canonical SOF name. */
     GetLayout(name)
     {
         return this.#sof.dataMgr.GetLayoutDataJson(name);
     }
 
+    /** Loads and returns one layout record by canonical SOF name. */
+    async GetLayoutAsync(name)
+    {
+        return this.#GetNamedAsync("layout", name);
+    }
+
     /** Returns one hull-specific pattern projection by canonical names. */
     GetPatternHull(pattern, hull)
     {
         return this.#sof.dataMgr.GetPatternHullDataJson(pattern, hull);
+    }
+
+    /** Loads the selected pattern and hull before returning their application. */
+    async GetPatternHullAsync(pattern, hull)
+    {
+        if (this.#library)
+        {
+            const [ hasPattern, hasHull ] = await Promise.all([
+                this.#EnsureNamed("pattern", pattern),
+                this.#EnsureNamed("hull", hull),
+            ]);
+            if (!hasPattern || !hasHull) return null;
+        }
+
+        return this.GetPatternHull(pattern, hull);
     }
 
     /**
@@ -198,28 +345,47 @@ export class CjsToolSofCatalog
         return this.#sof.InspectDna(RequireDna(dna));
     }
 
+    /** Loads one DNA's indexed named-catalog closure before inspecting it. */
+    async InspectDnaAsync(dna)
+    {
+        const value = RequireDna(dna);
+
+        if (this.#library)
+        {
+            const requirements = this.#library.constructor.ParseDnaRequirements(value);
+
+            if (!this.#HasDnaRequirements(requirements))
+            {
+                return this.#sof.InspectDna(value);
+            }
+
+            await this.#library.EnsureFromDNA(value);
+        }
+
+        return this.#sof.InspectDna(value);
+    }
+
     /** Reports the visibility groups one DNA authors, declares, and resolves. */
     GetDnaVisibilityGroups(dna)
     {
         const value = RequireDna(dna);
-
-        if (typeof this.#sof.GetDnaVisibilityGroups !== "function")
-        {
-            throw new TypeError(
-                "CjsToolSofRepository requires runtime-sof 0.3.2 visibility-group queries",
-            );
-        }
-
         return this.#sof.GetDnaVisibilityGroups(value);
     }
 
-    /** Builds runtime-sof's GPU-free carbon.document without hydration. */
+    /** Loads one DNA's catalog closure before reporting visibility groups. */
+    async GetDnaVisibilityGroupsAsync(dna)
+    {
+        const inspection = await this.InspectDnaAsync(dna);
+        return inspection.buildable && inspection.valid
+            ? this.GetDnaVisibilityGroups(dna)
+            : null;
+    }
+
+    /** Builds the runtime SOF layer's GPU-free carbon.document without hydration. */
     async BuildDocumentAsync(dna, options = {})
     {
         const value = RequireDna(dna);
-        const document = typeof this.#sof.BuildFromDNAAsync === "function"
-            ? await this.#sof.BuildFromDNAAsync(value, options)
-            : this.#sof.BuildFromDNA(value, options);
+        const document = await this.#sof.BuildFromDNAAsync(value, options);
 
         if (document === null)
         {
@@ -230,7 +396,7 @@ export class CjsToolSofCatalog
             || document.schema !== "carbon.document")
         {
             throw new TypeError(
-                "runtime-sof must return a carbon.document object or null",
+                "The runtime SOF layer must return a carbon.document object or null",
             );
         }
 
@@ -248,7 +414,7 @@ export class CjsToolSofCatalog
      * therefore cannot rebuild from it without a hydrator, which is the round
      * trip this method exists to remove.
      *
-     * No class registry is supplied or needed. runtime-sof emits JSON, so this
+     * No class registry is supplied or needed. The runtime SOF layer emits JSON, so this
      * route resolves no class names and imports no graph library; a consumer
      * that wants objects builds them from the answer with
      * `RootClass.from(values)` against its own classes.
@@ -256,9 +422,7 @@ export class CjsToolSofCatalog
     async BuildValuesAsync(dna, options = {})
     {
         const value = RequireDna(dna);
-        const values = typeof this.#sof.BuildValuesFromDNAAsync === "function"
-            ? await this.#sof.BuildValuesFromDNAAsync(value, options)
-            : this.#sof.BuildValuesFromDNA(value, options);
+        const values = await this.#sof.BuildValuesFromDNAAsync(value, options);
 
         if (values === null)
         {
@@ -269,13 +433,112 @@ export class CjsToolSofCatalog
             || values.schema === "carbon.document")
         {
             throw new TypeError(
-                "runtime-sof must return a plain model-values graph or null",
+                "The runtime SOF layer must return a plain model-values graph or null",
             );
         }
 
         return values;
     }
 
+    /**
+     * Builds sparse SOF values and overlays the registered Trinity/audio class
+     * defaults without constructing or initializing the authored graph.
+     */
+    async BuildExpandedValuesAsync(dna, options = {})
+    {
+        await this.#prepareDefaults();
+        return this.BuildValuesAsync(dna, {
+            ...options,
+            populateDefaults: true,
+        });
+    }
+
+    /** Returns sorted names from the immutable source index plus loaded values. */
+    #List(kind)
+    {
+        const config = CATALOGS[kind];
+
+        if (!this.#library) return this.#sof.dataMgr[config.list]();
+
+        return Object.freeze([...new Set([
+            ...this.#catalogNames[kind].names,
+            ...this.#sof.dataMgr[config.list](),
+        ])].sort((left, right) => left.localeCompare(right)));
+    }
+
+    /** Loads one indexed named record when it is not already present. */
+    async #EnsureNamed(kind, name)
+    {
+        const config = CATALOGS[kind];
+        const value = NormalizeCatalogName(name);
+
+        if (config.get && this.#sof.dataMgr[config.get](value) !== null) return true;
+        if (!this.#catalogNames[kind].set.has(value)) return false;
+
+        await this.#library[config.fetch](value);
+        return true;
+    }
+
+    /** Loads and projects one named catalog record. */
+    async #GetNamedAsync(kind, name)
+    {
+        if (this.#library && !await this.#EnsureNamed(kind, name)) return null;
+        return this.#sof.dataMgr[CATALOGS[kind].get](name);
+    }
+
+    /** Tests top-level DNA requests against the exact build's file catalog. */
+    #HasDnaRequirements(requirements)
+    {
+        return requirements.hulls.every(name => this.#HasNamed("hull", name))
+            && this.#HasNamed("faction", requirements.faction)
+            && this.#HasNamed("race", requirements.race)
+            && requirements.materials.every(name => this.#HasNamed("material", name))
+            && requirements.patterns.every(name => this.#HasNamed("pattern", name))
+            && requirements.layouts.every(name => this.#HasNamed("layout", name));
+    }
+
+    /** Tests one canonical name in the source index or loaded manager. */
+    #HasNamed(kind, name)
+    {
+        const value = NormalizeCatalogName(name);
+        return this.#catalogNames[kind].set.has(value)
+            || this.#sof.dataMgr[CATALOGS[kind].list]().includes(value);
+    }
+
+}
+
+function CreateRuntimeSof(options)
+{
+    return Object.hasOwn(options, "lazyData")
+        ? new EveSOF().Register(options)
+        : EveSOF.Create(options);
+}
+
+function CreateCatalogNames(resFileIndex)
+{
+    return Object.freeze(Object.fromEntries(Object.entries(CATALOGS).map(([kind, config]) =>
+    {
+        const prefix = `${SOF_BASE_PATH}/${config.directory}/`;
+        const names = [...new Set(resFileIndex.flatMap(value =>
+        {
+            const path = String(value ?? "").trim().toLowerCase();
+
+            if (!path.startsWith(prefix) || !path.endsWith(".black")) return [];
+
+            const name = path.slice(prefix.length, -".black".length);
+            return name && !name.includes("/") ? [name] : [];
+        }))].sort((left, right) => left.localeCompare(right));
+
+        return [kind, Object.freeze({
+            names: Object.freeze(names),
+            set: new Set(names),
+        })];
+    })));
+}
+
+function NormalizeCatalogName(value)
+{
+    return String(value ?? "").trim().toLowerCase();
 }
 
 function RequireSource(source)
@@ -299,31 +562,9 @@ function RequireSource(source)
 
 function RequireSof(sof)
 {
-    const dataMgr = sof?.dataMgr;
-    const methods = [
-        "ListHullDataNames",
-        "ListFactionDataNames",
-        "ListRaceDataNames",
-        "ListMaterialDataNames",
-        "ListLayoutDataNames",
-        "ListPatternDataNames",
-        "ListPatternDataNamesForHull",
-        "GetHullDataJson",
-        "GetFactionDataJson",
-        "GetRaceDataJson",
-        "GetMaterialDataJson",
-        "GetLayoutDataJson",
-        "GetPatternHullDataJson",
-    ];
-
-    if (!dataMgr || methods.some(name => typeof dataMgr[name] !== "function")
-        || typeof sof.InspectDna !== "function"
-        || (typeof sof.BuildFromDNAAsync !== "function"
-            && typeof sof.BuildFromDNA !== "function"))
+    if (!(sof instanceof EveSOF))
     {
-        throw new TypeError(
-            "CjsToolSofRepository requires runtime-sof 0.3.1 catalog and document APIs",
-        );
+        throw new TypeError("CjsToolSofRepository requires an EveSOF");
     }
 }
 

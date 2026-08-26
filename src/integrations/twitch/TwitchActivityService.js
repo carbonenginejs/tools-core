@@ -26,6 +26,10 @@ export class TwitchActivityService
 
     #source;
 
+    /**
+     * Configures one room-filtered Twitch activity projection with bounded event
+     * deduplication.
+     */
     constructor({
         id,
         provider = null,
@@ -148,6 +152,10 @@ export class TwitchActivityService
         }
     }
 
+    /**
+     * Normalizes, room-filters, deduplicates, and commits one provider activity
+     * notification.
+     */
     #OnActivity(activity)
     {
         if (!this.#accepting || !activity || typeof activity.topic !== "string")
@@ -191,6 +199,7 @@ export class TwitchActivityService
         this.#Track(operation);
     }
 
+    /** Adds an activity identity to the bounded recent-event window. */
     #Remember(identity)
     {
         this.#recentIds.add(identity);
@@ -202,6 +211,10 @@ export class TwitchActivityService
         }
     }
 
+    /**
+     * Retains an admitted publication until settlement so service shutdown can
+     * drain it.
+     */
     #Track(operation)
     {
         const tracked = Promise.resolve(operation).then(

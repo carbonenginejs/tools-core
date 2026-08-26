@@ -14,6 +14,10 @@ export class CjsToolSkin
 
     #targets;
 
+    /**
+     * Binds offline SKIN and SKINR builds to the registry of supported exact
+     * targets.
+     */
     constructor({ targets = new CjsToolTargetRegistry() } = {})
     {
         if (!(targets instanceof CjsToolTargetRegistry))
@@ -71,21 +75,34 @@ export class CjsToolSkin
         });
     }
 
+    /**
+     * Runs a one-shot developer-authored SKIN library build with default
+     * services.
+     */
     static buildSkin(options = {})
     {
         return new this().BuildSkin(options);
     }
 
+    /** Runs a one-shot SKINR component library build with default services. */
     static buildSkinr(options = {})
     {
         return new this().BuildSkinr(options);
     }
 
+    /**
+     * Loads the required tables from one source and produces both skin-library
+     * families.
+     */
     static buildAllFromSource(source)
     {
         return new this().BuildAllFromSource(source);
     }
 
+    /**
+     * Resolves target metadata and validates the exact source identity supplied
+     * to a library build.
+     */
     #NormalizeOptions(options)
     {
         const target = this.ResolveTarget({

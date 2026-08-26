@@ -2,6 +2,10 @@
 export class CjsToolWebhookError extends Error
 {
 
+    /**
+     * Normalizes a secret-free webhook failure with stable code, retryability,
+     * status, and cause.
+     */
     constructor(code, message, {
         retryable = false,
         statusCode = 400,

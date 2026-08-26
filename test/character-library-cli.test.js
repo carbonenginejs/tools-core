@@ -7,7 +7,7 @@ import test from "node:test";
 import { gunzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
-import { CjsCharacterLibrary } from "@carbonenginejs/runtime-character";
+import { CjsCharacterLibrary } from "@carbonenginejs/runtime/character";
 import { CreateCharacterDocuments } from "./character-library-fixture.js";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));

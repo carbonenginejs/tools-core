@@ -19,6 +19,10 @@ export class CjsToolWebhookHttpRouter
 
     #route;
 
+    /**
+     * Registers unique webhook endpoints behind bounded route, body,
+     * concurrency, and loopback policy.
+     */
     constructor({
         endpoints = [],
         route = WEBHOOK_ROUTE,
