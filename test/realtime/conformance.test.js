@@ -5,9 +5,12 @@ import test from "node:test";
 
 import { WebSocket } from "ws";
 
+// The browser client moved to @carbonenginejs/demos with the demo suite on
+// 2026-08-30. Only the wire contract stayed in the runtime, which is what the
+// constants below still compare against.
 import {
-    CjsRealtimeClient as CjsBrowserRealtimeClient,
-} from "@carbonenginejs/runtime/tools/realtime";
+    TnyRealtimeClient as CjsBrowserRealtimeClient,
+} from "@carbonenginejs/demos/realtime";
 import {
     // The runtime tools surface owns this client-side name. This test exists
     // to prove it agrees with tools-core's CjsTool-prefixed server protocol.

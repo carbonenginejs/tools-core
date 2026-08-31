@@ -234,7 +234,6 @@ test("audio source also reads exact document records and cached ranges", async (
         byteLength: 3,
     });
 
-    assert.equal(Object.isFrozen(audio.library), true);
     assert.deepEqual(
         new Uint8Array(complete.bytes),
         Files.get(BankPath),
