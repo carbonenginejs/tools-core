@@ -258,11 +258,24 @@ export class CjsToolSkinrStore
     AppendListings(listings, observedAt)
     {
         const seen = RequireTimestamp(observedAt);
+        // UPSERT. The listing is the row; a later sighting updates it.
+        //
+        // Guarded on the timestamp, because pages can arrive out of order - a
+        // retried page, a slow one - and an older sighting must not overwrite a
+        // newer one. Equal timestamps write, which keeps a re-run of the same
+        // page idempotent in the way the old INSERT OR IGNORE was.
         const statement = this.#database.prepare(
-            "INSERT OR IGNORE INTO skinr_listing_observations "
+            "INSERT INTO skinr_listings "
             + "(listing_id, observed_at, skinr_id, seller_id, quantity, state, "
             + "price_kind, price_value, created, payload) "
-            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            + "ON CONFLICT (listing_id) DO UPDATE SET "
+            + "observed_at = excluded.observed_at, skinr_id = excluded.skinr_id, "
+            + "seller_id = excluded.seller_id, quantity = excluded.quantity, "
+            + "state = excluded.state, price_kind = excluded.price_kind, "
+            + "price_value = excluded.price_value, created = excluded.created, "
+            + "payload = excluded.payload "
+            + "WHERE excluded.observed_at >= skinr_listings.observed_at"
         );
         const append = this.#database.transaction(records =>
         {
@@ -310,12 +323,8 @@ export class CjsToolSkinrStore
     ListLatestListings({ skinrId = null, limit = 100 } = {})
     {
         const rows = this.#database.prepare(
-            "SELECT payload, observed_at FROM skinr_listing_observations AS outer "
-            + "WHERE observed_at = ("
-            + "  SELECT MAX(observed_at) FROM skinr_listing_observations AS inner "
-            + "  WHERE inner.listing_id = outer.listing_id"
-            + ") "
-            + "AND (? IS NULL OR skinr_id = ?) "
+            "SELECT payload, observed_at FROM skinr_listings "
+            + "WHERE (? IS NULL OR skinr_id = ?) "
             + "ORDER BY observed_at DESC, listing_id LIMIT ?"
         ).all(skinrId, skinrId, NormalizeLimit(limit));
 
@@ -351,7 +360,10 @@ export class CjsToolSkinrStore
      */
     ListCards(options = {})
     {
-        const where = [ "o.observed_at = (SELECT MAX(observed_at) FROM skinr_listing_observations i WHERE i.listing_id = o.listing_id)" ];
+        // No "newest row per listing" clause any more: there is one row per
+        // listing and it is the current one. That clause was a correlated
+        // subquery over the whole table and the whole of this route's cost.
+        const where = [ "1 = 1" ];
         const parameters = {};
 
         if (NumberOrNull(options.shipTypeId) !== null)
@@ -407,7 +419,7 @@ export class CjsToolSkinrStore
         const clause = where.join(" AND ");
         const order = SortOrder(options.sort, options.direction);
         const total = this.#database.prepare(
-            "SELECT COUNT(*) AS n FROM skinr_listing_observations o "
+            "SELECT COUNT(*) AS n FROM skinr_listings o "
             + "LEFT JOIN skinr_designs d ON d.skinr_id = o.skinr_id "
             + `WHERE ${clause}`
         ).get(parameters).n;
@@ -421,7 +433,7 @@ export class CjsToolSkinrStore
             // heading read FINDING CAPSULEER until somebody happened to click
             // that seller — and every row nobody clicked stayed that way.
             + "cc.name AS creator_name, cs.name AS seller_name "
-            + "FROM skinr_listing_observations o "
+            + "FROM skinr_listings o "
             + "LEFT JOIN skinr_designs d ON d.skinr_id = o.skinr_id "
             + "LEFT JOIN skinr_characters cc ON cc.character_id = d.creator_id "
             + "LEFT JOIN skinr_characters cs ON cs.character_id = o.seller_id "
@@ -481,24 +493,31 @@ export class CjsToolSkinrStore
                 + "WHERE ship_type_id IS NOT NULL GROUP BY ship_type_id ORDER BY n DESC"
             ).all(),
             currencies: this.#database.prepare(
-                "SELECT price_kind AS currency, COUNT(*) AS n FROM skinr_listing_observations "
+                "SELECT price_kind AS currency, COUNT(*) AS n FROM skinr_listings "
                 + "WHERE price_kind IS NOT NULL GROUP BY price_kind ORDER BY n DESC"
             ).all(),
             states: this.#database.prepare(
-                "SELECT state, COUNT(*) AS n FROM skinr_listing_observations "
+                "SELECT state, COUNT(*) AS n FROM skinr_listings "
                 + "WHERE state IS NOT NULL GROUP BY state ORDER BY n DESC"
             ).all(),
         };
     }
 
-    /** Every observation of one listing, oldest first: its history. */
-    ListingHistory(listingId)
+    /**
+     * One listing as it stands, or null.
+     *
+     * It answered a HISTORY - every sighting, oldest first - back when the
+     * store kept one row per sighting. It keeps one row per listing now
+     * (operator, 2026-08-31), so the honest answer is the current record and
+     * the method says so rather than returning a history of length one.
+     */
+    GetListing(listingId)
     {
-        return this.#database.prepare(
-            "SELECT payload, observed_at FROM skinr_listing_observations "
-            + "WHERE listing_id = ? ORDER BY observed_at"
-        ).all(RequireId(listingId, "listing id"))
-            .map(row => ({ ...JSON.parse(row.payload), observedAt: row.observed_at }));
+        const row = this.#database.prepare(
+            "SELECT payload, observed_at FROM skinr_listings WHERE listing_id = ?"
+        ).get(RequireId(listingId, "listing id"));
+
+        return row ? { ...JSON.parse(row.payload), observedAt: row.observed_at } : null;
     }
 
     /**
@@ -520,7 +539,7 @@ export class CjsToolSkinrStore
         return this.#database.prepare(
             "SELECT DISTINCT id FROM ("
             + "  SELECT creator_id AS id FROM skinr_designs"
-            + "  UNION SELECT seller_id AS id FROM skinr_listing_observations"
+            + "  UNION SELECT seller_id AS id FROM skinr_listings"
             + `) WHERE id IS NOT NULL AND id > 0${known} ORDER BY id`
         ).all().map(row => row.id);
     }
@@ -589,9 +608,8 @@ export class CjsToolSkinrStore
     {
         const counts = this.#database.prepare(
             "SELECT (SELECT COUNT(*) FROM skinr_designs) AS designs, "
-            + "(SELECT COUNT(*) FROM skinr_listing_observations) AS observations, "
-            + "(SELECT COUNT(DISTINCT listing_id) FROM skinr_listing_observations) AS listings, "
-            + "(SELECT MAX(observed_at) FROM skinr_listing_observations) AS lastObservedAt"
+            + "(SELECT COUNT(*) FROM skinr_listings) AS listings, "
+            + "(SELECT MAX(observed_at) FROM skinr_listings) AS lastObservedAt"
         ).get();
 
         return {
@@ -632,11 +650,22 @@ export class CjsToolSkinrStore
             + "  ON skinr_designs (ship_type_id);"
             + "CREATE INDEX IF NOT EXISTS skinr_designs_creator "
             + "  ON skinr_designs (creator_id);"
-            // The primary key is the pair, which is what makes this a log: the
-            // same listing seen at two moments is two rows, and the same page
-            // recorded twice is one.
-            + "CREATE TABLE IF NOT EXISTS skinr_listing_observations ("
-            + "  listing_id TEXT NOT NULL,"
+            // ONE ROW PER LISTING, kept up to date (operator, 2026-08-31: "we
+            // do not need to keep historic data on skinr skins").
+            //
+            // It was a log - the same listing seen at two moments was two rows -
+            // and a fortnight of two-hourly harvests made that 612,207 rows for
+            // 4,264 listings, of which 5,536 were distinct. 99.1% of the table
+            // was a copy of a row already in it, and reading it meant finding the
+            // newest row per listing: a correlated subquery over every row, which
+            // is where the hub's eight seconds per request went.
+            //
+            // "observed_at" now means WHEN IT WAS LAST SEEN rather than when the
+            // row was written. Nothing else changes: a listing that stops
+            // appearing keeps its last known state, which is exactly what the
+            // newest-row projection answered.
+            + "CREATE TABLE IF NOT EXISTS skinr_listings ("
+            + "  listing_id TEXT PRIMARY KEY,"
             + "  observed_at TEXT NOT NULL,"
             + "  skinr_id TEXT,"
             + "  seller_id INTEGER,"
@@ -645,10 +674,9 @@ export class CjsToolSkinrStore
             + "  price_kind TEXT,"
             + "  price_value TEXT,"
             + "  created TEXT,"
-            + "  payload TEXT NOT NULL,"
-            + "  PRIMARY KEY (listing_id, observed_at));"
+            + "  payload TEXT NOT NULL);"
             + "CREATE INDEX IF NOT EXISTS skinr_listing_design "
-            + "  ON skinr_listing_observations (skinr_id, observed_at);"
+            + "  ON skinr_listings (skinr_id);"
             // Who the ids belong to.
             //
             // The harvest records a creator and a seller as bare ids, which is
@@ -672,6 +700,8 @@ export class CjsToolSkinrStore
             + "  ON skinr_characters (name);"
         );
 
+        this.#CollapseObservations();
+
         const meta = this.#database.prepare("SELECT value FROM skinr_meta WHERE key = 'schema'").get();
 
         if (meta && meta.value !== DATABASE_SCHEMA)
@@ -683,6 +713,56 @@ export class CjsToolSkinrStore
             "INSERT INTO skinr_meta (key, value) VALUES ('schema', ?), ('version', ?), ('target', ?) "
             + "ON CONFLICT (key) DO UPDATE SET value = excluded.value"
         ).run(DATABASE_SCHEMA, String(DATABASE_VERSION), SKINR_TARGET);
+    }
+
+    /**
+     * Folds an old observation log into one row per listing.
+     *
+     * The store used to append a row per listing per harvest, and a fortnight
+     * of two-hourly runs made 612,207 rows for 4,264 listings - 420MB, of which
+     * 99.1% was a copy of a row already there. The listings are what matters
+     * and the history is not kept any more (operator, 2026-08-31), so an
+     * existing log is collapsed to its newest row per listing and dropped.
+     *
+     * ONCE, and only where the old table exists: it runs inside the same
+     * migration every open performs, so it has to cost nothing on a store that
+     * has already been folded or was created after this.
+     *
+     * VACUUM is left to the caller. It rewrites the whole file, which is right
+     * to do after this and wrong to do while a service is starting - see the
+     * note in Describe about what the file will still weigh until then.
+     *
+     * @returns {Number} listings carried over
+     */
+    #CollapseObservations()
+    {
+        const old = this.#database.prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'skinr_listing_observations'"
+        ).get();
+
+        if (!old) return 0;
+
+        const fold = this.#database.transaction(() =>
+        {
+            const written = this.#database.prepare(
+                "INSERT INTO skinr_listings "
+                + "(listing_id, observed_at, skinr_id, seller_id, quantity, state, "
+                + "price_kind, price_value, created, payload) "
+                + "SELECT o.listing_id, o.observed_at, o.skinr_id, o.seller_id, o.quantity, "
+                + "o.state, o.price_kind, o.price_value, o.created, o.payload "
+                + "FROM skinr_listing_observations o "
+                + "JOIN (SELECT listing_id, MAX(observed_at) AS observed_at "
+                + "      FROM skinr_listing_observations GROUP BY listing_id) latest "
+                + "  ON latest.listing_id = o.listing_id AND latest.observed_at = o.observed_at "
+                + "ON CONFLICT (listing_id) DO NOTHING"
+            ).run().changes;
+
+            this.#database.exec("DROP TABLE skinr_listing_observations");
+
+            return written;
+        });
+
+        return fold();
     }
 
 }

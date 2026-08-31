@@ -75,21 +75,40 @@ test("a design keeps when it was first seen across re-harvests", context =>
     assert.equal(store.GetDesignPayload("never-harvested"), null);
 });
 
-test("listings are a log: the same listing twice is two rows", context =>
+test("a listing is one row, updated: the newest sighting wins", context =>
 {
     const store = openStore(context);
 
     store.AppendListings([ listing("l1", { kind: "isk", value: 1000 }) ], "2026-08-17T10:00:00Z");
     store.AppendListings([ listing("l1", { kind: "isk", value: 900 }) ], "2026-08-18T10:00:00Z");
 
-    const history = store.ListingHistory("l1");
+    // ONE ROW. The store kept a row per sighting until 2026-08-31 and the
+    // history is not wanted: what a listing costs NOW is the question every
+    // reader asks, and 99% of the rows were copies of the row before them.
+    assert.equal(store.Describe().listings, 1);
 
-    // Two observations, oldest first. A store that overwrote would have lost
-    // the price change entirely, and the change is the only thing a price
-    // history can be built from.
-    assert.equal(history.length, 2);
-    assert.deepEqual(history.map(entry => entry.price.value), [ 1000, 900 ]);
-    assert.equal(history[0].observedAt, "2026-08-17T10:00:00Z");
+    const current = store.GetListing("l1");
+
+    assert.equal(current.price.value, 900);
+    assert.equal(current.observedAt, "2026-08-18T10:00:00Z");
+});
+
+test("an older sighting does not overwrite a newer one", context =>
+{
+    const store = openStore(context);
+
+    store.AppendListings([ listing("l1", { kind: "isk", value: 900 }) ], "2026-08-18T10:00:00Z");
+    // A retried page, or a slow one: it arrives after the page that
+    // superseded it, and it must not put the old price back.
+    store.AppendListings([ listing("l1", { kind: "isk", value: 1000 }) ], "2026-08-17T10:00:00Z");
+
+    assert.equal(store.GetListing("l1").price.value, 900);
+    assert.equal(store.GetListing("l1").observedAt, "2026-08-18T10:00:00Z");
+});
+
+test("a listing nobody harvested is absent rather than empty", context =>
+{
+    assert.equal(openStore(context).GetListing("never-seen"), null);
 });
 
 test("re-recording one page does not double count", context =>
@@ -98,10 +117,11 @@ test("re-recording one page does not double count", context =>
     const page = [ listing("l1", { kind: "isk", value: 1000 }), listing("l2", { kind: "plex", value: 500 }) ];
 
     assert.equal(store.AppendListings(page, "2026-08-17T10:00:00Z"), 2);
-    // A retried page after a network failure is the ordinary case, and it must
-    // not turn one observation into two.
-    assert.equal(store.AppendListings(page, "2026-08-17T10:00:00Z"), 0);
-    assert.equal(store.Describe().observations, 2);
+    // A retried page after a network failure is the ordinary case. It writes
+    // the same values over themselves - the timestamps are equal, so the
+    // guard admits it - and what must not happen is a second row.
+    store.AppendListings(page, "2026-08-17T10:00:00Z");
+    assert.equal(store.Describe().listings, 2);
 });
 
 test("the current hub is a projection: one row per listing, its newest", context =>

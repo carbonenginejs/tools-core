@@ -1908,7 +1908,18 @@ export class CjsToolHttpProxy
 
         if (leaf === "listings" && segments.length === 2)
         {
-            WriteJson(response, 200, { listingId: segments[1], history: this.skinrStore.ListingHistory(segments[1]) });
+            // The listing as it stands. It answered a "history" array while the
+            // store kept a row per sighting; it keeps one row per listing now.
+            const listing = this.skinrStore.GetListing(segments[1]);
+
+            if (!listing)
+            {
+                WriteJson(response, 404, { error: `SKINR listing not harvested: ${segments[1]}` });
+
+                return;
+            }
+
+            WriteJson(response, 200, { listingId: segments[1], listing });
 
             return;
         }
