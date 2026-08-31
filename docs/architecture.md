@@ -9,7 +9,7 @@ Summary: Defines the package boundary, dependency direction, and major Node-owne
 
 Tools-core is the consolidated Node toolchain for CarbonEngineJS. Its modules
 remain independently importable so acquisition, caches, generated libraries,
-schema tooling, local services, and realtime integrations can be used without
+schema tooling and local services can be used without
 constructing the root facade.
 
 ## Package boundary
@@ -100,22 +100,15 @@ without changing the underlying `sde/icons` answer.
 
 ## Service path
 
-The legacy query/resource service and the authenticated realtime host are
-separate compositions:
+`CjsToolHttpProxy` exposes exact-build query and byte routes.
 
-- `CjsToolHttpProxy` exposes exact-build query and byte routes.
-- `CjsToolRealtimeHub` owns registered service lifecycles and protocol state.
-- `CjsToolRealtimeHttpRouter` and `CjsToolRealtimeGatewayWebsocket` expose the versioned
-  realtime transport.
-- `CjsToolServiceHost` composes those routes without choosing a listener.
-- `CjsToolRealtimeServer` owns an optional standalone loopback listener.
-
-Provider integrations authenticate and normalize upstream input before it
-enters a service. Registered services receive canonical values, not raw sockets.
+The authenticated realtime host that used to sit beside it - its hub, its
+transport, its provider integrations and its webhook ingress - now lives in the
+demos package, which owns both halves of that protocol under the `TnyRealtime`
+names.
 
 ## Current limitations
 
-The checked-in launcher does not enable the authenticated realtime host.
 Browser-client protocol consumption remains in `@carbonenginejs/runtime/tools`.
 The conformance suite imports that client and wire surface directly from the
 combined runtime and proves it agrees with tools-core's server protocol.

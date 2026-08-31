@@ -110,14 +110,9 @@ absolute service-owned URLs, so a browser application on another origin may
 install it without rewriting song paths. Only songs named by the validated
 source catalog are reachable.
 
-The authenticated realtime service is a separate composition described in
-[Host realtime services](realtime-service.md). Webhook endpoints do not use
-browser CORS or local realtime capabilities.
-
 ## Current limitations
 
-The checked-in service does not enable the authenticated realtime host. Audio
-routes require a prepared exact-build `audio_v2.json`. Current generated
+Audio routes require a prepared exact-build `audio_v2.json`. Current generated
 libraries describe loose WEMs, banks, optional embedded media, the authored
 SFX graph when built with `--sfx`, and the dynamic music graph when built with
 `--music`. Automatic preparation includes authored SFX and adds music whenever

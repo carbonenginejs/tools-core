@@ -3,19 +3,17 @@
 Status: Evolving  
 Scope: `@carbonenginejs/tools-core`  
 Audience: Maintainers and application integrators  
-Summary: Records the remaining hardening work for long-lived local services, generated artifacts, and realtime integrations.
+Summary: Records the remaining hardening work for long-lived local services and generated artifacts.
 
 ## Current baseline
 
-Tools-core already separates its unauthenticated loopback query/resource proxy
-from the capability-authenticated realtime host. The standalone realtime server
-owns its listener and shutdown order, while the lower-level service host remains
-a non-owning composition for applications that provide their own server.
+Tools-core serves an unauthenticated loopback query/resource proxy. The realtime
+host that used to sit beside it - with its provider integrations and webhook
+ingress - now lives in the demos package, which owns both halves of that
+protocol under the `TnyRealtime` names.
 
-Remote index and Twitch requests use bounded fetches, package output excludes
-generated Carbon scan reports, provider delivery is serialized before
-publication, and browser-side realtime reconciliation belongs to
-`@carbonenginejs/runtime/tools`.
+Remote index requests use bounded fetches and package output excludes generated
+Carbon scan reports.
 
 ## Planned hardening
 
@@ -59,14 +57,9 @@ those replacements can expose a mismatched pair. Publish a staged,
 version-addressed directory and switch one manifest pointer atomically after
 every member is durable.
 
-## Realtime evolution
+## Realtime moved out
 
-Posting, editing, deletion, reactions, and moderation remain separately scoped
-future capabilities. Their requirements are recorded in
-[Realtime operations](reference/realtime-operations.md); none are part of the
-current receive-side provider contract.
-
-The conformance suite now consumes the combined runtime's browser protocol
-surface directly. Tools-core retains the server-side `CjsTool` identity and
-checks it against that wire contract. Provider-specific authentication,
-account policy, and user interfaces remain embedding-application concerns.
+The realtime services, their provider integrations and the webhook ingress now
+live in the demos package, which owns both halves of that protocol - the server
+and the browser client - under the `TnyRealtime` names. This package no longer
+hosts, documents or tests them.

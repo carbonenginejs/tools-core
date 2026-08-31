@@ -21,29 +21,19 @@ Summary: Maps each public package subpath to its owned responsibility and princi
 | `./identity` | Public ESI identity resolution and normalized identity graphs | `CjsToolPublicEsi`, `CjsToolPublicIdentity` |
 | `./index` | Exact-build app/res indexes, overlays, and validated bytes | `CjsToolIndex`, `CjsToolIndexOverlayStore` |
 | `./industry` | Blueprint, manufacturing-input, and reprocessing projections | `CjsToolIndustry` |
-| `./integrations/kick` | Signed Kick webhook normalization | `KickWebhookHandler`, `KickActivityService`, `KickStateService` |
-| `./integrations/twitch` | Twitch OAuth, Helix, IRC/EventSub, chat, activity, and state | Public `Twitch*` classes |
 | `./library` | Canonical JSON and deterministic gzip artifacts | `CjsToolLibraryArtifact` |
 | `./localisation` | Localized-name lookup and explicit gap handling | `CjsToolLocalisation`, `CjsToolLocalisationGuess` |
 | `./map` | Region/constellation/system/celestial documents, composed names, stargate orientation, and derived per-system lighting | `CjsToolMap`, `BuildMapIndex`, `BlackbodyColor`, `StargateDirection` |
 | `./market` | ESI order-book normalization and PLEX-rate projections | `CjsToolMarketEsi`, `CjsToolPlexRate` |
 | `./prefetch` | Exact-build cache preparation from explicit resource profiles | `CjsToolPrefetch` |
 | `./proxy` | Optional local query/resource HTTP adapter | `CjsToolHttpProxy` |
-| `./realtime` | Protocol constants and validation | `CjsToolRealtimeProtocol`, `CjsToolRealtimeError` |
-| `./realtime/chat` | Provider-neutral live-chat contract | `CjsToolRealtimeChatContract`, family/topic constants |
-| `./realtime/livestream` | Provider-neutral livestream contracts | `CjsToolRealtimeLivestreamContract`, family/topic constants |
-| `./realtime/resource-watch` | Snapshot-recoverable filesystem projection | `CjsToolRealtimeResourceWatchService` |
-| `./realtime/server` | Service registry, authority, hub, HTTP router, and connections | `CjsToolRealtimeHub`, `CjsToolRealtimeSessionAuthority`, related classes |
-| `./realtime/websocket` | Node WebSocket gateway and transport | `CjsToolRealtimeGatewayWebsocket`, `CjsToolRealtimeTransportWebsocket` |
 | `./schema` | Carbon schema scanning, checking, and class emission | `CjsFormatCarbon` |
-| `./service` | HTTP/realtime composition and standalone listener | `CjsToolServiceHost`, `CjsToolRealtimeServer` |
 | `./sde` | Exact-build archive or profile-driven SDE preparation and queries | `CjsToolSde`, `CjsToolSdeBuild`, profile/archive/database/repository classes |
 | `./shader` | Exact-build shader catalog and build orchestration | `CjsToolShaderTargetRegistry`, `CjsToolShaderBuilderWebgl`, `CjsToolShaderBuilderWebgpu` |
 | `./skin` | SKIN and SKINR generated libraries | `CjsToolSkin`, `CjsToolSkinBuilder`, `CjsToolSkinrBuilder` |
 | `./skills` | Skill requirements, closures, and mastery projections | `CjsToolSkills` |
 | `./sof` | Exact-build SOF catalogs, class-default expansion, and self-contained SOF bundles | `CjsToolSofRepository`, `CjsToolSofCatalog`, `CjsToolSofBundle`, `ExpandSofDefaults`, `PrepareSofDefaults` |
 | `./target` | Audited public target identities and capabilities | `CjsToolTargetRegistry` |
-| `./webhook` | Bounded authenticated webhook ingress and projections | Router, ingress, projection, and stream service classes |
 | `./weapon` | Weapon/ammunition/projectile library joins | `CjsToolWeapon`, `CjsToolWeaponBuilder` |
 | `./utils` | Shared low-level normalization and validation helpers | Named utility exports |
 
@@ -61,4 +51,3 @@ except the retained Carbon Blue scanner entry point.
 - [Generated libraries](../guides/generated-libraries.md)
 - [Exact-build cache prefetch](../guides/prefetch.md)
 - [Local service](../guides/local-service.md)
-- [Realtime service](../guides/realtime-service.md)

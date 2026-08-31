@@ -67,4 +67,3 @@ the next one.
 ## Related documentation
 
 - [Documentation home](../README.md)
-- [Provider integrations](provider-integrations.md)

@@ -8,8 +8,6 @@ Summary: Routes readers to source-backed purpose descriptors for every maintaine
 ## Catalog map
 
 - [Core and indexing](core-and-indexing.md)
-- [Provider integrations](provider-integrations.md)
-- [Realtime services](realtime-services.md)
 - [Data and build tools](data-and-build-tools.md)
 
 Each purpose sentence matches the first sentence of class-level JSDoc. Public

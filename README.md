@@ -1,7 +1,7 @@
 # @carbonenginejs/tools-core
 
 Node.js tooling for exact-build acquisition, shared caches, deterministic
-libraries, local services, and realtime provider integrations.
+libraries, and local services.
 
 Use tools-core when a build or application needs Node filesystems, persistent
 caches, credentials, servers, command-line orchestration, or generated
@@ -46,9 +46,7 @@ checked against declared size and MD5 before they are returned or cached.
   weapon, and shader outputs;
 - self-contained SOF bundles for consumers without Carbon or a DDS decoder;
 - schema scanning and class-emission tooling;
-- optional loopback HTTP, authenticated realtime, WebSocket, webhook, and
-  filesystem-watch services;
-- Twitch and Kick server-side integrations.
+- optional loopback HTTP and filesystem-watch services.
 
 Each area is independently importable through a documented package subpath.
 The runtime audio and character layers own their raw-resource build algorithms;
@@ -71,12 +69,6 @@ are retained losslessly; typed catalogs are additive indexes.
 - [Prepare exact-build cache inputs](docs/guides/prefetch.md)
 - [Build a SOF bundle](docs/guides/sof-bundles.md)
 - [Run the local service](docs/guides/local-service.md)
-- [Host realtime services](docs/guides/realtime-service.md)
-- [Configure Twitch and Kick](docs/guides/provider-integrations.md)
-- [Chat and livestream source topology](docs/concepts/chat-and-livestream-sources.md)
-- [Realtime protocol v1](docs/protocols/realtime-v1.md)
-- [Chat family contract v1](docs/protocols/chat-v1.md)
-- [Livestream family contract v1](docs/protocols/livestream-v1.md)
 
 ## Development
 
