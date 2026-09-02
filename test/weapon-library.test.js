@@ -115,6 +115,8 @@ test("builds weapon TypeID, graphics, and exact dogma ammunition joins", () =>
     assert.equal(weapon.resPath, "res:/dx9/model/turret/launcher/light/light_t1.black");
     assert.equal(weapon.kind, "launcher");
     assert.equal(weapon.slot, "launchers");
+    assert.equal(weapon.size, 1);
+    assert.deepEqual(weapon.compatibleSlots, [ "launchers" ]);
     assert.equal(weapon.iconID, 355);
     assert.equal(weapon.metaGroupID, 2);
     assert.equal(weapon.metaLevel, 5);
@@ -238,7 +240,7 @@ test("maps authored weapon branches and capital size to runtime slot collections
     for (const [ typeID, graphicID, marketGroupID, groupID, chargeGroupID, chargeSize ] of [
         [ 110, 1001, 888, 53, 86, 4 ],
         [ 111, 1002, 1015, 509, 384, null ],
-        [ 112, 1003, 2432, 53, 86, 1 ],
+        [ 112, 1003, 2432, 53, 86, 4 ],
         [ 113, 1004, 2742, 53, 86, 1 ],
     ])
     {
@@ -282,9 +284,36 @@ test("maps authored weapon branches and capital size to runtime slot collections
     const library = CjsToolWeapon.build({ ...BuildOptions(), tables });
 
     assert.equal(library.types[110].slot, "xlTurrets");
+    assert.deepEqual(library.types[110].compatibleSlots, [ "xlTurrets" ]);
     assert.equal(library.types[111].slot, "bombs");
     assert.equal(library.types[112].slot, "atomics");
+    assert.deepEqual(
+        library.types[112].compatibleSlots,
+        [ "atomics", "xlTurrets" ],
+    );
     assert.equal(library.types[113].slot, "chains");
+});
+
+test("adds XL launcher groups to the shared XL hardpoint compatibility", () =>
+{
+    for (const groupName of [
+        "Missile Launcher XL Cruise",
+        "Missile Launcher Rapid Torpedo",
+    ])
+    {
+        const tables = structuredClone(Tables);
+
+        tables.groups[509].name = { en: groupName };
+        const library = CjsToolWeapon.build({ ...BuildOptions(), tables });
+
+        assert.equal(library.types[100].slot, "launchers", groupName);
+        assert.equal(library.types[100].size, 4, groupName);
+        assert.deepEqual(
+            library.types[100].compatibleSlots,
+            [ "launchers", "xlTurrets" ],
+            groupName,
+        );
+    }
 });
 
 test("serves whole weapon library and exact compatibility routes", async context =>

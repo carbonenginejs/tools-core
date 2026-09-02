@@ -1,6 +1,6 @@
 import { CjsToolShaderBuilder } from "./CjsToolShaderBuilder.js";
 
-/** Node orchestration for browser-complete CEWG conversion. */
+/** Node orchestration for browser-complete WebGL effect conversion. */
 export class CjsToolShaderBuilderWebgl extends CjsToolShaderBuilder
 {
 
@@ -8,15 +8,14 @@ export class CjsToolShaderBuilderWebgl extends CjsToolShaderBuilder
     static className = "CjsToolShaderBuilderWebgl";
 
     /**
-     * Specializes the shared shader pipeline for CEWG artifacts and the runtime
-     * WebGL format.
+     * Specializes the shared shader pipeline for the runtime WebGL format and
+     * the effect.webgl2 output profile.
      */
     constructor(options = {})
     {
         super({
             ...options,
             backend: "webgl",
-            extension: "cewg",
             formatPackage: "@carbonenginejs/runtime/resource/formats/webgl",
         });
     }

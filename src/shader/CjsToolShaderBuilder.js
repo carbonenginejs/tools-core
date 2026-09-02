@@ -37,7 +37,6 @@ export class CjsToolShaderBuilder
 
     #backend;
 
-    #extension;
 
     #format;
 
@@ -57,7 +56,6 @@ export class CjsToolShaderBuilder
      */
     constructor({
         backend,
-        extension,
         formatPackage,
         format = null,
         index = null,
@@ -82,7 +80,6 @@ export class CjsToolShaderBuilder
         }
 
         this.#backend = String(backend);
-        this.#extension = String(extension);
         this.#formatPackage = String(formatPackage);
         this.#format = format;
         this.#index = index;
@@ -102,7 +99,9 @@ export class CjsToolShaderBuilder
         const startedAt = Date.now();
         const progress = normalizeProgress(options.onProgress);
         const shaderTarget = this.#shaderTargets.Get(options.shaderTarget);
-        const expectedFormat = this.#backend === "webgl" ? "CEWG" : "CEWGPU";
+        // The folder the artifact lands in is what identifies its type, so the
+        // builder checks that rather than a parallel discriminator.
+        const expectedProfile = this.#backend === "webgl" ? "effect.webgl2" : "effect.webgpu";
         const qualificationLevel = normalizeQualificationLevel(
             options.qualificationLevel,
             shaderTarget.qualificationPolicy.level,
@@ -115,10 +114,11 @@ export class CjsToolShaderBuilder
             requestedBuild: String(options.build ?? "latest"),
         });
 
-        if (shaderTarget.format !== expectedFormat)
+        if (shaderTarget.outputProfile !== expectedProfile)
         {
             throw new Error(
-                `${this.constructor.builderId} cannot build ${shaderTarget.format} target ${shaderTarget.id}`,
+                `${this.constructor.builderId} cannot build ${shaderTarget.outputProfile} `
+                + `target ${shaderTarget.id}`,
             );
         }
 
@@ -507,7 +507,6 @@ export class CjsToolShaderBuilder
                 generatedAt: options.generatedAt ?? null,
             });
             validatePackageProvenance(result, {
-                format: shaderTarget.format,
                 sourcePath: resolution.logicalPath,
                 outputPath: entry.outputPath,
                 sourceIdentity,
@@ -607,7 +606,6 @@ export class CjsToolShaderBuilder
             provider: catalog.provider,
             client: catalog.client,
             build: catalog.build,
-            format: shaderTarget.format,
             sourceProfile: shaderTarget.sourceProfile,
             outputProfile: shaderTarget.outputProfile,
             sourceFamilies: shaderTarget.sourceFamilies,
@@ -659,8 +657,6 @@ export class CjsToolShaderBuilder
             provider: toolTarget.provider,
             client: toolTarget.client,
             build: exactBuild,
-            format: shaderTarget.format,
-            extension: this.#extension,
             sourceProfile: shaderTarget.sourceProfile,
             outputProfile: shaderTarget.outputProfile,
             sourceFamilies: shaderTarget.sourceFamilies,
@@ -847,8 +843,7 @@ function validatePackageProvenance(result, expected)
         throw new Error("Shader format result is missing package bytes or INFO provenance");
     }
 
-    if (info.format !== expected.format
-        || info.sourcePath !== expected.sourcePath
+    if (info.sourcePath !== expected.sourcePath
         || info.outputPath !== expected.outputPath)
     {
         throw new Error("Shader format result does not match source/output package identity");

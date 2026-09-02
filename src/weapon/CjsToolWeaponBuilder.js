@@ -29,6 +29,12 @@ const SPECIAL_BRANCH_SLOTS = Object.freeze({
 const CHARGE_SIZE_ATTRIBUTE_ID = 128;
 const CHARGE_GROUP_ATTRIBUTE_IDS = Object.freeze([ 604, 605, 606, 609, 610 ]);
 const LAUNCHER_GROUP_ATTRIBUTE_IDS = Object.freeze([ 137, 602, 603, 2076, 2077, 2078 ]);
+const LAUNCHER_SIZE_RULES = Object.freeze([
+    { phrases: [ [ "xl" ], [ "rapid", "torpedo" ] ], size: 4 },
+    { phrases: [ [ "rapid", "heavy" ], [ "cruise" ], [ "torpedo" ] ], size: 3 },
+    { phrases: [ [ "rapid", "light" ], [ "heavy" ] ], size: 2 },
+    { phrases: [ [ "light" ], [ "rocket" ], [ "bomb" ], [ "defender" ] ], size: 1 },
+]);
 const PROJECTILE_GRAPHIC_PATTERN =
     /^res:([/]dx9[/]model[/]turret[/]launcher[/]).+_missile[.]red$/iu;
 
@@ -89,17 +95,21 @@ export class CjsToolWeaponBuilder
             const branchID = weaponBranches[marketGroupID];
             const kind = LAUNCHER_BRANCH_IDS.has(branchID) ? "launcher" : "turret";
             const chargeSize = NormalizeOptionalId(dogma.get(CHARGE_SIZE_ATTRIBUTE_ID));
+            const groupID = NormalizeId(type.groupID, `weapon type ${typeID} group`);
+            const size = WeaponSize(chargeSize, kind, groups.get(groupID));
+            const slot = WeaponSlot(branchID, kind, chargeSize);
 
             weaponTypes[typeID] = {
                 typeID,
                 name: NormalizeName(type.name ?? type.typeName),
-                groupID: NormalizeId(type.groupID, `weapon type ${typeID} group`),
+                groupID,
                 marketGroupID,
                 graphicID,
                 graphicFile,
                 resPath: ToBlackPath(graphicFile),
                 kind,
-                slot: WeaponSlot(branchID, kind, chargeSize),
+                slot,
+                compatibleSlots: WeaponCompatibleSlots(slot, size),
                 published: true,
                 ...OptionalIdField("iconID", type.iconID),
                 ...OptionalIdField("metaGroupID", type.metaGroupID),
@@ -107,6 +117,7 @@ export class CjsToolWeaponBuilder
                 ...OptionalNumberField("techLevel", type.techLevel),
                 chargeGroupIDs,
                 ...(chargeSize === null ? {} : { chargeSize }),
+                ...(size === null ? {} : { size }),
                 ammunitionTypeIDs: [],
             };
         }
@@ -626,6 +637,38 @@ function WeaponSlot(branchID, kind, chargeSize)
     if (chargeSize === 4) return "xlTurrets";
 
     return "turrets";
+}
+
+/** Returns the authored weapon size, including launcher groups that omit dogma chargeSize. */
+function WeaponSize(chargeSize, kind, group)
+{
+    if (chargeSize !== null) return chargeSize;
+    if (kind !== "launcher") return null;
+
+    const words = new Set(
+        String(LocalizedName(group?.name) ?? "")
+            .toLowerCase()
+            .split(/[^a-z0-9]+/u)
+            .filter(Boolean),
+    );
+
+    for (const rule of LAUNCHER_SIZE_RULES)
+    {
+        if (rule.phrases.some(phrase => phrase.every(word => words.has(word))))
+        {
+            return rule.size;
+        }
+    }
+
+    return null;
+}
+
+/** The natural collection first, plus the shared XL hardpoint when applicable. */
+function WeaponCompatibleSlots(slot, size)
+{
+    return size === 4 && slot !== "xlTurrets"
+        ? [ slot, "xlTurrets" ]
+        : [ slot ];
 }
 
 function GraphicRole(graphicFile)

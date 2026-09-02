@@ -2,7 +2,6 @@ export const DefaultShaderTargetData = Object.freeze([
     Object.freeze({
         id: "frontier-webgl2",
         target: "frontier",
-        format: "CEWG",
         sourceProfile: "effect.dx11",
         outputProfile: "effect.webgl2",
         qualityTiers: Object.freeze([ "hi" ]),
@@ -20,7 +19,6 @@ export const DefaultShaderTargetData = Object.freeze([
     Object.freeze({
         id: "eve-webgl2",
         target: "eve",
-        format: "CEWG",
         sourceProfile: "effect.dx11",
         outputProfile: "effect.webgl2",
         qualityTiers: Object.freeze([ "depth", "hi" ]),
@@ -38,7 +36,6 @@ export const DefaultShaderTargetData = Object.freeze([
     Object.freeze({
         id: "eve-webgpu",
         target: "eve",
-        format: "CEWGPU",
         sourceProfile: "effect.dx11",
         outputProfile: "effect.webgpu",
         qualityTiers: Object.freeze([ "hi" ]),

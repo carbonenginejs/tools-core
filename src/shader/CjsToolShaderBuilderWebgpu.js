@@ -1,6 +1,6 @@
 import { CjsToolShaderBuilder } from "./CjsToolShaderBuilder.js";
 
-/** Node orchestration for browser-complete CEWGPU conversion. */
+/** Node orchestration for browser-complete WebGPU effect conversion. */
 export class CjsToolShaderBuilderWebgpu extends CjsToolShaderBuilder
 {
 
@@ -8,7 +8,7 @@ export class CjsToolShaderBuilderWebgpu extends CjsToolShaderBuilder
     static className = "CjsToolShaderBuilderWebgpu";
 
     /**
-     * Specializes the shared shader pipeline for CEWGPU artifacts and the
+     * Specializes the shared shader pipeline for the effect.webgpu profile and the
      * runtime WebGPU format.
      */
     constructor(options = {})
@@ -16,7 +16,6 @@ export class CjsToolShaderBuilderWebgpu extends CjsToolShaderBuilder
         super({
             ...options,
             backend: "webgpu",
-            extension: "cewgpu",
             formatPackage: "@carbonenginejs/runtime/resource/formats/webgpu",
         });
     }

@@ -53,7 +53,6 @@ export function buildShaderTargetCatalog(
         provider: plan.provider,
         client: plan.client,
         build: plan.build,
-        format: plan.format,
         sourceProfile: plan.sourceProfile,
         outputProfile: plan.outputProfile,
         sourceFamilies: plan.sourceFamilies,

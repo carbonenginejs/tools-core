@@ -5,7 +5,7 @@ import { CjsToolShaderTarget, CjsToolShaderTargetRegistry } from "../src/index.j
 
 const StandardPbr = "res:/graphics/effect.dx11/managed/space/characters/standardpbr.sm_hi";
 
-test("catalogs Frontier CEWG outputs under its WebGL2 profile and exact build", () =>
+test("catalogs Frontier WebGL2 outputs under its profile and exact build", () =>
 {
     const targets = new CjsToolShaderTargetRegistry();
     const target = targets.Get("frontier-webgl2");
@@ -14,7 +14,6 @@ test("catalogs Frontier CEWG outputs under its WebGL2 profile and exact build", 
     assert.deepEqual(target.toJSON(), {
         id: "frontier-webgl2",
         target: "frontier",
-        format: "CEWG",
         sourceProfile: "effect.dx11",
         outputProfile: "effect.webgl2",
         qualityTiers: [ "hi" ],
@@ -36,7 +35,6 @@ test("catalogs Frontier CEWG outputs under its WebGL2 profile and exact build", 
         provider: "ccp",
         client: "stillness",
         build: "3438337",
-        format: "CEWG",
         sourceProfile: "effect.dx11",
         outputProfile: "effect.webgl2",
         sourceFamilies: [ "dx11-sm5.0" ],
@@ -71,13 +69,13 @@ test("keeps Frontier shader targets separate from EVE and unaudited tiers", () =
     );
 });
 
-test("catalogs CEWGPU targets without weakening exact-build validation", () =>
+test("catalogs WebGPU targets without weakening exact-build validation", () =>
 {
     const target = new CjsToolShaderTargetRegistry().Get("eve-webgpu");
     const sourcePath = "res:/graphics/effect.dx11/managed/space/standard.sm_hi";
     const catalog = target.CreateCatalog([ sourcePath ], { build: 3430261 });
 
-    assert.equal(target.format, "CEWGPU");
+    assert.equal(target.outputProfile, "effect.webgpu");
     assert.equal(target.selectionPolicy.permutationMode, "selected");
     assert.deepEqual(target.qualificationPolicy, {
         level: "structural",
@@ -95,7 +93,6 @@ test("future Frontier WebGPU targets require format-owned native comparison", ()
     const data = {
         id: "frontier-webgpu",
         target: "frontier",
-        format: "CEWGPU",
         sourceProfile: "effect.dx11",
         outputProfile: "effect.webgpu",
         qualityTiers: [ "hi" ],

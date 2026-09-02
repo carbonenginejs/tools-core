@@ -22,7 +22,6 @@ export class CjsToolShaderTarget
 
         this.id = normalizeTargetId(data.id);
         this.target = normalizeTargetId(data.target);
-        this.format = normalizeFormat(data.format);
         this.sourceProfile = normalizeProfile(data.sourceProfile);
         this.outputProfile = normalizeProfile(data.outputProfile);
         this.qualityTiers = Object.freeze(normalizeQualityTiers(data.qualityTiers));
@@ -38,7 +37,7 @@ export class CjsToolShaderTarget
             throw new TypeError("Shader target source and output profiles must differ");
         }
 
-        if (this.target === "frontier" && this.format === "CEWGPU"
+        if (this.target === "frontier" && this.outputProfile === "effect.webgpu"
             && (this.qualificationPolicy.level !== "native-hlslcc"
                 || this.qualificationPolicy.nativeComparison !== "required"))
         {
@@ -88,7 +87,7 @@ export class CjsToolShaderTarget
 
     /**
      * Catalogs exact source/output paths without performing conversion.
-     * The format package remains the owner of CEWG generation.
+     * The format package remains the owner of effect generation.
      */
     CreateCatalog(sourcePaths, { build, targets = new CjsToolTargetRegistry() } = {})
     {
@@ -129,7 +128,6 @@ export class CjsToolShaderTarget
             provider: toolTarget.provider,
             client: toolTarget.client,
             build: exactBuild,
-            format: this.format,
             sourceProfile: this.sourceProfile,
             outputProfile: this.outputProfile,
             sourceFamilies: this.sourceFamilies,
@@ -195,7 +193,6 @@ export class CjsToolShaderTarget
         return {
             id: this.id,
             target: this.target,
-            format: this.format,
             sourceProfile: this.sourceProfile,
             outputProfile: this.outputProfile,
             qualityTiers: this.qualityTiers,
@@ -217,17 +214,7 @@ export class CjsToolShaderTarget
 
 }
 
-function normalizeFormat(value)
-{
-    const format = String(value ?? "").trim().toUpperCase();
 
-    if (![ "CEWG", "CEWGPU" ].includes(format))
-    {
-        throw new TypeError(`Unsupported shader target format: ${value}`);
-    }
-
-    return format;
-}
 
 function normalizeSourceFamilies(value)
 {

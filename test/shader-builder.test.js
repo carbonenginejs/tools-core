@@ -70,7 +70,7 @@ test("WebGL builder verifies sources and emits deterministic qualified reports",
     assert.equal(progress.find((event) => event.event === "entry-complete").status, "qualified");
 });
 
-test("WebGPU builder remains independently importable and uses CEWGPU targets", async context =>
+test("WebGPU builder remains independently importable and uses effect.webgpu targets", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-webgpu-builder-"));
     const source = createSource({
@@ -92,7 +92,7 @@ test("WebGPU builder remains independently importable and uses CEWGPU targets", 
         outputDirectory: directory,
     });
 
-    assert.equal(result.report.format, "CEWGPU");
+    assert.equal(result.report.outputProfile, "effect.webgpu");
     assert.equal(result.report.outputProfile, "effect.webgpu");
     assert.equal(result.report.selectionPolicy.sourceFamily, "dx11-sm5.0");
     assert.equal(result.report.qualificationLevel, "structural");
