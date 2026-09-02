@@ -236,7 +236,7 @@ Shared Node orchestration for independently importable shader builders.
 <!-- class:CjsToolShaderBuilderWebgl -->
 ## `CjsToolShaderBuilderWebgl`
 
-Node orchestration for browser-complete CEWG conversion.
+Node orchestration for browser-complete WebGL effect conversion.
 
 - Export: `@carbonenginejs/tools-core/shader`
 - Source: `src/shader/CjsToolShaderBuilderWebgl.js`
@@ -246,7 +246,7 @@ Node orchestration for browser-complete CEWG conversion.
 <!-- class:CjsToolShaderBuilderWebgpu -->
 ## `CjsToolShaderBuilderWebgpu`
 
-Node orchestration for browser-complete CEWGPU conversion.
+Node orchestration for browser-complete WebGPU effect conversion.
 
 - Export: `@carbonenginejs/tools-core/shader`
 - Source: `src/shader/CjsToolShaderBuilderWebgpu.js`

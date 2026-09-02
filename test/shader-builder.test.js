@@ -315,7 +315,7 @@ class QualifiedFormat
         return {
             bytes: output,
             info: {
-                format: options.outputPath.includes("effect.webgpu") ? "CEWGPU" : "CEWG",
+                format: options.outputPath.includes("effect.webgpu") ? "Carbon WebGPU" : "Carbon WebGL",
                 sourcePath: options.source,
                 outputPath: options.outputPath,
                 sourceIdentity: options.sourceIdentity,

@@ -348,7 +348,7 @@ diagnostic or graph tooling.
 Shader builders catalog exact `.sm_*` sources, validate size and MD5, delegate
 whole-effect conversion to the owning format package, and stage immutable
 reports and overlays. Public output profiles are `effect.webgl2` and
-`effect.webgpu`; CEWG and CEWGPU are package formats, not resource profiles.
+`effect.webgpu`; Carbon WebGL and WebGPU are package formats, not resource profiles.
 Missing inputs remain missing and are never concealed by a legacy fallback.
 
 ## Reproducibility and safety

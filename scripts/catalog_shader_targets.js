@@ -17,7 +17,7 @@ Options:
   --help, -h             Show this help.
 
 This command catalogs source and planned output paths. It performs no remote
-reads and does not claim that a planned CEWG package has been generated or
+reads and does not claim that a planned Carbon WebGL package has been generated or
 qualified.
 `;
 
