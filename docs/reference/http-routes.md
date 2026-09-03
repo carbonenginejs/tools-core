@@ -1261,9 +1261,12 @@ GET /eve/<sde-build>/weapons/groups[/<groupID>]
 ```
 
 Ammunition compatibility comes from dogma charge groups and size, not filename
-or market-name guessing. Weapon records expose `slot` as the runtime collection
-name (`turrets`, `xlTurrets`, `launchers`, `bombs`, `atomics`, or `chains`) and
-retain `iconID`, meta/tech fields, and the explicit `published` state.
+or market-name guessing. Weapon records expose `slot` as the weapon's natural
+collection (`turrets`, `xlTurrets`, `launchers`, `bombs`, `atomics`, or
+`chains`). `compatibleSlots` retains that collection first and additionally
+names `xlTurrets` for any XL weapon; launcher size is normalized from its SDE
+group when the type omits dogma `chargeSize`. Records also retain `iconID`,
+meta/tech fields, and the explicit `published` state.
 
 Projectile graphics remain a separate official launcher catalog. Each
 ammunition record names its `projectileGraphicID` when its authored impact
