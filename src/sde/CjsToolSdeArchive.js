@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
 
 import unzipper from "unzipper";
+import { CjsJsonlFormat } from "@carbonenginejs/runtime/resource/formats/jsonl";
 
 import { CjsToolSdeDatabase } from "./CjsToolSdeDatabase.js";
 import * as utils from "../utils.js";
@@ -120,7 +121,7 @@ export class CjsToolSdeArchive
     {
         const response = await this.#Fetch(this.#latestUrl);
         const text = await response.text();
-        const records = ParseJsonLines(text, this.#latestUrl);
+        const records = CjsJsonlFormat.read(text, { source: this.#latestUrl });
         const selected = records.find(record => record?._key === "sde") ?? records[0];
         const build = utils.normalizeExactBuildNumber(selected?.buildNumber, {
             message: `Invalid exact SDE build "${selected?.buildNumber}"`,
@@ -477,28 +478,6 @@ function ToReadable(value)
     }
 
     throw new TypeError("SDE archive input must be ZIP bytes or a readable body");
-}
-
-function ParseJsonLines(value, source)
-{
-    return String(value ?? "")
-        .split(/\r?\n/gu)
-        .map(line => line.trim())
-        .filter(Boolean)
-        .map((line, index) =>
-        {
-            try
-            {
-                return JSON.parse(line);
-            }
-            catch (error)
-            {
-                throw new Error(
-                    `Invalid JSON Lines record in ${source} at line ${index + 1}: `
-                    + error.message
-                );
-            }
-        });
 }
 
 function NormalizeTimeout(value)
