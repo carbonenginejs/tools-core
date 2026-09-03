@@ -14,8 +14,7 @@ through local Node services.
 ## Use this package when
 
 Use tools-core for Node-side preparation, build orchestration, persistent
-caches, local HTTP/WebSocket services, or provider integrations that require
-credentials and server policy. Browser clients and remote readers belong in
+caches, or local HTTP services that require credentials and server policy. Browser clients and remote readers belong in
 `@carbonenginejs/runtime/tools`; runtime graph and domain behavior remain in
 their owning runtime subpaths.
 
@@ -31,7 +30,7 @@ format/runtime packages
           v
       tools-core  ----> generated libraries and exact-build caches
           |
-          +------> local HTTP, WebSocket, and webhook services
+          +------> local HTTP services
                              |
                              v
                 runtime/tools and applications
