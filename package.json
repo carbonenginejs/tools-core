@@ -1,7 +1,7 @@
 {
     "name": "@carbonenginejs/tools-core",
     "version": "0.7.0",
-    "description": "Node toolchain for CarbonEngineJS acquisition, generated libraries, caches, graph output, and optional HTTP and realtime service hosting.",
+    "description": "Node toolchain for CarbonEngineJS acquisition, generated libraries, caches, graph output, and optional HTTP service hosting.",
     "type": "module",
     "main": "src/index.js",
     "exports": {
@@ -109,12 +109,6 @@
         "skinr",
         "weapons",
         "character",
-        "realtime",
-        "filesystem-watch",
-        "kick",
-        "twitch",
-        "webhook",
-        "websocket",
         "sof",
         "shader",
         "webgl",
