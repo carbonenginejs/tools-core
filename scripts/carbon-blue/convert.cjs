@@ -1578,16 +1578,60 @@ function parseMethodDeclarations(body, source, baseLine = 1)
     for (let i = 0; i < lines.length; i++)
     {
         const line = lines[i].trim();
-        if (!line || !line.includes("(") || !line.endsWith(";")) continue;
+        if (!line || !line.includes("(")) continue;
         if (/^(if|for|while|switch|return)\b/.test(line)) continue;
         if (/^(using|typedef|friend|static_assert)\b/.test(line)) continue;
 
-        const signature = line.replace(/;$/, "").trim();
+        // A METHOD WITH AN INLINE BODY IS STILL A DECLARATION. Requiring a
+        // trailing semicolon here silently dropped every one of them, because
+        //
+        //     virtual void Update( float normalizedUpdateFrequency )
+        //     {
+        //     }
+        //
+        // ends in `)`. Only pure virtuals (`= 0;`) and the same-line `{};` form
+        // survived, so an interface whose methods all have empty default bodies
+        // - ITr2Controller, ITr2ControllerOwner - was reported as having one
+        // method or none. Everything downstream then believed it: the schema,
+        // `carbon-class --check`, and the parity audit.
+        //
+        // The empty body is not a detail. It is what tells a port that the
+        // method exists and does nothing by default, rather than not existing.
+        const next = (lines[i + 1] ?? "").trim();
+        const inlineBody = line.endsWith("{") || next.startsWith("{");
+
+        if (!line.endsWith(";") && !inlineBody) continue;
+
+        // Only the inline-body form is newly accepted, and only when the line
+        // reads as a declaration: a return type before the name, and not a
+        // continuation of a constructor initialiser list, whose members look
+        // exactly like calls.
+        if (!line.endsWith(";"))
+        {
+            const previous = (lines[i - 1] ?? "").trim();
+            if (/[,:]$/.test(previous)) continue;
+            if (!/\s/.test(line.slice(0, line.indexOf("(")).trim())) continue;
+        }
+
+        const signature = line.replace(/\{$/, "").replace(/;$/, "").trim();
         const open = signature.indexOf("(");
         const close = findMatchingParen(signature, open);
         if (open === -1 || close === -1) continue;
 
         const beforeParen = signature.slice(0, open).trim();
+
+        // A FIELD WHOSE DEFAULT IS A CALL IS NOT A METHOD.
+        //
+        //     Matrix transform = IdentityMatrix();
+        //
+        // ends with `;`, contains `(`, and the name match below happily returns
+        // `IdentityMatrix`. That is how `IdentityMatrix`, `Vector3` and
+        // `Vector4` came to be listed as methods of IEveSpaceObject2, and
+        // `GetRootObject` as a method of ITr2ControllerOwner. This is the same
+        // defect the 2026-07-26 schema recheck found on the FIELD side, where
+        // such fields were dropped; here the call leaks out as a phantom member.
+        if (beforeParen.includes("=")) continue;
+
         const nameMatch = beforeParen.match(/([A-Za-z_~]\w*)$/);
         if (!nameMatch) continue;
 

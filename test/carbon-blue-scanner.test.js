@@ -183,3 +183,86 @@ test("EXPOSURE_CHAINTO records the Blue persistence parent per class", () =>
     assert.ok(ended);
     assert.equal(ended.chainTo ?? null, null);
 });
+
+// A METHOD WITH AN INLINE BODY IS STILL A DECLARATION.
+//
+// The parser used to require a trailing semicolon, so anything written as
+//
+//     virtual void Update( float f )
+//     {
+//     }
+//
+// was dropped: it ends in `)`. Only pure virtuals and the same-line `{};` form
+// survived. The cost was invisible and large - an interface whose methods all
+// carry empty default bodies was recorded as having ONE method, and the schema,
+// `carbon-class --check` and the runtime parity audit all believed it. Carbon
+// uses the empty body to say "this exists and does nothing by default", which
+// is exactly what a port needs to know.
+test("methods with inline bodies are captured, not just pure virtuals", () =>
+{
+    const header = [
+        "BLUE_INTERFACE( IExample ) :",
+        "\tpublic IRoot",
+        "{",
+        "\tvirtual void Link( IRoot & owner )",
+        "\t{",
+        "\t}",
+        "\tvirtual bool IsLinked() const = 0;",
+        "\tvirtual void Update( float frequency )",
+        "\t{",
+        "\t}",
+        "\tvirtual void AddChild( IRoot * child ){};",
+        "};"
+    ].join("\n");
+
+    const parsed = scanner.__test.parseHeaderFile(header, "IExample.h");
+    const target = (parsed.classes ?? parsed).find(entry => entry.name === "IExample");
+
+    assert.ok(target, "the interface must be found");
+
+    const names = target.methods.map(method => method.name);
+
+    assert.deepEqual(
+        names.sort(),
+        [ "AddChild", "IsLinked", "Link", "Update" ],
+        "every declaration counts, whatever its body"
+    );
+
+    const isLinked = target.methods.find(method => method.name === "IsLinked");
+    const update = target.methods.find(method => method.name === "Update");
+
+    assert.equal(isLinked.pureVirtual, true);
+    assert.equal(update.pureVirtual, false, "a defaulted method is not pure virtual");
+    assert.equal(update.virtual, true);
+});
+
+// A FIELD WHOSE DEFAULT IS A CALL IS NOT A METHOD.
+//
+// `Matrix transform = IdentityMatrix();` ends with a semicolon and contains
+// parentheses, so it matched every test the parser applied and was emitted as a
+// method named IdentityMatrix. That is how IEveSpaceObject2 came to list
+// IdentityMatrix, Vector3 and Vector4 among its methods, and ITr2ControllerOwner
+// to list GetRootObject - a call from inside another method's body.
+test("a field default that calls a constructor is not read as a method", () =>
+{
+    const header = [
+        "BLUE_CLASS( Example ) :",
+        "\tpublic IRoot",
+        "{",
+        "\tMatrix transform = IdentityMatrix();",
+        "\tVector4 shipData = Vector4( 0, 0, 0, 0 );",
+        "\tvirtual void RealMethod( int value );",
+        "};"
+    ].join("\n");
+
+    const parsed = scanner.__test.parseHeaderFile(header, "Example.h");
+    const target = (parsed.classes ?? parsed).find(entry => entry.name === "Example");
+
+    assert.ok(target, "the class must be found");
+
+    const names = target.methods.map(method => method.name);
+
+    assert.deepEqual(names, [ "RealMethod" ], "only the declaration is a method");
+    assert.ok(!names.includes("IdentityMatrix"), "a field default is not a method");
+    assert.ok(!names.includes("Vector4"), "a field default is not a method");
+});
