@@ -122,6 +122,11 @@
       "enabled": true
     },
     {
+      "name": "trinityal",
+      "root": "trinity/trinityal",
+      "enabled": true
+    },
+    {
       "name": "spatialAudioClustering",
       "root": "spatial-audio-clustering",
       "enabled": true
