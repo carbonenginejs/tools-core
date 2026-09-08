@@ -59,3 +59,6 @@ _review/
 # The lockfile resolves the combined runtime package by a sibling path, so it
 # publishes this machine's layout and is unusable anywhere else.
 /package-lock.json
+
+# Local output of schema:pack. The COMMITTED copy lives in the consumer.
+carbon_schema_latest.gzip
