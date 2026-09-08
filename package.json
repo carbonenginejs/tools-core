@@ -90,7 +90,8 @@
         "lint": "node lint_package.js",
         "test": "node --test",
         "check": "npm run lint && npm test",
-        "schema:pack": "node scripts/pack_carbon_schema.js"
+        "schema:pack": "node scripts/pack_carbon_schema.js",
+        "schema:check": "node scripts/schema-check/check.js"
     },
     "dependencies": {
         "@carbonenginejs/runtime": "file:../runtime/npm",
