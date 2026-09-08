@@ -86,10 +86,11 @@
         "scan": "node scripts/carbon-blue/convert.cjs",
         "scan:trinity": "node scripts/carbon-blue/convert.cjs --config scripts/carbon-blue/config/trinity-root.json",
         "schema:build": "node scripts/build_carbon_schema.js scripts/carbon-blue/reports/latest.json scripts/carbon-blue/reports/trinity-root-latest.json --clean",
-        "schema:generate": "npm run scan && npm run scan:trinity && npm run schema:build",
+        "schema:generate": "npm run scan && npm run scan:trinity && npm run schema:build && npm run schema:pack",
         "lint": "node lint_package.js",
         "test": "node --test",
-        "check": "npm run lint && npm test"
+        "check": "npm run lint && npm test",
+        "schema:pack": "node scripts/pack_carbon_schema.js"
     },
     "dependencies": {
         "@carbonenginejs/runtime": "file:../runtime/npm",
