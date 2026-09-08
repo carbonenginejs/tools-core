@@ -2666,7 +2666,9 @@ function parseJsDefault(raw, kind)
     {
         return { determinate: true, value: HELPER_CREATE_DEFAULT[createMatch[1]].slice() };
     }
-    if (/^vec4\.createLinear\(\s*\)$/.test(trimmed))
+    // color.createLinear is current; vec4.createLinear is the pre-2026-09-08
+    // spelling still present in older hand files.
+    if (/^(?:color|vec4)\.createLinear\(\s*\)$/.test(trimmed))
     {
         return { determinate: true, value: [0, 0, 0, 1] };
     }
@@ -3475,6 +3477,19 @@ function arraysEqualNums(a, b)
     return true;
 }
 
+// Whether a field's default renders as color.createLinear() (see
+// renderLiteral), which needs the color namespace imported.
+function emitsCreateLinear(field)
+{
+    const value = field.default?.determinate ? field.default.value : null;
+    if (field.kind === "color") return arraysEqualNums(value, [0, 0, 0, 1]);
+    if (field.kind === "array" && field.typeArg === "color" && Array.isArray(value))
+    {
+        return value.some(item => arraysEqualNums(item, [0, 0, 0, 1]));
+    }
+    return false;
+}
+
 function defaultBaseImportFor(baseClass, isJs)
 {
     return `./${baseClass}${isJs ? ".js" : ""}`;
@@ -3574,6 +3589,7 @@ export function renderClassFile(expected, options = {})
     {
         const emit = MATH_EMIT[field.kind] || (field.kind === "array" ? MATH_EMIT[field.typeArg] : null);
         if (emit) mathNs.add(emit.ns);
+        if (emitsCreateLinear(field)) mathNs.add("color");
         if (field.default?.value?.__factory) factoryTypes.add(field.default.value.__factory);
     }
 
@@ -3899,7 +3915,7 @@ function renderLiteral(value, kind)
         const def = HELPER_CREATE_DEFAULT[mathEmit.ns];
         // Fresh per-instance value; create() for zero/identity defaults, else fromValues(...).
         if (!Array.isArray(value) || arraysEqualNums(value, def)) return `${mathEmit.ns}.create()`;
-        if (kind === "color" && arraysEqualNums(value, [0, 0, 0, 1])) return "vec4.createLinear()";
+        if (kind === "color" && arraysEqualNums(value, [0, 0, 0, 1])) return "color.createLinear()";
         return `${mathEmit.ns}.fromValues(${value.join(", ")})`;
     }
     if (value && typeof value === "object" && value.__container)
