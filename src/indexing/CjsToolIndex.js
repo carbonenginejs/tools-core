@@ -309,6 +309,58 @@ export class CjsToolIndex
         return this.#policy;
     }
 
+    /**
+     * Reads one payload by its own address, from whichever store holds it.
+     *
+     * There are two on disk - the disposable cache, and the durable root that
+     * holds overlay payloads - and a content address is the same name in both,
+     * so the answer cannot depend on which is asked first. Both are consulted
+     * because an address alone does not say which store a payload came from, and
+     * requiring the caller to know would put build knowledge back into a lookup
+     * whose whole point is not needing any.
+     *
+     * Returns null rather than fetching when nothing holds it. An address says
+     * WHAT is wanted, not where it came from: with no index and no build there
+     * is no provider to ask, and nothing to verify a downloaded answer against
+     * beyond the hash. Acquisition belongs to the path routes, which have that
+     * context; this one serves what acquisition has already stored.
+     */
+    async ReadPayloadByAddress(address)
+    {
+        const location = String(address ?? "").trim().toLowerCase();
+
+        if (!/^[a-f0-9]{2}\/[a-f0-9]{16}_[a-f0-9]{32}(?:\.[a-z0-9._-]+)?$/u.test(location))
+        {
+            throw new TypeError(`Invalid payload address: ${address}`);
+        }
+
+        if (this.#overlays)
+        {
+            try
+            {
+                return Object.freeze({
+                    bytes: await this.#overlays.ReadStoredPayload(location),
+                    store: "overlay",
+                });
+            }
+            catch (error)
+            {
+                if (error?.code !== "ENOENT")
+                {
+                    throw error;
+                }
+            }
+        }
+
+        const cached = this.#cache
+            ? await this.#cache.ReadPayload(null, "res", location)
+            : null;
+
+        return cached?.bytes
+            ? Object.freeze({ bytes: cached.bytes, store: "cache" })
+            : null;
+    }
+
     /** Reads the complete target/build app/res index graph. */
     async ReadIndexes(options = {})
     {

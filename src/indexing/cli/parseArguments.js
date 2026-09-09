@@ -1,4 +1,5 @@
 const BooleanOptions = new Set([
+    "addressed-redirects",
     "all",
     "audio-individual-media",
     "help",

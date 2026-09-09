@@ -84,6 +84,11 @@ const CORS_HEADERS = ALLOW_ORIGIN === "none" ? Object.freeze({}) : Object.freeze
         "X-Carbon-Client",
         "X-Carbon-Logical-Path",
         "X-Carbon-Artifact-Kind",
+        // Exposed so a browser caller can actually read it. A header a page
+        // cannot see is one it cannot act on, and the point of advertising the
+        // content address is that a caller may choose to use it next time.
+        "X-Carbon-Resfile",
+        "X-Carbon-Payload-Store",
         "X-Carbon-Overlay",
         "X-Carbon-Storage-Kind",
         "X-Carbon-SOF-Hull",
@@ -139,6 +144,7 @@ export class CjsToolHttpProxy
         audio = null,
         auth = null,
         maxRequestBytes = 1024 * 1024,
+        addressedRedirects = false,
     } = {})
     {
         if (indexes !== null && typeof indexes.Open !== "function")
@@ -234,6 +240,12 @@ export class CjsToolHttpProxy
         this.characters = characters;
         this.audio = audio;
         this.auth = auth;
+
+        // Off by default because a redirect is only free once everything in
+        // front of this service forwards `/resfiles/`. A site proxying `/eve/`
+        // alone would send its callers to its own 404, so adopting this is a
+        // deployment step rather than a behaviour every caller inherits.
+        this.addressedRedirects = addressedRedirects === true;
         this.maxRequestBytes = maxRequestBytes;
         this.#answerCatalogs = new Map();
         this.#targetSources = new Map();
@@ -566,6 +578,35 @@ export class CjsToolHttpProxy
             return;
         }
 
+        // `/resfiles/{shard}/{address}` — a payload by its own name.
+        //
+        // Every other resource route addresses a payload by where it sits in a
+        // BUILD, and a build-shaped URL cannot be immutable: `/eve/latest/...`
+        // means something different after every patch, and even an exact build
+        // mints a fresh URL for thousands of files that did not change. This one
+        // names the contents, so it is immutable and says so - the only honest
+        // `immutable` in the service.
+        //
+        // Handled before target routing because `/resfiles/aa/bb` would
+        // otherwise parse as the target `resfiles`. Note the separate topic of
+        // the same name, `/{target}/{build}/resfiles`, which lists paths and is
+        // unrelated.
+        const addressedRoute = MatchAddressedPayloadRoute(url.pathname);
+
+        if (addressedRoute)
+        {
+            if (![ "GET", "HEAD" ].includes(request.method))
+            {
+                WriteJson(response, 405, { error: "Method not allowed" });
+
+                return;
+            }
+
+            await this.#HandleAddressedPayloadRoute(request, addressedRoute, response);
+
+            return;
+        }
+
         // `/{target}/metadata` — the target-shaped form of the clients route.
         //
         // A target is the identity; provider, game and client are things it has.
@@ -854,6 +895,42 @@ export class CjsToolHttpProxy
                         ? CreateResourceCacheHeaders(targetRoute.build, file.resolution, refresh)
                         : {}),
                 };
+
+                // The payload has a name of its own, so say so. Even without the
+                // redirect below, a caller that reads this header can address
+                // the bytes immutably next time instead of coming back through
+                // a build-shaped URL that has to revalidate.
+                const address = ContentAddressOf(file.resolution);
+
+                if (address)
+                {
+                    headers["x-carbon-resfile"] = address;
+                }
+
+                // Redirect rather than serve, when asked to.
+                //
+                // This is what makes `latest` cheap instead of wasteful. Today a
+                // `/latest/` payload can only be given `max-age=300`, because
+                // the URL means something different after every patch - so the
+                // bytes are re-fetched on a schedule that has nothing to do with
+                // whether they changed. Sending the caller to the content
+                // address instead means the only thing that revalidates is this
+                // small redirect; the payload behind it is immutable and the
+                // overwhelming majority of payloads do not change between
+                // builds, so the caller already has them.
+                //
+                // The bytes are fetched BEFORE redirecting, deliberately: the
+                // addressed route serves only what is stored, so redirecting
+                // first would send callers to a 404 on a cold cache.
+                if (this.addressedRedirects && address && format === null && !refresh)
+                {
+                    WriteEmpty(response, 302, {
+                        ...headers,
+                        location: `/resfiles/${address}`,
+                    });
+
+                    return;
+                }
 
                 if (format === "json")
                 {
@@ -1281,6 +1358,65 @@ export class CjsToolHttpProxy
     }
 
     /** Serves one derived index-answer catalog route. */
+    /**
+     * Serves one payload by its own address.
+     *
+     * This is the only route that can honestly say `immutable`. Everywhere else
+     * the URL names a position in a build, and a position's contents change: a
+     * `latest` URL means something new after every patch, so it can only ever be
+     * given a short life and a revalidation. Here the URL names the contents, so
+     * a year is not a guess - the bytes at this URL cannot become different
+     * bytes without the URL becoming a different URL.
+     *
+     * A miss is a 404 and not a download. See `ReadPayloadByAddress`.
+     */
+    async #HandleAddressedPayloadRoute(request, route, response)
+    {
+        if (!this.indexes || typeof this.indexes.ReadPayloadByAddress !== "function")
+        {
+            WriteJson(response, 501, { error: "Target resource service is not configured" });
+
+            return;
+        }
+
+        const payload = await this.indexes.ReadPayloadByAddress(route.address);
+
+        if (!payload)
+        {
+            WriteJson(response, 404, {
+                error: `No stored payload for ${route.store}/${route.address}`,
+            });
+
+            return;
+        }
+
+        const headers = {
+            "cache-control": "public, max-age=31536000, immutable",
+            etag: `"${route.checksum}"`,
+            "x-carbon-artifact-kind": "hash-safe",
+            "x-carbon-payload-store": payload.store,
+        };
+
+        if (IsNotModified(request, headers.etag))
+        {
+            WriteEmpty(response, 304, headers);
+
+            return;
+        }
+
+        if (request.method === "HEAD")
+        {
+            WriteHead(response, 200, {
+                ...headers,
+                "content-length": String(payload.bytes.byteLength),
+            });
+
+            return;
+        }
+
+        WriteBytes(response, 200, payload.bytes, headers);
+    }
+
     async #HandleIndexAnswerRoute(route, response)
     {
         if (route.path)
@@ -3476,6 +3612,60 @@ function MatchMetadataRoute(pathname)
     {
         throw new TypeError("Metadata route contains invalid URL encoding");
     }
+}
+
+/**
+ * Matches `/resfiles/{shard}/{address}`, and `/appfiles/...` for the same store.
+ *
+ * Both names are accepted and both resolve to the same tree, because on disk
+ * there IS one tree: a payload is named by its contents, so the same bytes are
+ * one file whichever index declared them. The two names describe where bytes are
+ * ACQUIRED from - `resources.eveonline` and `binaries.eveonline` in CCP's older
+ * terms - which is a question for the code that downloads, not for the code that
+ * serves what is already here.
+ *
+ * The shard has to match the address it contains, or the same payload would be
+ * reachable at 256 URLs and each would cache separately.
+ */
+/**
+ * Gets the content address of a resolved payload, or null when it has none.
+ *
+ * A `local-exact` overlay row points at a mirrored path rather than an address,
+ * and an address is exactly what it lacks - so there is nothing to redirect to
+ * and nothing that could be called immutable. The shape is checked rather than
+ * assumed, because `artifactKind` says the payload CAN be proven unchanged, not
+ * that its stored name is an address.
+ */
+function ContentAddressOf(resolution)
+{
+    const location = String(resolution?.record?.location ?? "").toLowerCase();
+
+    return /^[a-f0-9]{2}\/[a-f0-9]{16}_[a-f0-9]{32}(?:\.[a-z0-9._-]+)?$/u.test(location)
+        ? location
+        : null;
+}
+
+function MatchAddressedPayloadRoute(pathname)
+{
+    const match = pathname.match(
+        /^\/(res|app)files\/([a-f0-9]{2})\/([a-f0-9]{16}_[a-f0-9]{32}(?:\.[a-z0-9._-]+)?)$/iu,
+    );
+
+    if (!match) return null;
+
+    const shard = match[2].toLowerCase();
+    const name = match[3].toLowerCase();
+
+    if (!name.startsWith(shard))
+    {
+        return null;
+    }
+
+    return Object.freeze({
+        store: `${match[1].toLowerCase()}files`,
+        address: `${shard}/${name}`,
+        checksum: name.slice(17, 49),
+    });
 }
 
 function MatchTargetRoute(pathname)

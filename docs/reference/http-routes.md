@@ -117,6 +117,57 @@ GET /eve/<build>/resource[/<path>]
 **A target is the address.** `provider`, `game` and `client` are things a target
 *has*: who controls the data, what groups it, and what produces a build number.
 
+### Payloads addressed by their contents
+
+```text
+GET /resfiles/<shard>/<path-fnv1>_<content-md5>[.<backend>]
+GET /appfiles/<shard>/<path-fnv1>_<content-md5>[.<backend>]
+```
+
+No target and no build, because the name is the bytes: every target shares one
+file and none of them can clash. This is the only route that can honestly answer
+`public, max-age=31536000, immutable` — every other resource URL names a position
+in a build, and a position's contents change. `/eve/latest/…` means something
+different after each patch, so it can only ever be given a short life and a
+revalidation.
+
+Both names resolve to the same tree, because on disk there is one: the two say
+where bytes were *acquired* from — `resources.eveonline` and
+`binaries.eveonline` in CCP's older terms — which is a question for the code that
+downloads, not for the code that serves what is already stored.
+
+A shard that does not match the address it contains is a 404, or one payload
+would be reachable at 256 URLs and each would cache separately.
+
+**A miss is a 404, never a download.** An address says *what* is wanted, not
+where it came from; with no index and no build there is no provider to ask.
+Acquisition belongs to the path routes, which have that context.
+
+### Redirecting to the address
+
+Started with `--addressed-redirects`, a resource request answers `302` to its
+content address instead of returning bytes:
+
+```text
+GET /eve/latest/resources/dx9/model/…/mf4_t1.gr2
+  -> 302  Location: /resfiles/00/00d403a1f3275f4c_5d5ba3384acf18dd6d3fffc999a75f3b
+```
+
+The redirect carries the short cache life the build-shaped URL always had; the
+payload behind it is immutable. Since most payloads do not change between builds,
+a caller that already holds one does not fetch it again — which is what makes
+`latest` cheap rather than wasteful, where before a 2 MB model was re-fetched on
+a schedule unrelated to whether it had changed.
+
+The bytes are acquired *before* the redirect is issued, so the addressed route
+cannot be sent a caller it will 404.
+
+It is off by default: a redirect is only free once everything in front of this
+service forwards `/resfiles/`. A site proxying `/eve/` alone would send callers
+to its own 404 — or worse, to its `index.html`. The address is advertised as
+`x-carbon-resfile` on every resource response regardless, so a caller can adopt
+it without the redirect being on.
+
 Two provider-shaped routes were removed on 2026-08-15 —
 `/games/<game>/providers/<provider>/clients` and
 `/games/<game>/providers/<provider>/builds/<build>`. They needed two keys to

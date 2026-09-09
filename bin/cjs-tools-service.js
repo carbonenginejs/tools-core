@@ -148,6 +148,7 @@ async function main()
     const auth = CreateEsiAuth(dataDirectory, port);
     const proxy = new CjsToolHttpProxy({
         indexes,
+        addressedRedirects: args.addressedRedirects === true,
         sof,
         sde,
         characters,
@@ -350,6 +351,9 @@ Options:
   --target <target>         Prefetch target; default: eve
   --build <build>           Prefetch build; default: latest
   --client <client>         Optional prefetch client/build selector
+  --addressed-redirects     Redirect resource requests to /resfiles/<address>,
+                            which is immutable, instead of serving bytes from a
+                            build-shaped URL that has to revalidate
   --no-sde-auto-prepare     Disable default on-request EVE SDE preparation
   --no-audio-auto-prepare   Disable default on-request audio-library builds
   --audio-individual-media  Materialize embedded WEMs into a generated index

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
@@ -10,6 +11,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { CjsCharacterLibrary } from "@carbonenginejs/runtime/character";
+import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 import {
     CjsToolIndexOverlayStore,
     CjsToolIndexTargetProfileRegistry,
@@ -1178,6 +1180,139 @@ test("serves the shared browser shader overlay through `netease` resource endpoi
     assert.equal(response.headers.get("x-carbon-build"), "88");
     assert.equal(response.headers.get("x-carbon-overlay"), "legacy-gles");
     assert.equal(response.headers.get("x-carbon-storage-kind"), "persistent-overlay");
+});
+
+test("redirects a build-shaped resource to its immutable content address", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-proxy-addressed-"));
+    const sourceDirectory = path.join(directory, "source");
+    const overlayStore = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
+    const shaderPath = "graphics/effect.webgl2/test.sm_hi";
+    const bytes = Buffer.from("translated-payload");
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+    await fs.mkdir(sourceDirectory, { recursive: true });
+    await fs.writeFile(path.join(sourceDirectory, "test.sm_hi"), bytes);
+    await overlayStore.Import({
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        name: "webgl2",
+        mode: "override",
+        builds: [ "*" ],
+        sourceDirectory,
+        entries: [ { logicalPath: `res:/${shaderPath}`, location: "test.sm_hi" } ],
+    });
+
+    const address = resFileAddress(
+        `res:/${shaderPath}`,
+        createHash("md5").update(bytes).digest("hex"),
+    );
+    const targets = new CjsToolTargetRegistry([ {
+        id: "eve",
+        game: "Eve",
+        provider: "ccp",
+        client: null,
+        libraries: [],
+        topics: [ "app", "res" ],
+    } ]);
+    const profiles = new CjsToolIndexTargetProfileRegistry([ {
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        defaultBuildRef: "latest",
+        remote: {
+            metadataBaseUrl: "https://metadata.test",
+            indexBaseUrl: "https://indexes.test",
+            appBaseUrl: "https://app.test",
+            resBaseUrl: "https://res.test",
+        },
+        clients: {},
+    } ]);
+    const responses = {
+        "https://indexes.test/eveonline_88.txt": "app:/resfileindex.txt,aa/main,,,,",
+        "https://app.test/aa/main": "",
+    };
+    const indexes = new CjsToolIndex({
+        targets,
+        profiles,
+        overlays: overlayStore,
+        cache: null,
+        fetch: async url =>
+        {
+            if (!(url in responses)) return { ok: false, status: 404 };
+
+            const body = Buffer.from(responses[url]);
+
+            return {
+                ok: true,
+                status: 200,
+                async arrayBuffer()
+                {
+                    return body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength);
+                },
+            };
+        },
+    });
+    const server = new CjsToolHttpProxy({ indexes, addressedRedirects: true }).CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    const redirected = await fetch(`${origin}/eve/88/res/${shaderPath}`, { redirect: "manual" });
+
+    assert.equal(redirected.status, 302);
+    assert.equal(redirected.headers.get("location"), `/resfiles/${address}`);
+    assert.equal(redirected.headers.get("x-carbon-resfile"), address);
+
+    // The redirect is followed to bytes, and THAT url is the immutable one. A
+    // build-shaped url cannot be: `/eve/88/...` means something else after a
+    // patch, which is why it only ever gets a short life.
+    const payload = await fetch(`${origin}/resfiles/${address}`);
+
+    assert.equal(payload.status, 200);
+    assert.equal(await payload.text(), "translated-payload");
+    assert.equal(payload.headers.get("cache-control"), "public, max-age=31536000, immutable");
+    assert.equal(payload.headers.get("x-carbon-artifact-kind"), "hash-safe");
+
+    // Same store either way: a payload is named by its contents, so which index
+    // declared it does not change where it lives.
+    assert.equal((await fetch(`${origin}/appfiles/${address}`)).status, 200);
+
+    // A shard that does not match the address it contains would make one payload
+    // reachable at 256 urls, each caching separately.
+    assert.equal((await fetch(`${origin}/resfiles/zz/${address.slice(3)}`)).status, 404);
+
+    // Nothing is fetched for an address nobody stored: an address says what is
+    // wanted, not where it came from.
+    const absent = address.replace(/_[a-f0-9]{32}$/u, `_${"0".repeat(32)}`);
+
+    assert.equal((await fetch(`${origin}/resfiles/${absent}`)).status, 404);
+
+    // Without the redirect enabled the bytes are served as before, and the
+    // address is still advertised so a caller can adopt it.
+    const direct = new CjsToolHttpProxy({ indexes }).CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        direct.once("error", reject);
+        direct.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => direct.close(resolve)));
+
+    const served = await fetch(
+        `http://127.0.0.1:${direct.address().port}/eve/88/res/${shaderPath}`,
+        { redirect: "manual" },
+    );
+
+    assert.equal(served.status, 200);
+    assert.equal(await served.text(), "translated-payload");
+    assert.equal(served.headers.get("x-carbon-resfile"), address);
 });
 
 test("service launcher emits an unauthenticated loopback bootstrap record", async context =>
