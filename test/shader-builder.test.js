@@ -270,6 +270,39 @@ test("qualified builds install and safely reuse immutable persistent overlays", 
 
     assert.equal(resolved.record.location, `${sourceAddress}.webgl2`);
     assert.equal(resolved.artifactKind, "hash-safe");
+
+    // The second build translated nothing: the output's address is the source's
+    // address plus the backend, so "already done" is answerable from the index
+    // row, and the converter marker says the translator has not moved.
+    assert.equal(first.report.entries[0].reused, undefined);
+    assert.equal(second.report.entries[0].reused, true);
+    assert.deepEqual(
+        JSON.parse(await fs.readFile(
+            path.join(directory, "data.local", "ResFiles", "converters.json"),
+            "utf8",
+        )),
+        { webgl2: "webgl2@test+b0.1.0+structural" },
+    );
+
+    // The overlay is a manifest and a JSON index with a header; the payloads are
+    // in the shared store. The build carries a droppable copy of exactly those.
+    assert.equal(installed[0].indexFile, "resfileindex.json");
+    assert.deepEqual(
+        (await fs.readdir(path.join(first.directory, "overlay"))).sort(),
+        [ "overlay.json", "resfileindex.json" ],
+    );
+
+    const index = JSON.parse(await fs.readFile(
+        path.join(first.directory, "overlay", "resfileindex.json"),
+        "utf8",
+    ));
+
+    assert.equal(index.schema, "carbon.resource-index");
+    assert.equal(index.target, "frontier");
+    assert.equal(index.payloadLayout, "content-address");
+    assert.equal(index.rowCount, 1);
+    assert.equal(index.resources[0].location, `${sourceAddress}.webgl2`);
+    assert.equal(index.producer.shaderTarget, "frontier-webgl2");
     assert.equal(
         installed[0].GetPayloadPath(resolved.record),
         path.join(directory, "data.local", "ResFiles", ...`${sourceAddress}.webgl2`.split("/")),

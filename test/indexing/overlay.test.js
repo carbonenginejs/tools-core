@@ -756,6 +756,71 @@ test("migrates a mirrored overlay into the shared store under its human name", a
     );
 });
 
+test("re-indexes an addressed overlay without ever re-addressing its payloads", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
+    const sourceDirectory = path.join(directory, "source");
+    const dataDirectory = path.join(directory, "data.local");
+    const store = new CjsToolIndexOverlayStore(dataDirectory);
+
+    // A DERIVED payload: addressed by the thing it came from, plus a suffix.
+    // Nothing about the row says what derived it, so a re-index that re-hashed
+    // rows would silently replace this with a self-address - which is the second
+    // identity the whole scheme exists to prevent, and it looks like it worked.
+    const derived = `${resFileAddress(
+        "res:/graphics/effect.dx11/managed/space/quad.sm_hi",
+        createHash("md5").update("dx11-source").digest("hex"),
+    )}.webgl2`;
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+
+    await writePayload(sourceDirectory, "quad.fx", "translated");
+    await store.Import({
+        target: "eve",
+        game: "Eve",
+        provider: "test",
+        name: "webgl2-77",
+        mode: "override",
+        builds: [ "*" ],
+        indexFile: "resfileindex.txt",
+        sourceDirectory,
+        entries: [ {
+            logicalPath: "res:/graphics/effect.webgl2/managed/space/quad.sm_hi",
+            location: "quad.fx",
+            address: derived,
+        } ],
+        provenance: { kind: "shader-build", shaderTarget: "eve-webgl2" },
+    });
+
+    const applied = await store.Migrate({ target: "eve", name: "webgl2-77", apply: true });
+
+    assert.equal(applied.applied, true);
+    assert.equal(applied.written, 0);
+
+    const [ overlay ] = await store.OpenTarget("eve", "77");
+
+    assert.equal(overlay.indexFile, "resfileindex.json");
+    assert.equal(
+        overlay.Resolve("res:/graphics/effect.webgl2/managed/space/quad.sm_hi").record.location,
+        derived,
+    );
+    assert.equal(
+        Buffer.from((await overlay.Read(overlay.group.Find(
+            "res:/graphics/effect.webgl2/managed/space/quad.sm_hi",
+        ))).bytes).toString(),
+        "translated",
+    );
+
+    const index = JSON.parse(await fs.readFile(
+        path.join(overlay.directory, "resfileindex.json"),
+        "utf8",
+    ));
+
+    assert.equal(index.schema, "carbon.resource-index");
+    assert.equal(index.overlay, "webgl2-77");
+    assert.equal(index.producer.shaderTarget, "eve-webgl2");
+});
+
 test("rejects overlay names that collide with official indexes", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));

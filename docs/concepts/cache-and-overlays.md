@@ -140,6 +140,41 @@ because it is there.
 New imports are content-addressed. Both layouts are read, so overlays already on
 disk keep working; `cjs-overlay-migrate` moves them.
 
+### The index says what it is
+
+A content-addressed overlay writes `resfileindex.json`: the same rows, plus a
+header naming the target, game, provider, mode, builds, revision, payload layout,
+when it was generated, and what produced it.
+
+```json
+{
+  "schema": "carbon.resource-index",
+  "version": 1,
+  "root": "res",
+  "target": "eve",
+  "overlay": "webgl2-3498825",
+  "builds": [ "3498825" ],
+  "payloadLayout": "content-address",
+  "producer": { "kind": "shader-build", "shaderTarget": "eve-webgl2", "...": "..." },
+  "rowCount": 62,
+  "resources": [
+    { "path": "res:/graphics/effect.webgl2/...", "location": "cd/cd7b...8051....webgl2",
+      "md5": "b616...", "size": 21404 }
+  ]
+}
+```
+
+The comma-separated form stays for mirrored overlays, because the point of that
+layout is to look like a client installation, and it has nowhere to put a header.
+A generated index is ours end to end, so it says what it is rather than leaving
+that to a manifest beside it — an index handed to someone on its own used to
+arrive anonymous. Both forms parse to the same rows and nothing downstream can
+tell which it read.
+
+Since the payloads live in the shared store, an overlay directory is now just
+these two files. A shader build writes a copy of them to `<output>/overlay/`, so
+installing a build is copying that directory into `games/<target>/overlays/`.
+
 ### Revisions, not a pile of names
 
 An overlay is identified by its human name. A shader set rebuilt against the
@@ -209,6 +244,10 @@ than resources.
 - Overlay records must use normal `res:/` paths; callers never receive an
   overlay name or storage hash.
 - A local artifact must not replace an official source implicitly.
+- An addressed payload keeps the address it was given. Nothing may re-derive one
+  from the row, because a row does not say whether it was derived: re-hashing a
+  translated payload silently replaces its source address with a self-address,
+  and looks like it worked.
 - Shader profiles remain separate namespaces such as `effect.gles2`,
   `effect.webgl2`, and `effect.webgpu`.
 - Indexed payload size and MD5 are validated before a cache hit is returned.

@@ -2,9 +2,14 @@ export { CjsToolIndexReader } from "./CjsToolIndexReader.js";
 export { CjsToolIndexBuildResolver } from "./CjsToolIndexBuildResolver.js";
 export {
     CjsToolIndexGroup,
+    JsonIndexSchema,
+    JsonIndexVersion,
+    formatJsonIndex,
     parseFileIndex,
     parseFileIndexLine,
     parseIndexGroup,
+    parseIndexGroupNamed,
+    parseJsonIndexGroup,
 } from "./CjsToolIndexGroup.js";
 export {
     CjsToolIndexEntry,

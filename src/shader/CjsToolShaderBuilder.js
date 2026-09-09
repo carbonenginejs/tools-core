@@ -191,6 +191,19 @@ export class CjsToolShaderBuilder
         const entries = new Array(catalog.entries.length);
         const staged = [];
 
+        // One scalar decides whether ANY stored translation may be reused, so it
+        // is read once rather than per shader. It names the converter, this
+        // orchestration, and the qualification level, because a payload built to
+        // a weaker level must not satisfy a build asking for a stronger one.
+        const overlays = options.overlays ?? this.#overlays;
+        const suffix = translatedPayloadSuffix(shaderTarget);
+        const converter = `${format.id ?? suffix}@${format.packageVersion ?? "0"}`
+            + `+b${BuilderVersion}+${qualificationLevel}`;
+        const storedConverters = overlays ? await overlays.ReadConverterVersions() : {};
+        const reuseTranslations = options.reuse !== false
+            && Boolean(overlays)
+            && storedConverters[suffix] === converter;
+
         await fs.mkdir(stageDirectory, { recursive: true });
 
         await progress({
@@ -228,7 +241,7 @@ export class CjsToolShaderBuilder
                     toolTarget,
                     exactBuild,
                     format,
-                    options,
+                    options: { ...options, reuseTranslations, overlays },
                     qualificationLevel,
                     stageDirectory,
                     staged,
@@ -325,10 +338,24 @@ export class CjsToolShaderBuilder
 
             if (overlay)
             {
+                // Record what produced these payloads only once they are stored.
+                // Written after the install, so an interrupted build leaves the
+                // marker naming the PREVIOUS converter: the next run then
+                // rebuilds rather than reusing a half-written set. Claiming a
+                // version before the payloads exist would invert that.
+                await overlays.WriteConverterVersion(suffix, converter);
+
+                // The build output carries a droppable copy of the overlay: the
+                // two files that ARE the overlay, since the payloads live in the
+                // shared store. Copying this directory into an overlays folder
+                // installs it, with nothing machine-specific inside.
+                const published = await CopyOverlayFiles(overlay, path.join(directory, "overlay"));
+
                 await progress({
                     event: "overlay-complete",
                     name: overlay.name,
                     directory: overlay.directory,
+                    artifact: published,
                     reused: overlay.reused === true,
                     replaced: overlay.replaced === true,
                     elapsedMs: Date.now() - startedAt,
@@ -469,6 +496,37 @@ export class CjsToolShaderBuilder
         try
         {
             requireContentIdentity(resolution);
+
+            // Nothing below this needs doing if the answer is already stored.
+            //
+            // A translation is a pure function of its input bytes and its
+            // converter. The output's address IS the input's address plus the
+            // backend, and the input's md5 is in the index row - so whether this
+            // exact translation already exists is answerable from the row alone,
+            // before fetching the source, let alone translating it. The
+            // converter half is one scalar per backend, checked once per build.
+            //
+            // Reusing carries the qualification forward, which is sound because
+            // the marker includes the qualification level: a build asking for a
+            // stricter level than the stored payloads were made under does not
+            // match, and everything is built again.
+            const reused = await this.#ReuseStoredTranslation({
+                resolution,
+                entry,
+                shaderTarget,
+                exactBuild,
+                options,
+                qualificationLevel,
+                stageDirectory,
+                staged,
+                base,
+            });
+
+            if (reused)
+            {
+                return reused;
+            }
+
             const payload = await source.Fetch(resolution.logicalPath, {
                 indexName: resolution.indexName,
             });
@@ -683,6 +741,69 @@ export class CjsToolShaderBuilder
     }
 
     /**
+     * Returns a completed entry when this translation is already stored, or
+     * null when it has to be built.
+     */
+    async #ReuseStoredTranslation({
+        resolution,
+        entry,
+        shaderTarget,
+        exactBuild,
+        options,
+        qualificationLevel,
+        stageDirectory,
+        staged,
+        base,
+    })
+    {
+        const overlays = options.overlays ?? this.#overlays;
+
+        if (!overlays || options.reuseTranslations !== true)
+        {
+            return null;
+        }
+
+        const address = `${resFileAddress(resolution.logicalPath, resolution.record.checksum)}`
+            + `.${translatedPayloadSuffix(shaderTarget)}`;
+
+        if (!await overlays.HasStoredPayload(address))
+        {
+            return null;
+        }
+
+        const outputBytes = await overlays.ReadStoredPayload(address);
+        const relativePath = `res/${entry.outputPath.slice("res:/".length)}`;
+        const outputFile = safeJoin(stageDirectory, relativePath);
+
+        await fs.mkdir(path.dirname(outputFile), { recursive: true });
+        await fs.writeFile(outputFile, outputBytes);
+        staged.push({
+            logicalPath: entry.outputPath,
+            location: relativePath.replaceAll("\\", "/"),
+            address,
+            checksum: hash("md5", outputBytes),
+            uncompressedSize: outputBytes.byteLength,
+            compressedSize: outputBytes.byteLength,
+        });
+
+        return utils.freezeData({
+            ...base,
+            status: "qualified",
+            reused: true,
+            build: exactBuild,
+            sourceSize: resolution.record.uncompressedSize,
+            sourceMd5: resolution.record.checksum,
+            outputSize: outputBytes.byteLength,
+            outputMd5: hash("md5", outputBytes),
+            stageProvenance: null,
+            permutationProvenance: null,
+            packageInspection: null,
+            qualification: { ok: true, level: qualificationLevel, reused: true },
+            error: null,
+        });
+    }
+
+    /**
      * Publishes staged shader artifacts and their index as an exact-build
      * generated overlay.
      */
@@ -879,6 +1000,36 @@ function validateSourceIdentity(source, shaderTarget, exactBuild, targets)
             + `${source.target}/${source.game}/${source.provider}/${source.build}/${source.client}`,
         );
     }
+}
+
+/**
+ * Copies an installed overlay's own files beside the build that made them.
+ *
+ * An overlay is now a manifest and an index; its payloads are in the shared
+ * store. So the artifact worth keeping beside a build report is those two files,
+ * and a build directory that carries them can be installed by copying rather
+ * than by re-importing from staged output.
+ */
+async function CopyOverlayFiles(overlay, destination)
+{
+    if (!overlay?.directory)
+    {
+        return null;
+    }
+
+    await fs.mkdir(destination, { recursive: true });
+
+    for (const name of [ "overlay.json", overlay.indexFile ])
+    {
+        if (!name) continue;
+
+        await fs.copyFile(
+            path.join(overlay.directory, name),
+            path.join(destination, name),
+        );
+    }
+
+    return destination;
 }
 
 /**

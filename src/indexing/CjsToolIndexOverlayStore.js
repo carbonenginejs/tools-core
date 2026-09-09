@@ -5,7 +5,7 @@ import path from "node:path";
 import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 
 import { CjsToolIndexEntry } from "./CjsToolIndexEntry.js";
-import { parseIndexGroup } from "./CjsToolIndexGroup.js";
+import { formatJsonIndex, parseIndexGroupNamed } from "./CjsToolIndexGroup.js";
 import { createPathMatcher } from "./pathMatcher.js";
 import * as utils from "../utils.js";
 import { normalizeTargetId } from "../target/CjsToolTarget.js";
@@ -162,7 +162,6 @@ export class CjsToolIndexOverlayStore
                 layout,
                 importDirectory,
             });
-            const indexText = `${records.map(formatIndexEntry).join("\n")}\n`;
             const manifest = {
                 schema: ManifestSchema,
                 version: ManifestVersion,
@@ -173,7 +172,7 @@ export class CjsToolIndexOverlayStore
                 mode,
                 builds,
                 storageKind: "persistent-overlay",
-                indexFile: "resfileindex.txt",
+                indexFile: normalizeIndexFile(options?.indexFile, layout),
                 payloadDirectory: layout === "logical-path" ? "res" : null,
                 payloadLayout: layout,
                 revision: 1,
@@ -183,10 +182,11 @@ export class CjsToolIndexOverlayStore
                 provenance: options?.provenance ?? null,
             };
 
-            await fs.writeFile(
-                safeJoin(importDirectory, manifest.indexFile),
-                indexText,
-                "utf8",
+            await this.#WriteIndex(
+                importDirectory,
+                manifest.indexFile,
+                records,
+                CreateIndexHeader(manifest),
             );
             await fs.writeFile(
                 safeJoin(importDirectory, "overlay.json"),
@@ -273,12 +273,24 @@ export class CjsToolIndexOverlayStore
                 layout: "content-address",
                 importDirectory: stageDirectory,
             });
-            const indexText = `${records.map(formatIndexEntry).join("\n")}\n`;
             const currentIndexPath = safeJoin(
                 overlayDirectory,
                 normalizeSafeFileName(current.indexFile, "overlay index file"),
             );
             const currentIndexText = await fs.readFile(currentIndexPath, "utf8");
+
+            // Compare ROWS, not the file. A generated index carries a header
+            // saying when it was made, so two identical sets of shaders produce
+            // two different files, and "has anything changed" must not be
+            // answered by asking whether the clock moved.
+            const currentGroup = parseIndexGroupNamed(current.indexFile, currentIndexText, {
+                kind: "resfileindex-overlay",
+                name,
+                root: "res",
+                sourceUrl: `local-overlay://${target}/${name}/${current.indexFile}`,
+                cachePath: null,
+                cacheHit: true,
+            });
             const revision = normalizeRevision(current.revision);
             const mode = options?.mode === undefined
                 ? normalizeOverlayMode(current.mode)
@@ -286,7 +298,7 @@ export class CjsToolIndexOverlayStore
             const builds = options?.builds === undefined
                 ? normalizeBuilds(current.builds)
                 : normalizeBuilds(options.builds);
-            const unchanged = currentIndexText === indexText
+            const unchanged = sameRows(currentGroup.entries, records)
                 && mode === normalizeOverlayMode(current.mode)
                 && sameBuilds(builds, normalizeBuilds(current.builds));
 
@@ -317,7 +329,7 @@ export class CjsToolIndexOverlayStore
                     ? current.provider
                     : normalizeOverlayName(options.provider),
                 storageKind: "persistent-overlay",
-                indexFile: "resfileindex.txt",
+                indexFile: normalizeIndexFile(options?.indexFile, "content-address"),
                 payloadDirectory: null,
                 payloadLayout: "content-address",
                 revision: revision + 1,
@@ -340,16 +352,25 @@ export class CjsToolIndexOverlayStore
                 provenance: options?.provenance ?? current.provenance ?? null,
             };
 
-            await fs.writeFile(
-                safeJoin(stageDirectory, manifest.indexFile),
-                indexText,
-                "utf8",
+            await this.#WriteIndex(
+                stageDirectory,
+                manifest.indexFile,
+                records,
+                CreateIndexHeader(manifest),
             );
             await fs.writeFile(
                 safeJoin(stageDirectory, "overlay.json"),
                 `${JSON.stringify(manifest, null, 2)}\n`,
                 "utf8",
             );
+
+            // The overlay directory now holds exactly what it needs and nothing
+            // machine-specific, so it can be copied somewhere else and work.
+            if (current.indexFile !== manifest.indexFile)
+            {
+                await fs.rm(safeJoin(stageDirectory, current.indexFile), { force: true });
+            }
+
             await this.#SwapDirectory(stageDirectory, overlayDirectory, name);
 
             return utils.freezeData({
@@ -392,18 +413,21 @@ export class CjsToolIndexOverlayStore
             throw new Error(`Overlay ${name} is not stored locally`);
         }
 
-        // A translated set cannot be migrated, only rebuilt. Its payloads belong
-        // at their SOURCE's address with the backend appended, and the source
-        // md5 is not recoverable from the output - it is in the index for the
-        // build these were translated against. Self-addressing them here would
-        // mint the second identity the scheme exists to avoid, and it would look
-        // like it had worked. Rebuilding is cheap; a wrong address is not.
-        if (isTranslatedOverlay(current.provenance))
+        // A translated set cannot be RE-ADDRESSED here, only rebuilt. Its
+        // payloads belong at their SOURCE's address with the backend appended,
+        // and the source md5 is not recoverable from the output - it is in the
+        // index for the build these were translated against. Self-addressing
+        // them would mint the second identity the scheme exists to avoid, and it
+        // would look like it had worked. Rebuilding is cheap; a wrong address is
+        // not.
+        //
+        // Re-INDEXING one is fine, and is not the same operation: the rows are
+        // already correct and only the file they are written in changes.
+        if (layout === "logical-path" && isTranslatedOverlay(current.provenance))
         {
             throw new Error(
                 `Overlay ${name} holds translated payloads `
-                + `(${current.provenance?.sourceProfile ?? "unknown"} -> `
-                + `${current.provenance?.targetProfile ?? "unknown"}); `
+                + `(${describeTranslation(current.provenance)}); `
                 + "rebuild it rather than migrating it",
             );
         }
@@ -416,14 +440,18 @@ export class CjsToolIndexOverlayStore
             overlayDirectory,
             normalizeSafeFileName(current.indexFile, "overlay index file"),
         );
-        const group = parseIndexGroup(await fs.readFile(indexPath, "utf8"), {
-            kind: "resfileindex-overlay",
-            name,
-            root: "res",
-            sourceUrl: `local-overlay://${target}/${name}/${current.indexFile}`,
-            cachePath: null,
-            cacheHit: true,
-        });
+        const group = parseIndexGroupNamed(
+            current.indexFile,
+            await fs.readFile(indexPath, "utf8"),
+            {
+                kind: "resfileindex-overlay",
+                name,
+                root: "res",
+                sourceUrl: `local-overlay://${target}/${name}/${current.indexFile}`,
+                cachePath: null,
+                cacheHit: true,
+            },
+        );
         const destination = renameTo === name
             ? overlayDirectory
             : this.GetOverlayDirectory(target, renameTo);
@@ -442,8 +470,14 @@ export class CjsToolIndexOverlayStore
             name,
             renameTo,
             layout,
+            indexFile: current.indexFile,
             rowCount: group.count,
-            alreadyMigrated: layout === "content-address",
+
+            // Migrated means BOTH: payloads addressed by content, and an index
+            // that carries a header. An overlay moved before the JSON index
+            // existed has the first and not the second, and is still work to do.
+            alreadyMigrated: layout === "content-address"
+                && current.indexFile === normalizeIndexFile(null, layout),
             written: 0,
             reused: 0,
             byteLength: 0,
@@ -458,10 +492,33 @@ export class CjsToolIndexOverlayStore
 
         for (const record of group.entries)
         {
-            const sourcePath = layout === "content-address"
-                ? this.#ResolveStoredPayload(record)
-                : safeJoin(payloadDirectory, record.location);
-            const bytes = await fs.readFile(sourcePath);
+            // An addressed payload keeps the address it has. Re-deriving one
+            // here would be wrong for anything DERIVED: a translated payload is
+            // addressed by its source with a backend suffix, and re-hashing it
+            // would quietly replace that with a self-address - the exact second
+            // identity the scheme exists to prevent. Nothing here knows what a
+            // row was derived from, so nothing here may re-address it. When the
+            // payloads are already addressed this is a re-index and no more.
+            if (layout === "content-address")
+            {
+                const stored = this.#ResolveStoredPayload(record);
+                const info = await statOrNull(stored);
+
+                if (!info)
+                {
+                    throw new Error(
+                        `Overlay ${name} references a payload that is not stored: `
+                        + record.location,
+                    );
+                }
+
+                plan.byteLength += info.size;
+                plan.reused += 1;
+                records.push(record);
+                continue;
+            }
+
+            const bytes = await fs.readFile(safeJoin(payloadDirectory, record.location));
             const checksum = crypto.createHash("md5").update(bytes).digest("hex");
             const migrated = new CjsToolIndexEntry({
                 logicalPath: record.logicalPath,
@@ -510,7 +567,7 @@ export class CjsToolIndexOverlayStore
                 version: ManifestVersion,
                 name: renameTo,
                 storageKind: "persistent-overlay",
-                indexFile: "resfileindex.txt",
+                indexFile: normalizeIndexFile(null, "content-address"),
                 payloadDirectory: null,
                 payloadLayout: "content-address",
                 revision: normalizeRevision(current.revision),
@@ -519,10 +576,11 @@ export class CjsToolIndexOverlayStore
                 byteLength: plan.byteLength,
             };
 
-            await fs.writeFile(
-                safeJoin(stageDirectory, manifest.indexFile),
-                `${records.map(formatIndexEntry).join("\n")}\n`,
-                "utf8",
+            await this.#WriteIndex(
+                stageDirectory,
+                manifest.indexFile,
+                records,
+                CreateIndexHeader(manifest),
             );
             await fs.writeFile(
                 safeJoin(stageDirectory, "overlay.json"),
@@ -677,6 +735,98 @@ export class CjsToolIndexOverlayStore
         }
 
         return true;
+    }
+
+    /**
+     * Writes one overlay's index in whichever format its file name names.
+     *
+     * The comma-separated form stays for anything that has to look like a client
+     * installation. What this package GENERATES is written as JSON, because a
+     * generated index has things to say about itself - the build it came from,
+     * the converter and version that produced it, when - that the game's format
+     * has nowhere to put. Those facts previously lived only in the manifest
+     * beside it, which meant an index handed to anyone on its own arrived
+     * anonymous.
+     */
+    async #WriteIndex(directory, indexFile, records, header)
+    {
+        const text = String(indexFile).toLowerCase().endsWith(".json")
+            ? formatJsonIndex(records, header)
+            : `${records.map(formatIndexEntry).join("\n")}\n`;
+
+        await fs.writeFile(safeJoin(directory, indexFile), text, "utf8");
+
+        return text;
+    }
+
+    /**
+     * Answers whether a derived payload is already stored under this address.
+     *
+     * This is what lets a rebuild skip work. A translated payload's address is
+     * its SOURCE's address plus a backend suffix, and the source address is
+     * derivable from the index row alone - no download, no read - so "have I
+     * already translated exactly these bytes" is answerable before fetching
+     * anything.
+     */
+    async HasStoredPayload(address)
+    {
+        return exists(safeJoin(this.payloadStore, normalizeStoredAddress(address)));
+    }
+
+    /** Reads one stored payload by address. */
+    async ReadStoredPayload(address)
+    {
+        return fs.readFile(safeJoin(this.payloadStore, normalizeStoredAddress(address)));
+    }
+
+    /**
+     * The converter version each backend's stored translations were produced by.
+     *
+     * A translated payload is a pure function of its input bytes and its
+     * converter. The input cannot change without changing the address, so the
+     * only free variable is the converter - and it is the same value for every
+     * payload sharing a suffix. Version tracking is therefore ONE scalar per
+     * backend, not a record per file.
+     */
+    async ReadConverterVersions()
+    {
+        try
+        {
+            return JSON.parse(await fs.readFile(this.#ConverterMarkerPath(), "utf8"));
+        }
+        catch (error)
+        {
+            if (error?.code === "ENOENT")
+            {
+                return {};
+            }
+
+            throw error;
+        }
+    }
+
+    /** Records the converter version a backend's stored translations now carry. */
+    async WriteConverterVersion(backend, version)
+    {
+        const versions = {
+            ...await this.ReadConverterVersions(),
+            [ String(backend) ]: String(version),
+        };
+
+        await fs.mkdir(this.payloadStore, { recursive: true });
+        await fs.writeFile(
+            this.#ConverterMarkerPath(),
+            `${JSON.stringify(versions, null, 2)}\n`,
+            "utf8",
+        );
+
+        return utils.freezeData(versions);
+    }
+
+    /** The marker sits at the store root, where no shard directory can collide. */
+    #ConverterMarkerPath()
+    {
+        return path.join(this.payloadStore, "converters.json");
     }
 
     /** Locates one payload in the shared store without letting a row escape it. */
@@ -901,7 +1051,7 @@ export class CjsToolIndexOverlayStore
                 ? this.payloadStore
                 : null;
         const indexText = await fs.readFile(indexPath, "utf8");
-        const group = parseIndexGroup(indexText, {
+        const group = parseIndexGroupNamed(manifest.indexFile, indexText, {
             kind: "resfileindex-overlay",
             name: manifest.name,
             root: "res",
@@ -956,6 +1106,7 @@ export class CjsToolIndexOverlay
         this.name = options.name;
         this.mode = options.mode;
         this.storageKind = options.storageKind;
+        this.indexFile = options.indexFile ?? null;
         this.payloadLayout = options.payloadLayout ?? null;
         this.revision = normalizeRevision(options.revision);
         this.history = utils.freezeData(normalizeHistory(options.history));
@@ -1285,6 +1436,74 @@ function isTranslatedOverlay(provenance)
         || Boolean(provenance?.sourceProfile && provenance?.targetProfile);
 }
 
+/** Says what a translated overlay was built from, in whichever terms it recorded. */
+function describeTranslation(provenance)
+{
+    if (provenance?.sourceProfile && provenance?.targetProfile)
+    {
+        return `${provenance.sourceProfile} -> ${provenance.targetProfile}`;
+    }
+
+    return provenance?.shaderTarget
+        ? `shader target ${provenance.shaderTarget}`
+        : "no recorded source";
+}
+
+/**
+ * Chooses an overlay's index file name.
+ *
+ * Content-addressed overlays are ours end to end and get the JSON form with its
+ * header. A mirrored overlay keeps the game's comma-separated file, because the
+ * point of that layout is to look like a client installation.
+ */
+function normalizeIndexFile(value, layout)
+{
+    if (value === undefined || value === null)
+    {
+        return layout === "content-address" ? "resfileindex.json" : "resfileindex.txt";
+    }
+
+    return normalizeSafeFileName(value, "overlay index file");
+}
+
+/** Builds the header a generated index carries about itself. */
+function CreateIndexHeader(manifest)
+{
+    return {
+        target: manifest.target,
+        game: manifest.game,
+        provider: manifest.provider,
+        overlay: manifest.name,
+        mode: manifest.mode,
+        builds: [ ...manifest.builds ],
+        revision: manifest.revision,
+        payloadLayout: manifest.payloadLayout,
+        payloadStore: PayloadStoreDirectory,
+        generatedAt: new Date().toISOString(),
+        producer: manifest.provenance ?? null,
+    };
+}
+
+/** Compares two row sets on everything an index row actually asserts. */
+function sameRows(left, right)
+{
+    if (left.length !== right.length)
+    {
+        return false;
+    }
+
+    const describe = (entry) => [
+        entry.logicalPath,
+        entry.location,
+        entry.checksum ?? "",
+        entry.uncompressedSize ?? "",
+        entry.compressedSize ?? "",
+        entry.binaryOperation ?? "",
+    ].join(",");
+
+    return left.map(describe).sort().join("\n") === right.map(describe).sort().join("\n");
+}
+
 function normalizePayloadLayout(value)
 {
     const layout = String(value ?? "").trim().toLowerCase();
@@ -1421,6 +1640,23 @@ function safeJoin(root, ...segments)
     }
 
     return result;
+}
+
+async function statOrNull(filePath)
+{
+    try
+    {
+        return await fs.stat(filePath);
+    }
+    catch (error)
+    {
+        if (error?.code === "ENOENT")
+        {
+            return null;
+        }
+
+        throw error;
+    }
 }
 
 async function exists(filePath)
