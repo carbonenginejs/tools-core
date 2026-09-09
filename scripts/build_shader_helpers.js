@@ -69,6 +69,7 @@ export async function RunShaderBuilder(Builder, backend, argv = process.argv.sli
             force: options.overwrite,
             replaceOverlay: options.replaceOverlay,
             reuseExisting: options.reuseExisting,
+            rebuild: options.rebuild,
             onProgress: (event) => logger.Write(event),
         });
 
@@ -158,6 +159,15 @@ async function ParseArguments(argv)
         else if (argument === "--replace-overlay")
         {
             options.replaceOverlay = true;
+        }
+        else if (argument === "--rebuild")
+        {
+            // Not the same thing as --no-reuse, which is about the output
+            // DIRECTORY. This one is about the translations: build every shader
+            // again even where an identical translation is already stored,
+            // because the emitter changed underneath and its stored output is
+            // the thing that is stale.
+            options.rebuild = true;
         }
         else if (argument === "--no-reuse")
         {
@@ -394,6 +404,9 @@ Options:
   --diagnostic                  Retain partial output without activating it.
   --overwrite, --force          Transactionally replace an output directory.
   --replace-overlay             Transactionally replace the named overlay.
+  --rebuild                     Translate every shader again, even where an
+                                identical translation is already stored. For
+                                when the emitter changed, not the sources.
   --no-reuse                    Error instead of reusing identical output.
   --help, -h                    Show this help.
 `;

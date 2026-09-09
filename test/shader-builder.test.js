@@ -281,7 +281,7 @@ test("qualified builds install and safely reuse immutable persistent overlays", 
             path.join(directory, "data.local", "ResFiles", "converters.json"),
             "utf8",
         )),
-        { webgl2: "webgl2@test+b0.1.0+structural" },
+        { webgl2: "webgl2@1+b0.1.0+structural" },
     );
 
     // The overlay is a manifest and a JSON index with a header; the payloads are
@@ -296,6 +296,19 @@ test("qualified builds install and safely reuse immutable persistent overlays", 
         path.join(first.directory, "overlay", "resfileindex.json"),
         "utf8",
     ));
+
+    // The emitter can change without any source changing, and then the stored
+    // translation is the stale thing. --rebuild is how that gets rebuilt.
+    const forced = await builder.Build({
+        shaderTarget: "frontier-webgl2",
+        build: "77",
+        source,
+        sourcePaths: [ WebglPath ],
+        outputDirectory,
+        rebuild: true,
+    });
+
+    assert.equal(forced.report.entries[0].reused, undefined);
 
     assert.equal(index.schema, "carbon.resource-index");
     assert.equal(index.target, "frontier");

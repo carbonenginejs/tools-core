@@ -6,6 +6,7 @@ import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 
 import { CjsToolIndexOverlayStore } from "../indexing/CjsToolIndexOverlayStore.js";
 import { CjsToolShaderTargetRegistry } from "./CjsToolShaderTargetRegistry.js";
+import { GetShaderOutputVersion } from "./shaderOutputVersions.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 
@@ -192,15 +193,21 @@ export class CjsToolShaderBuilder
         const staged = [];
 
         // One scalar decides whether ANY stored translation may be reused, so it
-        // is read once rather than per shader. It names the converter, this
-        // orchestration, and the qualification level, because a payload built to
-        // a weaker level must not satisfy a build asking for a stronger one.
+        // is read once rather than per shader. It names the emitter's declared
+        // output version, this orchestration, and the qualification level - the
+        // last because a payload built to a weaker level must not satisfy a
+        // build asking for a stronger one.
+        //
+        // The emitter's version comes from shaderOutputVersions.js and NOT from
+        // `format.packageVersion`, which is CCP's container version: it does not
+        // move when our emitter changes, and it does move when their container
+        // does. Read that file before changing this line.
         const overlays = options.overlays ?? this.#overlays;
         const suffix = translatedPayloadSuffix(shaderTarget);
-        const converter = `${format.id ?? suffix}@${format.packageVersion ?? "0"}`
+        const converter = `${suffix}@${GetShaderOutputVersion(suffix)}`
             + `+b${BuilderVersion}+${qualificationLevel}`;
         const storedConverters = overlays ? await overlays.ReadConverterVersions() : {};
-        const reuseTranslations = options.reuse !== false
+        const reuseTranslations = options.rebuild !== true
             && Boolean(overlays)
             && storedConverters[suffix] === converter;
 
