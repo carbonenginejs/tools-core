@@ -2,17 +2,21 @@
 // tools-core owns the checker; this consumer owns its coverage and debt floor.
 import fs from "node:fs";
 import path from "node:path";
-import { collectReport, packageRoot } from "./schema/audit.js";
-import { evaluate, updateBaseline } from "./schema/policy.js";
+import { fileURLToPath } from "node:url";
+import { collectReport } from "./audit.js";
+import { evaluate, updateBaseline } from "./policy.js";
 
 try
 {
     const args = process.argv.slice(2);
-    if (args.some(arg => !["--json", "--update"].includes(arg))) throw new Error("Usage: node scripts/lint-schema.js [--json] [--update]");
+    if (args.some(arg => !["--json", "--update"].includes(arg))) throw new Error("Usage: node scripts/schema-check/check.js [--json] [--update]");
     const update = args.includes("--update");
     if (update) console.error("WARNING: --update banks fixes only. Never use it to silence a fresh finding; investigate against Carbon first.");
     const report = await collectReport();
-    const baselineFile = path.join(packageRoot, "scripts/schema-baseline.json");
+    // The debt floor lives BESIDE the checker, not at a consumer-shaped path.
+    // It pointed at scripts/schema-baseline.json until 2026-09-09, which is
+    // where it sat in runtime before the move.
+    const baselineFile = path.join(path.dirname(fileURLToPath(import.meta.url)), "baseline.json");
     const baseline = report.status === "SKIP" ? null : JSON.parse(fs.readFileSync(baselineFile, "utf8"));
     const result = report.status === "SKIP" ? { status: "SKIP", reason: report.reason } : evaluate(report, baseline);
     if (update)

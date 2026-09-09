@@ -4,9 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { collectReport, inspectSchemaTree, packageRoot } from "../scripts/schema/audit.js";
-import { baselineFromReport, evaluate, findingKey, updateBaseline } from "../scripts/schema/policy.js";
+import { collectReport, inspectSchemaTree, packageRoot } from "./audit.js";
+import { baselineFromReport, evaluate, findingKey, updateBaseline } from "./policy.js";
+
+/** This checker's own directory; its baseline and CLI live beside it. */
+const checkerDir = path.dirname(fileURLToPath(import.meta.url));
 
 const parser = createRequire(path.join(process.env.CARBON_SCHEMA_RUNTIME_ROOT || packageRoot, "package.json"))("@babel/parser");
 
@@ -252,9 +256,9 @@ test("partial enums fail validation and self-consistent enum removals lose cover
 test("CLI refuses --update on SKIP and leaves the checked-in baseline untouched", t =>
 {
     const f = fixture(t);
-    const baselineFile = path.join(packageRoot, "scripts/schema-baseline.json");
+    const baselineFile = path.join(checkerDir, "baseline.json");
     const before = fs.readFileSync(baselineFile);
-    const result = spawnSync(process.execPath, [path.join(packageRoot, "scripts/lint-schema.js"), "--update"], {
+    const result = spawnSync(process.execPath, [path.join(checkerDir, "check.js"), "--update"], {
         env: { ...process.env, CARBON_SCHEMA_ROOT: path.join(f.root, "absent") }, encoding: "utf8"
     });
     assert.equal(result.status, 2);
@@ -262,9 +266,18 @@ test("CLI refuses --update on SKIP and leaves the checked-in baseline untouched"
     assert.deepEqual(fs.readFileSync(baselineFile), before);
 });
 
-test("lint and npm builds invoke the schema gate", () =>
+test("the gate is reachable as a script", () =>
 {
+    // IT IS NOT CHAINED INTO THIS PACKAGE'S OWN lint, and that is deliberate.
+    // The gate audits a CONSUMER's generated classes against the Carbon schema,
+    // and tools-core has no such tree - running it here would only ever SKIP.
+    // The consumer owns the wiring; this package owns the checker.
+    //
+    // This replaced two assertions about runtime's script names - lint:schema
+    // chained into lint, and prebuild:npm - which travelled with the file when
+    // it moved here on 2026-09-09 and could never have passed.
     const pkg = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
-    assert.match(pkg.scripts.lint, /npm run lint:schema(?: &&|$)/);
-    assert.equal(pkg.scripts["prebuild:npm"], "npm run lint:schema");
+
+    assert.equal(pkg.scripts["schema:check"], "node scripts/schema-check/check.js");
+    assert.equal(fs.existsSync(path.join(checkerDir, "check.js")), true);
 });

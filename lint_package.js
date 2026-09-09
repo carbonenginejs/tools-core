@@ -107,7 +107,11 @@ async function LintJavaScript(file, lintErrors)
             .join("")
         : "Cjs";
 
-    for (const match of source.matchAll(/export\s+class\s+([A-Za-z0-9_$]+)/gu))
+    // ANCHORED TO THE LINE START, because an unanchored match also finds
+    // `export class` inside a STRING - a test that writes fixture source into a
+    // temp file, say - and then demands the Cjs prefix on a class this package
+    // does not declare. Every real export here is at column zero.
+    for (const match of source.matchAll(/^export\s+class\s+([A-Za-z0-9_$]+)/gmu))
     {
         if (!match[1].startsWith(boundaryPrefix))
         {
@@ -128,7 +132,14 @@ async function LintJavaScript(file, lintErrors)
 
         const method = line.match(/^    (?:(static)\s+)?(?:async\s+)?(get\s+|set\s+)?(#?[A-Za-z_$][A-Za-z0-9_$]*)\s*\(/u);
 
-        if (method && !controlNames.has(method[3]))
+        // A STATEMENT IS NOT A DECLARATION. This pattern matches any name
+        // followed by `(` at one indent level, so a plain call inside a
+        // function - `    put("a", b);` - looked like a badly named method.
+        // Allman layout puts the brace on the next line, so a declaration never
+        // ends the line with a semicolon and a call statement always does.
+        const isCall = /;\s*$/u.test(line);
+
+        if (method && !isCall && !controlNames.has(method[3]))
         {
             const isStatic = method[1] === "static";
             // An accessor is read and written as a property — `authority.policy`,
