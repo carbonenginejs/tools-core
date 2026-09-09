@@ -690,11 +690,24 @@ export class CjsToolShaderBuilder
             return null;
         }
 
+        // The BUILD stays in the name; the builder version and report hash come
+        // out of it. A shader set translated against build 3430261 is only valid
+        // for that build's sources, so two builds are two overlays and one index
+        // cannot hold both. A rebuild of the SAME build is not a second thing -
+        // it is this overlay, later - so it revises rather than piling up
+        // `webgl2-3430261-b7-9f2c1a` beside `webgl2-3430261-b8-1d40ff` and
+        // leaving every reader to work out which one means "the WebGL2 shaders".
+        //
+        // Identical output revises to nothing, which is what retired the
+        // reuse-if-the-report-hash-matches special case that used to live here:
+        // the payloads are content-addressed now, so equal rows mean equal bytes
+        // and the store can answer it.
+        const installName = `${shaderTarget.overlay}-${exactBuild}`;
         const importOptions = {
             target: toolTarget.id,
             game: toolTarget.game,
             provider: toolTarget.provider,
-            name: overlayName,
+            name: installName,
             mode: "override",
             builds: [ exactBuild ],
             sourceDirectory,
@@ -702,6 +715,7 @@ export class CjsToolShaderBuilder
             provenance: {
                 kind: "shader-build",
                 shaderTarget: shaderTarget.id,
+                artifact: overlayName,
                 builder: { _type: this.constructor.className, version: BuilderVersion },
                 reportSha256: report.reportSha256,
             },
@@ -712,33 +726,11 @@ export class CjsToolShaderBuilder
             return overlays.Replace(importOptions);
         }
 
-        try
-        {
-            return await overlays.Import(importOptions);
-        }
-        catch (error)
-        {
-            if (options.reuseExisting !== false && /already exists/u.test(error.message))
-            {
-                const existing = await overlays.OpenTarget(toolTarget.id, exactBuild, {
-                    game: toolTarget.game,
-                    provider: toolTarget.provider,
-                    client: toolTarget.client,
-                });
-                const match = existing.find((overlay) => overlay.name === overlayName);
+        const result = await overlays.Revise(importOptions);
 
-                if (match?.provenance?.reportSha256 === report.reportSha256)
-                {
-                    return utils.freezeData({
-                        directory: match.directory,
-                        name: match.name,
-                        reused: true,
-                    });
-                }
-            }
-
-            throw error;
-        }
+        return result.revised === false
+            ? utils.freezeData({ ...result, reused: true })
+            : result;
     }
 
     /** Lazily imports and caches the backend format adapter. */

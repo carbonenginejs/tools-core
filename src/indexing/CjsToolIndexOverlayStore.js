@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
+
 import { CjsToolIndexEntry } from "./CjsToolIndexEntry.js";
 import { parseIndexGroup } from "./CjsToolIndexGroup.js";
 import { createPathMatcher } from "./pathMatcher.js";
@@ -10,6 +12,41 @@ import { normalizeTargetId } from "../target/CjsToolTarget.js";
 
 const ManifestSchema = "carbon.resource-overlay";
 const ManifestVersion = 1;
+
+/**
+ * How a persistent overlay stores its payloads.
+ *
+ * `logical-path` mirrors `res:/a/b.fx` at `<overlay>/res/a/b.fx`. It is the
+ * original layout and its defect is that the stored name says nothing about the
+ * contents: edit the file and every row about it is unchanged, so the payload
+ * has no identity anything can compare. That is what makes such an overlay
+ * `local-exact` - see `docs/architecture/resource-addressing-and-staleness.md`,
+ * where the service contract has to treat every `local-exact` input as changed
+ * because absence of proof must never present as sameness.
+ *
+ * `content-address` stores the same bytes under the game's own address,
+ * `<shard>/<path-fnv1>_<content-md5>`, in one store shared by every target and
+ * every overlay. Three things follow, and they are the whole point:
+ *
+ *  - the payload becomes `hash-safe`, so staleness can prove it unchanged;
+ *  - two overlays naming the same bytes name one file, which is what lets the
+ *    EVE and Frontier WebGL2 sets stop being two 150 MB copies; and
+ *  - the address changes only when the bytes change, so an HTTP route over it
+ *    can be immutable and truthful at the same time.
+ *
+ * Both layouts are read. Only `content-address` is written, and
+ * `cjs-overlay-migrate` moves the ones already on disk.
+ */
+const PayloadLayouts = Object.freeze([ "logical-path", "content-address" ]);
+const DefaultPayloadLayout = "content-address";
+
+/**
+ * The shared payload store, named and shaped exactly as an installed client
+ * names its own. It sits at the DATA root rather than the cache root because an
+ * overlay payload cannot be re-downloaded: losing it costs the fact, not a
+ * download.
+ */
+const PayloadStoreDirectory = "ResFiles";
 
 /** Persistent target-specific resource overlays stored outside disposable caches. */
 export class CjsToolIndexOverlayStore
@@ -22,6 +59,7 @@ export class CjsToolIndexOverlayStore
     constructor(directory = path.resolve(process.cwd(), "data.local"))
     {
         this.directory = path.resolve(directory);
+        this.payloadStore = path.join(this.directory, PayloadStoreDirectory);
         Object.freeze(this);
     }
 
@@ -101,62 +139,29 @@ export class CjsToolIndexOverlayStore
             options?.sourceDirectory,
             "overlay source directory",
         ));
+        const layout = normalizePayloadLayout(options?.layout ?? DefaultPayloadLayout);
         const overlayDirectory = this.GetOverlayDirectory(target, name);
         const parentDirectory = path.dirname(overlayDirectory);
         const importDirectory = safeJoin(
             parentDirectory,
             `.${name}.import-${crypto.randomUUID()}`,
         );
-        const payloadDirectory = safeJoin(importDirectory, "res");
 
         if (await exists(overlayDirectory))
         {
             throw new Error(`Persistent overlay already exists: ${overlayDirectory}`);
         }
 
-        await fs.mkdir(payloadDirectory, { recursive: true });
+        await fs.mkdir(importDirectory, { recursive: true });
 
         try
         {
-            const records = [];
-            let byteLength = 0;
-
-            for (const entry of entries)
-            {
-                const sourcePath = safeJoin(sourceDirectory, entry.location);
-                const bytes = await fs.readFile(sourcePath);
-                const checksum = crypto.createHash("md5").update(bytes).digest("hex");
-                const sourceRecord = new CjsToolIndexEntry({
-                    logicalPath: entry.logicalPath,
-                    location: entry.location,
-                    checksum: entry.checksum ?? checksum,
-                    uncompressedSize: entry.uncompressedSize ?? bytes.byteLength,
-                    compressedSize: entry.compressedSize ?? bytes.byteLength,
-                });
-
-                validateContentAddress(sourceRecord);
-                const record = new CjsToolIndexEntry({
-                    logicalPath: sourceRecord.logicalPath,
-                    location: sourceRecord.relativePath,
-                    checksum: sourceRecord.checksum,
-                    uncompressedSize: sourceRecord.uncompressedSize,
-                    compressedSize: sourceRecord.compressedSize,
-                    binaryOperation: sourceRecord.binaryOperation,
-                });
-
-                utils.validateResourceBytes(bytes, record, record.logicalPath);
-
-                const targetPath = safeJoin(payloadDirectory, record.location);
-
-                await fs.mkdir(path.dirname(targetPath), { recursive: true });
-                await fs.copyFile(sourcePath, targetPath);
-
-                records.push(record);
-                byteLength += bytes.byteLength;
-            }
-
-            records.sort((left, right) => left.logicalPath.localeCompare(right.logicalPath));
-
+            const { records, byteLength } = await this.#WritePayloads({
+                entries,
+                sourceDirectory,
+                layout,
+                importDirectory,
+            });
             const indexText = `${records.map(formatIndexEntry).join("\n")}\n`;
             const manifest = {
                 schema: ManifestSchema,
@@ -169,8 +174,10 @@ export class CjsToolIndexOverlayStore
                 builds,
                 storageKind: "persistent-overlay",
                 indexFile: "resfileindex.txt",
-                payloadDirectory: "res",
-                payloadLayout: "logical-path",
+                payloadDirectory: layout === "logical-path" ? "res" : null,
+                payloadLayout: layout,
+                revision: 1,
+                history: [],
                 rowCount: records.length,
                 byteLength,
                 provenance: options?.provenance ?? null,
@@ -198,6 +205,499 @@ export class CjsToolIndexOverlayStore
         {
             await fs.rm(importDirectory, { recursive: true, force: true });
             throw error;
+        }
+    }
+
+    /**
+     * Records a new revision of one overlay under the SAME name.
+     *
+     * This is the difference between an overlay and a build artifact. A shader
+     * set rebuilt against a newer client is not a new thing to be filed beside
+     * the old one - it is the same overlay, later. Naming it
+     * `webgl2-3430261-b7-9f2c1a` said the opposite, and every consumer then had
+     * to reconstruct which of those names meant "the WebGL2 shaders" by reading
+     * the suffixes. The name is now the human one and the varying parts are
+     * revision metadata, which is what makes an overlay re-runnable: apply the
+     * same declaration twice and the second run is a no-op rather than a second
+     * overlay.
+     *
+     * Idempotence is decided by the index rows, and it can be decided only
+     * because the payloads are content-addressed: identical rows mean identical
+     * bytes. A `logical-path` overlay cannot answer the question at all, so it
+     * must be migrated before it can be revised.
+     */
+    async Revise(options)
+    {
+        const target = normalizeTargetId(options?.target);
+        const name = normalizeOverlayName(options?.name);
+        const overlayDirectory = this.GetOverlayDirectory(target, name);
+
+        if (!await exists(overlayDirectory))
+        {
+            return this.Import(options);
+        }
+
+        const manifestPath = safeJoin(overlayDirectory, "overlay.json");
+        const current = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+
+        if ((current.storageKind ?? "persistent-overlay") !== "persistent-overlay")
+        {
+            throw new Error(`Overlay ${name} is not stored locally`);
+        }
+
+        if (normalizePayloadLayout(current.payloadLayout ?? "logical-path") !== "content-address")
+        {
+            throw new Error(
+                `Overlay ${name} stores payloads by logical path and cannot be revised; `
+                + "migrate it with cjs-overlay-migrate first",
+            );
+        }
+
+        const entries = normalizeImportEntries(options?.entries);
+        const sourceDirectory = path.resolve(normalizeRequiredText(
+            options?.sourceDirectory,
+            "overlay source directory",
+        ));
+        const stageDirectory = safeJoin(
+            path.dirname(overlayDirectory),
+            `.${name}.revise-${crypto.randomUUID()}`,
+        );
+
+        await fs.mkdir(stageDirectory, { recursive: true });
+
+        try
+        {
+            const { records, byteLength } = await this.#WritePayloads({
+                entries,
+                sourceDirectory,
+                layout: "content-address",
+                importDirectory: stageDirectory,
+            });
+            const indexText = `${records.map(formatIndexEntry).join("\n")}\n`;
+            const currentIndexPath = safeJoin(
+                overlayDirectory,
+                normalizeSafeFileName(current.indexFile, "overlay index file"),
+            );
+            const currentIndexText = await fs.readFile(currentIndexPath, "utf8");
+            const revision = normalizeRevision(current.revision);
+            const mode = options?.mode === undefined
+                ? normalizeOverlayMode(current.mode)
+                : normalizeOverlayMode(options.mode);
+            const builds = options?.builds === undefined
+                ? normalizeBuilds(current.builds)
+                : normalizeBuilds(options.builds);
+            const unchanged = currentIndexText === indexText
+                && mode === normalizeOverlayMode(current.mode)
+                && sameBuilds(builds, normalizeBuilds(current.builds));
+
+            if (unchanged)
+            {
+                await fs.rm(stageDirectory, { recursive: true, force: true });
+
+                return utils.freezeData({
+                    ...current,
+                    directory: overlayDirectory,
+                    revision,
+                    revised: false,
+                });
+            }
+
+            const manifest = {
+                ...current,
+                schema: ManifestSchema,
+                version: ManifestVersion,
+                target,
+                name,
+                mode,
+                builds,
+                game: options?.game === undefined
+                    ? current.game
+                    : normalizeRequiredText(options.game, "overlay game"),
+                provider: options?.provider === undefined
+                    ? current.provider
+                    : normalizeOverlayName(options.provider),
+                storageKind: "persistent-overlay",
+                indexFile: "resfileindex.txt",
+                payloadDirectory: null,
+                payloadLayout: "content-address",
+                revision: revision + 1,
+                history: [
+                    ...normalizeHistory(current.history),
+                    {
+                        revision,
+                        mode: normalizeOverlayMode(current.mode),
+                        builds: [ ...normalizeBuilds(current.builds) ],
+                        rowCount: current.rowCount,
+                        byteLength: current.byteLength,
+                        indexChecksum: crypto.createHash("md5")
+                            .update(currentIndexText).digest("hex"),
+                        provenance: current.provenance ?? null,
+                        supersededAt: new Date().toISOString(),
+                    },
+                ],
+                rowCount: records.length,
+                byteLength,
+                provenance: options?.provenance ?? current.provenance ?? null,
+            };
+
+            await fs.writeFile(
+                safeJoin(stageDirectory, manifest.indexFile),
+                indexText,
+                "utf8",
+            );
+            await fs.writeFile(
+                safeJoin(stageDirectory, "overlay.json"),
+                `${JSON.stringify(manifest, null, 2)}\n`,
+                "utf8",
+            );
+            await this.#SwapDirectory(stageDirectory, overlayDirectory, name);
+
+            return utils.freezeData({
+                directory: overlayDirectory,
+                ...manifest,
+                revised: true,
+            });
+        }
+        catch (error)
+        {
+            await fs.rm(stageDirectory, { recursive: true, force: true });
+            throw error;
+        }
+    }
+
+    /**
+     * Rewrites one `logical-path` overlay into the shared content-addressed
+     * store, keeping its name, mode, builds and provenance.
+     *
+     * Payload writes are additive and idempotent, so an interrupted run costs a
+     * re-hash rather than an overlay: the store either already holds the address
+     * or does not, and nothing is removed. The mirrored `res/` tree is left
+     * behind for the caller to delete once it is satisfied, because the whole
+     * point of the data root is that it holds what cannot be re-downloaded.
+     */
+    async Migrate(options)
+    {
+        const target = normalizeTargetId(options?.target);
+        const name = normalizeOverlayName(options?.name);
+        const renameTo = options?.renameTo === undefined || options.renameTo === null
+            ? name
+            : normalizeOverlayName(options.renameTo);
+        const overlayDirectory = this.GetOverlayDirectory(target, name);
+        const manifestPath = safeJoin(overlayDirectory, "overlay.json");
+        const current = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+        const layout = normalizePayloadLayout(current.payloadLayout ?? "logical-path");
+
+        if ((current.storageKind ?? "persistent-overlay") !== "persistent-overlay")
+        {
+            throw new Error(`Overlay ${name} is not stored locally`);
+        }
+
+        const payloadDirectory = safeJoin(
+            overlayDirectory,
+            normalizeSafeFileName(current.payloadDirectory ?? "res", "overlay payload directory"),
+        );
+        const indexPath = safeJoin(
+            overlayDirectory,
+            normalizeSafeFileName(current.indexFile, "overlay index file"),
+        );
+        const group = parseIndexGroup(await fs.readFile(indexPath, "utf8"), {
+            kind: "resfileindex-overlay",
+            name,
+            root: "res",
+            sourceUrl: `local-overlay://${target}/${name}/${current.indexFile}`,
+            cachePath: null,
+            cacheHit: true,
+        });
+        const destination = renameTo === name
+            ? overlayDirectory
+            : this.GetOverlayDirectory(target, renameTo);
+
+        if (destination !== overlayDirectory && await exists(destination))
+        {
+            throw new Error(
+                `Cannot rename overlay ${name} to ${renameTo}: an overlay of that name `
+                + "already exists. Two build-pinned sets cannot share one name; keep them "
+                + "apart or revise one into the other deliberately.",
+            );
+        }
+
+        const plan = {
+            target,
+            name,
+            renameTo,
+            layout,
+            rowCount: group.count,
+            alreadyMigrated: layout === "content-address",
+            written: 0,
+            reused: 0,
+            byteLength: 0,
+        };
+
+        if (plan.alreadyMigrated && destination === overlayDirectory)
+        {
+            return utils.freezeData({ ...plan, applied: false });
+        }
+
+        const records = [];
+
+        for (const record of group.entries)
+        {
+            const sourcePath = layout === "content-address"
+                ? this.#ResolveStoredPayload(record)
+                : safeJoin(payloadDirectory, record.location);
+            const bytes = await fs.readFile(sourcePath);
+            const checksum = crypto.createHash("md5").update(bytes).digest("hex");
+            const migrated = new CjsToolIndexEntry({
+                logicalPath: record.logicalPath,
+                location: resFileAddress(record.logicalPath, checksum),
+                checksum,
+                uncompressedSize: bytes.byteLength,
+                compressedSize: bytes.byteLength,
+                binaryOperation: record.binaryOperation,
+            });
+
+            if (options?.apply === true)
+            {
+                if (await this.#StorePayload(migrated, bytes))
+                {
+                    plan.written += 1;
+                }
+                else
+                {
+                    plan.reused += 1;
+                }
+            }
+
+            plan.byteLength += bytes.byteLength;
+            records.push(migrated);
+        }
+
+        if (options?.apply !== true)
+        {
+            return utils.freezeData({ ...plan, applied: false });
+        }
+
+        records.sort((left, right) => left.logicalPath.localeCompare(right.logicalPath));
+
+        const stageDirectory = safeJoin(
+            path.dirname(overlayDirectory),
+            `.${renameTo}.migrate-${crypto.randomUUID()}`,
+        );
+
+        await fs.mkdir(stageDirectory, { recursive: true });
+
+        try
+        {
+            const manifest = {
+                ...current,
+                schema: ManifestSchema,
+                version: ManifestVersion,
+                name: renameTo,
+                storageKind: "persistent-overlay",
+                indexFile: "resfileindex.txt",
+                payloadDirectory: null,
+                payloadLayout: "content-address",
+                revision: normalizeRevision(current.revision),
+                history: normalizeHistory(current.history),
+                rowCount: records.length,
+                byteLength: plan.byteLength,
+            };
+
+            await fs.writeFile(
+                safeJoin(stageDirectory, manifest.indexFile),
+                `${records.map(formatIndexEntry).join("\n")}\n`,
+                "utf8",
+            );
+            await fs.writeFile(
+                safeJoin(stageDirectory, "overlay.json"),
+                `${JSON.stringify(manifest, null, 2)}\n`,
+                "utf8",
+            );
+
+            // The mirrored tree comes along rather than being deleted. Its bytes
+            // are in the shared store and verified by then, so this is not
+            // insurance against loss - it is that a data-root directory is not
+            // something a migration gets to remove on the operator's behalf.
+            const retiredName = layout === "logical-path"
+                ? `retired-${path.basename(payloadDirectory)}`
+                : null;
+
+            if (retiredName && await exists(payloadDirectory))
+            {
+                await fs.rename(payloadDirectory, safeJoin(stageDirectory, retiredName));
+            }
+
+            await this.#SwapDirectory(stageDirectory, destination, renameTo, overlayDirectory);
+
+            return utils.freezeData({
+                ...plan,
+                applied: true,
+                directory: destination,
+                retiredPayloadDirectory: retiredName
+                    ? safeJoin(destination, retiredName)
+                    : null,
+            });
+        }
+        catch (error)
+        {
+            const retired = safeJoin(stageDirectory, `retired-${path.basename(payloadDirectory)}`);
+
+            if (await exists(retired) && !await exists(payloadDirectory))
+            {
+                await fs.rename(retired, payloadDirectory);
+            }
+
+            await fs.rm(stageDirectory, { recursive: true, force: true });
+            throw error;
+        }
+    }
+
+    /**
+     * Copies one import's payloads into their stored positions and returns the
+     * index records that name them.
+     */
+    async #WritePayloads({ entries, sourceDirectory, layout, importDirectory })
+    {
+        const payloadDirectory = layout === "logical-path"
+            ? safeJoin(importDirectory, "res")
+            : null;
+        const records = [];
+        let byteLength = 0;
+
+        if (payloadDirectory)
+        {
+            await fs.mkdir(payloadDirectory, { recursive: true });
+        }
+
+        for (const entry of entries)
+        {
+            const sourcePath = safeJoin(sourceDirectory, entry.location);
+            const bytes = await fs.readFile(sourcePath);
+            const checksum = crypto.createHash("md5").update(bytes).digest("hex");
+            const sourceRecord = new CjsToolIndexEntry({
+                logicalPath: entry.logicalPath,
+                location: entry.location,
+                checksum: entry.checksum ?? checksum,
+                uncompressedSize: entry.uncompressedSize ?? bytes.byteLength,
+                compressedSize: entry.compressedSize ?? bytes.byteLength,
+            });
+
+            validateContentAddress(sourceRecord);
+            const record = new CjsToolIndexEntry({
+                logicalPath: sourceRecord.logicalPath,
+                location: layout === "logical-path"
+                    ? sourceRecord.relativePath
+                    : resFileAddress(sourceRecord.logicalPath, sourceRecord.checksum),
+                checksum: sourceRecord.checksum,
+                uncompressedSize: sourceRecord.uncompressedSize,
+                compressedSize: sourceRecord.compressedSize,
+                binaryOperation: sourceRecord.binaryOperation,
+            });
+
+            utils.validateResourceBytes(bytes, record, record.logicalPath);
+
+            if (payloadDirectory)
+            {
+                const targetPath = safeJoin(payloadDirectory, record.location);
+
+                await fs.mkdir(path.dirname(targetPath), { recursive: true });
+                await fs.copyFile(sourcePath, targetPath);
+            }
+            else
+            {
+                await this.#StorePayload(record, bytes);
+            }
+
+            records.push(record);
+            byteLength += bytes.byteLength;
+        }
+
+        records.sort((left, right) => left.logicalPath.localeCompare(right.logicalPath));
+
+        return { records: Object.freeze(records), byteLength };
+    }
+
+    /**
+     * Writes one payload into the shared content-addressed store, reporting
+     * whether it had to.
+     *
+     * An address names its own contents, so a file already there is already
+     * correct and re-writing it would be pure I/O. The write goes through a
+     * unique temporary name so two overlays importing the same bytes at once
+     * cannot see a half-written file.
+     */
+    async #StorePayload(record, bytes)
+    {
+        const storedPath = this.#ResolveStoredPayload(record);
+
+        if (await exists(storedPath))
+        {
+            return false;
+        }
+
+        const temporaryPath = `${storedPath}.${crypto.randomUUID()}.part`;
+
+        await fs.mkdir(path.dirname(storedPath), { recursive: true });
+        await fs.writeFile(temporaryPath, bytes);
+
+        try
+        {
+            await fs.rename(temporaryPath, storedPath);
+        }
+        catch (error)
+        {
+            await fs.rm(temporaryPath, { force: true });
+
+            if (await exists(storedPath))
+            {
+                return false;
+            }
+
+            throw error;
+        }
+
+        return true;
+    }
+
+    /** Locates one payload in the shared store without letting a row escape it. */
+    #ResolveStoredPayload(record)
+    {
+        return safeJoin(this.payloadStore, CjsToolIndexEntry.from(record).location);
+    }
+
+    /** Puts a staged overlay in place, restoring the old one if it cannot. */
+    async #SwapDirectory(stageDirectory, destination, name, retire = destination)
+    {
+        const backupDirectory = safeJoin(
+            path.dirname(destination),
+            `.${name}.backup-${crypto.randomUUID()}`,
+        );
+        const hadPrevious = await exists(retire);
+
+        await fs.mkdir(path.dirname(destination), { recursive: true });
+
+        if (hadPrevious)
+        {
+            await fs.rename(retire, backupDirectory);
+        }
+
+        try
+        {
+            await fs.rename(stageDirectory, destination);
+        }
+        catch (error)
+        {
+            if (hadPrevious)
+            {
+                await fs.rename(backupDirectory, retire);
+            }
+
+            throw error;
+        }
+
+        if (hadPrevious)
+        {
+            await fs.rm(backupDirectory, { recursive: true, force: true });
         }
     }
 
@@ -370,10 +870,15 @@ export class CjsToolIndexOverlayStore
         }
 
         const storageKind = manifest.storageKind ?? "persistent-overlay";
-        const indexPath = safeJoin(directory, manifest.indexFile);
-        const payloadDirectory = storageKind === "persistent-overlay"
-            ? safeJoin(directory, manifest.payloadDirectory)
+        const payloadLayout = storageKind === "persistent-overlay"
+            ? normalizePayloadLayout(manifest.payloadLayout ?? "logical-path")
             : null;
+        const indexPath = safeJoin(directory, manifest.indexFile);
+        const payloadDirectory = payloadLayout === "logical-path"
+            ? safeJoin(directory, manifest.payloadDirectory)
+            : payloadLayout === "content-address"
+                ? this.payloadStore
+                : null;
         const indexText = await fs.readFile(indexPath, "utf8");
         const group = parseIndexGroup(indexText, {
             kind: "resfileindex-overlay",
@@ -395,6 +900,7 @@ export class CjsToolIndexOverlayStore
         return new CjsToolIndexOverlay({
             ...manifest,
             storageKind,
+            payloadLayout,
             buildRef: expected.buildRef ?? build,
             build,
             client: expected.client ?? null,
@@ -429,6 +935,9 @@ export class CjsToolIndexOverlay
         this.name = options.name;
         this.mode = options.mode;
         this.storageKind = options.storageKind;
+        this.payloadLayout = options.payloadLayout ?? null;
+        this.revision = normalizeRevision(options.revision);
+        this.history = utils.freezeData(normalizeHistory(options.history));
         this.baseUrl = options.baseUrl ?? null;
         this.builds = Object.freeze([ ...options.builds ]);
         this.directory = options.directory;
@@ -511,7 +1020,11 @@ export class CjsToolIndexOverlay
                 : this.storageKind === "generated-cache"
                     ? `generated-cache://${this.target}/${this.name}/${record.location}`
                     : `local-overlay://${this.target}/${this.name}/${record.location}`,
+            // A stored name that carries the contents is what "hash-safe" means.
+            // A logical-path overlay has no such name, so it stays local-exact
+            // and every consumer keeps treating it as changed.
             artifactKind: this.storageKind === "persistent-overlay"
+                && this.payloadLayout !== "content-address"
                 ? "local-exact"
                 : "hash-safe",
             record,
@@ -639,13 +1152,22 @@ function validateManifest(manifest, target, expected, directoryName)
 
     if (storageKind === "persistent-overlay")
     {
-        void normalizeSafeFileName(manifest.payloadDirectory, "overlay payload directory");
+        manifest.payloadLayout = normalizePayloadLayout(manifest.payloadLayout ?? "logical-path");
 
-        if (manifest.payloadLayout !== undefined
-            && manifest.payloadLayout !== "logical-path")
+        if (manifest.payloadLayout === "logical-path")
         {
-            throw new Error(`Unsupported overlay payload layout: ${manifest.payloadLayout}`);
+            void normalizeSafeFileName(manifest.payloadDirectory, "overlay payload directory");
         }
+        else if (manifest.payloadDirectory !== null && manifest.payloadDirectory !== undefined)
+        {
+            throw new Error(
+                "A content-addressed overlay stores its payloads in the shared store, "
+                + `not in ${manifest.payloadDirectory}`,
+            );
+        }
+
+        manifest.revision = normalizeRevision(manifest.revision);
+        manifest.history = normalizeHistory(manifest.history);
     }
     else
     {
@@ -692,6 +1214,55 @@ function normalizeBuilds(value)
 
         return normalized;
     })) ]);
+}
+
+function normalizePayloadLayout(value)
+{
+    const layout = String(value ?? "").trim().toLowerCase();
+
+    if (!PayloadLayouts.includes(layout))
+    {
+        throw new Error(`Unsupported overlay payload layout: ${value}`);
+    }
+
+    return layout;
+}
+
+/** An overlay that predates revisions is revision 1, not revision zero. */
+function normalizeRevision(value)
+{
+    if (value === undefined || value === null)
+    {
+        return 1;
+    }
+
+    if (!Number.isSafeInteger(value) || value < 1)
+    {
+        throw new TypeError(`Invalid overlay revision: ${value}`);
+    }
+
+    return value;
+}
+
+function normalizeHistory(value)
+{
+    if (value === undefined || value === null)
+    {
+        return [];
+    }
+
+    if (!Array.isArray(value))
+    {
+        throw new TypeError("Overlay history must be an array");
+    }
+
+    return value.map((item) => ({ ...item }));
+}
+
+function sameBuilds(left, right)
+{
+    return left.length === right.length
+        && [ ...left ].sort().join(",") === [ ...right ].sort().join(",");
 }
 
 function normalizeOverlayName(value)

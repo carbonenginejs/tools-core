@@ -70,6 +70,8 @@ const CrossProviderTargets = new CjsToolTargetRegistry([ {
     } ],
 } ]);
 
+// This one pins the ORIGINAL mirrored layout, which is still what every overlay
+// already on disk uses. New imports are content-addressed; see the tests below.
 test("composes persistent overrides and fallbacks around the official res index", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
@@ -89,6 +91,7 @@ test("composes persistent overrides and fallbacks around the official res index"
         name: "generated",
         mode: "override",
         builds: [ "77" ],
+        layout: "logical-path",
         sourceDirectory,
         entries: [
             { logicalPath: "res:/same.bin", location: "aa/override" },
@@ -101,6 +104,7 @@ test("composes persistent overrides and fallbacks around the official res index"
         name: "legacy",
         mode: "fallback",
         builds: [ "*" ],
+        layout: "logical-path",
         sourceDirectory,
         entries: [
             { logicalPath: "res:/legacy.bin", location: "bb/fallback" },
@@ -550,6 +554,208 @@ test("keeps concurrent remote overlays with the same locator isolated", async co
     ]);
 });
 
+test("stores overlay payloads by content address and shares them between targets", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
+    const sourceDirectory = path.join(directory, "source");
+    const dataDirectory = path.join(directory, "data.local");
+    const store = new CjsToolIndexOverlayStore(dataDirectory);
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+
+    await writePayload(sourceDirectory, "build/quad.fx", "shader-bytes");
+
+    const imported = await store.Import({
+        target: "eve",
+        game: "Eve",
+        provider: "test",
+        name: "webgl2",
+        mode: "override",
+        builds: [ "*" ],
+        sourceDirectory,
+        entries: [
+            { logicalPath: "res:/graphics/effect.webgl2/quad.fx", location: "build/quad.fx" },
+        ],
+    });
+
+    assert.equal(imported.payloadLayout, "content-address");
+    assert.equal(imported.payloadDirectory, null);
+    assert.equal(imported.revision, 1);
+
+    const address = resFileAddress(
+        "res:/graphics/effect.webgl2/quad.fx",
+        createHash("md5").update("shader-bytes").digest("hex"),
+    );
+    const storedPath = path.join(dataDirectory, "ResFiles", ...address.split("/"));
+
+    assert.equal(await fs.readFile(storedPath, "utf8"), "shader-bytes");
+
+    const [ overlay ] = await store.OpenTarget("eve", "77");
+
+    assert.equal(overlay.name, "webgl2");
+    assert.equal(overlay.Resolve("res:/graphics/effect.webgl2/quad.fx").artifactKind, "hash-safe");
+    assert.equal(overlay.Resolve("res:/graphics/effect.webgl2/quad.fx").record.location, address);
+    assert.equal(
+        Buffer.from((await overlay.Read(overlay.group.Find(
+            "res:/graphics/effect.webgl2/quad.fx",
+        ))).bytes).toString(),
+        "shader-bytes",
+    );
+
+    // The same bytes imported for another target name the same file. This is the
+    // whole reason the store sits above `games/`: two 150 MB shader sets that
+    // agree are one 150 MB shader set.
+    await store.Import({
+        target: "frontier",
+        game: "Eve",
+        provider: "test",
+        name: "webgl2",
+        mode: "override",
+        builds: [ "*" ],
+        sourceDirectory,
+        entries: [
+            { logicalPath: "res:/graphics/effect.webgl2/quad.fx", location: "build/quad.fx" },
+        ],
+    });
+
+    const shard = await fs.readdir(path.dirname(storedPath));
+
+    assert.deepEqual(shard, [ path.basename(storedPath) ]);
+});
+
+test("revises one overlay under its human name and skips an unchanged rerun", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
+    const sourceDirectory = path.join(directory, "source");
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
+    const declaration = {
+        target: "eve",
+        game: "Eve",
+        provider: "test",
+        name: "legacy-gles",
+        mode: "fallback",
+        builds: [ "*" ],
+        sourceDirectory,
+        entries: [
+            { logicalPath: "res:/graphics/effect.gles2/quad.fx", location: "quad.fx" },
+        ],
+    };
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+
+    await writePayload(sourceDirectory, "quad.fx", "first");
+    await store.Revise(declaration);
+
+    const unchanged = await store.Revise(declaration);
+
+    assert.equal(unchanged.revised, false);
+    assert.equal(unchanged.revision, 1);
+
+    await writePayload(sourceDirectory, "quad.fx", "second");
+
+    const revised = await store.Revise(declaration);
+
+    assert.equal(revised.revised, true);
+    assert.equal(revised.revision, 2);
+    assert.equal(revised.history.length, 1);
+    assert.equal(revised.history[0].revision, 1);
+
+    const [ overlay ] = await store.OpenTarget("eve", "77");
+
+    assert.equal(overlay.revision, 2);
+    assert.equal(
+        Buffer.from((await overlay.Read(overlay.group.Find(
+            "res:/graphics/effect.gles2/quad.fx",
+        ))).bytes).toString(),
+        "second",
+    );
+
+    // The superseded payload is still in the store under its own address, which
+    // is what makes a revision a history rather than an overwrite.
+    const previous = resFileAddress(
+        "res:/graphics/effect.gles2/quad.fx",
+        createHash("md5").update("first").digest("hex"),
+    );
+
+    assert.equal(
+        await fs.readFile(
+            path.join(directory, "data.local", "ResFiles", ...previous.split("/")),
+            "utf8",
+        ),
+        "first",
+    );
+});
+
+test("migrates a mirrored overlay into the shared store under its human name", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
+    const sourceDirectory = path.join(directory, "source");
+    const dataDirectory = path.join(directory, "data.local");
+    const store = new CjsToolIndexOverlayStore(dataDirectory);
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+
+    await writePayload(sourceDirectory, "quad.fx", "mirrored");
+    await store.Import({
+        target: "eve",
+        game: "Eve",
+        provider: "test",
+        name: "webgl2-3430261",
+        mode: "override",
+        builds: [ "3430261" ],
+        layout: "logical-path",
+        sourceDirectory,
+        entries: [
+            { logicalPath: "res:/graphics/effect.webgl2/quad.fx", location: "quad.fx" },
+        ],
+    });
+
+    const planned = await store.Migrate({
+        target: "eve",
+        name: "webgl2-3430261",
+        renameTo: "webgl2",
+    });
+
+    assert.equal(planned.applied, false);
+    assert.equal(planned.rowCount, 1);
+    assert.equal(planned.layout, "logical-path");
+    assert.ok(await exists(store.GetOverlayDirectory("eve", "webgl2-3430261")));
+
+    const applied = await store.Migrate({
+        target: "eve",
+        name: "webgl2-3430261",
+        renameTo: "webgl2",
+        apply: true,
+    });
+
+    assert.equal(applied.applied, true);
+    assert.equal(applied.written, 1);
+    assert.equal(await exists(store.GetOverlayDirectory("eve", "webgl2-3430261")), false);
+
+    const [ overlay ] = await store.OpenTarget("eve", "3430261");
+
+    assert.equal(overlay.name, "webgl2");
+    assert.equal(overlay.payloadLayout, "content-address");
+    assert.deepEqual(overlay.builds, [ "3430261" ]);
+    assert.equal(overlay.Resolve("res:/graphics/effect.webgl2/quad.fx").artifactKind, "hash-safe");
+    assert.equal(
+        Buffer.from((await overlay.Read(overlay.group.Find(
+            "res:/graphics/effect.webgl2/quad.fx",
+        ))).bytes).toString(),
+        "mirrored",
+    );
+
+    // The mirrored tree is retained rather than removed: a migration does not
+    // delete from the durable root on the operator's behalf.
+    assert.equal(
+        await fs.readFile(
+            path.join(applied.retiredPayloadDirectory, "graphics", "effect.webgl2", "quad.fx"),
+            "utf8",
+        ),
+        "mirrored",
+    );
+});
+
 test("rejects overlay names that collide with official indexes", async context =>
 {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
@@ -601,6 +807,19 @@ async function writePayload(directory, location, value)
 
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, value);
+}
+
+async function exists(filePath)
+{
+    try
+    {
+        await fs.access(filePath);
+        return true;
+    }
+    catch
+    {
+        return false;
+    }
 }
 
 function row(logicalPath, location)

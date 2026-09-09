@@ -54,6 +54,8 @@ Options:
                       an overlay without one cannot be rebuilt or verified.
   --source-build <b>  The build the payloads came from, if known
   --data <path>       Persistent local overlay root (default: ./data.local)
+  --revise            Record a new revision of an overlay of this name, or
+                      nothing at all if the files have not changed
   --replace           Replace an overlay of this name if one exists
   --dry-run           List what would be imported and write nothing
   --help, -h          Show this help
@@ -130,12 +132,21 @@ async function Main(argv)
         }
     };
 
-    // `Replace` because `Import` refuses to overwrite an existing overlay -
-    // the right default for a one-way operation, the wrong one for a drop you
-    // are iterating on. `Replace` falls back to `Import` when none exists.
-    const result = options.replace
-        ? await store.Replace(request)
-        : await store.Import(request);
+    // `Import` refuses to overwrite an existing overlay - the right default for
+    // a one-way operation, the wrong one for a drop you are iterating on.
+    //
+    //   --revise   the same overlay, later. Keeps the name, records a revision,
+    //              and does nothing when the files have not changed, so running
+    //              it again after editing one shader costs one payload.
+    //   --replace  a different set that happens to share the name. Discards the
+    //              history along with the rows.
+    //
+    // Both fall back to `Import` when no overlay of that name exists.
+    const result = options.revise
+        ? await store.Revise(request)
+        : options.replace
+            ? await store.Replace(request)
+            : await store.Import(request);
 
     process.stdout.write(`${JSON.stringify({
         name: options.name,
@@ -229,6 +240,12 @@ function ParseArgs(argv)
         if (argument === "--replace")
         {
             options.replace = true;
+            continue;
+        }
+
+        if (argument === "--revise")
+        {
+            options.revise = true;
             continue;
         }
 

@@ -67,7 +67,7 @@ cache:
 ```text
 <data>/games/<target>/overlays/<name>/overlay.json
 <data>/games/<target>/overlays/<name>/resfileindex.txt
-<data>/games/<target>/overlays/<name>/res/<logical-path>
+<data>/ResFiles/<shard>/<path-fnv1>_<content-md5>
 ```
 
 Resolution order is:
@@ -83,21 +83,72 @@ can serve the browser shader set while every official resource still comes from
 the `netease` index. It does not inherit EVE's build-specific WebGL2, macOS Metal,
 or Incarna overlays. A target-local overlay with the same name takes precedence.
 
-`local-exact` payloads mirror their public `res:/` path beneath the persistent
-data root. `hash-safe` official and remote payloads retain checksums and may be
+`hash-safe` official and remote payloads retain checksums and may be
 downloaded through the shared cache. Generated groups are also `hash-safe`,
 but their payloads are cache-only: an absent generated payload fails rather
 than falling through to the provider CDN.
 
+### Payload layout, and why an overlay used to be uncomparable
+
+An overlay stores its payloads one of two ways, and the manifest says which:
+
+| `payloadLayout` | stored as | kind |
+| --- | --- | --- |
+| `content-address` | `<data>/ResFiles/<shard>/<path-fnv1>_<content-md5>` | `hash-safe` |
+| `logical-path` | `<overlay>/res/<logical-path>` | `local-exact` |
+
+`logical-path` is the original layout. Its defect is that the stored name says
+nothing about the bytes: edit the file and every row about it is unchanged, so
+nothing can prove the payload unchanged and every consumer has to assume it
+changed. That is the whole of what `local-exact` means, and it is why the
+staleness contract treats such an input as changed on every run.
+
+`content-address` stores the same bytes under the game's own address in one
+store shared by every target and every overlay. The payload becomes comparable,
+two overlays naming the same bytes name one file, and the address changes only
+when the bytes do — so an HTTP route over it can be immutable and truthful at
+once.
+
+New imports are content-addressed. Both layouts are read, so overlays already on
+disk keep working; `cjs-overlay-migrate` moves them.
+
+### Revisions, not a pile of names
+
+An overlay is identified by its human name. A shader set rebuilt against the
+same client is not a new thing to be filed beside the old one — it is that
+overlay, later — so `Revise` records a new revision under the same name, keeps
+the previous one in `history`, and does nothing at all when the incoming rows
+are identical. That last part is only decidable because the payloads are
+content-addressed: equal rows mean equal bytes.
+
+The build stays in a shader overlay's name (`webgl2-3430261`), because a set
+translated against one build's sources is valid only for that build and one
+index cannot hold two. The builder version and report hash do not: they are
+provenance, and they moved into the manifest. Applying the same declaration
+twice is now a no-op instead of a second overlay.
+
+A `logical-path` overlay cannot be revised — it cannot answer whether anything
+changed — so it must be migrated first.
+
 ## Maintaining a cache
 
-Two commands. Both **report only unless `--apply` is given**, because deleting
+Three commands. All **report only unless `--apply` is given**, because deleting
 and moving are the whole point and the default has to be the safe one.
 
 ```sh
 node bin/cjs-tools-cache-migrate.js            # old layout -> targets/<target>/
 node bin/cjs-tools-cache-prune.js --keep-latest 2
+node bin/cjs-overlay-migrate.js                # mirrored payloads -> ResFiles
 ```
+
+**`cjs-overlay-migrate`** rewrites persistent overlays onto content-addressed
+payloads, and can drop a build number out of a name with `--rename a=b`. Payload
+writes are additive and idempotent, so an interrupted run costs a re-hash rather
+than an overlay. The mirrored tree is kept as `retired-res/` rather than deleted;
+reclaiming it is a separate decision, taken once the migrated overlay has served.
+Remote overlays are already hash-safe and are skipped. Two build-pinned overlays
+in one target cannot collapse into one name, so a rename collision is reported
+and left alone.
 
 **`cjs-tools-cache-migrate`** moves `games/<game>/providers/<provider>/builds/…`
 to `targets/<target>/builds/…`. `ResFiles` never moves — it is content-addressed
