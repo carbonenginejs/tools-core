@@ -109,6 +109,34 @@ two overlays naming the same bytes name one file, and the address changes only
 when the bytes do — so an HTTP route over it can be immutable and truthful at
 once.
 
+**A derived payload is not addressed by its own contents.** A translated shader
+comes from exactly one indexed payload, so it is stored beside that payload
+under the same identity with the backend appended:
+
+```text
+<shard>/<path-fnv1>_<content-md5>            the effect.dx11 source
+<shard>/<path-fnv1>_<content-md5>.webgl2     translated for WebGL2
+<shard>/<path-fnv1>_<content-md5>.webgpu     translated for WebGPU
+```
+
+Hashing the output would mint a second identity for something that already has
+one, and would then need a map from source to output to be useful. This way the
+lookup is the same lookup with a suffix. An import entry may therefore name the
+address its payload must be stored under; the builder supplies it, because the
+builder is the only party that knows the source. Everything else — an inserted
+local file with no source payload — is addressed by its own path and contents.
+
+The suffix is the output tree minus `effect.`, so it cannot drift from the tree
+it serves. An unqualified tree means *translated from dx11*: `effect.webgl2` and
+`effect.webgpu` are the dx11 translations, and a translation of some other source
+tree would be named for it — `effect.dx12.webgpu`, suffix `dx12.webgpu`. That
+keeps the existing paths, and every consumer of them, exactly as they are.
+
+One consequence: a derived address names its source, so the same address holds
+different bytes when the converter changes. Derived payloads are written
+unconditionally; only a self-addressed payload can be assumed already correct
+because it is there.
+
 New imports are content-addressed. Both layouts are read, so overlays already on
 disk keep working; `cjs-overlay-migrate` moves them.
 

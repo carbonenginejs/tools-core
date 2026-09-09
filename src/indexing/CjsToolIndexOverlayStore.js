@@ -392,6 +392,22 @@ export class CjsToolIndexOverlayStore
             throw new Error(`Overlay ${name} is not stored locally`);
         }
 
+        // A translated set cannot be migrated, only rebuilt. Its payloads belong
+        // at their SOURCE's address with the backend appended, and the source
+        // md5 is not recoverable from the output - it is in the index for the
+        // build these were translated against. Self-addressing them here would
+        // mint the second identity the scheme exists to avoid, and it would look
+        // like it had worked. Rebuilding is cheap; a wrong address is not.
+        if (isTranslatedOverlay(current.provenance))
+        {
+            throw new Error(
+                `Overlay ${name} holds translated payloads `
+                + `(${current.provenance?.sourceProfile ?? "unknown"} -> `
+                + `${current.provenance?.targetProfile ?? "unknown"}); `
+                + "rebuild it rather than migrating it",
+            );
+        }
+
         const payloadDirectory = safeJoin(
             overlayDirectory,
             normalizeSafeFileName(current.payloadDirectory ?? "res", "overlay payload directory"),
@@ -569,7 +585,7 @@ export class CjsToolIndexOverlayStore
             await fs.mkdir(payloadDirectory, { recursive: true });
         }
 
-        for (const entry of entries)
+        for (const { entry, address } of entries)
         {
             const sourcePath = safeJoin(sourceDirectory, entry.location);
             const bytes = await fs.readFile(sourcePath);
@@ -587,7 +603,7 @@ export class CjsToolIndexOverlayStore
                 logicalPath: sourceRecord.logicalPath,
                 location: layout === "logical-path"
                     ? sourceRecord.relativePath
-                    : resFileAddress(sourceRecord.logicalPath, sourceRecord.checksum),
+                    : address ?? resFileAddress(sourceRecord.logicalPath, sourceRecord.checksum),
                 checksum: sourceRecord.checksum,
                 uncompressedSize: sourceRecord.uncompressedSize,
                 compressedSize: sourceRecord.compressedSize,
@@ -605,7 +621,11 @@ export class CjsToolIndexOverlayStore
             }
             else
             {
-                await this.#StorePayload(record, bytes);
+                // A derived payload's address names its SOURCE, so the same
+                // address legitimately holds different bytes when the converter
+                // changes. Only a self-addressed payload can be assumed already
+                // correct because it is there.
+                await this.#StorePayload(record, bytes, { overwrite: Boolean(address) });
             }
 
             records.push(record);
@@ -626,11 +646,11 @@ export class CjsToolIndexOverlayStore
      * unique temporary name so two overlays importing the same bytes at once
      * cannot see a half-written file.
      */
-    async #StorePayload(record, bytes)
+    async #StorePayload(record, bytes, options = {})
     {
         const storedPath = this.#ResolveStoredPayload(record);
 
-        if (await exists(storedPath))
+        if (options.overwrite !== true && await exists(storedPath))
         {
             return false;
         }
@@ -780,6 +800,7 @@ export class CjsToolIndexOverlayStore
         const provider = normalizeOverlayName(options?.provider);
         const builds = normalizeBuilds(options?.builds ?? [ "*" ]);
         const entries = normalizeImportEntries(options?.entries)
+            .map(({ entry }) => entry)
             .sort((left, right) => left.logicalPath.localeCompare(right.logicalPath));
         const baseUrl = normalizeRemoteBaseUrl(options?.baseUrl);
         const overlayDirectory = this.GetOverlayDirectory(target, name);
@@ -1042,6 +1063,15 @@ export class CjsToolIndexOverlay
 
 }
 
+/**
+ * Normalizes import entries, keeping any caller-supplied stored address.
+ *
+ * An entry may name the address its payload must be stored under. That is for
+ * DERIVED payloads: a translated shader belongs beside the payload it was
+ * translated from, under that payload's address with the backend appended, so
+ * the caller - which is the only party that knows the source - supplies it.
+ * Everything else is addressed by its own logical path and contents.
+ */
 function normalizeImportEntries(value)
 {
     if (!Array.isArray(value) || value.length === 0)
@@ -1066,8 +1096,34 @@ function normalizeImportEntries(value)
         }
 
         paths.add(entry.logicalPath);
-        return entry;
+        return { entry, address: normalizeStoredAddress(item?.address) };
     });
+}
+
+/**
+ * Validates a caller-supplied stored address, which must be a game address with
+ * an optional suffix naming what derived it.
+ */
+function normalizeStoredAddress(value)
+{
+    if (value === undefined || value === null)
+    {
+        return null;
+    }
+
+    const address = String(value).trim().toLowerCase();
+
+    if (!/^[a-f0-9]{2}\/[a-f0-9]{16}_[a-f0-9]{32}(?:\.[a-z0-9][a-z0-9._-]*)?$/u.test(address))
+    {
+        throw new Error(`Invalid overlay payload address: ${value}`);
+    }
+
+    if (address.slice(0, 2) !== address.slice(3, 5))
+    {
+        throw new Error(`Overlay payload address shard does not match its hash: ${value}`);
+    }
+
+    return address;
 }
 
 function validateContentAddress(entry)
@@ -1214,6 +1270,19 @@ function normalizeBuilds(value)
 
         return normalized;
     })) ]);
+}
+
+/**
+ * Says whether an overlay's payloads were derived from other indexed payloads.
+ *
+ * Both spellings are accepted because both are on disk: the shader builder
+ * records `kind: "shader-build"`, and the hand-placed sets that predate it
+ * record the two profiles they translated between.
+ */
+function isTranslatedOverlay(provenance)
+{
+    return provenance?.kind === "shader-build"
+        || Boolean(provenance?.sourceProfile && provenance?.targetProfile);
 }
 
 function normalizePayloadLayout(value)

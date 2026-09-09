@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 
 import {
     CjsToolIndexEntry,
@@ -256,6 +257,23 @@ test("qualified builds install and safely reuse immutable persistent overlays", 
     assert.equal(installed[0].Resolve(first.report.entries[0].outputPath).logicalPath,
         first.report.entries[0].outputPath);
     assert.equal(second.overlay.reused, true);
+
+    // The translated payload is stored beside the payload it was translated
+    // FROM, under that payload's address with the backend appended. It is not
+    // hashed itself: that would mint a second identity for something that
+    // already has one, and would then need a map from source to output.
+    const sourceAddress = resFileAddress(
+        WebglPath,
+        createHash("md5").update("compiled-overlay-source").digest("hex"),
+    );
+    const resolved = installed[0].Resolve(first.report.entries[0].outputPath);
+
+    assert.equal(resolved.record.location, `${sourceAddress}.webgl2`);
+    assert.equal(resolved.artifactKind, "hash-safe");
+    assert.equal(
+        installed[0].GetPayloadPath(resolved.record),
+        path.join(directory, "data.local", "ResFiles", ...`${sourceAddress}.webgl2`.split("/")),
+    );
 });
 
 function createSource({ target, game, client, logicalPath, bytes })

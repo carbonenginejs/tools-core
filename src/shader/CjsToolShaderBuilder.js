@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
+
 import { CjsToolIndexOverlayStore } from "../indexing/CjsToolIndexOverlayStore.js";
 import { CjsToolShaderTargetRegistry } from "./CjsToolShaderTargetRegistry.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
@@ -547,6 +549,18 @@ export class CjsToolShaderBuilder
             staged.push({
                 logicalPath: entry.outputPath,
                 location: relativePath.replaceAll("\\", "/"),
+
+                // A translation is derived from exactly ONE indexed payload, so
+                // it is stored beside that payload under the same identity with
+                // the backend appended - not hashed itself. Hashing the output
+                // would mint a second identity for something that already has
+                // one, and would then need a map from source to output to be
+                // useful. This way the lookup is the same lookup with a suffix.
+                //
+                // The suffix follows the output tree, so if the tree is ever
+                // renamed the payload name is renamed with it and cannot drift.
+                address: `${resFileAddress(resolution.logicalPath, sourceMd5)}`
+                    + `.${translatedPayloadSuffix(shaderTarget)}`,
                 checksum: hash("md5", outputBytes),
                 uncompressedSize: outputBytes.byteLength,
                 compressedSize: outputBytes.byteLength,
@@ -865,6 +879,27 @@ function validateSourceIdentity(source, shaderTarget, exactBuild, targets)
             + `${source.target}/${source.game}/${source.provider}/${source.build}/${source.client}`,
         );
     }
+}
+
+/**
+ * Names the backend a translated payload was produced for, taken from the
+ * output tree rather than declared separately so the two cannot disagree.
+ *
+ * `effect.webgl2` gives `webgl2`. If the output tree is ever renamed to say
+ * which source tree it came from - `effect.dx11.webgpu` - the payload suffix
+ * becomes `dx11.webgpu` with it, at no cost here.
+ */
+function translatedPayloadSuffix(shaderTarget)
+{
+    const profile = String(shaderTarget?.outputProfile ?? "").trim().toLowerCase();
+    const suffix = profile.replace(/^effect\./u, "");
+
+    if (!suffix || !/^[a-z0-9][a-z0-9._-]*$/u.test(suffix))
+    {
+        throw new Error(`Shader target has no usable output profile: ${profile}`);
+    }
+
+    return suffix;
 }
 
 function requireContentIdentity(resolution)
