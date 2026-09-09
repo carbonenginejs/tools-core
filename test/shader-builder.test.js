@@ -276,13 +276,16 @@ test("qualified builds install and safely reuse immutable persistent overlays", 
     // row, and the converter marker says the translator has not moved.
     assert.equal(first.report.entries[0].reused, undefined);
     assert.equal(second.report.entries[0].reused, true);
-    assert.deepEqual(
-        JSON.parse(await fs.readFile(
-            path.join(directory, "data.local", "ResFiles", "converters.json"),
-            "utf8",
-        )),
-        { webgl2: "b0.1.0+structural" },
-    );
+    const markers = JSON.parse(await fs.readFile(
+        path.join(directory, "data.local", "ResFiles", "translations.json"),
+        "utf8",
+    ));
+
+    assert.equal(markers.schema, "carbon.translation-markers");
+    assert.equal(markers.backends.webgl2.builder, "0.1.0");
+    assert.equal(markers.backends.webgl2.qualification, "structural");
+    assert.ok(markers.backends.webgl2.updatedAt);
+    assert.match(markers.note, /--rebuild/u);
 
     // The overlay is a manifest and a JSON index with a header; the payloads are
     // in the shared store. The build carries a droppable copy of exactly those.

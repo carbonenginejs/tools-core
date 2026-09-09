@@ -213,11 +213,11 @@ export class CjsToolShaderBuilder
         // means "reuse is safe" when nobody updated it.
         const overlays = options.overlays ?? this.#overlays;
         const suffix = translatedPayloadSuffix(shaderTarget);
-        const converter = `b${BuilderVersion}+${qualificationLevel}`;
-        const storedConverters = overlays ? await overlays.ReadConverterVersions() : {};
+        const marker = { builder: BuilderVersion, qualification: qualificationLevel };
+        const storedMarkers = overlays ? await overlays.ReadTranslationMarkers() : {};
         const reuseTranslations = options.rebuild !== true
             && Boolean(overlays)
-            && storedConverters[suffix] === converter;
+            && sameTranslationMarker(storedMarkers[suffix], marker);
 
         await fs.mkdir(stageDirectory, { recursive: true });
 
@@ -358,7 +358,7 @@ export class CjsToolShaderBuilder
                 // marker naming the PREVIOUS converter: the next run then
                 // rebuilds rather than reusing a half-written set. Claiming a
                 // version before the payloads exist would invert that.
-                await overlays.WriteConverterVersion(suffix, converter);
+                await overlays.WriteTranslationMarker(suffix, marker);
 
                 // The build output carries a droppable copy of the overlay: the
                 // two files that ARE the overlay, since the payloads live in the
@@ -1015,6 +1015,16 @@ function validateSourceIdentity(source, shaderTarget, exactBuild, targets)
             + `${source.target}/${source.game}/${source.provider}/${source.build}/${source.client}`,
         );
     }
+}
+
+/**
+ * Compares a stored translation marker with this build's, ignoring when it was
+ * written: a clock moving is not a reason to translate 1,074 shaders again.
+ */
+function sameTranslationMarker(stored, current)
+{
+    return Boolean(stored)
+        && Object.keys(current).every((key) => stored[key] === current[key]);
 }
 
 /**

@@ -12,6 +12,7 @@ import { normalizeTargetId } from "../target/CjsToolTarget.js";
 
 const ManifestSchema = "carbon.resource-overlay";
 const ManifestVersion = 1;
+const TranslationMarkerSchema = "carbon.translation-markers";
 
 /**
  * How a persistent overlay stores its payloads.
@@ -780,19 +781,28 @@ export class CjsToolIndexOverlayStore
     }
 
     /**
-     * The converter version each backend's stored translations were produced by.
+     * How each backend's stored translations were produced, so a later build can
+     * tell whether reusing them is safe.
      *
-     * A translated payload is a pure function of its input bytes and its
-     * converter. The input cannot change without changing the address, so the
-     * only free variable is the converter - and it is the same value for every
-     * payload sharing a suffix. Version tracking is therefore ONE scalar per
-     * backend, not a record per file.
+     * A translated payload is a pure function of its input bytes and whatever
+     * produced it. The input cannot change without changing the address, so the
+     * only free part is the producer - and it is the same for every payload
+     * sharing a suffix. This is therefore one record per backend rather than one
+     * per file.
+     *
+     * It is written as named fields rather than a packed string. Someone opening
+     * this file is trying to work out why a build did or did not rebuild, and
+     * `"b0.1.0+structural"` requires reading this source to decode.
      */
-    async ReadConverterVersions()
+    async ReadTranslationMarkers()
     {
         try
         {
-            return JSON.parse(await fs.readFile(this.#ConverterMarkerPath(), "utf8"));
+            const document = JSON.parse(
+                await fs.readFile(this.#TranslationMarkerPath(), "utf8"),
+            );
+
+            return document?.backends ?? {};
         }
         catch (error)
         {
@@ -805,28 +815,38 @@ export class CjsToolIndexOverlayStore
         }
     }
 
-    /** Records the converter version a backend's stored translations now carry. */
-    async WriteConverterVersion(backend, version)
+    /** Records how one backend's stored translations were just produced. */
+    async WriteTranslationMarker(suffix, marker)
     {
-        const versions = {
-            ...await this.ReadConverterVersions(),
-            [ String(backend) ]: String(version),
+        const backends = {
+            ...await this.ReadTranslationMarkers(),
+            [ String(suffix) ]: { ...marker, updatedAt: new Date().toISOString() },
+        };
+        const document = {
+            schema: TranslationMarkerSchema,
+            version: 1,
+            note: "Records what produced the translated payloads stored beside their "
+                + "sources here, so a build can tell whether reusing them is safe. "
+                + "A build reuses a backend's payloads when it matches every field "
+                + "below except updatedAt. To force translation again, build with "
+                + "--rebuild, or delete that backend's entry.",
+            backends,
         };
 
         await fs.mkdir(this.payloadStore, { recursive: true });
         await fs.writeFile(
-            this.#ConverterMarkerPath(),
-            `${JSON.stringify(versions, null, 2)}\n`,
+            this.#TranslationMarkerPath(),
+            `${JSON.stringify(document, null, 2)}\n`,
             "utf8",
         );
 
-        return utils.freezeData(versions);
+        return utils.freezeData(backends);
     }
 
     /** The marker sits at the store root, where no shard directory can collide. */
-    #ConverterMarkerPath()
+    #TranslationMarkerPath()
     {
-        return path.join(this.payloadStore, "converters.json");
+        return path.join(this.payloadStore, "translations.json");
     }
 
     /** Locates one payload in the shared store without letting a row escape it. */
