@@ -281,7 +281,7 @@ test("qualified builds install and safely reuse immutable persistent overlays", 
             path.join(directory, "data.local", "ResFiles", "converters.json"),
             "utf8",
         )),
-        { webgl2: "webgl2@1+b0.1.0+structural" },
+        { webgl2: "b0.1.0+structural" },
     );
 
     // The overlay is a manifest and a JSON index with a header; the payloads are

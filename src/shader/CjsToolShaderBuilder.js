@@ -6,7 +6,6 @@ import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 
 import { CjsToolIndexOverlayStore } from "../indexing/CjsToolIndexOverlayStore.js";
 import { CjsToolShaderTargetRegistry } from "./CjsToolShaderTargetRegistry.js";
-import { GetShaderOutputVersion } from "./shaderOutputVersions.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 
@@ -193,19 +192,28 @@ export class CjsToolShaderBuilder
         const staged = [];
 
         // One scalar decides whether ANY stored translation may be reused, so it
-        // is read once rather than per shader. It names the emitter's declared
-        // output version, this orchestration, and the qualification level - the
-        // last because a payload built to a weaker level must not satisfy a
-        // build asking for a stronger one.
+        // is read once rather than per shader. It names this orchestration and
+        // the qualification level - the latter because a payload built to a
+        // weaker level must not satisfy a build asking for a stronger one, which
+        // is the one case the caller cannot reasonably be expected to catch.
         //
-        // The emitter's version comes from shaderOutputVersions.js and NOT from
-        // `format.packageVersion`, which is CCP's container version: it does not
-        // move when our emitter changes, and it does move when their container
-        // does. Read that file before changing this line.
+        // It deliberately does NOT name a version of our emitted output.
+        //
+        // There is nowhere honest to read one from. `format.packageVersion` is
+        // CCP's container version: it does not move when our emitter changes and
+        // does move when their container does, so it is wrong in both
+        // directions. A version of our own could go in the per-backend block,
+        // which is our addition to the container rather than CCP's - but reading
+        // it back would mean fetching and parsing every stored payload to decide
+        // whether to rebuild it, which is most of the work being avoided. And
+        // inventing one here only moves the problem to remembering to bump it.
+        //
+        // So the emitter changing is the CALLER's to declare, with --rebuild.
+        // That is a smaller thing to get right than a version that silently
+        // means "reuse is safe" when nobody updated it.
         const overlays = options.overlays ?? this.#overlays;
         const suffix = translatedPayloadSuffix(shaderTarget);
-        const converter = `${suffix}@${GetShaderOutputVersion(suffix)}`
-            + `+b${BuilderVersion}+${qualificationLevel}`;
+        const converter = `b${BuilderVersion}+${qualificationLevel}`;
         const storedConverters = overlays ? await overlays.ReadConverterVersions() : {};
         const reuseTranslations = options.rebuild !== true
             && Boolean(overlays)
