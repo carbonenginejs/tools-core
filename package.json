@@ -94,7 +94,7 @@
     "schema:check": "node scripts/schema-check/check.js"
   },
   "dependencies": {
-    "@carbonenginejs/runtime": "file:../runtime/npm",
+    "@carbonenginejs/runtime": "^0.1.0-alpha.0",
     "better-sqlite3": "^11.10.0",
     "unzipper": "^0.12.5"
   },
