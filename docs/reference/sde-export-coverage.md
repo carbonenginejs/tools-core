@@ -45,7 +45,8 @@ consumers**. As of 2026-08-16 **every one of them is generated** except
 | SKINR library | 15 | complete |
 
 `materialSets` is not a gap. No client ships it, CCP's export publishes it with
-zero rows, and the archive already treats it as optional. The
+zero rows, and the archive already treats it as optional.
+`graphicMaterialSets` holds the material definitions. The
 [generated-library guide](../guides/generated-libraries.md) documents that
 public package contract.
 
@@ -62,86 +63,10 @@ absent table, which reads as unintended rather than decided — `materialSets` a
 whoever owns `tools-core/src/skin`, and it is no longer urgent.
 ## What is generated (76)
 
-Row counts are CCP's, so this table and the two below can be added up.
-
-| Table | Rows | Client container |
-| --- | ---: | --- |
-| `mapMoons` | 344,457 | `.static` (embedded schema) |
-| `mapPlanets` | 68,407 | `.static` (embedded schema) |
-| `types` | 52,863 | `.fsdbinary` |
-| `mapAsteroidBelts` | 40,928 | `.static` (embedded schema) |
-| `typeDogma` | 26,828 | `.fsdbinary` |
-| `mapStargates` | 13,978 | `.static` (embedded schema) |
-| `skinLicenses` | 11,824 | `.static` |
-| `typeMaterials` | 9,551 | `.fsdbinary` |
-| `mapSolarSystems` | 8,490 | `.static` + `.schema` |
-| `mapStars` | 8,089 | `.static` (embedded schema) |
-| `skins` | 6,995 | `.static` |
-| `graphics` | 6,069 | `.fsdbinary` |
-| `blueprints` | 5,082 | `.static` |
-| `icons` | 4,658 | `.fsdbinary` |
-| `dogmaEffects` | 3,417 | `.fsdbinary` |
-| `dogmaAttributes` | 2,866 | `.fsdbinary` |
-| `marketGroups` | 2,106 | `.fsdbinary` |
-| `groups` | 1,610 | `.fsdbinary` |
-| `mapConstellations` | 1,184 | `.static` + `.schema` |
-| `mapSecondarySuns` | 1,038 | `.static` (embedded schema) |
-| `graphicMaterialSets` | 939 | `.fsdbinary` |
-| `skinMaterials` | 863 | `.static` |
-| `typeBonus` | 652 | `.static` |
-| `skinrComponents` | 544 | `.fsdbinary` |
-| `masteries` | 476 | `.static` (embedded schema) |
-| `typeLists` | 462 | `.fsdbinary` |
-| `typeElements` | 423 | `.static` |
-| `dynamicItemAttributes` | 413 | `.fsdbinary` |
-| `agentsInSpace` | 360 | `.fsdbinary` |
-| `npcCorporations` | 283 | `.fsdbinary` |
-| `dbuffCollections` | 276 | `.static` |
-| `industryModifierSources` | 220 | `.static` |
-| `compressibleTypes` | 212 | `.fsdbinary` |
-| `industryAssemblyLines` | 146 | `.static` |
-| `certificates` | 139 | `.static` (embedded schema) |
-| `mapRegions` | 114 | `.static` + `.schema` |
-| `industryInstallationTypes` | 102 | `.static` |
-| `fighterAbilitiesByType` | 94 | `.static` |
-| `stationOperations` | 69 | `.fsdbinary` |
-| `dogmaUnits` | 60 | `.fsdbinary` |
-| `corporationRoles` | 55 | `.fsdbinary` |
-| `expertSystems` | 55 | `.fsdbinary` |
-| `shipTreeGroups` | 52 | `.static` |
-| `skinrTierThresholds` | 49 | `.fsdbinary` |
-| `categories` | 48 | `.fsdbinary` |
-| `landmarks` | 45 | `.static` (embedded schema) |
-| `controlTowerResources` | 44 | `.fsdbinary` |
-| `ancestries` | 43 | `.fsdbinary` |
-| `skillPlans` | 40 | `.fsdbinary` |
-| `dogmaAttributeCategories` | 37 | `.fsdbinary` |
-| `fighterAbilities` | 36 | `.static` |
-| `shipTreeElements` | 30 | `.static` |
-| `factions` | 27 | `.fsdbinary` |
-| `stationServices` | 27 | `.fsdbinary` |
-| `schools` | 23 | `.fsdbinary` |
-| `epicArcs` | 21 | `.fsdbinary` |
-| `corporationActivities` | 20 | `.fsdbinary` |
-| `bloodlines` | 18 | `.fsdbinary` |
-| `industryTargetFilters` | 18 | `.static` |
-| `shipTreeFactions` | 17 | `.static` |
-| `metaGroups` | 13 | `.fsdbinary` |
-| `agentTypes` | 13 | `.fsdbinary` |
-| `schoolMap` | 12 | `.fsdbinary` |
-| `races` | 11 | `.fsdbinary` |
-| `npcCorporationDivisions` | 10 | `.fsdbinary` |
-| `corporationRoleGroups` | 9 | `.fsdbinary` |
-| `skinrSlotNames` | 8 | `.fsdbinary` |
-| `skinrSlots` | 8 | `.fsdbinary` |
-| `contrabandTypes` | 8 | `.fsdbinary` |
-| `skinrComponentRarities` | 6 | `.fsdbinary` |
-| `industryActivities` | 6 | `.static` |
-| `skinrSlotConfigurations` | 4 | `.fsdbinary` |
-| `cloneGrades` | 4 | `.static` |
-| `skinrComponentCategories` | 3 | `.fsdbinary` |
-| `skinrComponentPointValues` | 3 | `.fsdbinary` |
-| `skinrSlotCategories` | 3 | `.fsdbinary` |
+The [76-table catalogue and CCP row counts](https://github.com/carbonenginejs/tools-core/blob/6b3253224513cbecaebb4f207c08a9d58fc0e3e0/docs/reference/sde-export-coverage.md#what-is-generated-76)
+remain in Git history. Counts here describe the dated comparison above, not a
+new qualification of current exports; CCP row counts are not generated-output
+counts where a deliberate departure is recorded below.
 
 **Fifty of these were checked against CCP's export row by row and match
 exactly**, at build 3466501. Twenty-four on 2026-08-15 — the `.fsdbinary` tables
@@ -214,7 +139,7 @@ pins a layout, not a publisher**, and a reader that decodes CCP is not thereby
 proven against NetEase. Only running it says.
 ## Still missing (25)
 
-Mixed tractability, and the sections below sort them: some have a same-named
+The dated backlog has mixed tractability: some have a same-named
 client file and need only a layout derived, some are known to live inside a
 container under another name, and a few have no located source at all.
 
@@ -250,83 +175,31 @@ Deriving these is a solved tools-core procedure rather than a research problem;
 the accepted JSON-shaped layout lands on its namespaced runtime resource FSD
 schema class after the evidence and wrong-answer traps have been checked.
 
-## The `.static` tables are nearly free
+## Completed projections and source discovery
 
-This was a list of six. Five of them — `fighterAbilitiesByType`,
-`dbuffCollections`, `fighterAbilities`, `cloneGrades` and `landmarks` — are now
-generated, as is `blueprints`, which was the seventh. One is left:
+The earlier certificates projection task and sourceless ship-tree/traits/mastery
+lists are superseded by this page's 2026-08-16 record: all seven tables from
+`infobubbles.static` and `certificates.static` are generated. The
+[source-mapping owner](../research/static-data-sources.md#one-file-several-tables)
+records their keys and counts, the Expert Systems reason for retaining all 467
+`typeElements` rows, and the [failed filename/count search](../research/static-data-sources.md#what-the-search-that-failed-actually-proved).
+No same-named file does not prove absence; a dataset may be nested or derived.
+The still-missing table list above remains the backlog for this dated record.
 
-| Table | Rows | What it needs |
-| --- | ---: | --- |
-| `certificates` | 139 | nothing new — the container reads; it has no projection yet |
+Its dated no-same-named-file findings are: `planetResources`, `npcStations`,
+`notificationTypes`, `appliedProximityEffects`, `militaryCampaignObjectives`,
+`systemWideEffects`, `planetSchematics`, `sovereigntyUpgrades`,
+`characterTitles`, `proximityTrap`, `translationLanguages`,
+`characterAttributes`, `militaryCampaigns`, `linkWithShip`,
+`mercenaryTacticalOperations`, `freelanceJobSchemas`, `metenoxMoonDrill` and
+`systemDbuffEmitters`. Their row counts remain in the backlog above.
 
-`certificates` matters beyond its own 139 rows: `masteries` (476) is a top-level
-key inside the same file, so one projection pass yields both.
-
-## The container taxonomy is not kept here
-
-`.static` is three families — 14 SQLite, 25 a length-prefixed pickle carrying
-its own schema, 6 binary against a `.schema` sibling — and `.fsdbinary` is a
-fourth thing again. All of that is a property of the EVE client rather than of
-this export. The combined runtime resource layer owns container decoding, while organization
-research records what the 32-byte header means and the exporter normalisations.
-
-All three `.static` families are read as of 2026-08-16.
-## Ship trees, traits and masteries: generated
-
-All six were located on 2026-08-16 inside containers named nothing like them
-— five in `infobubbles.static` and `masteries` in `certificates.static` — and
-all seven tables from those two files are now generated.
-
-**That register is not kept here.** Which client file holds which export table
-is a fact about the EVE client rather than about this tool, so it belongs in
-organization static-data research together with the failed-search evidence.
-Anything generic about static data belongs there; this page tracks only what
-this export generates.
-
-`typeElements` is the one deliberate departure from CCP's row set: it publishes
-the client's full 467 rows rather than CCP's 423, because the 44 CCP drops are
-Expert Systems and those are wanted here.
-## Missing, with no same-named file
-
-No file in `res:/staticdata/` shares the name. That does **not** prove the data
-is absent — it may live under a different name, in a differently shaped
-container, or be derived by the exporter from several sources. It does mean the
-first task is finding it rather than decoding it.
-
-| Table | Rows | Client container |
-| --- | ---: | --- |
-| `planetResources` | 25,798 | — |
-| `npcStations` | 5,210 | — |
-| `typeBonus` | 652 | — |
-| `masteries` | 476 | — |
-| `typeElements` | 423 | — |
-| `notificationTypes` | 297 | — |
-| `appliedProximityEffects` | 118 | — |
-| `militaryCampaignObjectives` | 109 | — |
-| `systemWideEffects` | 95 | — |
-| `planetSchematics` | 68 | — |
-| `shipTreeGroups` | 52 | — |
-| `sovereigntyUpgrades` | 49 | — |
-| `characterTitles` | 43 | — |
-| `shipTreeElements` | 30 | — |
-| `proximityTrap` | 24 | — |
-| `shipTreeFactions` | 17 | — |
-| `translationLanguages` | 8 | — |
-| `characterAttributes` | 5 | — |
-| `militaryCampaigns` | 4 | — |
-| `linkWithShip` | 3 | — |
-| `mercenaryTacticalOperations` | 3 | — |
-| `_sde` | 1 | — |
-| `freelanceJobSchemas` | 1 | — |
-| `metenoxMoonDrill` | 1 | — |
-| `systemDbuffEmitters` | 1 | — |
-
-Two known examples of the trap. `materialSets` is in this list and there is
-nothing to find: no client ships that dataset and CCP's own export publishes it
-empty — `graphicMaterialSets` holds the material definitions. `shipTreeGroups`
-is also here, and `skilltreegroups.fsdbinary` is *not* its source: that file
-carries 3 records in 220 bytes against the table's 52 rows.
+All three `.static` families were read as of 2026-08-16. Runtime owns container
+decoding; [record conventions](../research/fsd-record-conventions.md#the-client-is-not-one-data-format)
+owns the taxonomy. Layout derivation, once a source is located, follows the
+[tools-core procedure](../research/deriving-fsd-layouts.md); accepted byte-layout
+facts belong on the namespaced runtime FSD schema after its evidence and
+wrong-answer checks, not in another export catalogue.
 
 ## The map tables are generated — all nine of them
 
@@ -359,19 +232,14 @@ up; **do not re-derive this without a new input.**
 
 ### Rules measured while doing it
 
-Three worth keeping, because each was a wrong guess first:
+[Exporter normalisations](../research/fsd-record-conventions.md#the-exporters-normalisations)
+owns the measured per-field zero-omission rule across 453,000 celestials and
+six-decimal rounding. Without position rounding about one celestial in ten
+differs in its last digits; do not mistake that for a decoding fault.
 
-- **Statistics are omitted when zero, but only four of them** — `massGas`,
-  `orbitPeriod`, `orbitRadius` and `surfaceGravity`. Every omission of those is
-  a zero and every zero of those is omitted, across all 453,000 celestials.
-  `eccentricity`, `pressure` and `rotationRate` publish tens of thousands of
-  zeros, so this is per-field and not a general rule.
-- **Positions are rounded to six decimal places**, like every other single here.
-  Without it about one celestial in ten differs in its last digit or two, which
-  reads as a decoding fault rather than a formatting one.
-- **A star's statistics keep `life` and drop `locked` and `radius`** — the
-  opposite selection to every other celestial. An asteroid belt additionally has
-  no `pressure` column, and takes its `radius` from its statistics.
+The export-specific selection remains: a star's statistics keep `life` and
+drop `locked` and `radius` — opposite to other celestials. An asteroid belt
+has no `pressure` column and takes its `radius` from its statistics.
 
 ## The three worlds really do differ, and now it is measured
 
