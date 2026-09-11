@@ -7,17 +7,15 @@ Summary: Lists the implemented exact-build query, resource, and generated-librar
 
 ## Build references
 
-**`latest` is not one answer.** This service serves two independently published
-bodies of data, and they carry different build numbers:
+**`latest` resolves two independently published facets:**
 
 | Facet | What it is | Serves |
 | --- | --- | --- |
 | `resources` | the client build the target reports; the file index is keyed by it | `res`, `app`, `resources`, `sof`, `audio`, `character`, `resfiles`, `billboards`, `cubes`, `nebulas` |
 | `sde` | the newest SDE, published on its own schedule | `sde`, `icons`, `map`, `skin`, `skinr`, `weapons`, `dogma`, `industry`, `fitting`, `skills` |
 
-The SDE normally trails the client build for a window after each patch, so for
-part of most days these are different numbers. `/<target>/<ref>/build` reports
-both:
+The SDE normally trails the client build after patches. `/<target>/<ref>/build`
+reports both; `build` remains equal to `builds.resources` for compatibility:
 
 ```json
 {
@@ -27,75 +25,42 @@ both:
 }
 ```
 
-Resolve once, then address every later request by the exact number for the
-facet that serves it. An exact build is immutable and cacheable; `latest`
-moves. `build` stays equal to `builds.resources` for existing consumers.
-
-**Do not carry a build across facets.** The two numbers are indistinguishable
-once a caller holds one, and this service will not stop you:
-
-- an SDE build on a resource route acquires a whole second client build —
-  another file index, another `data.black`, another SOF catalog, all cold,
-  beside the warm one a build away;
-- a client build on an SDE route goes looking for an SDE that may not exist.
-
-There is deliberately no build reference that collapses the two into a single
-number. Any such alias has to pick a loser, and pinning resources to the SDE
-build causes exactly the second-catalog problem it would be avoiding. New facets
-are added to `builds`; consumers pick from it.
+Resolve once and retain the exact facet numbers: exact builds are immutable and
+cacheable; `latest` moves. Do not interchange facet numbers accidentally—the
+service cannot distinguish them. An SDE number on a resource route acquires a
+second cold client index, `data.black` and SOF catalog; a client number on an
+SDE route may request an unpublished SDE. There is no alias collapsing both
+facets into one number; future facets extend `builds`.
 
 ### How the pair is chosen
 
-One rule decides every case: **the SDE is never newer than the resource build.**
+**The paired SDE is never newer than the resource build:** `builds.sde` is
+clamped to `builds.resources`. An older SDE may omit items; a newer one can
+name types whose resources do not yet exist, causing misleading model 404s.
 
-Pinning names the target version, and the other side is chosen to satisfy that.
-Trailing is the safe direction — an older SDE can only omit things, while one
-from ahead names types whose resources do not exist yet, so a lookup resolves
-and the model behind it 404s. That reads as a broken resource rather than a
-mismatched pair, which is why it is worth ruling out structurally.
+A pinned build is reported for both facets and can be sent to both. An SDE
+request means “at or below this build”: the repository probes it and, if absent,
+falls back to the newest prepared SDE at or below it, reporting the actual answering
+build with `source: "newest-prepared-fallback"`. SDE releases are less frequent
+than client releases, so this fallback is routine.
 
-So `builds.sde` is clamped to `builds.resources`, and a pinned build is reported
-for both facets. Send it to both: whether an SDE exists for that exact build
-is not the caller's problem. Asking the SDE for a build means "the SDE at or
-below it" — the repository probes that build and, when there is no SDE of its
-own, trails to the newest prepared one at or below it, naming the build that
-actually answered (`source: "newest-prepared-fallback"`). SDEs are published
-far less often than client builds, so this is the steady state rather than an
-error path.
-
-The reason the rule is enforced by clamping rather than by searching: a specific
-build can be probed on either side, but **the set of build numbers that exist
-cannot be enumerated** on either side. There is no "next known build after N" to
-walk to. Handing the ceiling to the side that can probe is what replaces the
-walk. An SDE build is also not guaranteed a resource index — an SDE may be
-built at a number that was never publicly released — so nothing here assumes the
-two sets coincide.
+Neither side can enumerate existing build numbers. Passing a ceiling to the
+repository replaces a search for the next known build. An SDE build may never
+have shipped a public resource index; the two build sets need not coincide.
 
 ### Which facet to pin
 
-Pin the facet that caps your answer, and ignore the other one:
+- **Resources only** (stored DNA, bytes, SOF catalogs): use `builds.resources`;
+  SDE freshness is irrelevant.
+- **SDE only** (a lookup with no rendering): ask the `sde` route directly. It
+  resolves independently and may lead the client build because no pair is used.
+- **SDE followed by rendering**: pin `builds.sde` for both. Newer resources
+  cannot make an older SDE answer fresher. If that build has no resource index,
+  fall forward to `builds.resources`: later resources are a superset, and this
+  is the only later build available by name, since builds cannot be enumerated.
 
-- **Resources only** — rendering stored DNA, fetching bytes, reading a SOF
-  catalog. Take `builds.resources`. The SDE is irrelevant, so a stale one
-  costs nothing.
-- **SDE only** — a name or type lookup that goes no further. Ask the `sde` route
-  directly; it resolves the newest SDE on its own terms and is free to lead
-  the client build, because nothing is being paired.
-- **SDE, then the resources it names** — a type or skin lookup whose result is
-  then rendered. Pin `builds.sde` for *both*. The SDE is the ceiling: the
-  answer can only name what the SDE knows, so a newer file index cannot make
-  it fresher, and pairing one in means rendering a build-old answer against
-  resources it was not written for.
-
-That last case needs one guard, because an SDE's build may have shipped no
-file index: try the resource half at `builds.sde`, and fall forward to
-`builds.resources` if it is not there. Forward is the safe direction — later
-resources are a superset — and `builds.resources` is the only later build
-anyone can name, since build numbers cannot be enumerated.
-
-`builds.sde` is `null` only when there is genuinely nothing to name: no SDE
-service is configured, or the SDE channel is unreachable and nothing is
-prepared to fall back to. The resource facet is still reported.
+`builds.sde` is `null` only if no SDE service is configured, or its channel is
+unreachable with no prepared fallback. The resource facet is still reported.
 
 ## Target and resource routes
 
@@ -194,23 +159,14 @@ clients is currently on:
 }
 ```
 
-An unknown target is `404`.
+Unknown targets return `404`. `clients` is always an array, even for
+single-client providers (`serenity`, `infinity`, and `ccp` under `Frontier`).
+A client that fails to resolve carries its own `error` and `null` build rather
+than failing the whole request, so other clients remain inspectable.
 
-**`clients` is always an array**, including for the providers that publish
-exactly one — `serenity`, `infinity`, and `ccp` under `Frontier`. A shape that
-collapsed to a bare object for those would make every caller handle two shapes,
-and the single-client case is the common one, so it is also the one that would
-go untested.
-
-A client that fails to resolve carries its own `error` and a `null` build
-instead of failing the request, because a provider is often asked about
-precisely when one of its clients is unreachable. An unknown target is `404`.
-
-This is the route that turns a **client name** into a **build number**, and
-that is all a client name is for. Everything downstream should carry the
-resolved number: a client name and `latest` answer "which build" at the moment
-they are asked and mean something different later, so anything stored or cached
-under one cannot be matched back to the data it was built from.
+Client names select build numbers; downstream requests and stored artifacts
+must use the resolved number. Like `latest`, a client name changes meaning
+over time and is not a reproducible cache identity.
 
 An `app` or `res` topic without a path returns the exact resource URL template.
 With a path it returns checksum-validated indexed bytes. `?format=json` on a
