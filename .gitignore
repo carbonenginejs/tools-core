@@ -23,6 +23,8 @@
 
 # Generated working data and reports (compact libraries remain opt-in files)
 /data/
+# Extracted and acquired build output, keyed by client build (20MB and growing).
+/artifacts/
 coverage/
 /scripts/carbon-blue/reports/
 *.log
