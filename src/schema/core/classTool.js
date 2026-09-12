@@ -2378,7 +2378,7 @@ const METHOD_RE = /^(?:(?:public|private|protected|override|async)\s+)*(#?[A-Za-
  * Parse a runtime class file. Returns:
  *   { className, base, fields:[{name, kind, typeArg, kinds[], ioNames[], notify, default, annotation, line, hasType, hasIo}],
  *     methods:[{name, line, carbonNames[], carbonOriginalNames[], implNames[], implStatusNames[], hasCarbon, hasImpl, hasReason}],
- *     helpers:[names], define:{className, family} }
+ *     helpers:[names], define:{className, family, carbon, modelledOn} }
  * Throws Error(code="class-file-unparseable") if no class is found.
  */
 export function parseClassFile(rawText, options = {})
@@ -2467,24 +2467,50 @@ export function parseClassFile(rawText, options = {})
     return { className, base, define, fields, methods, helpers, generated };
 }
 
+// Two spellings, because the runtime has two. `@type.define({ ... })` is the
+// decorator; `CjsSchema.define(Class, { ... })` is the same metadata as a call,
+// used where a file must stay parseable by raw Node - the abstraction layer is
+// imported straight from source by its tests, and decorator syntax would break
+// every one of them. A tool that reads only the decorator sees the whole AL as
+// undeclared.
+//
+// `carbon` NAMES THE DONOR when the JS class name is not the Carbon one. The AL
+// carries a backend suffix its donor does not have - Carbon compiles one backend
+// so its stub and metal classes are both `TrinityALImpl::Tr2TextureAL`, while we
+// ship every backend together - so `Tr2TextureALStub` declares
+// `carbon: "Tr2TextureAL"` and that is what a schema lookup should follow.
+// `modelledOn` is the deliberate opposite: a class that does NOT replicate its
+// donor, and should not be compared against one.
 function parseDefine(src)
 {
-    const match = src.match(/@(?:[A-Za-z_$][\w$]*\.)*type\.define\(\s*(\{[\s\S]*?\}|"[^"]*"|'[^']*'|[A-Za-z_$][\w$]*)\s*\)/);
-    if (!match) return { className: null, family: null };
+    const decorator = src.match(/@(?:[A-Za-z_$][\w$]*\.)*type\.define\(\s*(\{[\s\S]*?\}|"[^"]*"|'[^']*'|[A-Za-z_$][\w$]*)\s*\)/);
+    const call = src.match(/\bCjsSchema\.define\(\s*[A-Za-z_$][\w$]*\s*,\s*(\{[\s\S]*?\})\s*\)/);
+    const match = decorator ?? call;
+    const empty = { className: null, family: null, carbon: null, modelledOn: null };
+    if (!match) return empty;
     const arg = match[1].trim();
     if (arg.startsWith("{"))
     {
         const nameMatch = arg.match(/className\s*:\s*["']([^"']+)["']/);
         const familyMatch = arg.match(/family\s*:\s*["']([^"']+)["']/);
-        return { className: nameMatch ? nameMatch[1] : null, family: familyMatch ? familyMatch[1] : null };
+        const carbonMatch = arg.match(/\bcarbon\s*:\s*["']([^"']+)["']/);
+        const modelledMatch = arg.match(/\bmodelledOn\s*:\s*["']([^"']+)["']/);
+        return {
+            className: nameMatch ? nameMatch[1] : null,
+            family: familyMatch ? familyMatch[1] : null,
+            // A qualified donor keeps only its class: `ImageIO::BitmapDimensions`
+            // is catalogued as `BitmapDimensions`.
+            carbon: carbonMatch ? carbonMatch[1].split("::").pop() : null,
+            modelledOn: modelledMatch ? modelledMatch[1].split("::").pop() : null
+        };
     }
     if (arg.startsWith('"') || arg.startsWith("'"))
     {
-        return { className: arg.slice(1, -1), family: null };
+        return { ...empty, className: arg.slice(1, -1) };
     }
     // Identifier -> resolve `const <ID> = "...";`
     const constMatch = src.match(new RegExp(`const\\s+${arg}\\s*=\\s*["']([^"']+)["']`));
-    return { className: constMatch ? constMatch[1] : null, family: null };
+    return { ...empty, className: constMatch ? constMatch[1] : null };
 }
 
 function handleStatement(stmt, pending, line, fields, methods, helpers)

@@ -193,7 +193,10 @@ function runCheck(options)
             const absolute = path.resolve(filePath);
             const text = fs.readFileSync(absolute, "utf8");
             const parsed = parseClassFile(text, { filePath: absolute });
-            const className = options.className || parsed.className;
+            // The DONOR name decides which schema doc to compare against; the JS
+            // class name is only how the file spells it. They differ wherever a
+            // class carries a backend suffix Carbon does not have.
+            const className = options.className || parsed.define?.carbon || parsed.className;
 
             const { doc, schemaPath, schemaRoot, family } = loadSchemaDoc({
                 schema: options.schema,

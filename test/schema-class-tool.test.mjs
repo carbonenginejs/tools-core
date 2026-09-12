@@ -431,3 +431,74 @@ test("additional Carbon methods are informative rather than Blue schema drift", 
     assert.equal(result.summary.additionalCarbonMethod, 1);
     assert.equal(result.summary.drift, false);
 });
+
+test("the define metadata is read from the decorator and from the call form alike", () =>
+{
+    // Both spellings exist in the runtime. The abstraction layer is imported
+    // straight from source by its own tests, and raw Node cannot parse decorator
+    // syntax, so those files declare through CjsSchema.define instead. A parser
+    // that reads only the decorator sees the whole layer as undeclared.
+    const decorated = parseClassFile([
+        "import { type } from \"#schema\";",
+        "@type.define({ className: \"Tr2Thing\", family: \"trinity\" })",
+        "export class Tr2Thing {}"
+    ].join("\n"));
+
+    assert.equal(decorated.define.className, "Tr2Thing");
+    assert.equal(decorated.define.family, "trinity");
+
+    const called = parseClassFile([
+        "export class Tr2TextureALStub {}",
+        "CjsSchema.define(Tr2TextureALStub, { className: \"Tr2TextureALStub\", family: \"trinityal\" });"
+    ].join("\n"));
+
+    assert.equal(called.define.className, "Tr2TextureALStub");
+    assert.equal(called.define.family, "trinityal");
+});
+
+test("a declared donor is read, and a qualified one keeps only its class", () =>
+{
+    // Carbon compiles ONE backend, so its stub and metal classes are both
+    // TrinityALImpl::Tr2TextureAL. We ship every backend together, so the
+    // suffix moves onto the JS class name and `carbon:` names the donor the
+    // schema lookup should follow.
+    const suffixed = parseClassFile([
+        "export class Tr2TextureALStub {}",
+        "CjsSchema.define(Tr2TextureALStub, { className: \"Tr2TextureALStub\", carbon: \"Tr2TextureAL\" });"
+    ].join("\n"));
+
+    assert.equal(suffixed.define.className, "Tr2TextureALStub");
+    assert.equal(suffixed.define.carbon, "Tr2TextureAL");
+    assert.equal(suffixed.define.modelledOn, null);
+
+    const qualified = parseClassFile([
+        "@type.define({ className: \"CjsBitmapDimensions\", carbon: \"ImageIO::BitmapDimensions\" })",
+        "export class CjsBitmapDimensions {}"
+    ].join("\n"));
+
+    assert.equal(qualified.define.carbon, "BitmapDimensions");
+});
+
+test("modelledOn is read separately, because it is the opposite claim", () =>
+{
+    // `carbon:` says this class IS that donor under another name. `modelledOn:`
+    // says it deliberately does NOT replicate it, so nothing should compare the
+    // two surfaces. Collapsing them would make a declined port look like a
+    // failed one.
+    const parsed = parseClassFile([
+        "@type.define({ className: \"CjsWebgpuWorkQueue\", modelledOn: \"MetalWorkQueue\" })",
+        "export class CjsWebgpuWorkQueue {}"
+    ].join("\n"));
+
+    assert.equal(parsed.define.modelledOn, "MetalWorkQueue");
+    assert.equal(parsed.define.carbon, null);
+});
+
+test("a class with no define reports null metadata rather than throwing", () =>
+{
+    const parsed = parseClassFile("export class Plain {}");
+
+    assert.equal(parsed.define.className, null);
+    assert.equal(parsed.define.carbon, null);
+    assert.equal(parsed.define.modelledOn, null);
+});
