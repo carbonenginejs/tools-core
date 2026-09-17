@@ -93,9 +93,16 @@ client's own `start.ini` rather than taking it on trust:
 cjs-supplied-index-import --target frontier --shared-cache <client shared cache>
 ```
 
-The build matters more here than it looks. Resources are content-addressed, so
-an index filed under a build it did not come from still resolves - and then
-answers for files that build never had, with nothing to notice it by.
+The build matters more here than it looks - not because a supplied index could
+contaminate anything, but because it could be quietly incomplete. The payload
+store is one pool for every game, provider and client, keyed by the file's own
+hash, so two publishers shipping the same bytes share one entry and cannot
+collide. That is why a supplied index is nearly free: measured 2026-09-17,
+34,413 of Frontier's 48,394 payloads are byte-identical to EVE build 3503375's,
+and 116,630 of Serenity's 125,335 are. What an index does carry is the claim
+"this is the file list of build N", and an index filed under a build it did not
+come from still resolves everything it names while silently missing whatever
+that build added.
 
 **"latest" means the newest build supplied.** The publisher's metadata still
 reports whatever shipped this morning, and for these targets that is a build
