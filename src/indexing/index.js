@@ -29,6 +29,7 @@ export { CjsToolIndexSource } from "./CjsToolIndexSource.js";
 export { CjsToolIndexOverlaySource } from "./CjsToolIndexOverlaySource.js";
 export { CjsToolIndexOverlay, CjsToolIndexOverlayStore } from "./CjsToolIndexOverlayStore.js";
 export { CjsToolIndexCache } from "./CjsToolIndexCache.js";
+export { CjsToolIndexSuppliedStore } from "./CjsToolIndexSuppliedStore.js";
 export { CjsToolIndexGraph } from "./CjsToolIndexGraph.js";
 export { CjsToolIndexAnswerCatalog } from "./CjsToolIndexAnswerCatalog.js";
 export { CjsToolIndex } from "./CjsToolIndex.js";

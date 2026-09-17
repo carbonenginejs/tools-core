@@ -1,10 +1,12 @@
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { CjsToolBoundedFetch } from "../internal/CjsToolBoundedFetch.js";
 import { CjsToolIndexBuildResolver } from "./CjsToolIndexBuildResolver.js";
 import { CjsToolIndexCache } from "./CjsToolIndexCache.js";
 import { parseIndexGroup } from "./CjsToolIndexGroup.js";
 import { CjsToolIndexTargetProfileRegistry } from "./CjsToolIndexTargetProfileRegistry.js";
 import { CjsToolIndexGraph } from "./CjsToolIndexGraph.js";
+import { CjsToolIndexSuppliedStore } from "./CjsToolIndexSuppliedStore.js";
 import * as utils from "../utils.js";
 
 /**
@@ -21,6 +23,8 @@ export class CjsToolIndexReader
 
     #cache;
 
+    #supplied;
+
     #maxIndexBytes;
 
     #requestTimeoutMs;
@@ -32,6 +36,7 @@ export class CjsToolIndexReader
         profiles = new CjsToolIndexTargetProfileRegistry(),
         fetch = globalThis.fetch,
         cache = null,
+        supplied = null,
         requestTimeoutMs = 30000,
         maxMetadataBytes = 64 * 1024,
         maxIndexBytes = 64 * 1024 * 1024,
@@ -52,6 +57,13 @@ export class CjsToolIndexReader
             throw new TypeError("CjsToolIndexReader cache must be a CjsToolIndexCache or null");
         }
 
+        if (supplied !== null && !(supplied instanceof CjsToolIndexSuppliedStore))
+        {
+            throw new TypeError(
+                "CjsToolIndexReader supplied must be a CjsToolIndexSuppliedStore or null",
+            );
+        }
+
         CjsToolBoundedFetch.normalizeLimit(requestTimeoutMs, "requestTimeoutMs");
         CjsToolBoundedFetch.normalizeLimit(maxMetadataBytes, "maxMetadataBytes");
         CjsToolBoundedFetch.normalizeLimit(maxIndexBytes, "maxIndexBytes");
@@ -64,6 +76,7 @@ export class CjsToolIndexReader
             maxMetadataBytes,
         });
         this.#cache = cache;
+        this.#supplied = supplied;
         this.#requestTimeoutMs = requestTimeoutMs;
         this.#maxIndexBytes = maxIndexBytes;
         Object.freeze(this);
@@ -76,7 +89,60 @@ export class CjsToolIndexReader
     {
         const profile = this.#ResolveProfile({ target, game, provider });
 
-        return this.#builds.Resolve(profile, build ?? profile.defaultBuildRef, client);
+        return this.#builds.Resolve(
+            profile,
+            await this.#ResolveBuildReference(profile, build),
+            client,
+        );
+    }
+
+    /**
+     * The build reference to resolve, which a supplied target answers itself.
+     *
+     * "latest" means the newest build that can be READ, and on a supplied
+     * target that is the newest index somebody handed us - not whatever the
+     * publisher shipped this morning, which we have no index for and cannot
+     * serve. Reporting the publisher's number would put a build in every URL
+     * that answers 404 on every route.
+     */
+    async #ResolveBuildReference(profile, build)
+    {
+        const requested = build ?? profile.defaultBuildRef;
+
+        if (profile.indexSource !== "supplied" || utils.isExactBuild(requested))
+        {
+            return requested;
+        }
+
+        const supplied = await this.#RequireSuppliedStore(profile)
+            .ResolveBuild(profile.target, requested);
+
+        if (!supplied)
+        {
+            // 404 rather than a bare throw, so the proxy says WHERE to put the
+            // file instead of answering "Internal tool error". A target with no
+            // index yet is a state to act on, not a fault.
+            throw NotFound(
+                `No resource index has been supplied for target ${profile.target}: `
+                + `place one at ${this.#RequireSuppliedStore(profile)
+                    .GetDirectory(profile.target, "<build>")}/resfileindex.txt`,
+            );
+        }
+
+        return supplied;
+    }
+
+    #RequireSuppliedStore(profile)
+    {
+        if (!this.#supplied)
+        {
+            throw new Error(
+                `Target ${profile.target} supplies its own resource index, `
+                + "and no supplied-index store is configured",
+            );
+        }
+
+        return this.#supplied;
     }
 
     /**
@@ -85,7 +151,17 @@ export class CjsToolIndexReader
     async Read({ target, game, provider, build, client } = {})
     {
         const profile = this.#ResolveProfile({ target, game, provider });
-        const buildReference = await this.#builds.Resolve(profile, build ?? profile.defaultBuildRef, client);
+        const buildReference = await this.#builds.Resolve(
+            profile,
+            await this.#ResolveBuildReference(profile, build),
+            client,
+        );
+
+        if (profile.indexSource === "supplied")
+        {
+            return this.#ReadSupplied(profile, buildReference);
+        }
+
         const appIndexUrl = utils.joinUrl(profile.remote.indexBaseUrl, `eveonline_${buildReference.build}.txt`);
         const appIndex = await this.#ReadGroup({
             target: profile.target,
@@ -121,6 +197,45 @@ export class CjsToolIndexReader
             profile,
             buildReference,
             appIndex,
+            mainResIndex: main,
+            extensions,
+        });
+    }
+
+    /**
+     * Reads one build's supplied resource indexes, with no app index at all.
+     *
+     * The app index is not merely skipped as an optimisation: on a target that
+     * supplies its indexes it is typically unreachable, which is why the
+     * indexes are supplied. Its place in the graph is an EMPTY app group, so
+     * an `app:/` lookup answers "not found" rather than throwing on a null -
+     * the honest answer, since no application file can be addressed here.
+     */
+    async #ReadSupplied(profile, buildReference)
+    {
+        const store = this.#RequireSuppliedStore(profile);
+        const directory = store.GetDirectory(profile.target, buildReference.build);
+        const groups = await store.ReadGroups(profile.target, buildReference.build);
+
+        if (!groups)
+        {
+            throw NotFound(
+                `No resource index has been supplied for ${profile.target} build `
+                + `${buildReference.build}: expected ${directory}/resfileindex.txt`,
+            );
+        }
+
+        const { main, ...extensions } = groups;
+
+        return new CjsToolIndexGraph({
+            profile,
+            buildReference,
+            appIndex: parseIndexGroup("", {
+                kind: "appfileindex",
+                name: "app",
+                root: "app",
+                sourceUrl: pathToFileURL(directory).href,
+            }),
             mainResIndex: main,
             extensions,
         });
@@ -238,6 +353,16 @@ export class CjsToolIndexReader
             : maximum;
     }
 
+}
+
+/** An absent supplied index, reported as the state it is. */
+function NotFound(message)
+{
+    const error = new Error(message);
+
+    error.statusCode = 404;
+
+    return error;
 }
 
 function discoverIndexDeclarations(appIndex)

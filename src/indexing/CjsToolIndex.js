@@ -2,6 +2,7 @@ import { CjsToolIndexReader } from "./CjsToolIndexReader.js";
 import { CjsToolIndexTargetProfileRegistry } from "./CjsToolIndexTargetProfileRegistry.js";
 import { CjsToolIndexOverlaySource } from "./CjsToolIndexOverlaySource.js";
 import { CjsToolIndexOverlayStore } from "./CjsToolIndexOverlayStore.js";
+import { CjsToolIndexSuppliedStore } from "./CjsToolIndexSuppliedStore.js";
 import { CjsToolIndexGeneratedStore } from "./CjsToolIndexGeneratedStore.js";
 import { CjsToolIndexSource } from "./CjsToolIndexSource.js";
 import { CjsToolIndexCache } from "./CjsToolIndexCache.js";
@@ -45,6 +46,7 @@ export class CjsToolIndex
         fetch = globalThis.fetch,
         cache = new CjsToolIndexCache(),
         overlays = null,
+        supplied = null,
         requestTimeoutMs = 30000,
         maxMetadataBytes = 64 * 1024,
         maxIndexBytes = 64 * 1024 * 1024,
@@ -78,6 +80,13 @@ export class CjsToolIndex
             );
         }
 
+        if (supplied !== null && !(supplied instanceof CjsToolIndexSuppliedStore))
+        {
+            throw new TypeError(
+                "CjsToolIndex supplied must be a CjsToolIndexSuppliedStore or null",
+            );
+        }
+
         CjsToolBoundedFetch.normalizeLimit(maxPayloadBytes, "maxPayloadBytes");
 
         this.#fetch = fetch;
@@ -94,6 +103,7 @@ export class CjsToolIndex
             profiles,
             fetch,
             cache,
+            supplied,
             requestTimeoutMs,
             maxMetadataBytes,
             maxIndexBytes,

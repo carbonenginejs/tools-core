@@ -32,6 +32,7 @@ export class CjsToolIndexTargetProfile
         this.label = normalizeOptionalString(data.label) ?? this.target;
         this.defaultBuildRef = normalizeBuildReference(data.defaultBuildRef ?? "latest");
         this.remote = normalizeRemote(data.remote);
+        this.indexSource = normalizeIndexSource(data.indexSource);
         this.#clients = normalizeClients(data.clients ?? data.versions ?? {});
         this.clients = Object.freeze(Object.fromEntries(
             [...this.#clients.entries()].map(([ id, client ]) => [ id, client ]),
@@ -69,6 +70,7 @@ export class CjsToolIndexTargetProfile
             provider: this.provider,
             label: this.label,
             defaultBuildRef: this.defaultBuildRef,
+            indexSource: this.indexSource,
             remote: this.remote,
             clients: Object.fromEntries(
                 Object.entries(this.clients).map(([ id, client ]) => [
@@ -154,6 +156,30 @@ export function normalizeIndexTargetId(value)
     }
 
     return id;
+}
+
+/**
+ * Where this target's resource indexes come from.
+ *
+ * `app` is every publisher who serves their own: the app file index names the
+ * resource indexes and where to fetch them, which is discovery, and it is the
+ * only reason to read it.
+ *
+ * `supplied` is a publisher who does not. The indexes are handed to us and
+ * read from the data root, so the app file index has nothing left to discover
+ * and is not read at all - which matters, because on such a target it is
+ * usually unreachable. See `CjsToolIndexSuppliedStore`.
+ */
+function normalizeIndexSource(value)
+{
+    const source = normalizeOptionalString(value)?.toLowerCase() ?? "app";
+
+    if (![ "app", "supplied" ].includes(source))
+    {
+        throw new TypeError(`Invalid index source: ${value}`);
+    }
+
+    return source;
 }
 
 function normalizeRemote(value)

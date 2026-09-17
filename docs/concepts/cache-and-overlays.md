@@ -59,6 +59,39 @@ manifest, and ordinary immutable payloads under `ResFiles`. These groups are
 hash-safe because every row carries the generated `res:/` path, size, and MD5,
 and the cache location is the corresponding FNV-1-plus-MD5 address.
 
+## Supplied resource indexes
+
+A target's resource indexes normally come from its app file index: that index
+names them and says where their bytes are, which is the only reason to read it.
+Some publishers do not serve those bytes to us. EVE Frontier is one - every
+hashed payload on its binaries host answers 401, and `resfileindex.txt` is one
+of them, while every resource the index names is served publicly.
+
+Such a target declares `indexSource: "supplied"` in its acquisition profile.
+The app file index is then not read at all, and the indexes are read from the
+data root instead:
+
+```text
+<data>/games/<target>/indexes/<build>/resfileindex.txt
+<data>/games/<target>/indexes/<build>/resfileindex_windows.txt
+<data>/games/<target>/indexes/<build>/resfileindex_prefetch.txt
+```
+
+The file name carries the group name, exactly as the app index's declaration
+does: `resfileindex.txt` is `main`, and `resfileindex_<name>.txt` is
+`<name>`. A directory with no `resfileindex.txt` is not a supplied build,
+so a drop that is still arriving cannot become the newest one.
+
+Nothing else about the target changes. Payloads resolve against
+`remote.resBaseUrl`, content-addressed and cached, and overlays compose over
+the supplied index the same way they compose over a fetched one.
+
+**"latest" means the newest build supplied.** The publisher's metadata still
+reports whatever shipped this morning, and for these targets that is a build
+whose index nobody can read; answering with it would put a number in every URL
+that 404s on every route. A build that was never supplied is reported as a 404
+naming the directory to put it in, rather than as a failure.
+
 ## Persistent overlays
 
 Controlled local and remote overlay manifests live outside the disposable

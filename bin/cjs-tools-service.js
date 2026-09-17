@@ -7,6 +7,7 @@ import process from "node:process";
 import {
     CjsToolIndexCache,
     CjsToolIndexOverlayStore,
+    CjsToolIndexSuppliedStore,
     CjsToolAudioPrefetch,
     CjsToolAudioRepository,
     CjsToolIndex,
@@ -80,6 +81,7 @@ async function main()
     const indexes = new CjsToolIndex({
         cache: new CjsToolIndexCache({ directory: cacheDirectory }),
         overlays: new CjsToolIndexOverlayStore(dataDirectory),
+        supplied: new CjsToolIndexSuppliedStore(dataDirectory),
         requestTimeoutMs: Number(
             args.requestTimeoutMs
             ?? (heavyAcquisition

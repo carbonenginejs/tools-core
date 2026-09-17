@@ -74,6 +74,13 @@ export const DefaultIndexProfileData = Object.freeze([
         provider: "ccp",
         label: "EVE Frontier resources",
         defaultBuildRef: "latest",
+        // Frontier's binaries are not public - every hashed payload on the
+        // binaries host answers 401, and `resfileindex.txt` is one of them -
+        // while every resource it names is served publicly. So the index is
+        // supplied from an installed client and read from the data root, and
+        // the app file index, which exists only to discover that one file, is
+        // not read at all. See `CjsToolIndexSuppliedStore`.
+        indexSource: "supplied",
         remote: Object.freeze({
             metadataBaseUrl: "https://binaries.shared.reitnorf.com",
             indexBaseUrl: "https://binaries.shared.reitnorf.com",

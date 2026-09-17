@@ -234,7 +234,7 @@ test("built-in latest is not a client alias and each Chinese target owns exactly
     assert.equal(serenity.ResolveClient("serenity").id, "serenity");
 });
 
-test("registers independent target profiles for Eve and Frontier and resolves Frontier latest metadata", async () =>
+test("registers independent target profiles for Eve and Frontier", async () =>
 {
     const registry = new CjsToolIndexTargetProfileRegistry();
     const eve = registry.Get("eve");
@@ -246,6 +246,13 @@ test("registers independent target profiles for Eve and Frontier and resolves Fr
     assert.equal(frontier.remote.metadataBaseUrl, "https://binaries.shared.reitnorf.com");
     assert.equal(frontier.remote.resBaseUrl, "https://resources.shared.reitnorf.com");
 
+    // Frontier's index is supplied, so "latest" is no longer the publisher's
+    // newest build: that build's index cannot be fetched by anyone, and naming
+    // it would answer every route with a 404 under a number that looks right.
+    // It asks what has been supplied instead, and says so when nothing has.
+    assert.equal(frontier.indexSource, "supplied");
+    assert.equal(eve.indexSource, "app");
+
     const requests = [];
     const tool = new CjsToolIndex({
         fetch: createFetch({
@@ -256,17 +263,12 @@ test("registers independent target profiles for Eve and Frontier and resolves Fr
         }, requests),
         cache: null,
     });
-    const build = await tool.ResolveTargetBuild("frontier", "latest");
 
-    assert.equal(build.target, "frontier");
-    assert.equal(build.game, "Frontier");
-    assert.equal(build.provider, "ccp");
-    assert.equal(build.build, "3438337");
-    assert.equal(build.client, "stillness");
-    assert.equal(build.metadata.protected, "true");
-    assert.deepEqual(requests, [
-        "https://binaries.shared.reitnorf.com/eveclient_STILLNESS.json",
-    ]);
+    await assert.rejects(
+        () => tool.ResolveTargetBuild("frontier", "latest"),
+        /supplies its own resource index/u,
+    );
+    assert.deepEqual(requests, [], "a supplied target's builds are not a metadata question");
 });
 
 test("rejects separate client and friendly build references", async () =>
