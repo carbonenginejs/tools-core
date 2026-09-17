@@ -311,17 +311,20 @@ test("resolves EVE SDE latest and refuses it to targets with no SDE of their own
         } ]);
         // The zh-primary targets used to be answered by this very source, and the
         // borrow was invisible to the caller. They are separate providers now
-        // and declare no `sde` topic, so they refuse for the same reason
-        // Frontier does: content flows from Tranquility to them and not back,
+        // and declare no `sde` topic. Content flows from Tranquility to them
+        // and not back,
         // and each carries SKINs Tranquility never receives — so EVE's SDE
-        // is not a stand-in for theirs, it is a different answer.
+        // is not a stand-in for theirs, it is a different answer. Frontier now
+        // refuses in the same words rather than for a different reason: it
+        // declares the topic and has a build profile, so what it lacks here is
+        // an SDE on disk for this build, not the topic.
         assert.equal(latestRequests, 1);
         // Each refuses in its own words, and both name the target rather than
         // quietly answering as EVE.
         for (const [ target, reason ] of [
             [ "serenity", /serenity has no acquisition channel/ ],
             [ "infinity", /infinity has no acquisition channel/ ],
-            [ "frontier", /not available for target frontier/ ],
+            [ "frontier", /frontier has no acquisition channel/ ],
         ])
         {
             await assert.rejects(() => repository.OpenTarget(target, "latest"), reason);

@@ -23,7 +23,7 @@ test("maps short public targets to internal source identities", () =>
     assert.equal(frontier.provider, "ccp");
     assert.equal(frontier.client, "stillness");
     assert.deepEqual(frontier.libraries, [ "audio", "shader" ]);
-    assert.deepEqual(frontier.topics, [ "app", "res" ]);
+    assert.deepEqual(frontier.topics, [ "app", "res", "sde", "types" ]);
     // Two Chinese targets share provider metadata but each names one client.
     // The single `netease` target they replace named none, so `latest` on it
     // resolved to whichever of two different games had the higher build.
@@ -72,8 +72,13 @@ test("keeps unaudited library targets disabled", () =>
         () => targets.RequireLibrary("frontier", "character"),
         /does not support target frontier/,
     );
+    // Frontier serves `sde` and `types` now - four tables built from its own
+    // static data. `icons` and `map` are the topics it still does not claim,
+    // because nothing backs them.
+    assert.equal(targets.RequireTopic("frontier", "sde").id, "frontier");
+    assert.equal(targets.RequireTopic("frontier", "types").id, "frontier");
     assert.throws(
-        () => targets.RequireTopic("frontier", "sde"),
+        () => targets.RequireTopic("frontier", "map"),
         /not available for target frontier/,
     );
     assert.throws(
