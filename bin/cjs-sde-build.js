@@ -20,7 +20,12 @@
 import path from "node:path";
 import process from "node:process";
 
-import { CjsToolIndexCache, CjsToolIndex } from "../src/indexing/index.js";
+import {
+    CjsToolIndexCache,
+    CjsToolIndex,
+    CjsToolIndexSuppliedStore,
+} from "../src/indexing/index.js";
+import { resolveDataRoot } from "../src/cache/resolveDataRoot.js";
 import {
     CJS_DEFAULT_LANGUAGES,
     CJS_LOCALIZATION_FILES,
@@ -66,6 +71,7 @@ function ParseArguments(argv)
         language: CJS_DEFAULT_LANGUAGES.join(","),
         out: null,
         cache: null,
+        data: null,
         timeout: 300000
     };
 
@@ -94,8 +100,12 @@ const cacheDirectory = options.cache ?? process.env.CJS_TOOL_CACHE ?? null;
 // The default request timeout is 30s, which a localisation pickle does not
 // reliably finish inside: they are 8 MB stored, from a Chinese CDN, and a
 // timeout here fails the whole build after the download has mostly happened.
+// A target whose resource index is supplied rather than discovered - Frontier
+// is the one today - cannot open at all without this store, because there is no
+// app index to read the file list out of.
 const index = new CjsToolIndex({
     requestTimeoutMs: Number(options.timeout),
+    supplied: new CjsToolIndexSuppliedStore(resolveDataRoot(options.data)),
     ...(cacheDirectory ? { cache: new CjsToolIndexCache({ directory: cacheDirectory }) } : {})
 });
 const source = await index.OpenTarget(options.target, options.build);
@@ -264,40 +274,57 @@ for (const descriptor of profile.SourcesByContainer("schemabound"))
 // also supplies the solar-system columns the systems container has no room for -
 // the topology flags, the star, the anchoring rules and the faction.
 // Landmarks share the embedded-schema family with the celestial container.
-const landmarksPath = profile.GetSource("landmarks").path;
+// A profile need not declare every table: EVE Frontier's covers the four an
+// identity join needs and no map at all. These two are read by name rather than
+// by container family, so absence has to be checked here rather than falling out
+// of an empty loop.
+const landmarksSource = profile.GetSource("landmarks");
 
-projected.landmarks = profile.Project(
-    "landmarks",
-    await ReadEmbeddedSchemaContainer((await source.Fetch(landmarksPath)).bytes, landmarksPath),
-    { localization, language: primaryLanguage }
-);
-
-const contentPath = profile.GetSource("mapPlanets").path;
-const celestials = ProjectUniverse(
-    ReadEmbeddedSchemaContainer((await source.Fetch(contentPath)).bytes, contentPath),
-    { localization, language: primaryLanguage }
-);
-
-for (const [ system, columns ] of Object.entries(celestials.solarSystemColumns))
+if (landmarksSource)
 {
-    const row = projected.mapSolarSystems?.[system];
-
-    if (!row) continue;
-
-    // Merged into alphabetical order rather than appended. The export's payload
-    // interleaves the two sources, and everything else here goes to trouble to
-    // match its key order - two exports differing only in key order compare as
-    // different JSON.
-    const merged = { ...row, ...columns };
-
-    for (const key of Object.keys(row)) delete row[key];
-
-    for (const key of Object.keys(merged).sort()) row[key] = merged[key];
+    projected.landmarks = profile.Project(
+        "landmarks",
+        await ReadEmbeddedSchemaContainer(
+            (await source.Fetch(landmarksSource.path)).bytes,
+            landmarksSource.path,
+        ),
+        { localization, language: primaryLanguage }
+    );
 }
 
-for (const table of [ "mapPlanets", "mapMoons", "mapAsteroidBelts", "mapStars", "mapStargates", "mapSecondarySuns" ])
+const celestialSource = profile.GetSource("mapPlanets");
+
+if (celestialSource)
 {
-    projected[table] = celestials[table];
+    const celestials = ProjectUniverse(
+        ReadEmbeddedSchemaContainer(
+            (await source.Fetch(celestialSource.path)).bytes,
+            celestialSource.path,
+        ),
+        { localization, language: primaryLanguage }
+    );
+
+    for (const [ system, columns ] of Object.entries(celestials.solarSystemColumns))
+    {
+        const row = projected.mapSolarSystems?.[system];
+
+        if (!row) continue;
+
+        // Merged into alphabetical order rather than appended. The export's
+        // payload interleaves the two sources, and everything else here goes to
+        // trouble to match its key order - two exports differing only in key
+        // order compare as different JSON.
+        const merged = { ...row, ...columns };
+
+        for (const key of Object.keys(row)) delete row[key];
+
+        for (const key of Object.keys(merged).sort()) row[key] = merged[key];
+    }
+
+    for (const table of [ "mapPlanets", "mapMoons", "mapAsteroidBelts", "mapStars", "mapStargates", "mapSecondarySuns" ])
+    {
+        projected[table] = celestials[table];
+    }
 }
 
 for (const [ table, rows ] of Object.entries(projected))

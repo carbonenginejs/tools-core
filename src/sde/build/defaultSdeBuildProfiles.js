@@ -18,6 +18,8 @@ import {
     CjsFsd64SchemaEpicArcs,
     CjsFsd64SchemaExpertSystems,
     CjsFsd64SchemaFactions,
+    CjsFsd64SchemaFrontierGraphicIds,
+    CjsFsd64SchemaFrontierTypes,
     CjsFsd64SchemaGraphicIds,
     CjsFsd64SchemaGraphicMaterialSets,
     CjsFsd64SchemaGroups,
@@ -55,6 +57,83 @@ import { ProjectTypes } from "./projectTypes.js";
 import { BuildTypeExtras } from "./buildTypeExtras.js";
 
 /**
+ * The tables EVE Frontier can supply today.
+ *
+ * Frontier has no published export, so there is no oracle and no coverage
+ * target to measure against - the list is what the client stores in a layout
+ * this package has pinned, which is the four tables an identity join needs:
+ * a type, the group and category it belongs to, and the graphic that carries
+ * its SOF hull.
+ *
+ * Its `types` and `graphicids` are **not** Tranquility's layout, so they take
+ * the Frontier readers. `groups` and `categories` are: both files carry the
+ * same layout identity as the EVE build and decode with the same reader, which
+ * is measured rather than assumed.
+ */
+const CJS_TOOL_SDE_FRONTIER_SOURCES = Object.freeze([
+    Object.freeze({
+        table: "types",
+        path: "res:/staticdata/types.fsdbinary",
+        container: "fsdbinary",
+        required: true,
+    }),
+    Object.freeze({
+        table: "graphics",
+        path: "res:/staticdata/graphicids.fsdbinary",
+        container: "fsdbinary",
+        required: true,
+    }),
+    Object.freeze({
+        table: "categories",
+        path: "res:/staticdata/categories.fsdbinary",
+        container: "fsdbinary",
+        required: true,
+    }),
+    Object.freeze({
+        table: "groups",
+        path: "res:/staticdata/groups.fsdbinary",
+        container: "fsdbinary",
+        required: true,
+    }),
+]);
+
+/**
+ * EVE Frontier's profile.
+ *
+ * Separate from the client profiles above rather than another argument to them:
+ * it shares neither their source list nor their readers, and the one thing it
+ * does share - the projections - it shares because the export row shape is the
+ * same shape, not because the games are.
+ *
+ * `typeExtras` is deliberately absent. It is a derivation over the NetEase
+ * export's full type set, and nothing downstream asks Frontier for it yet.
+ */
+function CreateFrontierProfile()
+{
+    return Object.freeze({
+        target: "frontier",
+        game: "Frontier",
+        provider: "ccp",
+        sources: Object.freeze(CJS_TOOL_SDE_FRONTIER_SOURCES.map(source => Object.freeze({ ...source }))),
+        readers: Object.freeze({
+            types: new CjsFsd64SchemaFrontierTypes(),
+            graphics: new CjsFsd64SchemaFrontierGraphicIds(),
+            categories: new CjsFsd64SchemaCategories(),
+            groups: new CjsFsd64SchemaGroups(),
+        }),
+        projections: Object.freeze({ ...CJS_TOOL_SDE_TABLE_PROJECTIONS }),
+        projectors: Object.freeze({
+            types: (records, context) => ProjectTypes(
+                records,
+                context.localization,
+                { language: context.language },
+            ),
+            graphics: records => ProjectGraphics(records),
+        }),
+    });
+}
+
+/**
  * Built-in client-generated SDE profiles.
  *
  * The records are intentionally separate even while their current mappings
@@ -64,6 +143,7 @@ import { BuildTypeExtras } from "./buildTypeExtras.js";
 export const DefaultSdeBuildProfileData = Object.freeze([
     CreateClientProfile("serenity"),
     CreateClientProfile("infinity"),
+    CreateFrontierProfile(),
 ]);
 
 function CreateClientProfile(target)
