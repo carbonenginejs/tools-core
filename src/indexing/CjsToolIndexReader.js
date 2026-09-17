@@ -125,7 +125,7 @@ export class CjsToolIndexReader
             throw NotFound(
                 `No resource index has been supplied for target ${profile.target}: `
                 + `place one at ${this.#RequireSuppliedStore(profile)
-                    .GetDirectory(profile.target, "<build>")}/resfileindex.txt`,
+                    .GetRoot(profile.target)}/<build>/resfileindex.txt`,
             );
         }
 

@@ -55,14 +55,22 @@ export class CjsToolIndexSuppliedStore
         Object.freeze(this);
     }
 
-    /** The directory one target's supplied build lives in. */
-    GetDirectory(target, build)
+    /** The directory one target's supplied builds live in. */
+    GetRoot(target)
     {
         return path.join(
             this.directory,
             "games",
             normalizeTargetId(target),
             "indexes",
+        );
+    }
+
+    /** The directory one target's supplied build lives in. */
+    GetDirectory(target, build)
+    {
+        return path.join(
+            this.GetRoot(target),
             utils.normalizeExactBuild(build, {
                 message: `Supplied indexes require an exact build: ${build}`,
             }),
@@ -72,12 +80,7 @@ export class CjsToolIndexSuppliedStore
     /** Every exact build supplied for one target, newest first. */
     async ListBuilds(target)
     {
-        const root = path.join(
-            this.directory,
-            "games",
-            normalizeTargetId(target),
-            "indexes",
-        );
+        const root = this.GetRoot(target);
         let names;
 
         try
