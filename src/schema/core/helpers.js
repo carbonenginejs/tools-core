@@ -1449,6 +1449,7 @@ function toBlueMethodSchema(classInfo, method, classMap)
         returnType: declaration?.method?.returnType || null,
         parameters: declaration?.method?.parameters || null,
         isConst: declaration?.method?.isConst ?? null,
+        static: declaration?.method?.static ?? null,
         virtual: declaration?.method?.virtual ?? null,
         pureVirtual: declaration?.method?.pureVirtual ?? null,
         description: method.description || null
@@ -1467,6 +1468,10 @@ function toNativeMethodSchema(classInfo, method, interfaceName = null)
         returnType: method.returnType || null,
         parameters: method.parameters || null,
         isConst: method.isConst ?? false,
+        // Carbon splits a class by this: statics are the process-wide half and
+        // instance methods the per-context half. Without it a consumer cannot
+        // tell where a member belongs, only whether it exists.
+        static: method.static ?? false,
         virtual: method.virtual ?? false,
         pureVirtual: method.pureVirtual ?? false
     });

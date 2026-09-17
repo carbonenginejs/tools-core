@@ -1646,6 +1646,13 @@ function parseMethodDeclarations(body, source, baseLine = 1)
         const virtual = /\bvirtual\b/.test(beforeParen) ||
             /\b(?:override|final)\b/.test(suffix) ||
             pureVirtual;
+        // Read from `beforeParen`, because the return type above has already
+        // stripped the specifier. Carbon splits classes by this deliberately -
+        // Tr2EffectStateManager interns through statics and applies through
+        // instance methods, and Tr2Renderer publishes frame verbs as statics
+        // beside instance draw helpers - so a consumer without it cannot tell
+        // a process-wide member from a per-instance one, and a port guesses.
+        const isStatic = beforeParen.split(/\s+/).includes("static");
 
         methods.push({
             name: nameMatch[1],
@@ -1653,6 +1660,7 @@ function parseMethodDeclarations(body, source, baseLine = 1)
             args,
             parameters: parseParameters(args),
             isConst: /\bconst\b/.test(suffix),
+            static: isStatic,
             virtual,
             pureVirtual,
             source,
@@ -1663,6 +1671,9 @@ function parseMethodDeclarations(body, source, baseLine = 1)
 
     return methods;
 }
+
+// The `static` specifier, read before the parameter list.
+const STATIC_SPECIFIER = /static/;
 
 function parseParameters(args)
 {

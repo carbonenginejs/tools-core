@@ -2280,6 +2280,7 @@ function deriveExpectedMethods(doc, options = {})
             target: method.target || null,
             declaredOn: method.declaredOn || null,
             interface: method.interface || null,
+            static: method.static ?? null,
             virtual: method.virtual ?? null,
             pureVirtual: method.pureVirtual ?? null,
             returnType: method.returnType || null,
@@ -3238,6 +3239,7 @@ function exportExpectedMethod(method)
         macro: method.macro || null,
         declaredOn: method.declaredOn || null,
         interface: method.interface || null,
+        static: method.static ?? null,
         virtual: method.virtual ?? null,
         pureVirtual: method.pureVirtual ?? null
     };
