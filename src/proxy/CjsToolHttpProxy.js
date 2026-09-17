@@ -2083,7 +2083,7 @@ export class CjsToolHttpProxy
         const segments = String(route.path ?? "").split("/").filter(Boolean);
         const verb = segments.length === 1 ? segments[0].toLowerCase() : null;
 
-        if (verb !== "resolve" && verb !== "search")
+        if (verb !== "resolve" && verb !== "search" && verb !== "hulls")
         {
             WriteJson(response, 404, { error: "DNA route not found" });
 
@@ -2098,6 +2098,18 @@ export class CjsToolHttpProxy
             provider: source.provider,
             build: source.build,
         };
+
+        if (verb === "hulls")
+        {
+            // The whole set, unpaged and unqueried: a browser lists every hull a
+            // source can draw and filters in the page. It is bounded by the
+            // client rather than by a limit - one entry per type with a hull,
+            // which is a thousand or so per publisher, not the tens of thousands
+            // the skin entries run to.
+            WriteJson(response, 200, { ...identity, ...await source.ListHulls() }, headers);
+
+            return;
+        }
 
         if (verb === "search")
         {

@@ -279,6 +279,77 @@ export function BuildDnaIndex(sde)
  * @returns {Object} `{ query, total, truncated, matches: [{ base, mesh, pattern,
  *                      resPathInsert, typeID, skinID, dna, exact }] }`
  */
+/**
+ * Every hull this source can draw, named.
+ *
+ * A browser needs one request answering "what can this source draw, and what is
+ * each of them called". On Tranquility that came from the skin catalogue, which
+ * is built from the skin family - and a source can have an export without it.
+ * EVE Frontier is the case: types, graphics, groups and categories, no skins.
+ *
+ * ## It does not reuse the index's hull entries, and that is deliberate
+ *
+ * Those are filtered by `published` and by category, because the search ranks
+ * what a person is likely to have meant. Applied to Frontier that leaves
+ * **eighteen** rows out of 5,472 types with a real hull: almost nothing in that
+ * client is published, and its ship groups sit in EVE-era categories. A browser
+ * showing eighteen hulls on a client full of them is not a filtered browser, it
+ * is a broken one.
+ *
+ * So the rows are every type with a hull graphic, and `published` travels as a
+ * field rather than as a gate. Which of them to show, and in what order, is the
+ * reader's question and the consumer's to answer - the server's job here is to
+ * say what exists and what it is called.
+ *
+ * The name is joined here rather than stored on an index entry: the index is a
+ * reverse map from a DNA to identity, and a name per entry would also be carried
+ * by the thousands of skin entries that have no use for one.
+ *
+ * @param {Object} index - a built DNA index, for the per-base graphics
+ * @param {Object} sde - the CjsToolSde it was built from
+ * @returns {Object} `{ total, hulls, graphics }`
+ */
+export function ListDnaHulls(index, sde)
+{
+    const hulls = [];
+    const graphics = {};
+
+    for (const type of sde.Types())
+    {
+        if (type.graphicID == null) continue;
+
+        const graphic = sde.GetGraphic(type.graphicID);
+
+        if (!graphic?.sofHullName) continue;
+
+        const base = [ graphic.sofHullName, graphic.sofFactionName, graphic.sofRaceName ]
+            .filter(Boolean).join(":").toLowerCase();
+        const shared = index.graphics?.[base];
+
+        if (shared) graphics[base] = shared;
+
+        hulls.push({
+            typeID: type._key,
+            // One field, not two. A bare hull's DNA and its base are the same
+            // string, and this answer holds nothing but bare hulls - carrying
+            // both spelled every row twice for nothing. `graphics` is keyed by
+            // it.
+            dna: base,
+            // Whatever the projection put there, which is the export's shape: an
+            // object keyed by language. Passed through rather than reduced to one
+            // string, so a caller shows the language it wants.
+            name: type.name ?? null,
+            groupID: type.groupID ?? null,
+            graphicID: type.graphicID,
+            published: Boolean(type.published)
+        });
+    }
+
+    hulls.sort((left, right) => left.dna.localeCompare(right.dna) || left.typeID - right.typeID);
+
+    return { total: hulls.length, hulls, graphics };
+}
+
 export function QueryDnaIndex(index, query, options = {})
 {
     const limit = NormalizeLimit(options.limit);

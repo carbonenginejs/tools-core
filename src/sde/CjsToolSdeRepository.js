@@ -6,7 +6,7 @@ import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import { CjsToolBuildObservations } from "../build/CjsToolBuildObservations.js";
 import { resolveDataRoot } from "../cache/resolveDataRoot.js";
 import { CjsToolSde } from "./CjsToolSde.js";
-import { BuildDnaIndex, QueryDnaIndex } from "./CjsToolSdeDnaIndex.js";
+import { BuildDnaIndex, ListDnaHulls, QueryDnaIndex } from "./CjsToolSdeDnaIndex.js";
 import { CjsToolSdeArchive, CJS_SDE_PREPARED_TABLES } from "./CjsToolSdeArchive.js";
 import { CjsToolSdeDatabase } from "./CjsToolSdeDatabase.js";
 import * as utils from "../utils.js";
@@ -561,6 +561,21 @@ export class CjsToolSdeSource
         this.#dnaIndex ??= this.#GetIdentity().then(BuildDnaIndex);
 
         return QueryDnaIndex(await this.#dnaIndex, query, options);
+    }
+
+    /**
+     * Every hull this source can draw, named.
+     *
+     * The same index the search uses, listed rather than matched: a browser
+     * wants the whole set once, not a page per query. Built off the identity
+     * view as well, because the names live on the types and the index carries
+     * identity rather than text.
+     */
+    async ListHulls()
+    {
+        this.#dnaIndex ??= this.#GetIdentity().then(BuildDnaIndex);
+
+        return ListDnaHulls(await this.#dnaIndex, await this.#GetIdentity());
     }
 
     /** Closes this source's database handle. */
