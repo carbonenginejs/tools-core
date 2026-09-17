@@ -86,6 +86,17 @@ Nothing else about the target changes. Payloads resolve against
 `remote.resBaseUrl`, content-addressed and cached, and overlays compose over
 the supplied index the same way they compose over a fetched one.
 
+Importing one is `cjs-supplied-index-import`, which reads the build from the
+client's own `start.ini` rather than taking it on trust:
+
+```sh
+cjs-supplied-index-import --target frontier --shared-cache <client shared cache>
+```
+
+The build matters more here than it looks. Resources are content-addressed, so
+an index filed under a build it did not come from still resolves - and then
+answers for files that build never had, with nothing to notice it by.
+
 **"latest" means the newest build supplied.** The publisher's metadata still
 reports whatever shipped this morning, and for these targets that is a build
 whose index nobody can read; answering with it would put a number in every URL

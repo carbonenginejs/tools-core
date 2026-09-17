@@ -50,6 +50,7 @@
     "carbon-schema": "bin/cjs-carbon-schema.js",
     "cjs-carbon-schema": "bin/cjs-carbon-schema.js",
     "cjs-sof-bundle": "bin/cjs-sof-bundle.js",
+    "cjs-supplied-index-import": "bin/cjs-supplied-index-import.js",
     "cjs-localisation-gaps": "bin/cjs-localisation-gaps.js"
   },
   "files": [
