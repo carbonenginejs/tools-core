@@ -470,18 +470,45 @@ function ResolveType(selection, sde)
     return null;
 }
 
+/**
+ * A DNA is `hull:faction:race`, and a resource path is not one.
+ *
+ * The test used to be `includes(":")`, which every `res:/...` path passes - so
+ * a graphic carrying a `graphicFile` resolved to that file instead of to its
+ * own hull. Measured at build 3503375: 8 graphics carry both a file and a
+ * complete hull/faction/race, covering 10 types, and the Jita Trade Hub is one
+ * of them. Its consumer then handed the path to the engine as a DNA, which
+ * built the `EveSOFDataHull` the file actually holds and put that data object
+ * in the scene.
+ *
+ * Three parts at least, and no scheme in front. `BuildSkinDna` already refuses
+ * anything shorter, so this is the same rule read one step earlier.
+ */
+function IsDna(value)
+{
+    const text = String(value ?? "");
+
+    if (/^[a-z0-9]+:\//iu.test(text)) return false;
+
+    return text.split(":").filter(part => part.trim()).length >= 3;
+}
+
 function BuildBaseDna(graphic)
 {
+    // `graphicFile` is NOT in this list. It is a resource path - the file the
+    // hull is authored in - and naming it here made it outrank the hull the
+    // same record carries. Nothing in the corpus carries any of the spellings
+    // below (0 of 6,069 rows at build 3503375); they are kept because a graphic
+    // that genuinely stored a DNA should still be honoured, and they now have to
+    // look like one.
     const direct = GetFirst(
         graphic,
         "sofDna",
         "sofDNA",
-        "sof_dna",
-        "graphicFile",
-        "graphic_file"
+        "sof_dna"
     );
 
-    if (direct && String(direct).includes(":"))
+    if (direct && IsDna(direct))
     {
         return String(direct).toLowerCase();
     }
