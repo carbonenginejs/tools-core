@@ -3275,8 +3275,15 @@ function writeBlackDefinitionFiles(definitions, outputRoot, readerName)
     const write = (relativePath, value, kind) =>
     {
         const file = path.join(root, relativePath);
+        const text = `${JSON.stringify(value, null, 2)}\n`;
+        // A dated definitions file is a snapshot consumers pin; a second
+        // generation on the same date must not rewrite it silently.
+        if (fs.existsSync(file) && fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n") !== text)
+        {
+            throw new Error(`${readerName} will not overwrite ${relativePath}: a different snapshot with that date already exists`);
+        }
         fs.mkdirSync(path.dirname(file), { recursive: true });
-        fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+        fs.writeFileSync(file, text, "utf8");
         files.push({ kind, path: relativePath.replace(/\\/g, "/") });
     };
 
