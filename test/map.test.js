@@ -7,6 +7,7 @@ import test from "node:test";
 import Database from "better-sqlite3";
 
 import { CjsToolSdeDatabase } from "../src/sde/index.js";
+import { BuildBaseDna, CjsToolSde } from "../src/sde/CjsToolSde.js";
 import { CjsToolMap } from "../src/map/CjsToolMap.js";
 import { BuildMapIndex } from "../src/map/CjsToolMapIndex.js";
 import {
@@ -136,7 +137,7 @@ const TABLES = Object.freeze({
         100: { _key: 100, graphicFile: "res:/dx9/model/planet.red" },
         101: { _key: 101, graphicFile: "res:/dx9/model/moon.red" },
         102: { _key: 102, graphicFile: "res:/dx9/model/belt.red" },
-        103: { _key: 103, graphicFile: "res:/dx9/model/station.red" },
+        103: { _key: 103, graphicFile: "res:/dx9/model/station.red", sofHullName: "CS3", sofFactionName: "CaldariBase", sofRaceName: "Caldari" },
         104: { _key: 104, graphicFile: "res:/dx9/model/sun.red" },
         105: { _key: 105, graphicFile: "res:/dx9/model/gate.red" },
         900: { _key: 900, graphicFile: "res:/dx9/scene/Universe/t01_cube.red" },
@@ -413,7 +414,7 @@ test("a system answers with its star, its nebula and a derived key light", async
 
     // The same shape a star answers with through /celestials/{id}, and the same
     // `.black` rewrite - one value under one name whichever route reaches it.
-    assert.equal(system.derived.star.graphics.model, "res:/dx9/model/sun.black");
+    assert.equal(system.derived.star.graphics.resFilePath, "res:/dx9/model/sun.black");
     assert.deepEqual(system.derived.star.position, [ 0, 0, 0 ]);
     assert.equal(system.derived.scene.sun.intensity, 1);
     assert.ok(system.derived.scene.sun.color);
@@ -445,7 +446,12 @@ test("a system's celestials arrive named, typed and with graphics flattened", as
 
     // `.red` in the SDE, `.black` on the wire. Emitting the SDE's own
     // string hands the consumer an address that 404s.
-    assert.equal(planet.derived.graphics.model, "res:/dx9/model/planet.black");
+    assert.equal(planet.derived.graphics.sofDna, null);
+    assert.equal(answer.celestials.station[0].derived.graphics.sofDna, "cs3:caldaribase:caldari");
+    assert.equal(answer.celestials.station[0].derived.graphics.resFilePath, "res:/dx9/model/station.black");
+    const station = await map.Celestial(60000001, { expand: "graphics" });
+    assert.deepEqual(station.derived.graphics, answer.celestials.station[0].derived.graphics);
+    assert.equal(planet.derived.graphics.resFilePath, "res:/dx9/model/planet.black");
     assert.equal(planet.derived.graphics.shaderPreset, "res:/dx9/model/worldobject/planet/preset.black");
 
     // Only the container extension is rewritten - a texture is already served
@@ -696,4 +702,15 @@ test("published names localise and composed names say what they invented", async
     assert.equal((await map.System(30000001, { language: "xx", expand: "all" })).name, "Alpha");
 
     await database.Close();
+});
+
+
+test("graphic DNA prefers explicit SOF data and leaves resource-only graphics nullable", () =>
+{
+    assert.equal(BuildBaseDna({ sofDna: "CS3:CaldariBase:Caldari", graphicFile: "res:/station.red" }), "cs3:caldaribase:caldari");
+    assert.equal(BuildBaseDna({ graphicFile: "res:/sun.red" }), null);
+    assert.equal(BuildBaseDna({ sofHullName: "cs3" }), null);
+    // The DNA-only endpoint still reports non-SOF selections as errors.
+    const sde = new CjsToolSde({ graphics: { 1: { _key: 1, graphicFile: "res:/sun.red" } } });
+    assert.throws(() => sde.ResolveGraphicDna(1), /enough SOF data/);
 });

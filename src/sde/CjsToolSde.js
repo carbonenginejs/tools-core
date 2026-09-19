@@ -273,6 +273,8 @@ export class CjsToolSde
         const graphic = RequireRecord(this.#graphics, graphicID, "graphic");
         const baseDna = BuildBaseDna(graphic);
 
+        if (!baseDna) throw new Error("Graphic record does not include enough SOF data to build DNA");
+
         if (!skinID)
         {
             return Object.freeze({
@@ -493,7 +495,8 @@ function IsDna(value)
     return text.split(":").filter(part => part.trim()).length >= 3;
 }
 
-function BuildBaseDna(graphic)
+/** Shared graphic-to-DNA join; resource-only graphics have no SOF DNA. */
+export function BuildBaseDna(graphic)
 {
     // `graphicFile` is NOT in this list. It is a resource path - the file the
     // hull is authored in - and naming it here made it outrank the hull the
@@ -519,7 +522,7 @@ function BuildBaseDna(graphic)
 
     if (!hull || !faction || !race)
     {
-        throw new Error("Graphic record does not include enough SOF data to build DNA");
+        return null;
     }
 
     return `${hull}:${faction}:${race}`.toLowerCase();

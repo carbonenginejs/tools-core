@@ -735,14 +735,17 @@ has to carry that special case.
 ### One shape for every graphic
 
 Anything with artwork carries `graphicID` as the provenance pointer and a
-`graphics` object mapping a role to a **loadable** path:
+`graphics` object containing `sofDna` and **loadable** resource paths. With
+`expand=graphics` (or `expand=all`), prefer a non-null `sofDna` over `resFilePath`.
+DNA is resolved from the same graphic fields used by `/dna/resolve`; it is
+`null` for resource-only graphics. Both are retained when available:
 
 | Entity | Roles |
 | --- | --- |
 | region / constellation / system nebula | `scene` |
-| star | `model` |
-| planet, moon | `model`, `shaderPreset`, `heightMap1`, `heightMap2` |
-| belt, station, stargate | `model` |
+| star | `sofDna`, `resFilePath` |
+| planet, moon | `sofDna`, `resFilePath`, `shaderPreset`, `heightMap1`, `heightMap2` |
+| belt, station, stargate | `sofDna`, `resFilePath` |
 
 Paths are rewritten to the form the resource route actually serves: `.red`
 becomes `.black`, and case is normalised. The SDE names the legacy `.red`

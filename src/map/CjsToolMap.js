@@ -31,6 +31,7 @@
  * why `/celestials/{id}` probes the tables by primary key instead.
  */
 
+import { BuildBaseDna } from "../sde/CjsToolSde.js";
 import { ReadDerivation } from "../sde/CjsToolSdeDerivations.js";
 import { BuildMapIndex, MAP_INDEX_TABLES } from "./CjsToolMapIndex.js";
 import { BlackbodyColor, SunIntensity } from "./CjsToolMapGeometry.js";
@@ -114,7 +115,7 @@ export const MAP_PROVENANCE = Object.freeze({
  *               celestial a name at all; the SDE has no name field for one.
  * - `transform` `orbit`, `localPosition` and a stargate's orientation - what a
  *               scene graph is built from, and the float32-safe positions.
- * - `graphics`  graphic ids resolved to loadable `.black` paths.
+ * - `graphics`  resolved SOF DNA plus loadable resource paths (DNA preferred).
  * - `scene`     a system's nebula, star and derived key light.
  *
  * `all` takes every group, and is what a renderer wants.
@@ -703,7 +704,7 @@ export class CjsToolMap
      *
      * Shaped like every other graphic in the answer: `graphicID` is the
      * provenance pointer and `graphics` maps a role to a loadable path. The
-     * nebula's role is `scene` where a celestial's is `model`, but the rule is
+     * nebula's role is `scene` where a celestial's is `resFilePath`, but the rule is
      * the same one - which it was not before, when the nebula carried a
      * verbatim `graphicFile` beside a `scenePath`, the star carried a bare
      * `graphicFile`, and celestials carried a `graphics` object. Three shapes
@@ -755,11 +756,11 @@ export class CjsToolMap
                 connectives: "en",
                 parts: { system: system.name ?? null }
             },
-            // `graphics.model`, the same shape every other celestial uses. The
+            // `graphics.resFilePath`, the same shape every other celestial uses. The
             // star reached through `/celestials/{id}` already answered that way,
             // so a bare `graphicFile` here meant one value under two names
             // depending on which route you arrived by.
-            graphics: { model: graphic },
+            graphics: graphic,
             spectralClass: statistics.spectralClass ?? null,
             temperature: statistics.temperature ?? null,
             luminosity: statistics.luminosity ?? null,
@@ -1018,7 +1019,7 @@ export class CjsToolMap
     async #CelestialGraphics(record)
     {
         const attributes = record.attributes ?? {};
-        const graphics = { model: await this.#TypeGraphic(record.typeID) };
+        const graphics = { ...await this.#TypeGraphic(record.typeID) };
 
         for (const [ key, field ] of [
             [ "shaderPreset", "shaderPreset" ],
@@ -1036,10 +1037,10 @@ export class CjsToolMap
         return graphics;
     }
 
-    /** `types.graphicID` -> `graphics.graphicFile`, cached. */
+    /** Cached type graphic resolved to SOF DNA and a resource-path fallback. */
     async #TypeGraphic(typeID)
     {
-        if (typeID == null) return null;
+        if (typeID == null) return { sofDna: null, resFilePath: null };
 
         const cacheKey = `type:${typeID}`;
 
@@ -1048,11 +1049,15 @@ export class CjsToolMap
         const row = await this.#source.Table("types").Get(String(typeID));
         const graphicID = (row?.payload ?? row)?.graphicID ?? null;
         const graphic = graphicID == null ? null : await this.#Graphic(graphicID);
-        const file = ToResourcePath(graphic?.graphicFile ?? null);
+        // Prefer DNA when both exist. Preserve the resource path for non-SOF bodies.
+        const graphics = {
+            sofDna: graphic ? BuildBaseDna(graphic) : null,
+            resFilePath: ToResourcePath(graphic?.graphicFile ?? null)
+        };
 
-        this.#graphics.set(cacheKey, file);
+        this.#graphics.set(cacheKey, graphics);
 
-        return file;
+        return graphics;
     }
 
     /** Reads and memoizes one graphics-table payload by identifier. */
