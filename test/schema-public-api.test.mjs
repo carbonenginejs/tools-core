@@ -2299,9 +2299,13 @@ test("CLI strict schema validation fails before clean removes existing output", 
 test("Black definitions expose the generated shared reader schema", async () =>
 {
     const definitions = await import("../src/schema/core/blackDefinitions.js");
-    const raw = await import("../definitions/black-schema-v1-2026-07-11.json", { with: { type: "json" } });
+    const newest = fs.readdirSync(new URL("../definitions/", import.meta.url))
+        .filter(name => /^black-schema-v\d+-\d{4}-\d{2}-\d{2}\.json$/.test(name))
+        .sort()
+        .pop();
+    const raw = await import(`../definitions/${newest}`, { with: { type: "json" } });
 
-    assert.equal(definitions.generatedAt, "2026-07-11T14:52:36.015Z");
+    assert.equal(definitions.generatedAt, raw.default.generatedAt);
     assert.equal(raw.default.schema, CjsFormatCarbon.BLACK_DEFINITIONS_SCHEMA_NAME);
     assert.equal(definitions.default, raw.default.classes);
     assert.deepEqual(definitions.default.Tr2SkinnedModel, {
