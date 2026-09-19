@@ -14,6 +14,9 @@ const HELP = `Usage:
 Options:
   --out <dir>        Write index.json, enums.json, family indexes, and class schemas.
   --black-out <dir>  Write a named Black/public-facing schema bundle.
+  --black-module <file>
+                     After --black-out, point this module's black-schema import at
+                     the newest black-schema-v*.json in the output directory.
   --clean            Remove output directories before writing. Requires --out or --black-out.
   --inspect          Print a compact schema summary.
   --strict-schema    Fail with all unresolved/ambiguous hydratable fields after applying resolutions.
@@ -23,6 +26,22 @@ Options:
   --version <n>      Schema version to emit. Only the current version is supported.
   --help, -h         Show this help.
 `;
+
+// The dated files are snapshots; consumers import one of them by name because a
+// bundle needs a literal import path. Rewriting that one name here is what makes
+// "the newest schema" automatic. Each consumer's tests fail if it drifts.
+function pointAtNewestBlackSchema(modulePath, blackOut)
+{
+    const newest = fs.readdirSync(blackOut)
+        .filter(name => /^black-schema-v\d+-\d{4}-\d{2}-\d{2}\.json$/.test(name))
+        .sort()
+        .pop();
+    if (!newest) throw new Error(`No dated black-schema file in ${blackOut}`);
+    const text = fs.readFileSync(modulePath, "utf8");
+    const pattern = /black-schema-v\d+-\d{4}-\d{2}-\d{2}\.json/;
+    if (!pattern.test(text)) throw new Error(`${modulePath} imports no dated black-schema file`);
+    fs.writeFileSync(modulePath, text.replace(pattern, newest));
+}
 
 function readArgValue(argv, index, flag)
 {
@@ -39,6 +58,7 @@ function parseArgs(argv)
     const options = {
         clean: false,
         blackOut: null,
+        blackModule: null,
         inspect: false,
         fieldResolutions: null,
         out: null,
@@ -78,6 +98,10 @@ function parseArgs(argv)
         else if (arg === "--black-out")
         {
             options.blackOut = readArgValue(argv, ++i, arg);
+        }
+        else if (arg === "--black-module")
+        {
+            options.blackModule = readArgValue(argv, ++i, arg);
         }
         else if (arg === "--version")
         {
@@ -192,6 +216,8 @@ function main()
                 label: "black definition",
                 manifest: CjsFormatCarbon.writeBlackDefinitions(source, options.blackOut, values)
             });
+
+            if (options.blackModule) pointAtNewestBlackSchema(options.blackModule, options.blackOut);
         }
 
         if (options.quiet)
