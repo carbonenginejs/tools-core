@@ -13,6 +13,36 @@ function deepFreeze(value)
 // the native cppType intact while selecting the correct declaration and/or
 // supplying the public runtime type.
 export const DEFAULT_FIELD_RESOLUTIONS = deepFreeze({
+    Tr2Effect: {
+        options: {
+            wire: {
+                beType: "IROOT", container: "list",
+                structure: {
+                    name: "Tr2ShaderOption", size: 16,
+                    members: [
+                        { name: "name", offset: 0, type: "string" },
+                        { name: "value", offset: 8, type: "string" },
+                    ],
+                },
+            },
+            reason: "The 64-bit shader option contains two shared strings, patched by Black as uint16 indices.",
+            source: "trinity/trinity/Shader/Tr2EffectDescription.h:272; trinity/trinity/Shader/Tr2Effect.cpp:110-113",
+        },
+        constParameters: {
+            wire: {
+                beType: "IROOT", container: "list",
+                structure: {
+                    name: "Tr2ConstantEffectParameter", size: 24,
+                    members: [
+                        { name: "name", offset: 0, type: "string" },
+                        { name: "value", offset: 8, type: "vector4" },
+                    ],
+                },
+            },
+            reason: "The 64-bit structure stores a shared-string index at 0 and vec4 at 8; Black patches uint16 string indices.",
+            source: "trinity/trinity/Shader/Tr2Effect.h:41-47; blue/src/BlackReader.cpp:534-596",
+        },
+    },
     EveChildQuad: {
         brightness: {
             member: "m_brightness",

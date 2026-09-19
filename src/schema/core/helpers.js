@@ -2980,6 +2980,8 @@ function projectCompactBlackField(type, field, classMap = null, enumNames = null
         index: normalizedField.indexKey !== undefined ? normalizedField.indexKey : null,
         token: normalizedField.indexToken || null,
         enum: normalizedField.enumType || null,
+        cppType: fieldType.cppType || null,
+        structure: fieldType.structure || null,
         length: fieldType.length || null
     });
 
@@ -3011,7 +3013,8 @@ function normalizeProjectedBlackField(type, field, sourceField, fieldName, enumN
         wireType: wire.wireType || field.wireType || null,
         container: wire.container || field.container || null,
         length: wire.length ?? field.length ?? null,
-        signed: wire.signed
+        signed: wire.signed,
+        structure: wire.structure || field.structure || null
     };
 }
 
@@ -3064,7 +3067,12 @@ function compactBlackFieldType(field, sourceField, fieldName)
             return { type: "object" };
         case "IROOT":
             if (field.container === "dict") return { type: "dict" };
-            if (field.container === "list" && cppType && /StructureList/.test(String(cppType))) return { type: "structList" };
+            if (field.container === "list" && cppType && /StructureList/.test(String(cppType)))
+            {
+                return field.structure
+                    ? { type: "structList", cppType, structure: field.structure }
+                    : { type: "structList" };
+            }
             if (field.container === "list" || field.container === "set") return { type: "array" };
             return compactObjectLikeType(cppType, kind);
         default:

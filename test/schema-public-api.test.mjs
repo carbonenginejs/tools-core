@@ -1432,6 +1432,16 @@ test("Black definitions flatten Carbon bases and retain empty concrete classes",
                     attributes: [ persisted("geometryResPath", "m_geometryResPath", 11) ]
                 }),
                 makeClass("EmptyConcrete"),
+                makeClass("Tr2Effect", {
+                    fields: [
+                        { name: "m_constParameters", type: "Tr2ConstantEffectParameterStructureList" },
+                        { name: "m_options", type: "Tr2ShaderOptionStructureList" }
+                    ],
+                    attributes: [
+                        persisted("constParameters", "m_constParameters", 12),
+                        persisted("options", "m_options", 13)
+                    ]
+                }),
                 makeClass("ScannerStruct", { concrete: false, exposed: false })
             ]
         } ]
@@ -1442,6 +1452,16 @@ test("Black definitions flatten Carbon bases and retain empty concrete classes",
     assert.deepEqual(classes.BaseModel, { name: "string" });
     assert.deepEqual(classes.DerivedModel, { name: "string", geometryResPath: "path" });
     assert.deepEqual(classes.EmptyConcrete, {});
+    assert.equal(classes.Tr2Effect.options.structure.size, 16);
+    assert.deepEqual(classes.Tr2Effect.options.structure.members, [
+        { name: "name", offset: 0, type: "string" },
+        { name: "value", offset: 8, type: "string" },
+    ]);
+    assert.equal(classes.Tr2Effect.constParameters.structure.size, 24);
+    assert.deepEqual(classes.Tr2Effect.constParameters.structure.members, [
+        { name: "name", offset: 0, type: "string" },
+        { name: "value", offset: 8, type: "vector4" },
+    ]);
     assert.equal(Object.hasOwn(classes, "ScannerStruct"), false);
 });
 
