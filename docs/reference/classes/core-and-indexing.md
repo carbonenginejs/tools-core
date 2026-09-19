@@ -5,6 +5,16 @@ Scope: `@carbonenginejs/tools-core` core, audio, cache, character, indexing, lib
 Audience: Users, maintainers, and automated readers
 Summary: Provides source-backed purpose descriptors for tools-core foundations and indexed resource tooling.
 
+<!-- class:CjsToolIndexSuppliedStore -->
+## `CjsToolIndexSuppliedStore`
+
+Resource indexes an operator hands us, for a client whose binaries are not public.
+
+- Export: `@carbonenginejs/tools-core/index`
+- Source: `src/indexing/CjsToolIndexSuppliedStore.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
 <!-- class:CjsToolAudio -->
 ## `CjsToolAudio`
 

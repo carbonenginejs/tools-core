@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createServer } from "node:http";
+import { once } from "node:events";
+import { gzipSync } from "node:zlib";
 
 import {
     CjsToolBoundedFetch,
@@ -72,6 +75,45 @@ test("rejects declared oversized responses before reading their body", async () 
         error => error.code === "response_too_large",
     );
     assert.equal(read, false);
+});
+
+test("bounds Fetch's decoded gzip body instead of its encoded Content-Length", async context =>
+{
+    const payload = Buffer.from("small material");
+    const encoded = gzipSync(payload);
+    assert.ok(encoded.byteLength > payload.byteLength);
+    const server = createServer((_request, response) =>
+    {
+        response.writeHead(200, {
+            "content-encoding": "gzip",
+            "content-length": encoded.byteLength,
+        });
+        response.end(encoded);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const url = `http://127.0.0.1:${server.address().port}/material`;
+
+    const response = await fetch(url);
+    assert.equal(Number(response.headers.get("content-length")), encoded.byteLength);
+    assert.deepEqual(await CjsToolBoundedFetch.readBytes(response, {
+        maxBytes: payload.byteLength,
+    }), payload);
+    await assert.rejects(CjsToolBoundedFetch.readBytes(await fetch(url), {
+        maxBytes: payload.byteLength - 1,
+    }), error => error.code === "response_too_large");
+});
+
+test("encoded JSON adapter headers do not replace decoded size enforcement", async () =>
+{
+    const response = {
+        headers: { "content-encoding": "gzip", "content-length": "22" },
+        json: async () => ({}),
+    };
+    assert.deepEqual(await CjsToolBoundedFetch.readJson(response, { maxBytes: 2 }), {});
+    await assert.rejects(CjsToolBoundedFetch.readJson(response, { maxBytes: 1 }),
+        error => error.code === "response_too_large");
 });
 
 test("cancels an undeclared streaming body as soon as its byte limit is crossed", async () =>

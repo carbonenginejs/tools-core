@@ -132,6 +132,7 @@ export class CjsToolIndexReader
         return supplied;
     }
 
+    /** Returns the supplied-index store or rejects an unconfigured target. */
     #RequireSuppliedStore(profile)
     {
         if (!this.#supplied)

@@ -372,11 +372,23 @@ export class CjsToolBoundedFetch
     }
 
     /**
-     * Parses a non-negative safe content-length header or reports that none was
-     * supplied.
+     * Parses a non-negative safe content-length header when it describes the
+     * decoded body, otherwise reports that no usable length was supplied.
      */
     static contentLength(response)
     {
+        const encoding = typeof response?.headers?.get === "function"
+            ? response.headers.get("content-encoding")
+            : response?.headers?.["content-encoding"];
+
+        // Fetch decodes content coding but retains the encoded Content-Length.
+        // Small gzip payloads can be larger on the wire than after decoding.
+        // Bound those responses by the bytes read, not the transfer header.
+        if (encoding && String(encoding).trim().toLowerCase() !== "identity")
+        {
+            return null;
+        }
+
         const source = typeof response?.headers?.get === "function"
             ? response.headers.get("content-length")
             : response?.headers?.["content-length"];

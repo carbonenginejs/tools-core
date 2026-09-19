@@ -350,6 +350,7 @@ export function ListDnaHulls(index, sde)
     return { total: hulls.length, hulls, graphics };
 }
 
+/** Queries indexed DNA records with exact matches first and a bounded result count. */
 export function QueryDnaIndex(index, query, options = {})
 {
     const limit = NormalizeLimit(options.limit);

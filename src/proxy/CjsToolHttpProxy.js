@@ -1417,6 +1417,7 @@ export class CjsToolHttpProxy
         WriteBytes(response, 200, payload.bytes, headers);
     }
 
+    /** Serves the requested resource-index catalog as JSON. */
     async #HandleIndexAnswerRoute(route, response)
     {
         if (route.path)
