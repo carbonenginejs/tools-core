@@ -71,7 +71,8 @@ export const DEFAULT_FIELD_RESOLUTIONS = deepFreeze({
     TriColor: {
         r: inheritedFloat("r", "TriColor inherits this persisted component from the native Color base.", "trinity/trinity/Include/TriColor.h"),
         g: inheritedFloat("g", "TriColor inherits this persisted component from the native Color base.", "trinity/trinity/Include/TriColor.h"),
-        b: inheritedFloat("b", "TriColor inherits this persisted component from the native Color base.", "trinity/trinity/Include/TriColor.h")
+        b: inheritedFloat("b", "TriColor inherits this persisted component from the native Color base.", "trinity/trinity/Include/TriColor.h"),
+        a: inheritedFloat("a", "TriColor inherits this persisted component from the native Color base.", "trinity/trinity/Include/TriColor.h")
     },
     TriQuaternion: {
         x: inheritedFloat("x", "TriQuaternion inherits its persisted components from the native Quaternion base.", "trinity/trinity/Include/TriQuaternion.h"),
@@ -81,7 +82,7 @@ export const DEFAULT_FIELD_RESOLUTIONS = deepFreeze({
     },
     TriMatrix: {
         ...inheritedFloatFields([
-            "_12", "_13", "_14",
+            "_11", "_12", "_13", "_14",
             "_21", "_22", "_23", "_24",
             "_31", "_32", "_33", "_34",
             "_41", "_42", "_43", "_44"
@@ -199,6 +200,7 @@ export const DEFAULT_FIELD_RESOLUTIONS = deepFreeze({
     },
     Tr2SSAO: {
         ...definedFields({
+            radius: "m_detail.settings.radius",
             shadowClamp: "m_detail.settings.shadowClamp",
             shadowMultiplier: "m_detail.settings.shadowMultiplier",
             shadowPower: "m_detail.settings.shadowPower",

@@ -796,6 +796,8 @@ function renderClassSchema(classInfo, classMap, version, enumNames, carbonRoot =
         })
         .map(attr => toAttributeSchema(classInfo, attr, reviewNotes, classMap, sourceRefs, enumNames, familyName, values))
         .filter(Boolean);
+    const rawProperties = classInfo.blue?.properties || [];
+    const properties = rawProperties.map(prop => toPropertySchema(classInfo, prop, reviewNotes, classMap));
 
     return {
         schemaVersion: version,
@@ -821,10 +823,13 @@ function renderClassSchema(classInfo, classMap, version, enumNames, carbonRoot =
                 ? { chainTo: classInfo.blue.chainTo ?? null }
                 : {})
         },
-        black: toBlackClassSchema(classInfo, attributes, version),
+        black: toBlackClassSchema(classInfo, [
+            ...attributes,
+            ...persistedPropertyAttributes(classInfo, properties, rawProperties, sourceRefs, enumNames)
+        ], version),
         fields: (classInfo.fields || []).map(field => toFieldSchema(classInfo, field)),
         attributes,
-        properties: (classInfo.blue?.properties || []).map(prop => toPropertySchema(classInfo, prop, reviewNotes, classMap)),
+        properties,
         methods: toMethodSchemas(classInfo, classMap),
         nativeMethods: toNativeMethodSchemas(classInfo),
         reviewNotes
@@ -1306,6 +1311,39 @@ function toEmbeddedProvenance(classInfo, attr, classMap)
     });
 }
 
+// MAP_PROPERTY_PERSISTED writes its getter's value to Black exactly like a
+// persisted attribute; only the member access differs. Its wire type comes
+// from the getter's return type.
+function persistedPropertyAttributes(classInfo, properties, rawProperties, sourceRefs, enumNames)
+{
+    const out = [];
+    properties.forEach((prop, index) =>
+    {
+        if (prop.macro !== "MAP_PROPERTY_PERSISTED") return;
+        const raw = rawProperties[index] || {};
+        const cppType = prop.getterReturnType || prop.cppType || null;
+        const wire = inferBlackWireType(cppType, { macro: prop.macro, flags: [] }, enumNames);
+        out.push({
+            black: compactObject({
+                persisted: true,
+                names: toNameRoleMap({ name: prop.blueName, fieldName: prop.blueName }),
+                cppType,
+                declaredOn: classInfoName(classInfo),
+                enumType: wire.wireType === "enum" ? inferBlackEnumType(cppType, enumNames) : null,
+                beType: wire.beType,
+                wireType: wire.wireType,
+                container: wire.container || null,
+                length: wire.length || null,
+                signed: wire.signed,
+                macro: prop.macro,
+                flags: [ "READWRITE", "PERSIST" ],
+                source: sourceRefs.location(raw.source, raw.line)
+            })
+        });
+    });
+    return out;
+}
+
 function toBlackClassSchema(classInfo, attributes, version)
 {
     return {
@@ -1328,6 +1366,7 @@ function toBlackClassSchema(classInfo, attributes, version)
                 container: field.container || null,
                 length: field.length || null,
                 signed: field.signed,
+                declaredBeType: field.declaredBeType || null,
                 macro: field.macro || null,
                 flags: field.flags || null,
                 source: field.source || null
@@ -1364,7 +1403,8 @@ function toBlackAttributeSchema(classInfo, attr, fieldInfo, field, reviewNotes, 
     const resolvedBlackType = blackTypeOverride ? { ...blackType, ...blackTypeOverride } : blackType;
     const enumType = resolvedBlackType.wireType === "enum"
         ? inferBlackEnumType(field ? getFieldCppType(field) : null, enumNames)
-        : null;
+        : structureChooserEnumType(attr) ||
+            ((attr.flags || []).includes("ENUM") && field ? inferBlackEnumType(getFieldCppType(field), enumNames) : null);
 
     if (!attr.name)
     {
@@ -1406,6 +1446,7 @@ function toBlackAttributeSchema(classInfo, attr, fieldInfo, field, reviewNotes, 
         container: resolvedBlackType.container || null,
         length: resolvedBlackType.length || null,
         signed: resolvedBlackType.signed,
+        declaredBeType: attr.macro === "BLUE_STRUCTURE_DEFINITION" ? attr.beType || null : null,
         macro: attr.macro,
         flags: attr.flags || [],
         source: sourceRefs.location(attr.source, attr.line)
@@ -1865,7 +1906,8 @@ function findNestedFieldInfo(classInfo, memberName, classMap, seen)
         return findFlattenedNestedFieldInfo(classInfo, memberPath, rootName, parts.join("."), null);
     }
 
-    const sourceLeaf = resolveSourceNestedField(rootType, parts.join("."), memberPath);
+    const sourceLeaf = resolveSourceNestedField(rootType, parts.join("."), memberPath) ||
+        resolveVectorComponentField(rootType, parts, memberPath);
     if (sourceLeaf) return { owner: classInfo, field: sourceLeaf };
 
     if (!classMap) return null;
@@ -1882,6 +1924,20 @@ function findNestedFieldInfo(classInfo, memberName, classMap, seen)
 
     const found = findFieldInfo(nestedType, parts.join("."), classMap, new Set(seen));
     return found || findFlattenedNestedFieldInfo(classInfo, memberPath, rootName, parts.join("."), rootType);
+}
+
+// `m_boundingSphere.w` on a Vector4 is one component: Carbon's math structs
+// (blueexposure/include/BlueVectorTypes.h:40-47) are plain scalar members.
+const VECTOR_COMPONENT_TYPES = Object.freeze({
+    Vector2: "float", Vector3: "float", Vector4: "float", Quaternion: "float", Color: "float",
+    Vector3d: "double", Vector4d: "double", Vector3i: "int"
+});
+
+function resolveVectorComponentField(rootType, parts, memberPath)
+{
+    const scalar = VECTOR_COMPONENT_TYPES[normalizeCppTypeName(rootType)];
+    if (!scalar || parts.length !== 1 || !/^[xyzwrgba]$/.test(parts[0])) return null;
+    return { name: memberPath, type: scalar };
 }
 
 function findClassMapType(classMap, typeName)
@@ -2093,6 +2149,17 @@ function hasEnumName(enumNames, name)
     return !!name && enumNames instanceof Set && enumNames.has(name);
 }
 
+// A structure-definition entry names its chooser, not its enum. Where Carbon
+// spells it <Enum>Chooser (Tr2CurveInterpolationChooser), <Enum> is the
+// namespace-wrapped enum the catalog does not record by that name. Other
+// spellings (SamplerStateChooser_AddressMode) fall back to the member type.
+function structureChooserEnumType(attr)
+{
+    if (attr.macro !== "BLUE_STRUCTURE_DEFINITION" || !attr.chooser) return null;
+    const match = /^([A-Za-z]\w*?)Chooser$/.exec(String(attr.chooser));
+    return match && !match[1].includes("_") ? match[1] : null;
+}
+
 function inferBlackEnumType(cppType, enumNames = null)
 {
     if (!cppType) return null;
@@ -2108,6 +2175,18 @@ function inferBlackEnumType(cppType, enumNames = null)
     return raw;
 }
 
+const STRUCTURE_DEFINITION_WIRE_TYPES = Object.freeze({
+    FLOAT32_1: Object.freeze({ beType: "FLOAT", wireType: "float32" }),
+    FLOAT32_3: Object.freeze({ beType: "FLOATARRAY", wireType: "floatArray", length: 3 }),
+    FLOAT32_4: Object.freeze({ beType: "FLOATARRAY", wireType: "floatArray", length: 4 }),
+    UINT32_1: Object.freeze({ beType: "ULONG", wireType: "uint32", signed: false }),
+    INT32_1: Object.freeze({ beType: "LONG", wireType: "int32", signed: true }),
+    USHORT_1: Object.freeze({ beType: "SHORT", wireType: "uint16", signed: false }),
+    UBYTE_1: Object.freeze({ beType: "BYTE", wireType: "uint8", signed: false }),
+    BOOL8_1: Object.freeze({ beType: "BOOL", wireType: "bool" }),
+    SHAREDSTRING_1: Object.freeze({ beType: "SHAREDSTRING", wireType: "stringRef" })
+});
+
 function inferBlackWireType(cppType, attr, enumNames = null)
 {
     if (attr.macro === "MAP_ATTRIBUTE_AS_CUSTOM_BINARY_BLOCK")
@@ -2116,6 +2195,22 @@ function inferBlackWireType(cppType, attr, enumNames = null)
             beType: "BINARYBLOCK",
             wireType: "binaryBlock"
         };
+    }
+
+    // A BlueStructureDefinition entry states its wire type (`{ "partTag",
+    // Be::UINT32_1, 44 }`); the C++ member type is only a guess at it.
+    // A chooser does not change the declared width: `{ "interpolation",
+    // Be::UBYTE_1, 18, Tr2CurveInterpolationChooser }` is a one-byte enum.
+    const declared = attr.macro === "BLUE_STRUCTURE_DEFINITION"
+        ? STRUCTURE_DEFINITION_WIRE_TYPES[attr.declaredBeType || attr.beType]
+        : null;
+    if (declared) return { ...declared };
+
+    // MAPFLOATARRAYSIZE( name, m_boundingSphere, iid, desc, flags, 3 ) writes
+    // the first `size` floats of the member, not the member's whole width.
+    if (attr.macro === "MAPFLOATARRAYSIZE" && attr.length > 0)
+    {
+        return { beType: "FLOATARRAY", wireType: "floatArray", length: attr.length };
     }
 
     if (!cppType) return { beType: null, wireType: null };
@@ -2206,6 +2301,7 @@ function inferBlackWireType(cppType, attr, enumNames = null)
     const enumType = inferBlackEnumType(cppType, enumNames);
     if ((attr.flags || []).includes("ENUM")) return { beType: "LONG", wireType: "enum", signed: true };
     if (enumType && hasEnumName(enumNames, enumType)) return { beType: "LONG", wireType: "enum", signed: true };
+    if (isEmbeddedBlueClassCppType(cppType)) return { beType: "IROOT", wireType: "inlineObject" };
     if (/::[A-Za-z_]\w*(?:Type|Usage|Mode|Enum)?$/.test(type)) return { beType: "LONG", wireType: "enum", signed: true };
     if (/^[A-Z]\w*(?:Type|Usage|Mode|Enum)$/.test(name)) return { beType: "LONG", wireType: "enum", signed: true };
 
@@ -2249,6 +2345,8 @@ function inferBlackContainerKind(cppType)
     const type = normalizeCppTypeName(cppType);
     if (/(?:^|::)map<|Map$/.test(type)) return "dict";
     if (/(?:^|::)set<|Set$/.test(type)) return "set";
+    // BlueDict<U> (BLUE_DECLARE_DICT, BlueTypes.h:598) writes as a dict.
+    if (/Dict$/.test(type)) return "dict";
     return "list";
 }
 
@@ -2256,16 +2354,24 @@ function isContainerLikeCppType(cppType)
 {
     const type = normalizeCppType(cppType);
     return /(?:vector|list|set|map|Vector|List|Set|Map|Deque|Array)</.test(type) ||
-        /(?:Vector|List|Set|Map|Deque|Array)$/.test(normalizeCppTypeName(cppType));
+        /(?:Vector|List|Set|Map|Dict|Deque|Array)$/.test(normalizeCppTypeName(cppType));
 }
 
+// TYPEDEF_BLUECLASS's P<Class> is RootParentLockWR<Class>: an object held BY
+// VALUE in its parent. BlueTypeTraits.h:268-294 gives it Be::IROOT, which
+// IRootWriter.cpp:108 writes embedded, not as a reference. Only a real
+// pointer (`*`, `...Ptr`, BluePtr) is Be::IROOTPTR.
 function isPointerLikeCppType(cppType)
 {
     const type = normalizeCppType(cppType);
     const name = normalizeCppTypeName(cppType);
     return /\*$/.test(type) ||
-        /Ptr$/.test(name) ||
-        /^P[A-Z]/.test(name);
+        /Ptr$/.test(name);
+}
+
+function isEmbeddedBlueClassCppType(cppType)
+{
+    return /^P[A-Z]\w*$/.test(normalizeCppTypeName(cppType));
 }
 
 function getBlackFieldName(attr, memberRoot, field)
@@ -2867,7 +2973,9 @@ function normalizeProjectedBlackField(type, field, sourceField, fieldName, enumN
     const cppType = sourceField?.cppType || field.cppType || null;
     const inferred = inferBlackWireType(cppType, {
         macro: field.macro,
-        flags: field.flags || []
+        flags: field.flags || [],
+        declaredBeType: field.declaredBeType || null,
+        length: field.macro === "MAPFLOATARRAYSIZE" ? field.length : null
     }, enumNames);
     const override = resolveBlackFieldOverride(type, fieldName);
     const wire = override ? { ...inferred, ...override } : inferred;
@@ -2877,7 +2985,7 @@ function normalizeProjectedBlackField(type, field, sourceField, fieldName, enumN
         cppType,
         enumType: wire.wireType === "enum"
             ? inferBlackEnumType(cppType, enumNames)
-            : null,
+            : (field.macro === "BLUE_STRUCTURE_DEFINITION" ? field.enumType || null : null),
         beType: wire.beType || field.beType || null,
         wireType: wire.wireType || field.wireType || null,
         container: wire.container || field.container || null,
@@ -3048,6 +3156,9 @@ function findBlackSourceField(type, blackField, classMap = null)
         if (field.cppName && memberNameSet.has(field.cppName)) score += 20;
         if (field.name && field.name === fieldName) score += 10;
         if (field.fieldName && field.fieldName === fieldName) score += 10;
+        // Without a name match the remaining points only rank unrelated
+        // members; a persisted property then took another member's type.
+        if (!score) continue;
         if (isUsefulCppType(field.cppType)) score += 4;
         if (isUsefulCppType(field.cppType) && field.cppType === blackField.cppType) score += 3;
         if (field.jsType) score += 2;

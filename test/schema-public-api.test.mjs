@@ -333,14 +333,16 @@ test("field resolutions define persisted components inherited from native math b
 {
     const cases = [
         [ "TriVector", [ "x", "y", "z" ], [] ],
-        [ "TriColor", [ "r", "g", "b" ], [] ],
+        // Color and Matrix live in blueexposure, outside the scan, so every
+        // component comes from the table; the scan no longer yields `a`/`_11`.
+        [ "TriColor", [ "r", "g", "b", "a" ], [] ],
         [ "TriQuaternion", [ "x", "y", "z", "w" ], [] ],
         [ "TriMatrix", [
             "_11", "_12", "_13", "_14",
             "_21", "_22", "_23", "_24",
             "_31", "_32", "_33", "_34",
             "_41", "_42", "_43", "_44"
-        ], [{ name: "_11", type: "float" }] ]
+        ], [] ]
     ];
 
     for (const [ name, fields, nativeFields ] of cases)
@@ -1506,6 +1508,81 @@ test("Black definitions type a class-scope struct leaf by the leaf, not as an en
     const classes = CjsFormatCarbon.readBlackDefinitions(report).classes;
 
     assert.deepEqual(classes.Tr2GpuUniqueEmitter, { minLifeTime: "float", sizes: "vector3", textureIndex: "uint" });
+});
+
+test("Black definitions follow Carbon's declared wire types over C++ guesses", () =>
+{
+    const blue = (name, attributes, properties = []) => ({
+        isExposed: true,
+        files: [ `trinity/${name}_Blue.cpp` ],
+        defines: [ { macro: "BLUE_DEFINE", name } ],
+        exposures: [ { macro: "EXPOSURE_BEGIN", name } ],
+        attributes,
+        properties,
+        methods: [],
+        interfaces: []
+    });
+    const makeClass = (name, fields, attributes, properties) => ({
+        name,
+        family: "wire",
+        headerFiles: [ `trinity/${name}.h` ],
+        cppFiles: [],
+        bases: [],
+        fields,
+        methods: [],
+        blue: blue(name, attributes, properties),
+        reviewNotes: []
+    });
+    const attr = (name, member, extra = {}) => ({
+        macro: "MAP_ATTRIBUTE",
+        name,
+        nameSource: "literal",
+        member,
+        flags: [ "READWRITE", "PERSIST" ],
+        source: "trinity/wire_Blue.cpp",
+        line: 1,
+        ...extra
+    });
+    const report = {
+        carbonRoot: "E:/carbonengine",
+        generatedAt: "2026-09-19T00:00:00.000Z",
+        enums: [],
+        families: [ {
+            name: "wire",
+            root: "trinity",
+            classes: [
+                // TYPEDEF_BLUECLASS's P<Class> is held by value: Be::IROOT, embedded.
+                makeClass("Tr2CurveColor", [
+                    { name: "m_r", type: "PTr2CurveScalar" },
+                    { name: "m_areas", type: "PTr2MaterialAreaDict" }
+                ], [ attr("r", "m_r"), attr("areas", "m_areas") ]),
+                // MAPFLOATARRAYSIZE writes `size` floats; `.w` is one component.
+                makeClass("EveEffectRoot2", [ { name: "m_boundingSphere", type: "Vector4" } ], [
+                    attr("boundingSphereCenter", "m_boundingSphere", { macro: "MAPFLOATARRAYSIZE", length: 3 }),
+                    attr("boundingSphereRadius", "m_boundingSphere.w")
+                ]),
+                // A structure definition states its Be type; a chooser keeps the width.
+                makeClass("Tr2CurveScalarKeyDef", [], [
+                    { macro: "BLUE_STRUCTURE_DEFINITION", name: "id", member: "id", flags: [ "PERSIST" ], beType: "USHORT_1", source: "trinity/Tr2CurveScalar.cpp", line: 0 },
+                    { macro: "BLUE_STRUCTURE_DEFINITION", name: "interpolation", member: "interpolation", flags: [ "PERSIST", "ENUM" ], chooser: "Tr2CurveInterpolationChooser", beType: "UBYTE_1", source: "trinity/Tr2CurveScalar.cpp", line: 0 }
+                ]),
+                // MAP_PROPERTY_PERSISTED is on the wire, typed by its getter,
+                // and never borrows another member's type.
+                makeClass("EveImpactOverlay", [ { name: "m_enabled", type: "bool" } ], [ attr("enabled", "m_enabled") ], [
+                    { macro: "MAP_PROPERTY_PERSISTED", name: "armorDamageShader", getter: "GetArmorDamageShaderEffect", setter: "SetArmorDamageShaderEffect", source: "trinity/EveImpactOverlay_Blue.cpp", line: 44 }
+                ])
+            ]
+        } ]
+    };
+    report.families[0].classes[3].methods = [ { name: "GetArmorDamageShaderEffect", returnType: "Tr2Effect*", parameters: [], kind: "declaration" } ];
+
+    const classes = CjsFormatCarbon.readBlackDefinitions(report).classes;
+
+    assert.deepEqual(classes.Tr2CurveColor, { r: "rawStruct", areas: "dict" });
+    assert.deepEqual(classes.EveEffectRoot2, { boundingSphereCenter: "vector3", boundingSphereRadius: "float" });
+    assert.deepEqual(classes.Tr2CurveScalarKeyDef, { id: "ushort", interpolation: { type: "ubyte", enum: "Tr2CurveInterpolation" } });
+    assert.equal(classes.EveImpactOverlay.enabled, "boolean");
+    assert.equal(classes.EveImpactOverlay.armorDamageShader, "object");
 });
 
 test("read resolves nested members, enum catalog values, and bannerShader overrides from scan reports", () =>
