@@ -1870,7 +1870,11 @@ function findNestedFieldInfo(classInfo, memberName, classMap, seen)
 
     if (!classMap) return null;
 
-    const nestedType = classMap.get(rootType) || classMap.crossFamilyTypes?.get(rootType);
+    // The scan reports name a class-scope struct `Outer.Inner`; the member's
+    // C++ type spells it `Outer::Inner`. Missing that turned every
+    // `m_params.leaf` into the root struct's type, which then read as an enum.
+    const nestedType = findClassMapType(classMap, rootType) ||
+        findClassMapType(classMap, rootType.replace(/::/g, "."));
     if (!nestedType)
     {
         return findFlattenedNestedFieldInfo(classInfo, memberPath, rootName, parts.join("."), rootType);
@@ -1878,6 +1882,11 @@ function findNestedFieldInfo(classInfo, memberName, classMap, seen)
 
     const found = findFieldInfo(nestedType, parts.join("."), classMap, new Set(seen));
     return found || findFlattenedNestedFieldInfo(classInfo, memberPath, rootName, parts.join("."), rootType);
+}
+
+function findClassMapType(classMap, typeName)
+{
+    return classMap.get(typeName) || classMap.crossFamilyTypes?.get(typeName) || null;
 }
 
 const SOURCE_NESTED_FIELD_OVERRIDES = Object.freeze({

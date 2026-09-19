@@ -1443,6 +1443,71 @@ test("Black definitions flatten Carbon bases and retain empty concrete classes",
     assert.equal(Object.hasOwn(classes, "ScannerStruct"), false);
 });
 
+test("Black definitions type a class-scope struct leaf by the leaf, not as an enum", () =>
+{
+    // Scan reports name the struct `Outer.Inner`; the member's C++ type says
+    // `Outer::Inner`. Tr2GpuUniqueEmitter.sizes decoded as a 4-byte enum.
+    const report = {
+        carbonRoot: "E:/carbonengine",
+        generatedAt: "2026-09-19T00:00:00.000Z",
+        enums: [],
+        families: [ {
+            name: "particle",
+            root: "trinity",
+            classes: [
+                {
+                    name: "Tr2GpuParticleSystem.EmitterParams",
+                    family: "particle",
+                    declarationKind: "struct",
+                    headerFiles: [ "trinity/Tr2GpuParticleSystem.h" ],
+                    cppFiles: [],
+                    bases: [],
+                    fields: [
+                        { name: "minLifeTime", type: "float" },
+                        { name: "sizes", type: "Vector3" },
+                        { name: "textureIndex", type: "uint32_t" }
+                    ],
+                    methods: [],
+                    blue: { isExposed: false, files: [], defines: [], exposures: [], attributes: [], properties: [], methods: [], interfaces: [] },
+                    reviewNotes: []
+                },
+                {
+                    name: "Tr2GpuUniqueEmitter",
+                    family: "particle",
+                    headerFiles: [ "trinity/Tr2GpuUniqueEmitter.h" ],
+                    cppFiles: [],
+                    bases: [],
+                    fields: [ { name: "m_params", type: "Tr2GpuParticleSystem::EmitterParams" } ],
+                    methods: [],
+                    blue: {
+                        isExposed: true,
+                        files: [ "trinity/Tr2GpuUniqueEmitter_Blue.cpp" ],
+                        defines: [ { macro: "BLUE_DEFINE", name: "Tr2GpuUniqueEmitter" } ],
+                        exposures: [ { macro: "EXPOSURE_BEGIN", name: "Tr2GpuUniqueEmitter" } ],
+                        attributes: [ "minLifeTime", "sizes", "textureIndex" ].map((name, index) => ({
+                            macro: "MAP_ATTRIBUTE",
+                            name,
+                            nameSource: "literal",
+                            member: `m_params.${name}`,
+                            flags: [ "READWRITE", "PERSIST" ],
+                            source: "trinity/Tr2GpuUniqueEmitter_Blue.cpp",
+                            line: 10 + index
+                        })),
+                        properties: [],
+                        methods: [],
+                        interfaces: []
+                    },
+                    reviewNotes: []
+                }
+            ]
+        } ]
+    };
+
+    const classes = CjsFormatCarbon.readBlackDefinitions(report).classes;
+
+    assert.deepEqual(classes.Tr2GpuUniqueEmitter, { minLifeTime: "float", sizes: "vector3", textureIndex: "uint" });
+});
+
 test("read resolves nested members, enum catalog values, and bannerShader overrides from scan reports", () =>
 {
     const report = {
