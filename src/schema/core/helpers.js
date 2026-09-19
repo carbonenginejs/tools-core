@@ -1916,7 +1916,8 @@ function findNestedFieldInfo(classInfo, memberName, classMap, seen)
     // C++ type spells it `Outer::Inner`. Missing that turned every
     // `m_params.leaf` into the root struct's type, which then read as an enum.
     const nestedType = findClassMapType(classMap, rootType) ||
-        findClassMapType(classMap, rootType.replace(/::/g, "."));
+        findClassMapType(classMap, rootType.replace(/::/g, ".")) ||
+        findUniqueNestedClassMapType(classMap, rootType);
     if (!nestedType)
     {
         return findFlattenedNestedFieldInfo(classInfo, memberPath, rootName, parts.join("."), rootType);
@@ -1945,10 +1946,30 @@ function findClassMapType(classMap, typeName)
     return classMap.get(typeName) || classMap.crossFamilyTypes?.get(typeName) || null;
 }
 
+// A member may name a class-scope struct unqualified (`FroxelFogSettings
+// m_settings;` for Tr2VolumetricsRenderer::FroxelFogSettings). Accept the scan's
+// `Outer.Name` only when exactly one class declares that name.
+function findUniqueNestedClassMapType(classMap, typeName)
+{
+    if (!typeName || /::|\./.test(typeName)) return null;
+    const suffix = `.${typeName}`;
+    const matches = new Set();
+    for (const map of [ classMap, classMap.crossFamilyTypes ].filter(Boolean))
+    {
+        for (const [ name, type ] of map) if (name.endsWith(suffix)) matches.add(type);
+    }
+    return matches.size === 1 ? [ ...matches ][0] : null;
+}
+
 const SOURCE_NESTED_FIELD_OVERRIDES = Object.freeze({
     "CcpMath::AxisAlignedBox": Object.freeze({
         m_min: Object.freeze({ type: "Vector3", defaultValue: "Vector3( 0, 0, 0 )" }),
         m_max: Object.freeze({ type: "Vector3", defaultValue: "Vector3( 0, 0, 0 )" })
+    }),
+    // math/include/Sphere.h:40-41; the math repository is outside the scan.
+    "CcpMath::Sphere": Object.freeze({
+        center: Object.freeze({ type: "Vector3", defaultValue: null }),
+        radius: Object.freeze({ type: "float", defaultValue: null })
     })
 });
 

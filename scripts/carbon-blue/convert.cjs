@@ -394,7 +394,7 @@ function scanFamily(config, carbonRoot, family, familyRoot, globalEnums)
 
     for (const file of files)
     {
-        const text = fs.readFileSync(file, "utf8");
+        const text = expandLocalClassMacros(fs.readFileSync(file, "utf8"));
         const rel = toPosix(path.relative(carbonRoot, file));
         const ext = path.extname(file).toLowerCase();
 
@@ -1100,6 +1100,114 @@ function normalizeDefaultExpression(value)
     return (value || "")
         .replace(/\s+/g, " ")
         .replace(/\s*,\s*/g, ", ")
+        .trim();
+}
+
+// Some Carbon families declare their classes through a macro defined and used
+// in the same file: SOCKET_PARAM_DECLARE / SOCKET_PARAM_EXPOSE_TO_BLUE emit
+// nine EveSocketParameter* classes, SOF_PARAM_DECLARE / SOF_PARAM_EXPOSE_TO_BLUE
+// six EveSOFDataParameter* ones. Unexpanded, the scan saw only `_className`
+// placeholders and those classes never reached the schema.
+//
+// Each invocation is replaced by its body on the invocation's own line, and
+// each #define by as many blank lines as it spanned, so every line number the
+// parsers record (and the attribute-to-exposure pairing that uses them) holds.
+function expandLocalClassMacros(text)
+{
+    const defineRe = /^[ \t]*#define[ \t]+(\w+)\(([^)]*)\)((?:[^\n]*\\\r?\n)*[^\n]*)/gm;
+    const macros = [];
+    let match;
+    while ((match = defineRe.exec(text)))
+    {
+        const body = match[3].replace(/\\(?=\r?\n)/g, "");
+        const declaresType = /\b(?:class|struct)\s+\w|\bBLUE_(?:CLASS|STRUCT|INTERFACE)\s*\(/.test(body);
+        if (!declaresType && !/\bEXPOSURE_BEGIN\b|\bBLUE_DEFINE\w*\s*\(/.test(body)) continue;
+        macros.push({
+            name: match[1],
+            params: match[2].split(",").map(param => param.trim()).filter(Boolean),
+            body,
+            declaresType,
+            start: match.index,
+            end: match.index + match[0].length
+        });
+    }
+    if (!macros.length) return text;
+
+    let out = "";
+    let cursor = 0;
+    for (const macro of macros)
+    {
+        out += text.slice(cursor, macro.start);
+        out += "\n".repeat((text.slice(macro.start, macro.end).match(/\n/g) || []).length);
+        cursor = macro.end;
+    }
+    out += text.slice(cursor);
+
+    // A header parser reads a class body across lines, so a class-declaring
+    // macro keeps its line breaks and is appended after the file; the call
+    // site is emptied. File-scope invocations only, which is where Carbon
+    // uses them. Blue exposure bodies stay on the call line.
+    const appended = [];
+    for (const macro of macros)
+    {
+        const callRe = new RegExp(`^([ \\t]*)${macro.name}[ \\t]*\\(`, "gm");
+        let expanded = "";
+        let position = 0;
+        let call;
+        while ((call = callRe.exec(out)))
+        {
+            const open = call.index + call[0].length - 1;
+            const close = findClosingParen(out, open);
+            if (close < 0) break;
+            const args = splitTopLevelArgs(out.slice(open + 1, close)).map(arg => arg.trim());
+            const body = substituteMacroBody(macro, args);
+            if (macro.declaresType)
+            {
+                appended.push(body);
+                expanded += out.slice(position, call.index) + call[1] +
+                    "\n".repeat((out.slice(call.index, close).match(/\n/g) || []).length);
+            }
+            else
+            {
+                expanded += out.slice(position, call.index) + call[1] + body.replace(/[ \t\r\n]+/g, " ");
+            }
+            position = close + 1;
+            callRe.lastIndex = position;
+        }
+        out = expanded + out.slice(position);
+    }
+    return appended.length ? `${out}\n${appended.join(";\n")};\n` : out;
+}
+
+function findClosingParen(text, open)
+{
+    let depth = 0;
+    let quote = null;
+    for (let index = open; index < text.length; index++)
+    {
+        const char = text[index];
+        if (quote)
+        {
+            if (char === "\\") index++;
+            else if (char === quote) quote = null;
+            continue;
+        }
+        if (char === "\"" || char === "'") quote = char;
+        else if (char === "(") depth++;
+        else if (char === ")" && --depth === 0) return index;
+    }
+    return -1;
+}
+
+function substituteMacroBody(macro, args)
+{
+    const value = name => args[macro.params.indexOf(name)] ?? "";
+    const names = macro.params.map(name => name.replace(/[$^*+?.()|[\]{}\\]/g, "\\$&")).join("|");
+    if (!names) return macro.body.trim();
+    return macro.body
+        .replace(new RegExp(`#(?!#)\\s*\\b(${names})\\b`, "g"), (_, name) => JSON.stringify(value(name)))
+        .replace(new RegExp(`\\b(${names})\\b`, "g"), (_, name) => value(name))
+        .replace(/[ \t]*##[ \t]*/g, "")
         .trim();
 }
 
@@ -3718,6 +3826,7 @@ module.exports = {
     DEFAULT_CONFIG,
     DEFAULT_CLASS_REPORT,
     __test: {
+        expandLocalClassMacros,
         parseHeaderFile,
         parseBlueFile,
         resolveAttributeFieldInfo
