@@ -1,6 +1,6 @@
 {
   "name": "@carbonenginejs/tools-core",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Node toolchain for CarbonEngineJS acquisition, generated libraries, caches, graph output, and optional HTTP service hosting.",
   "type": "module",
   "main": "src/index.js",
@@ -96,7 +96,7 @@
     "schema:check": "node scripts/schema-check/check.js"
   },
   "dependencies": {
-    "@carbonenginejs/runtime": "^0.1.0-alpha.1",
+    "@carbonenginejs/runtime": "^0.1.0-alpha.4",
     "better-sqlite3": "^11.10.0",
     "unzipper": "^0.12.5"
   },
