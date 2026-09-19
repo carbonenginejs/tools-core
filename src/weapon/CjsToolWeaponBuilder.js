@@ -21,6 +21,9 @@ const WEAPON_BRANCH_IDS = Object.freeze([
     3726, // Breacher Pod Launchers
 ]);
 const LAUNCHER_BRANCH_IDS = new Set([ 140, 1014, 3726 ]);
+// Frontier build 3512930 Module groups, including visually mounted extractors.
+// Market membership is optional for these authored types.
+const FRONTIER_WEAPON_GROUP_IDS = new Set([ 55, 56, 1986, 4805, 4806, 4767 ]);
 const SPECIAL_BRANCH_SLOTS = Object.freeze({
     1014: "bombs",
     2431: "atomics",
@@ -48,6 +51,7 @@ export class CjsToolWeaponBuilder
     static build(options = {})
     {
         const tables = options.tables ?? options;
+        const frontier = options.sourceTarget === "frontier";
         const types = TableMap(tables.types, "types");
         const graphics = TableMap(tables.graphics, "graphics");
         const groups = TableMap(tables.groups, "groups");
@@ -69,10 +73,16 @@ export class CjsToolWeaponBuilder
         for (const [ typeID, type ] of types)
         {
             if (type.published !== true
-                || !weaponMarketGroupIDs.has(NormalizeOptionalId(type.marketGroupID)))
+                || (frontier
+                    ? !FRONTIER_WEAPON_GROUP_IDS.has(NormalizeOptionalId(type.groupID))
+                        || groups.get(Number(type.groupID))?.categoryID !== 7
+                    : !weaponMarketGroupIDs.has(NormalizeOptionalId(type.marketGroupID))))
             {
                 continue;
             }
+
+            // This is a visual catalog: modules without an authored model cannot mount.
+            if (frontier && NormalizeOptionalId(type.graphicID) === null) continue;
 
             const dogma = DogmaAttributes(typeDogma.get(typeID));
             const chargeGroupIDs = AttributeIds(dogma, CHARGE_GROUP_ATTRIBUTE_IDS);
@@ -88,11 +98,11 @@ export class CjsToolWeaponBuilder
                 graphic.graphicFile,
                 `weapon graphic ${graphicID}`,
             );
-            const marketGroupID = NormalizeId(
+            const marketGroupID = (frontier ? NormalizeOptionalId : NormalizeId)(
                 type.marketGroupID,
                 `weapon type ${typeID} market group`,
             );
-            const branchID = weaponBranches[marketGroupID];
+            const branchID = frontier ? undefined : weaponBranches[marketGroupID];
             const kind = LAUNCHER_BRANCH_IDS.has(branchID) ? "launcher" : "turret";
             const chargeSize = NormalizeOptionalId(dogma.get(CHARGE_SIZE_ATTRIBUTE_ID));
             const groupID = NormalizeId(type.groupID, `weapon type ${typeID} group`);
@@ -103,7 +113,7 @@ export class CjsToolWeaponBuilder
                 typeID,
                 name: NormalizeName(type.name ?? type.typeName),
                 groupID,
-                marketGroupID,
+                ...(marketGroupID === null ? {} : { marketGroupID }),
                 graphicID,
                 graphicFile,
                 resPath: ToBlackPath(graphicFile),
@@ -161,7 +171,8 @@ export class CjsToolWeaponBuilder
 
         BuildCompatibility(weaponTypes, ammunition);
 
-        const projectiles = BuildProjectileGraphics(graphics);
+        // The folder-based missile/impact join is qualified only for EVE.
+        const projectiles = frontier ? {} : BuildProjectileGraphics(graphics);
 
         AttachProjectileGraphics(ammunition, projectiles, groups);
 
@@ -387,6 +398,7 @@ function BuildMarketGroups(marketGroups, weaponTypes)
 
     for (const weapon of Object.values(weaponTypes))
     {
+        if (weapon.marketGroupID === undefined) continue;
         AddMarketAncestors(
             selected,
             marketGroups,
@@ -411,6 +423,7 @@ function BuildMarketGroups(marketGroups, weaponTypes)
 
     for (const weapon of Object.values(weaponTypes))
     {
+        if (weapon.marketGroupID === undefined) continue;
         result[weapon.marketGroupID].weaponTypeIDs.push(weapon.typeID);
     }
 

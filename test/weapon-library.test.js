@@ -103,6 +103,28 @@ function BuildOptions()
     };
 }
 
+test("Frontier selects authored module groups without requiring market membership", () =>
+{
+    const tables = structuredClone(Tables);
+    tables.groups[55] = { categoryID: 7, name: { en: "Projectile Weapon" } };
+    tables.groups[4767] = { categoryID: 7, name: { en: "Extractor" } };
+    tables.types[100].groupID = 55;
+    delete tables.types[100].marketGroupID;
+    tables.types[102] = { ...tables.types[100], _key: 102, groupID: 4767, name: { en: "Cutting Laser" } };
+    tables.typeDogma[102] = { ...tables.typeDogma[100], _key: 102 };
+    tables.types[103] = { ...tables.types[100], _key: 103, graphicID: undefined };
+    tables.types[104] = { ...tables.types[100], _key: 104, groupID: 509 };
+    const library = CjsToolWeapon.build({
+        ...BuildOptions(), tables, sourceTarget: "frontier", sourceGame: "Frontier",
+    });
+    assert.deepEqual(Object.keys(library.types), [ "100", "102" ]);
+    assert.equal(library.types[100].marketGroupID, undefined);
+    assert.deepEqual(library.types[100].compatibleSlots, [ "turrets" ]);
+    assert.deepEqual(library.names["cutting laser"], [ { kind: "weapon", typeID: 102 } ]);
+    assert.deepEqual(library.types[102].ammunitionTypeIDs, [ 200, 201 ]);
+    assert.equal(library.sourceTarget, "frontier");
+});
+
 test("builds weapon TypeID, graphics, and exact dogma ammunition joins", () =>
 {
     const library = CjsToolWeapon.build(BuildOptions());

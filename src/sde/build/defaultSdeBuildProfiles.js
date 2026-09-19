@@ -61,9 +61,9 @@ import { BuildTypeExtras } from "./buildTypeExtras.js";
  *
  * Frontier has no published export, so there is no oracle and no coverage
  * target to measure against - the list is what the client stores in a layout
- * this package has pinned, which is the four tables an identity join needs:
+ * this package has pinned, including the four tables an identity join needs:
  * a type, the group and category it belongs to, and the graphic that carries
- * its SOF hull.
+ * its SOF hull, plus market groups and dogma for the weapon catalog.
  *
  * Its `types` and `graphicids` are **not** Tranquility's layout, so they take
  * the Frontier readers. `groups` and `categories` are: both files carry the
@@ -71,6 +71,12 @@ import { BuildTypeExtras } from "./buildTypeExtras.js";
  * is measured rather than assumed.
  */
 const CJS_TOOL_SDE_FRONTIER_SOURCES = Object.freeze([
+    Object.freeze({
+        table: "icons",
+        path: "res:/staticdata/iconids.fsdbinary",
+        container: "fsdbinary",
+        required: true,
+    }),
     Object.freeze({
         table: "types",
         path: "res:/staticdata/types.fsdbinary",
@@ -95,6 +101,18 @@ const CJS_TOOL_SDE_FRONTIER_SOURCES = Object.freeze([
         container: "fsdbinary",
         required: true,
     }),
+    Object.freeze({
+        table: "marketGroups",
+        path: "res:/staticdata/marketgroups.fsdbinary",
+        container: "fsdbinary",
+        required: true,
+    }),
+    Object.freeze({
+        table: "typeDogma",
+        path: "res:/staticdata/typedogma.fsdbinary",
+        container: "fsdbinary",
+        required: true,
+    }),
 ]);
 
 /**
@@ -116,10 +134,14 @@ function CreateFrontierProfile()
         provider: "ccp",
         sources: Object.freeze(CJS_TOOL_SDE_FRONTIER_SOURCES.map(source => Object.freeze({ ...source }))),
         readers: Object.freeze({
+            icons: new CjsFsd64SchemaIcons(),
             types: new CjsFsd64SchemaFrontierTypes(),
             graphics: new CjsFsd64SchemaFrontierGraphicIds(),
             categories: new CjsFsd64SchemaCategories(),
             groups: new CjsFsd64SchemaGroups(),
+            // Build 3512930 carries the same schema identities as these readers.
+            marketGroups: new CjsFsd64SchemaMarketGroups(),
+            typeDogma: new CjsFsd64SchemaTypeDogma(),
         }),
         projections: Object.freeze({ ...CJS_TOOL_SDE_TABLE_PROJECTIONS }),
         projectors: Object.freeze({

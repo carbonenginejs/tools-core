@@ -83,6 +83,7 @@ async function Main(argv)
         const source = await repository.OpenTarget(options.target, options.build);
         const library = await CjsToolWeapon.buildFromSource(source);
         const artifacts = await cache.WriteCustomLibrary({
+            target: source.target,
             game: source.game,
             provider: source.provider,
             build: source.build,

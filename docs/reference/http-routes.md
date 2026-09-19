@@ -1267,6 +1267,13 @@ GET /eve/<sde-build>/weapons/projectiles[/<graphicID>]
 GET /eve/<sde-build>/weapons/groups[/<groupID>]
 ```
 
+The same routes support `/frontier/<sde-build>/weapons`. Frontier uses its
+own generated SDE and authored Module groups, including extractors and types
+without market membership. Only entries with models appear in this visual
+catalog. `projectiles` is empty until Frontier projectile associations are
+qualified; ammunition compatibility remains available. These records describe
+visual mounting, not complete in-game fitting restrictions.
+
 Ammunition compatibility comes from dogma charge groups and size, not filename
 or market-name guessing. Weapon records expose `slot` as the weapon's natural
 collection (`turrets`, `xlTurrets`, `launchers`, `bombs`, `atomics`, or

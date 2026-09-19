@@ -18,10 +18,18 @@ Current support is:
 | Audio | Supported | Supported | Not audited |
 | Character | Supported | Not audited | Not audited |
 | SKIN/SKINR | Supported | Not audited | Not audited |
-| Weapons | Supported | Not audited | Not audited |
+| Weapons | Supported | Visual turret catalog | Supported |
 | Official JSONL SDE | Supported | Not applicable | Not audited |
 
 ## Commands
+
+Frontier's client-generated SDE includes `marketGroups` and `typeDogma`.
+Build it with `cjs-sde-build --target frontier --build <exact-build> --out <database>`
+and place the database under that target/build's SDE cache before running
+`build:weapons -- --target frontier --build <exact-build>`. Its visual catalog
+selects published weapon/extractor Module groups with authored graphics;
+market membership is optional. Projectile graphics and complete game fitting
+restrictions are not inferred from EVE.
 
 ```powershell
 npm run prepare:sde -- --cache <cache> [--build <exact-build>]

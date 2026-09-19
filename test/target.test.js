@@ -22,8 +22,8 @@ test("maps short public targets to internal source identities", () =>
     assert.equal(frontier.game, "Frontier");
     assert.equal(frontier.provider, "ccp");
     assert.equal(frontier.client, "stillness");
-    assert.deepEqual(frontier.libraries, [ "audio", "shader" ]);
-    assert.deepEqual(frontier.topics, [ "app", "res", "sde", "types" ]);
+    assert.deepEqual(frontier.libraries, [ "audio", "shader", "weapons" ]);
+    assert.deepEqual(frontier.topics, [ "app", "icons", "res", "sde", "types", "weapons" ]);
     // Two Chinese targets share provider metadata but each names one client.
     // The single `netease` target they replace named none, so `latest` on it
     // resolved to whichever of two different games had the higher build.

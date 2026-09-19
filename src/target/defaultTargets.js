@@ -12,14 +12,14 @@ export const DefaultTargetData = Object.freeze([
         game: "Frontier",
         provider: "ccp",
         client: "stillness",
-        libraries: Object.freeze([ "audio", "shader" ]),
+        libraries: Object.freeze([ "audio", "shader", "weapons" ]),
         // `sde` and `types` are here because Frontier now has an SDE of its
-        // own - four tables, built from the client's static data by the build
+        // own - seven tables, built from the client's static data by the build
         // profile of the same name. The topics this target still does not
-        // claim are the ones no table backs: `icons`, `map`, and the skin
+        // claim are the ones no table backs: `map` and the skin
         // family. Frontier's SKINR data is a different shape and its map
         // containers have not been read.
-        topics: Object.freeze([ "app", "res", "sde", "types" ]),
+        topics: Object.freeze([ "app", "res", "sde", "icons", "types", "weapons" ]),
     }),
     // Serenity and Infinity are separate targets rather than the single entry
     // that used to stand in for both. That entry named neither, and because it
