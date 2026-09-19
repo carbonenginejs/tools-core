@@ -117,6 +117,10 @@ export class CjsToolWeaponBuilder
                 graphicID,
                 graphicFile,
                 resPath: ToBlackPath(graphicFile),
+                // The graphic's own SOF faction: what Carbon's
+                // EveSOF::SetupTurretMaterialFromFaction paints the turret with.
+                ...OptionalTextField("sofFactionName", graphic.sofFactionName),
+                ...OptionalTextField("sofRaceName", graphic.sofRaceName),
                 kind,
                 slot,
                 compatibleSlots: WeaponCompatibleSlots(slot, size),
@@ -733,6 +737,14 @@ function OptionalIdField(name, value)
     const id = NormalizeOptionalId(value);
 
     return id === null ? {} : { [name]: id };
+}
+
+/** Returns one optional non-empty text field without inventing a default. */
+function OptionalTextField(name, value)
+{
+    const text = typeof value === "string" ? value.trim() : "";
+
+    return text ? { [name]: text } : {};
 }
 
 /** Returns one optional finite numeric field without inventing a default. */

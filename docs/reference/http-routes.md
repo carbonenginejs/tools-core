@@ -1283,7 +1283,10 @@ collection (`turrets`, `xlTurrets`, `launchers`, `bombs`, `atomics`, or
 `chains`). `compatibleSlots` retains that collection first and additionally
 names `xlTurrets` for any XL weapon; launcher size is normalized from its SDE
 group when the type omits dogma `chargeSize`. Records also retain `iconID`,
-meta/tech fields, and the explicit `published` state.
+meta/tech fields, and the explicit `published` state. When the weapon's SDE
+graphic names them, `sofFactionName` and `sofRaceName` carry that graphic's own
+SOF faction and race: the faction a turret is painted with (Carbon's
+`SetupTurretMaterialFromFaction`). A graphic without them omits both fields.
 
 Projectile graphics remain a separate official launcher catalog. Each
 ammunition record names its `projectileGraphicID` when its authored impact

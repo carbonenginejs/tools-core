@@ -25,6 +25,8 @@ const Tables = Object.freeze({
         1000: {
             _key: 1000,
             graphicFile: "res:/dx9/model/Turret/Launcher/Light/Light_T1.red",
+            sofFactionName: "caldaribase",
+            sofRaceName: "caldari",
         },
         2000: {
             _key: 2000,
@@ -135,6 +137,8 @@ test("builds weapon TypeID, graphics, and exact dogma ammunition joins", () =>
     assert.equal(weapon.graphicID, 1000);
     assert.equal(weapon.graphicFile.endsWith("Light_T1.red"), true);
     assert.equal(weapon.resPath, "res:/dx9/model/turret/launcher/light/light_t1.black");
+    assert.equal(weapon.sofFactionName, "caldaribase");
+    assert.equal(weapon.sofRaceName, "caldari");
     assert.equal(weapon.kind, "launcher");
     assert.equal(weapon.slot, "launchers");
     assert.equal(weapon.size, 1);
@@ -391,4 +395,15 @@ test("serves whole weapon library and exact compatibility routes", async context
     assert.equal((await fetch(`${root}/types/100/ammunition/999`)).status, 404);
     assert.equal((await fetch(`${root}/types/999`)).status, 404);
     assert.equal((await fetch(`${root}/market-groups/640`)).status, 404);
+});
+
+test("a weapon graphic without SOF names gets no SOF fields", () =>
+{
+    const tables = structuredClone(Tables);
+    delete tables.graphics[1000].sofFactionName;
+    tables.graphics[1000].sofRaceName = "  ";
+    const weapon = CjsToolWeapon.build({ ...BuildOptions(), tables }).types[100];
+
+    assert.equal(Object.hasOwn(weapon, "sofFactionName"), false);
+    assert.equal(Object.hasOwn(weapon, "sofRaceName"), false);
 });
