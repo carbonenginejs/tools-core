@@ -924,9 +924,37 @@ export class CjsToolHttpProxy
                 // first would send callers to a 404 on a cold cache.
                 if (this.addressedRedirects && address && format === null && !refresh)
                 {
+                    // Sent to the COMPRESSED address only when the caller said it
+                    // reads gzip.
+                    //
+                    // This URL is the one with no warning in its name: it ends
+                    // `.dds` or `.black`, and a caller following the redirect
+                    // never typed `.gz`. A browser is safe to send there because
+                    // `Accept-Encoding` is a forbidden header name - the browser
+                    // always sends it and page code cannot suppress it - so it
+                    // will decode what it receives. `curl` without --compressed
+                    // and python's urlopen send nothing, and keep landing on the
+                    // raw address exactly as they do today.
+                    //
+                    // `?gzip=false` is the escape hatch for the awkward middle:
+                    // something that advertises gzip because a library set the
+                    // header for it, but wants the payload raw.
+                    const declined = url.searchParams.get("gzip") === "false";
+                    const reads = /(^|,)\s*(gzip|\*)\s*(;|,|$)/iu
+                        .test(String(request.headers["accept-encoding"] ?? ""));
+
                     WriteEmpty(response, 302, {
                         ...headers,
-                        location: `/resfiles/${address}`,
+                        // WITHOUT THIS THE GATE IS UNSOUND behind a cache. This
+                        // redirect is already cached - the live site answers
+                        // `cf-cache-status: HIT` on it - so a response that now
+                        // depends on a request header has to say which one, or
+                        // the first variant stored is replayed to everyone: a
+                        // browser served the raw address loses compression
+                        // silently, and a script served the `.gz` address gets
+                        // bytes it cannot read.
+                        vary: "accept-encoding",
+                        location: `/resfiles/${address}${reads && !declined ? ".gz" : ""}`,
                     });
 
                     return;
