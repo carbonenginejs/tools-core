@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { CjsToolIndexReader } from "./CjsToolIndexReader.js";
 import { CjsToolIndexTargetProfileRegistry } from "./CjsToolIndexTargetProfileRegistry.js";
 import { CjsToolIndexOverlaySource } from "./CjsToolIndexOverlaySource.js";
@@ -348,10 +350,10 @@ export class CjsToolIndex
         {
             try
             {
-                return Object.freeze({
+                return {
                     bytes: await this.#overlays.ReadStoredPayload(location),
                     store: "overlay",
-                });
+                    };
             }
             catch (error)
             {
@@ -366,9 +368,129 @@ export class CjsToolIndex
             ? await this.#cache.ReadPayload(null, "res", location)
             : null;
 
-        return cached?.bytes
-            ? Object.freeze({ bytes: cached.bytes, store: "cache" })
+        if (cached?.bytes) return { bytes: cached.bytes, store: "cache" };
+
+        // The compressed copy answers for the raw one, because migration REMOVES
+        // the raw file. A caller asking by the plain address asked for the
+        // payload, not for a representation of it, so it is decompressed here
+        // rather than refused - which is what keeps every existing url working
+        // through and after the migration.
+        const encoded = this.#cache
+            ? await this.#cache.ReadPayload(null, "res", `${location}.gz`)
             : null;
+
+        return encoded?.bytes
+            ? { bytes: gunzipSync(Buffer.from(encoded.bytes)), store: "cache" }
+            : null;
+    }
+
+    /**
+     * Reads one payload by address, GZIPPED, migrating the store as it goes.
+     *
+     * The compressed copy is what the store keeps, so the bytes that leave at
+     * request time are READ rather than made - a 176MB space object factory is
+     * never gzipped per request.
+     *
+     * ## Migrating an existing store
+     *
+     * An installed cache is full of raw payloads, and re-downloading them to
+     * change their representation would be absurd: the bytes are already here
+     * and already proven. So the first ask compresses in place - gzip, CONFIRM
+     * the result decompresses to exactly what went in, write the compressed
+     * copy, and only then remove the raw one.
+     *
+     * The order is the whole safety argument. Nothing is deleted until its
+     * replacement is written and has been read back as correct, so an
+     * interruption leaves either the raw file or both, and both is
+     * self-correcting on the next ask. It never leaves neither.
+     *
+     * ## The durable store is not migrated
+     *
+     * Overlay payloads are mirrored operator data, not a cache this service is
+     * free to rewrite, so they are compressed for transfer and left as they are
+     * on disk. `.cache/tool-core` is deletable by design; the overlay root is
+     * not.
+     *
+     * @param {String} address
+     * @returns {Promise<Object|null>} gzipped bytes, or null when nothing holds it
+     */
+    async ReadCompressedPayloadByAddress(address)
+    {
+        const location = String(address ?? "").trim().toLowerCase();
+
+        if (!/^[a-f0-9]{2}\/[a-f0-9]{16}_[a-f0-9]{32}(?:\.[a-z0-9._-]+)?$/u.test(location))
+        {
+            throw new TypeError(`Invalid payload address: ${address}`);
+        }
+
+        const stored = this.#cache
+            ? await this.#cache.ReadPayload(null, "res", `${location}.gz`)
+            : null;
+
+        if (stored?.bytes)
+        {
+            return { bytes: stored.bytes, store: "cache", encoded: true };
+        }
+
+        if (this.#overlays)
+        {
+            try
+            {
+                const bytes = await this.#overlays.ReadStoredPayload(location);
+
+                return {
+                    bytes: gzipSync(Buffer.from(bytes), { level: 1 }),
+                    store: "overlay",
+                    encoded: true,
+                    };
+            }
+            catch (error)
+            {
+                if (error?.code !== "ENOENT")
+                {
+                    throw error;
+                }
+            }
+        }
+
+        const raw = this.#cache
+            ? await this.#cache.ReadPayload(null, "res", location)
+            : null;
+
+        if (!raw?.bytes) return null;
+
+        const source = Buffer.from(raw.bytes);
+        // Level 1 deliberately: measured on the real corpus (2026-09-20) a hull
+        // reaches 17-48% and the whole space object factory 42%, and the levels
+        // above spend seconds of cpu for a few more percent of a transfer.
+        const compressed = gzipSync(source, { level: 1 });
+
+        // Confirmed before anything is removed. A compressor that silently
+        // produced something else would otherwise be found by the reader that
+        // could no longer load a ship, long after the original was gone.
+        if (!gunzipSync(compressed).equals(source))
+        {
+            throw new Error(`Compressed payload does not decompress to its source: ${location}`);
+        }
+
+        await this.#cache.WritePayload(null, "res", `${location}.gz`, compressed);
+
+        try
+        {
+            await fs.unlink(this.#cache.GetPayloadPath(null, "res", location));
+        }
+        catch (error)
+        {
+            // Already gone, or held open by another reader on Windows. The
+            // compressed copy is written and answers from here on, so a raw file
+            // that outlives it is wasted disk rather than a wrong answer.
+            if (error?.code !== "ENOENT" && error?.code !== "EBUSY" && error?.code !== "EPERM")
+            {
+                throw error;
+            }
+        }
+
+        return { bytes: compressed, store: "cache", encoded: true };
     }
 
     /** Reads the complete target/build app/res index graph. */

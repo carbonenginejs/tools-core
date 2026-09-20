@@ -1,6 +1,5 @@
 import fs from "node:fs/promises";
 import http from "node:http";
-import { gzipSync } from "node:zlib";
 
 import { ESI_COMPATIBILITY_DATE } from "../auth/CjsToolEsiCompatibilityDate.js";
 import { CjsToolEveSso } from "../auth/CjsToolEveSso.js";
@@ -1402,8 +1401,12 @@ export class CjsToolHttpProxy
         const suffixed = asked.toLowerCase().endsWith(".gz");
         const base = suffixed ? asked.slice(0, -3) : asked;
 
-        let payload = suffixed ? await this.indexes.ReadPayloadByAddress(base) : null;
-        let encode = Boolean(payload);
+        const canCompress = typeof this.indexes.ReadCompressedPayloadByAddress === "function";
+
+        let payload = suffixed && canCompress
+            ? await this.indexes.ReadCompressedPayloadByAddress(base)
+            : null;
+        let encode = Boolean(payload?.encoded);
 
         if (!payload)
         {
@@ -1420,11 +1423,9 @@ export class CjsToolHttpProxy
             return;
         }
 
-        // Compressed here only while the store still holds raw bytes. Acquisition
-        // compresses once, on the way in, and this becomes a pass-through - which
-        // is the whole point, because gzipping a 176MB payload per request would
-        // cost more than the download it saves.
-        const body = encode ? GzipForTransfer(base, payload.bytes) : payload.bytes;
+        // Already compressed by the store, which migrates a raw payload the
+        // first time one is asked for. Nothing is compressed at request time.
+        const body = payload.bytes;
 
         const headers = {
             "cache-control": "public, max-age=31536000, immutable",
@@ -3696,49 +3697,6 @@ function ContentAddressOf(resolution)
     return /^[a-f0-9]{2}\/[a-f0-9]{16}_[a-f0-9]{32}(?:\.[a-z0-9._-]+)?$/u.test(location)
         ? location
         : null;
-}
-
-/**
- * Transfer-compressed payloads, while the store still holds raw bytes.
- *
- * Bounded by BYTES rather than by entries, because the payloads this serves
- * differ by five orders of magnitude - a 260 byte texture and a 176MB space
- * object factory are both one entry, and a count that is comfortable for the
- * first is ruinous for the second.
- *
- * Nothing is evicted cleverly: when the budget is spent the whole map is
- * dropped. A smarter policy would be guessing at a working set this has no way
- * to observe, and the cost of a miss is one compression, not a download.
- *
- * Temporary. Once acquisition stores compressed bytes there is nothing to
- * compress at request time and this goes with it.
- */
-const TRANSFER_GZIP_BUDGET = 64 * 1024 * 1024;
-const transferGzip = new Map();
-let transferGzipBytes = 0;
-
-function GzipForTransfer(address, bytes)
-{
-    const held = transferGzip.get(address);
-
-    if (held) return held;
-
-    // `level: 1` on purpose. Measured on the real corpus (2026-09-20): a hull
-    // goes to 17-44% of its size and the whole space object factory to 42%, and
-    // the levels above cost seconds of cpu for a few more percent. What is being
-    // bought here is transfer, and the first level buys nearly all of it.
-    const encoded = gzipSync(bytes, { level: 1 });
-
-    if (transferGzipBytes + encoded.byteLength > TRANSFER_GZIP_BUDGET)
-    {
-        transferGzip.clear();
-        transferGzipBytes = 0;
-    }
-
-    transferGzip.set(address, encoded);
-    transferGzipBytes += encoded.byteLength;
-
-    return encoded;
 }
 
 function MatchAddressedPayloadRoute(pathname)
