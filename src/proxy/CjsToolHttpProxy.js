@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import http from "node:http";
+import { gzipSync } from "node:zlib";
 
 import { ESI_COMPATIBILITY_DATE } from "../auth/CjsToolEsiCompatibilityDate.js";
 import { CjsToolEveSso } from "../auth/CjsToolEveSso.js";
@@ -1379,7 +1380,36 @@ export class CjsToolHttpProxy
             return;
         }
 
-        const payload = await this.indexes.ReadPayloadByAddress(route.address);
+        // `<address>.gz` is the SAME payload, transfer-compressed.
+        //
+        // It exists because a cdn in front of this service decides what it may
+        // cache from the URL: measured on the live site (2026-09-20), every
+        // `/resfiles/<hash>` answered `cf-cache-status: DYNAMIC` - never cached,
+        // at any size - while `.css`, `.otf` and `.mp3` were cached from the
+        // same origin with the same `application/octet-stream` type. The
+        // extension is what is consulted, so the suffix is how a content address
+        // becomes cacheable without renaming the store.
+        //
+        // The suffix is a TRANSFER detail, never an identity: the address still
+        // names the original bytes, `.gz` names their compressed representation,
+        // and the index that maps a res path to an address is untouched.
+        //
+        // Tried stripped-first, then whole. A stored payload may legitimately be
+        // named `.gz` - an authored gzip asset - and for that one the stripped
+        // address holds nothing, so the unstripped read is the right answer and
+        // is served as it is stored.
+        const asked = route.address;
+        const suffixed = asked.toLowerCase().endsWith(".gz");
+        const base = suffixed ? asked.slice(0, -3) : asked;
+
+        let payload = suffixed ? await this.indexes.ReadPayloadByAddress(base) : null;
+        let encode = Boolean(payload);
+
+        if (!payload)
+        {
+            payload = await this.indexes.ReadPayloadByAddress(asked);
+            encode = false;
+        }
 
         if (!payload)
         {
@@ -1390,11 +1420,21 @@ export class CjsToolHttpProxy
             return;
         }
 
+        // Compressed here only while the store still holds raw bytes. Acquisition
+        // compresses once, on the way in, and this becomes a pass-through - which
+        // is the whole point, because gzipping a 176MB payload per request would
+        // cost more than the download it saves.
+        const body = encode ? GzipForTransfer(base, payload.bytes) : payload.bytes;
+
         const headers = {
             "cache-control": "public, max-age=31536000, immutable",
-            etag: `"${route.checksum}"`,
+            // A DIFFERENT representation needs a different validator, or a cache
+            // holding one can answer a conditional request for the other and the
+            // caller decodes gzip as if it were the payload.
+            etag: encode ? `"${route.checksum}-gz"` : `"${route.checksum}"`,
             "x-carbon-artifact-kind": "hash-safe",
             "x-carbon-payload-store": payload.store,
+            ...(encode ? { "content-encoding": "gzip" } : {}),
         };
 
         if (IsNotModified(request, headers.etag))
@@ -1408,13 +1448,13 @@ export class CjsToolHttpProxy
         {
             WriteHead(response, 200, {
                 ...headers,
-                "content-length": String(payload.bytes.byteLength),
+                "content-length": String(body.byteLength),
             });
 
             return;
         }
 
-        WriteBytes(response, 200, payload.bytes, headers);
+        WriteBytes(response, 200, body, headers);
     }
 
     /** Serves the requested resource-index catalog as JSON. */
@@ -3656,6 +3696,49 @@ function ContentAddressOf(resolution)
     return /^[a-f0-9]{2}\/[a-f0-9]{16}_[a-f0-9]{32}(?:\.[a-z0-9._-]+)?$/u.test(location)
         ? location
         : null;
+}
+
+/**
+ * Transfer-compressed payloads, while the store still holds raw bytes.
+ *
+ * Bounded by BYTES rather than by entries, because the payloads this serves
+ * differ by five orders of magnitude - a 260 byte texture and a 176MB space
+ * object factory are both one entry, and a count that is comfortable for the
+ * first is ruinous for the second.
+ *
+ * Nothing is evicted cleverly: when the budget is spent the whole map is
+ * dropped. A smarter policy would be guessing at a working set this has no way
+ * to observe, and the cost of a miss is one compression, not a download.
+ *
+ * Temporary. Once acquisition stores compressed bytes there is nothing to
+ * compress at request time and this goes with it.
+ */
+const TRANSFER_GZIP_BUDGET = 64 * 1024 * 1024;
+const transferGzip = new Map();
+let transferGzipBytes = 0;
+
+function GzipForTransfer(address, bytes)
+{
+    const held = transferGzip.get(address);
+
+    if (held) return held;
+
+    // `level: 1` on purpose. Measured on the real corpus (2026-09-20): a hull
+    // goes to 17-44% of its size and the whole space object factory to 42%, and
+    // the levels above cost seconds of cpu for a few more percent. What is being
+    // bought here is transfer, and the first level buys nearly all of it.
+    const encoded = gzipSync(bytes, { level: 1 });
+
+    if (transferGzipBytes + encoded.byteLength > TRANSFER_GZIP_BUDGET)
+    {
+        transferGzip.clear();
+        transferGzipBytes = 0;
+    }
+
+    transferGzip.set(address, encoded);
+    transferGzipBytes += encoded.byteLength;
+
+    return encoded;
 }
 
 function MatchAddressedPayloadRoute(pathname)
