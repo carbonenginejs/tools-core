@@ -13,13 +13,16 @@ export const DefaultTargetData = Object.freeze([
         provider: "ccp",
         client: "stillness",
         libraries: Object.freeze([ "audio", "shader", "weapons" ]),
-        // `sde` and `types` are here because Frontier now has an SDE of its
-        // own - seven tables, built from the client's static data by the build
-        // profile of the same name. The topics this target still does not
-        // claim are the ones no table backs: `map` and the skin
-        // family. Frontier's SKINR data is a different shape and its map
-        // containers have not been read.
-        topics: Object.freeze([ "app", "res", "sde", "icons", "types", "weapons" ]),
+        // `sde`, `types` and `map` are here because Frontier has an SDE of its
+        // own, built from the client's static data by the build profile of the
+        // same name. Its map containers ARE read now: the same schema-driven
+        // sources the NetEase clients use, giving 274 regions, 2,163
+        // constellations and 24,026 systems - a larger universe than
+        // Tranquility's, not a subset.
+        //
+        // The skin family is the one topic this target still does not claim:
+        // Frontier's SKINR data is a different shape.
+        topics: Object.freeze([ "app", "res", "sde", "icons", "types", "weapons", "map" ]),
     }),
     // Serenity and Infinity are separate targets rather than the single entry
     // that used to stand in for both. That entry named neither, and because it

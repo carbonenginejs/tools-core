@@ -113,6 +113,81 @@ const CJS_TOOL_SDE_FRONTIER_SOURCES = Object.freeze([
         container: "fsdbinary",
         required: true,
     }),
+
+    // Frontier's own universe. It ships every file the map tables are built
+    // from - its regions, constellations and systems files are each LARGER than
+    // Tranquility's - along with the schema sidecars `schemabound` needs.
+    //
+    // No reader class: these containers carry their own schema, so unlike
+    // `types` and `graphicids` above there is nothing layout-specific to pin.
+    // Optional, because a build that cannot decode one of them should lose that
+    // table rather than the whole SDE.
+    Object.freeze({
+        table: "mapRegions",
+        path: "res:/staticdata/regions.static",
+        container: "schemabound",
+        required: false,
+    }),
+    Object.freeze({
+        table: "mapConstellations",
+        path: "res:/staticdata/constellations.static",
+        container: "schemabound",
+        required: false,
+    }),
+    Object.freeze({
+        table: "mapSolarSystems",
+        path: "res:/staticdata/systems.static",
+        container: "schemabound",
+        required: false,
+    }),
+    Object.freeze({
+        table: "mapPlanets",
+        path: "res:/staticdata/solarsystemcontent.static",
+        container: "embeddedschema",
+        required: false,
+    }),
+    Object.freeze({
+        table: "mapMoons",
+        path: "res:/staticdata/solarsystemcontent.static",
+        container: "embeddedschema",
+        required: false,
+    }),
+    Object.freeze({
+        table: "mapAsteroidBelts",
+        path: "res:/staticdata/solarsystemcontent.static",
+        container: "embeddedschema",
+        required: false,
+    }),
+    Object.freeze({
+        table: "mapStars",
+        path: "res:/staticdata/solarsystemcontent.static",
+        container: "embeddedschema",
+        required: false,
+    }),
+    Object.freeze({
+        table: "mapStargates",
+        path: "res:/staticdata/solarsystemcontent.static",
+        container: "embeddedschema",
+        required: false,
+    }),
+    Object.freeze({
+        table: "mapSecondarySuns",
+        path: "res:/staticdata/solarsystemcontent.static",
+        container: "embeddedschema",
+        required: false,
+    }),
+    Object.freeze({
+        table: "stationServices",
+        path: "res:/staticdata/stationservices.fsdbinary",
+        container: "fsdbinary",
+        required: false,
+    }),
+    Object.freeze({
+        table: "stationOperations",
+        path: "res:/staticdata/stationoperations.fsdbinary",
+        container: "fsdbinary",
+        required: false,
+    }),
 ]);
 
 /**
@@ -142,6 +217,10 @@ function CreateFrontierProfile()
             // Build 3512930 carries the same schema identities as these readers.
             marketGroups: new CjsFsd64SchemaMarketGroups(),
             typeDogma: new CjsFsd64SchemaTypeDogma(),
+            // The station tables are fsdbinary and so still need a reader; the
+            // map sources beside them carry their own schema and do not.
+            stationServices: new CjsFsd64SchemaStationServices(),
+            stationOperations: new CjsFsd64SchemaStationOperations(),
         }),
         projections: Object.freeze({ ...CJS_TOOL_SDE_TABLE_PROJECTIONS }),
         projectors: Object.freeze({

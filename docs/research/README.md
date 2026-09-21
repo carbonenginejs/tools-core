@@ -7,3 +7,14 @@ Summary: Routes evidence and repeatable methods retained beside the generic tool
 
 Verified generator and source-mapping research retained beside the tooling that
 uses it. These pages describe evidence and methods, not runtime format APIs.
+
+## Pages
+
+- [Client static data](client-static-data.md)
+- [Deriving FSD layouts](deriving-fsd-layouts.md)
+- [FSD record conventions](fsd-record-conventions.md)
+- [Static data sources](static-data-sources.md)
+- [Telling Frontier assets apart](telling-frontier-assets-apart.md) — the
+  content hash separates Frontier's own files from EVE placeholders
+- [Frontier universe data](frontier-universe-data.md) — the map files Frontier
+  ships and the build profile that does not ask for them
