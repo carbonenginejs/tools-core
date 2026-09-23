@@ -302,11 +302,7 @@ export class CjsFormatCarbon
     static BLACK_DEFINITIONS_SCHEMA_NAME = BLACK_DEFINITIONS_SCHEMA_NAME;
     static BLACK_DEFINITIONS_SCHEMA_VERSION = BLACK_DEFINITIONS_SCHEMA_VERSION;
     static CLASS_KEYS = CLASS_KEYS;
-    static type = Object.freeze([ "schema" ]);
     static mediaTypes = Object.freeze([ "schema" ]);
-    static inputTypes = Object.freeze([ "json" ]);
-    static outputTypes = Object.freeze([ OUTPUT_JSON ]);
-    static debugOutputTypes = Object.freeze([ OUTPUT_RAW ]);
 
 }
 
