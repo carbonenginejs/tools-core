@@ -79,6 +79,8 @@ for (const [ path, , , sizeText ] of entries)
   if ((rows.length + failures.length) % 250 === 0) console.log(`  ${rows.length + failures.length}/${entries.length}`);
 }
 
+matchShared(rows);
+
 await mkdir(outDir, { recursive: true });
 await writeFile(join(outDir, "solid-colour-textures.csv"), toCsv(rows));
 await writeFile(join(outDir, "solid-colour-textures.md"), toMarkdown(rows, failures));
@@ -148,6 +150,69 @@ async function survey(path)
   };
 }
 
+/**
+ * Step one of the replacement plan: point each one-off solid texture at an
+ * existing shared file of the same colour. Matches need identical RGBA bytes
+ * and the same colour space, so a flat normal only maps to a shared normal;
+ * a `_lowdetail` file maps to a `_lowdetail` shared file.
+ */
+function matchShared(list)
+{
+  const key = row => `${row.rgbaBytes}|${row.srgb}|${/_lowdetail\.[a-z]+$/i.test(row.path)}`;
+  const shared = new Map();
+
+  for (const row of list)
+  {
+    if (row.solid && /\/shared\//i.test(row.path) && !shared.has(key(row))) shared.set(key(row), row.path);
+  }
+
+  const flatNormal = list.find(row => /\/shared\/normal_flat\.[a-z]+$/i.test(row.path))?.path ?? null;
+  const flatNormalLow = list.find(row => /\/shared\/normal_flat_lowdetail\.[a-z]+$/i.test(row.path))?.path ?? null;
+
+  for (const row of list)
+  {
+    if (!row.solid || /\/shared\//i.test(row.path)) continue;
+
+    // Operator rule: a solid normal map (_n) maps to the shared flat normal.
+    if (/_n(_lowdetail)?\.[a-z]+$/i.test(row.path))
+    {
+      row.sharedMatch = /_lowdetail\./i.test(row.path) ? (flatNormalLow ?? flatNormal) : flatNormal;
+      continue;
+    }
+
+    row.sharedMatch = shared.get(key(row)) ?? null;
+    if (!row.sharedMatch) row.proposedShared = proposeSharedName(row);
+  }
+}
+
+/**
+ * A name for a new shared file, in the shared folder's own convention:
+ * family_HHH_SSS_VVV - hue in degrees, saturation and value in percent, read
+ * from the stored colour (blue_220_010_080 stores 180,186,202). The family is
+ * "bw" when there is next to no saturation, otherwise a hue bucket.
+ */
+function proposeSharedName(row)
+{
+  const [ red, green, blue ] = row.rgbaBytes.split(" ").map(Number).map(value => value / 255);
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const delta = max - min;
+  let hue = 0;
+  if (delta > 0)
+  {
+    if (max === red) hue = 60 * (((green - blue) / delta) % 6);
+    else if (max === green) hue = 60 * ((blue - red) / delta + 2);
+    else hue = 60 * ((red - green) / delta + 4);
+  }
+  if (hue < 0) hue += 360;
+  const saturation = max === 0 ? 0 : delta / max;
+  const buckets = [ [ 15, "red" ], [ 45, "orange" ], [ 70, "yellow" ], [ 160, "green" ], [ 195, "cyan" ], [ 260, "blue" ], [ 300, "purple" ], [ 345, "magenta" ], [ 360, "red" ] ];
+  const family = saturation < 0.05 ? "bw" : buckets.find(([ limit ]) => hue < limit)[1];
+  const pad = value => String(Math.round(value)).padStart(3, "0");
+  const low = /_lowdetail\./i.test(row.path) ? "_lowdetail" : "";
+  return `res:/dx9/model/decal/shared/${family}_${pad(saturation < 0.05 ? 0 : hue)}_${pad(saturation * 100)}_${pad(max * 100)}${low}.dds`;
+}
+
 function srgbToLinear(value)
 {
   return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
@@ -177,17 +242,47 @@ function toMap(list)
   const map = {};
   for (const row of list.filter(item => item.solid))
   {
-    map[row.path] = { dynamicPath: row.dynamicPath, rgbaBytes: row.rgbaBytes, srgb: row.srgb, format: row.format };
+    map[row.path] = { sharedMatch: row.sharedMatch ?? null, proposedShared: row.proposedShared ?? null, dynamicPath: row.dynamicPath, rgbaBytes: row.rgbaBytes, srgb: row.srgb, format: row.format };
   }
   return `${JSON.stringify({ prefix, tolerance, count: Object.keys(map).length, textures: map }, null, 1)}\n`;
 }
 
+/** The two-step plan: re-point at shared files now, dynamic strings later. */
+function replacementPlan(solid)
+{
+  const oneOff = solid.filter(row => !/\/shared\//i.test(row.path));
+  const matched = oneOff.filter(row => row.sharedMatch);
+  const unmatched = oneOff.filter(row => !row.sharedMatch);
+  const missing = new Map();
+  for (const row of unmatched)
+  {
+    const colour = `${row.proposedShared} (RGBA ${row.rgbaBytes}${row.srgb ? ", sRGB" : ""})`;
+    missing.set(colour, (missing.get(colour) ?? 0) + 1);
+  }
+
+  const lines = [
+    "## Replacement plan",
+    "",
+    "1. **Now:** re-point each one-off solid texture at the shared file of the same colour.",
+    "2. **Later, once the editor accepts dynamic paths:** replace the shared files with `dynamic:/color/...`.",
+    "",
+    `${oneOff.length} one-off solid textures: ${matched.length} already have a shared file of the same colour; `
+      + `${unmatched.length} need one of ${missing.size} new shared colours.`,
+    "",
+    "### New shared files needed (proposed name in the folder's HSV convention -> files that would use it)",
+    ""
+  ];
+  for (const [ colour, count ] of [ ...missing ].sort((a, b) => b[1] - a[1])) lines.push(`- ${colour}: ${count}`);
+  lines.push("");
+  return lines;
+}
+
 function toCsv(list)
 {
-  const header = "path,width,height,mips,format,srgb,solid,maxDeviation,rgbaBytes,dynamicPath,bytes";
+  const header = "path,width,height,mips,format,srgb,solid,maxDeviation,rgbaBytes,dynamicPath,bytes,sharedMatch,proposedShared";
   return [ header, ...list.map(row => [
     row.path, row.width, row.height, row.mips, row.format, row.srgb, row.solid,
-    row.maxDeviation, row.rgbaBytes, row.dynamicPath, row.bytes
+    row.maxDeviation, row.rgbaBytes, row.dynamicPath, row.bytes, row.sharedMatch ?? "", row.proposedShared ?? ""
   ].join(",")) ].join("\n") + "\n";
 }
 
@@ -212,6 +307,7 @@ function toMarkdown(list, failed)
       + "(SolidColorTexture.cpp) with no file, download or decode. CCP's editor does "
       + "not currently accept a dynamic path in a texture slot.",
     "",
+    ...replacementPlan(solid),
     "Values are linear floats: sRGB files are linearised, others are byte/255. "
       + "Check the slot's colour space before replacing a non-sRGB file.",
     ""
