@@ -17,6 +17,7 @@
 //   node scripts/survey_solid_colour_textures.js
 //   node scripts/survey_solid_colour_textures.js --prefix res:/dx9/model/decal/ --tolerance 1
 //   node scripts/survey_solid_colour_textures.js --index <path to resfileindex.txt> --out <dir>
+//   node scripts/survey_solid_colour_textures.js --close 3     (relaxed-match distance, default 2)
 //
 // OUTPUT. <out>/solid-colour-textures.md (grouped by colour, for people),
 // <out>/solid-colour-textures.csv (one row per file, for tools), and
@@ -41,6 +42,8 @@ const args = parseArgs(process.argv.slice(2));
 const prefix = args.prefix ?? "res:/dx9/model/decal/";
 const service = (args.service ?? "http://127.0.0.1:5510/eve/latest/resources/").replace(/\/?$/, "/");
 const tolerance = Number(args.tolerance ?? 0);
+// How far a colour may be from a shared file's and still be listed as close.
+const closeTolerance = Number(args.close ?? 2);
 const limit = args.limit ? Number(args.limit) : Infinity;
 const outDir = resolve(args.out ?? join(ROOT, ".cache", "surveys"));
 
@@ -166,6 +169,7 @@ function matchShared(list)
     if (row.solid && /\/shared\//i.test(row.path) && !shared.has(key(row))) shared.set(key(row), row.path);
   }
 
+  const sharedRows = list.filter(row => row.solid && /\/shared\//i.test(row.path) && !/\/shared\/normal_/i.test(row.path));
   const flatNormal = list.find(row => /\/shared\/normal_flat\.[a-z]+$/i.test(row.path))?.path ?? null;
   const flatNormalLow = list.find(row => /\/shared\/normal_flat_lowdetail\.[a-z]+$/i.test(row.path))?.path ?? null;
 
@@ -181,8 +185,40 @@ function matchShared(list)
     }
 
     row.sharedMatch = shared.get(key(row)) ?? null;
-    if (!row.sharedMatch) row.proposedShared = proposeSharedName(row);
+    if (row.sharedMatch) continue;
+
+    const close = nearestShared(row, sharedRows);
+    if (close)
+    {
+      row.closeMatch = close.path;
+      row.closeDistance = close.distance;
+    }
+    else
+    {
+      row.proposedShared = proposeSharedName(row);
+    }
   }
+}
+
+/**
+ * The shared file nearest a colour, when every channel is within
+ * `closeTolerance` - the relaxed rule. Same colour space and the same
+ * `_lowdetail`-ness, as for an exact match.
+ */
+function nearestShared(row, sharedRows)
+{
+  const bytes = row.rgbaBytes.split(" ").map(Number);
+  const low = /_lowdetail\./i.test(row.path);
+  let best = null;
+
+  for (const candidate of sharedRows)
+  {
+    if (candidate.srgb !== row.srgb || /_lowdetail\./i.test(candidate.path) !== low) continue;
+    const other = candidate.rgbaBytes.split(" ").map(Number);
+    const distance = Math.max(...bytes.map((value, c) => Math.abs(value - other[c])));
+    if (distance <= closeTolerance && (!best || distance < best.distance)) best = { path: candidate.path, distance };
+  }
+  return best;
 }
 
 /**
@@ -242,7 +278,7 @@ function toMap(list)
   const map = {};
   for (const row of list.filter(item => item.solid))
   {
-    map[row.path] = { sharedMatch: row.sharedMatch ?? null, proposedShared: row.proposedShared ?? null, dynamicPath: row.dynamicPath, rgbaBytes: row.rgbaBytes, srgb: row.srgb, format: row.format };
+    map[row.path] = { sharedMatch: row.sharedMatch ?? null, closeMatch: row.closeMatch ?? null, closeDistance: row.closeDistance ?? null, proposedShared: row.proposedShared ?? null, dynamicPath: row.dynamicPath, rgbaBytes: row.rgbaBytes, srgb: row.srgb, format: row.format };
   }
   return `${JSON.stringify({ prefix, tolerance, count: Object.keys(map).length, textures: map }, null, 1)}\n`;
 }
@@ -252,7 +288,8 @@ function replacementPlan(solid)
 {
   const oneOff = solid.filter(row => !/\/shared\//i.test(row.path));
   const matched = oneOff.filter(row => row.sharedMatch);
-  const unmatched = oneOff.filter(row => !row.sharedMatch);
+  const close = oneOff.filter(row => row.closeMatch);
+  const unmatched = oneOff.filter(row => !row.sharedMatch && !row.closeMatch);
   const missing = new Map();
   for (const row of unmatched)
   {
@@ -266,8 +303,11 @@ function replacementPlan(solid)
     "1. **Now:** re-point each one-off solid texture at the shared file of the same colour.",
     "2. **Later, once the editor accepts dynamic paths:** replace the shared files with `dynamic:/color/...`.",
     "",
-    `${oneOff.length} one-off solid textures: ${matched.length} already have a shared file of the same colour; `
-      + `${unmatched.length} need one of ${missing.size} new shared colours.`,
+    `${oneOff.length} one-off solid textures:`,
+    "",
+    `- ${matched.length} match a shared file exactly (solid \`_n\` normals map to the shared flat normal);`,
+    `- ${close.length} are CLOSE to one - every channel within ${closeTolerance} levels (e.g. alpha 254 vs 255) - listed in the \`closeMatch\` column;`,
+    `- ${unmatched.length} need one of ${missing.size} new shared files.`,
     "",
     "### New shared files needed (proposed name in the folder's HSV convention -> files that would use it)",
     ""
@@ -279,10 +319,10 @@ function replacementPlan(solid)
 
 function toCsv(list)
 {
-  const header = "path,width,height,mips,format,srgb,solid,maxDeviation,rgbaBytes,dynamicPath,bytes,sharedMatch,proposedShared";
+  const header = "path,width,height,mips,format,srgb,solid,maxDeviation,rgbaBytes,dynamicPath,bytes,sharedMatch,closeMatch,closeDistance,proposedShared";
   return [ header, ...list.map(row => [
     row.path, row.width, row.height, row.mips, row.format, row.srgb, row.solid,
-    row.maxDeviation, row.rgbaBytes, row.dynamicPath, row.bytes, row.sharedMatch ?? "", row.proposedShared ?? ""
+    row.maxDeviation, row.rgbaBytes, row.dynamicPath, row.bytes, row.sharedMatch ?? "", row.closeMatch ?? "", row.closeDistance ?? "", row.proposedShared ?? ""
   ].join(",")) ].join("\n") + "\n";
 }
 
