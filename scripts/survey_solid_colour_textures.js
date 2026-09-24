@@ -18,8 +18,10 @@
 //   node scripts/survey_solid_colour_textures.js --prefix res:/dx9/model/decal/ --tolerance 1
 //   node scripts/survey_solid_colour_textures.js --index <path to resfileindex.txt> --out <dir>
 //
-// OUTPUT. <out>/solid-colour-textures.md (grouped by colour, for people) and
-// <out>/solid-colour-textures.csv (one row per file, for tools).
+// OUTPUT. <out>/solid-colour-textures.md (grouped by colour, for people),
+// <out>/solid-colour-textures.csv (one row per file, for tools), and
+// <out>/solid-colour-map.json - texture path -> its colour, the table a loader
+// can use to substitute a dynamic colour instead of downloading the file.
 //
 // COLOUR SPACE - READ BEFORE REPLACING ANYTHING. A dynamic colour texture is
 // float and linear (R16G16B16A16_FLOAT). A decal stored in an _SRGB format is
@@ -80,6 +82,7 @@ for (const [ path, , , sizeText ] of entries)
 await mkdir(outDir, { recursive: true });
 await writeFile(join(outDir, "solid-colour-textures.csv"), toCsv(rows));
 await writeFile(join(outDir, "solid-colour-textures.md"), toMarkdown(rows, failures));
+await writeFile(join(outDir, "solid-colour-map.json"), toMap(rows));
 
 const solid = rows.filter(row => row.solid);
 console.log(`solid: ${solid.length}/${rows.length}; distinct colours: ${new Set(solid.map(row => row.dynamicPath)).size}; failed: ${failures.length}`);
@@ -166,6 +169,17 @@ async function latestIndex()
     if (existsSync(file)) return file;
   }
   throw new Error("no resfileindex.txt found; pass --index");
+}
+
+/** Texture path -> colour, solid files only, for substitution. */
+function toMap(list)
+{
+  const map = {};
+  for (const row of list.filter(item => item.solid))
+  {
+    map[row.path] = { dynamicPath: row.dynamicPath, rgbaBytes: row.rgbaBytes, srgb: row.srgb, format: row.format };
+  }
+  return `${JSON.stringify({ prefix, tolerance, count: Object.keys(map).length, textures: map }, null, 1)}\n`;
 }
 
 function toCsv(list)
