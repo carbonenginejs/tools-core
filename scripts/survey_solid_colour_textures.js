@@ -144,8 +144,18 @@ async function survey(path)
   const linear = rgba.map((byte, c) => c < 3 && srgb ? srgbToLinear(byte / 255) : byte / 255);
   const dynamicPath = `dynamic:/color/${linear.map(value => round(value)).join(",")}`;
 
+  // The published file answers the alpha question: the format says whether an
+  // alpha channel exists at all, the pixels say what it holds.
+  const alphaChannel = formatHasAlpha(formatName);
+  const alphaMin = min[3];
+  const alphaMax = max[3];
+  const alphaState = !alphaChannel ? "none"
+    : alphaMin >= 254 ? "opaque"
+      : alphaMax === 0 ? "clear"
+        : alphaMin === alphaMax ? "flat-partial" : "varies";
+
   return {
-    path, width, height, mips, format: formatName, srgb, solid,
+    path, width, height, mips, format: formatName, srgb, solid, alphaChannel, alphaState,
     maxDeviation: Math.max(...max.map((value, c) => value - min[c])),
     rgbaBytes: rgba.join(" "),
     dynamicPath,
@@ -249,6 +259,17 @@ function proposeSharedName(row)
   return `res:/dx9/model/decal/shared/${family}_${pad(saturation < 0.05 ? 0 : hue)}_${pad(saturation * 100)}_${pad(max * 100)}${low}.dds`;
 }
 
+/**
+ * Whether a published pixel format stores alpha. BC1 can (one bit), BC2/BC3/BC7
+ * do; BC4/BC5 are one and two channels; BGRX, R8, R8G8 and B5G6R5 have none -
+ * a decoder reports 255 for those, which is not the file's.
+ */
+function formatHasAlpha(name)
+{
+  if (/BC4|BC5|BC6H|B8G8R8X8|B5G6R5|^PIXEL_FORMAT_R8_|^PIXEL_FORMAT_R8G8_|^PIXEL_FORMAT_R16_|R32G32B32_/.test(name)) return false;
+  return /BC1|BC2|BC3|BC7|A8|A16|A32|A2|A1/.test(name);
+}
+
 function srgbToLinear(value)
 {
   return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
@@ -278,9 +299,34 @@ function toMap(list)
   const map = {};
   for (const row of list.filter(item => item.solid))
   {
-    map[row.path] = { sharedMatch: row.sharedMatch ?? null, closeMatch: row.closeMatch ?? null, closeDistance: row.closeDistance ?? null, proposedShared: row.proposedShared ?? null, dynamicPath: row.dynamicPath, rgbaBytes: row.rgbaBytes, srgb: row.srgb, format: row.format };
+    map[row.path] = { alphaChannel: row.alphaChannel, alphaState: row.alphaState, sharedMatch: row.sharedMatch ?? null, closeMatch: row.closeMatch ?? null, closeDistance: row.closeDistance ?? null, proposedShared: row.proposedShared ?? null, dynamicPath: row.dynamicPath, rgbaBytes: row.rgbaBytes, srgb: row.srgb, format: row.format };
   }
   return `${JSON.stringify({ prefix, tolerance, count: Object.keys(map).length, textures: map }, null, 1)}\n`;
+}
+
+/** How many textures, solid and not, carry alpha - and what it holds. */
+function alphaSummary(list)
+{
+  const count = (rows, state) => rows.filter(row => row.alphaState === state).length;
+  const solidRows = list.filter(row => row.solid);
+  const lines = [
+    "## Alpha in the published files",
+    "",
+    "| alpha | all textures | solid textures |",
+    "|---|---:|---:|"
+  ];
+  for (const [ state, meaning ] of [
+    [ "none", "format has no alpha channel" ],
+    [ "opaque", "alpha channel, every pixel 254-255" ],
+    [ "clear", "alpha channel, every pixel 0" ],
+    [ "flat-partial", "alpha channel, one value between" ],
+    [ "varies", "alpha channel with real variation" ]
+  ])
+  {
+    lines.push(`| ${state} - ${meaning} | ${count(list, state)} | ${count(solidRows, state)} |`);
+  }
+  lines.push("", "A solid texture whose alpha is `none` or `opaque` can take an opaque shared colour whether or not a shader reads alpha. `clear` and `flat-partial` must match on alpha.", "");
+  return lines;
 }
 
 /** The two-step plan: re-point at shared files now, dynamic strings later. */
@@ -319,9 +365,9 @@ function replacementPlan(solid)
 
 function toCsv(list)
 {
-  const header = "path,width,height,mips,format,srgb,solid,maxDeviation,rgbaBytes,dynamicPath,bytes,sharedMatch,closeMatch,closeDistance,proposedShared";
+  const header = "path,width,height,mips,format,srgb,solid,alphaChannel,alphaState,maxDeviation,rgbaBytes,dynamicPath,bytes,sharedMatch,closeMatch,closeDistance,proposedShared";
   return [ header, ...list.map(row => [
-    row.path, row.width, row.height, row.mips, row.format, row.srgb, row.solid,
+    row.path, row.width, row.height, row.mips, row.format, row.srgb, row.solid, row.alphaChannel, row.alphaState,
     row.maxDeviation, row.rgbaBytes, row.dynamicPath, row.bytes, row.sharedMatch ?? "", row.closeMatch ?? "", row.closeDistance ?? "", row.proposedShared ?? ""
   ].map(csvField).join(",")) ].join("\n") + "\n";
 }
@@ -354,6 +400,7 @@ function toMarkdown(list, failed)
       + "(SolidColorTexture.cpp) with no file, download or decode. CCP's editor does "
       + "not currently accept a dynamic path in a texture slot.",
     "",
+    ...alphaSummary(list),
     ...replacementPlan(solid),
     "Values are linear floats: sRGB files are linearised, others are byte/255. "
       + "Check the slot's colour space before replacing a non-sRGB file.",
