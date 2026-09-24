@@ -323,7 +323,14 @@ function toCsv(list)
   return [ header, ...list.map(row => [
     row.path, row.width, row.height, row.mips, row.format, row.srgb, row.solid,
     row.maxDeviation, row.rgbaBytes, row.dynamicPath, row.bytes, row.sharedMatch ?? "", row.closeMatch ?? "", row.closeDistance ?? "", row.proposedShared ?? ""
-  ].join(",")) ].join("\n") + "\n";
+  ].map(csvField).join(",")) ].join("\n") + "\n";
+}
+
+/** Quote a CSV field that holds a comma or a quote: dynamic:/color/r,g,b,a does. */
+function csvField(value)
+{
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll("\"", "\"\"")}"` : text;
 }
 
 function toMarkdown(list, failed)
