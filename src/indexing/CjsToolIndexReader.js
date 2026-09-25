@@ -1,5 +1,6 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { CjsToolPayloadCheck } from "../cache/CjsToolPayloadCheck.js";
 import { CjsToolBoundedFetch } from "../internal/CjsToolBoundedFetch.js";
 import { CjsToolIndexBuildResolver } from "./CjsToolIndexBuildResolver.js";
 import { CjsToolIndexCache } from "./CjsToolIndexCache.js";
@@ -281,7 +282,7 @@ export class CjsToolIndexReader
 
         utils.assertOkResponse(response, options.sourceUrl);
 
-        const bytes = utils.validateResourceBytes(
+        const bytes = CjsToolPayloadCheck.validateBytes(
             await CjsToolBoundedFetch.readBytes(response, {
                 maxBytes: CjsToolIndexReader.responseLimit(
                     options.expectedResource,

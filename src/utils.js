@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import { NextCheckDelay } from "./build/CjsToolBuildSchedule.js";
 
 /** Reports whether a value is represented solely by decimal build digits. */
@@ -88,33 +86,6 @@ export function assertOkResponse(response, url)
     {
         throw new Error(`Failed to fetch ${url}: ${response?.status ?? "unknown"}`);
     }
-}
-
-/** Validates acquired resource bytes against indexed size and MD5 evidence. */
-export function validateResourceBytes(bytes, resource, label = resource?.logicalPath ?? "resource")
-{
-    const buffer = Buffer.from(bytes);
-
-    if (resource?.uncompressedSize !== null
-        && resource?.uncompressedSize !== undefined
-        && buffer.byteLength !== resource.uncompressedSize)
-    {
-        throw new Error(
-            `Invalid byte length for ${label}: expected ${resource.uncompressedSize}, got ${buffer.byteLength}`,
-        );
-    }
-
-    if (resource?.checksum)
-    {
-        const checksum = createHash("md5").update(buffer).digest("hex");
-
-        if (checksum !== resource.checksum)
-        {
-            throw new Error(`Invalid checksum for ${label}`);
-        }
-    }
-
-    return buffer;
 }
 
 /** Copies the visible byte window into a standalone ArrayBuffer. */

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { CjsToolPayloadCheck } from "../cache/CjsToolPayloadCheck.js";
 
 import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 
@@ -669,7 +670,7 @@ export class CjsToolIndexOverlayStore
                 binaryOperation: sourceRecord.binaryOperation,
             });
 
-            utils.validateResourceBytes(bytes, record, record.logicalPath);
+            CjsToolPayloadCheck.validateBytes(bytes, record, record.logicalPath);
 
             if (payloadDirectory)
             {

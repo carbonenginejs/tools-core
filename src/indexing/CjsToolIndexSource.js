@@ -1,3 +1,4 @@
+import { CjsToolPayloadCheck } from "../cache/CjsToolPayloadCheck.js";
 import { CjsToolIndexCache } from "./CjsToolIndexCache.js";
 import { CjsToolIndexGraph } from "./CjsToolIndexGraph.js";
 import { CjsToolBoundedFetch } from "../internal/CjsToolBoundedFetch.js";
@@ -296,7 +297,7 @@ export class CjsToolIndexSource
 
         utils.assertOkResponse(response, resolution.sourceUrl);
 
-        const bytes = utils.validateResourceBytes(
+        const bytes = CjsToolPayloadCheck.validateBytes(
             await CjsToolBoundedFetch.readBytes(response, {
                 maxBytes: CjsToolIndexSource.responseLimit(
                     resolution.record,
