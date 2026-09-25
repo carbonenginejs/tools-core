@@ -8,6 +8,20 @@ const SCHEMA_VERSION = 1;
 
 /**
  * Plans and acquires exact-build resource sets supplied by named profiles.
+ *
+ * A profile has a unique lower-case `name` and `Resolve(context)`, where the
+ * context is the resolved `{ target, game, provider, buildRef, build, client }`.
+ * It returns exact `app:/` or `res:/` logical paths, or
+ * `{ logicalPath, indexName }` records; it describes requirements and fetches
+ * nothing. Wildcards and other roots are rejected, and a requirement named by
+ * several profiles is planned once.
+ *
+ * `Plan` resolves the build once and returns an immutable, sorted plan without
+ * fetching. `Prefetch` acquires it through the normal validated index cache
+ * (concurrency 1-64, default 4): downloads are checked against the index row,
+ * while a payload already in the cache is trusted without re-hashing. It
+ * returns aggregate counts and byte length; per-file status goes to
+ * `onProgress`.
  */
 export class CjsToolPrefetch
 {

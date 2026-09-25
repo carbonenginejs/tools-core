@@ -121,12 +121,13 @@ const MAX_SNAPSHOT_AGE_DAYS = 7;
 
 
 /**
- * Unpacks `scripts/carbon_schema_latest.gzip` and returns the tree root.
+ * Unpacks `carbon_schema_latest.gzip` from the package root and returns the
+ * tree root.
  *
- * MISSING FAILS AND OLD FAILS - neither skips. The file is committed, so its
- * absence means something removed it, and a stale schema means the gate is
- * checking against a Carbon that has moved on. A skip in either case is a green
- * build that proved nothing, which is the failure this gate was landed to end.
+ * MISSING FAILS AND OLD FAILS - neither skips. A missing archive means
+ * `schema:generate` / `schema:pack` has not run, and a stale schema means the
+ * gate is checking against a Carbon that has moved on. A skip in either case is
+ * a green build that proved nothing.
  *
  * Age comes from the recorded `packedAt`, not the file's mtime: a checkout
  * stamps every file with the checkout time, so mtime would report a year-old

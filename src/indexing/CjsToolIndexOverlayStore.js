@@ -22,9 +22,8 @@ const TranslationMarkerSchema = "carbon.translation-markers";
  * original layout and its defect is that the stored name says nothing about the
  * contents: edit the file and every row about it is unchanged, so the payload
  * has no identity anything can compare. That is what makes such an overlay
- * `local-exact` - see `docs/architecture/resource-addressing-and-staleness.md`,
- * where the service contract has to treat every `local-exact` input as changed
- * because absence of proof must never present as sameness.
+ * `local-exact`: nothing can prove its payload unchanged, and absence of proof
+ * must never present as sameness.
  *
  * `content-address` stores the same bytes under the game's own address,
  * `<shard>/<path-fnv1>_<content-md5>`, in one store shared by every target and

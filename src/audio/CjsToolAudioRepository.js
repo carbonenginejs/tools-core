@@ -9,7 +9,21 @@ import { CjsToolAudioMediaBuilder } from "./CjsToolAudioMediaBuilder.js";
 import { CjsToolAudioSource } from "./CjsToolAudioSource.js";
 import { CjsToolMusicSource } from "./CjsToolMusicSource.js";
 
-/** Opens exact-build prepared audio libraries and their indexed byte sources. */
+/**
+ * Opens exact-build prepared audio libraries and their indexed byte sources.
+ *
+ * The prepared library is the schema-v2 `audio` document in the shared
+ * exact-build custom cache, where `build:audio` also installs it (with its
+ * gzip sibling) when `--out` is omitted. A missing library is built on first
+ * request from the build's own index rows, SoundbanksInfo and banks, using
+ * `defaultLanguage` (or `en-us`) for the event-media graphs, unless
+ * `autoPrepare` is false; it then answers 404.
+ *
+ * `materializeMedia: true` (the service's `--audio-individual-media`) copies
+ * each embedded WEM into the content-addressed cache through
+ * `CjsToolAudioMediaBuilder`, re-running only when that builder's recorded
+ * stamp no longer matches the library's banks.
+ */
 export class CjsToolAudioRepository
 {
 

@@ -171,7 +171,16 @@ export function parseJsonIndexGroup(text, options = {})
     });
 }
 
-/** Serializes index entries as a JSON resource index with a header. */
+/**
+ * Serializes index entries as a JSON resource index with a header.
+ *
+ * The envelope is `{ schema: "carbon.resource-index", version: 1, root: "res",
+ * ...header, rowCount, resources }`. Rows are `{ path, location, md5, size }`,
+ * plus `compressedSize` only when it differs from `size` and `binaryOperation`
+ * only when set. An overlay's header names its target, game, provider,
+ * overlay, mode, builds, revision, payload layout, generation time and
+ * producer.
+ */
 export function formatJsonIndex(entries, header = {})
 {
     const rows = [ ...entries ].map((entry) => ({

@@ -11,7 +11,17 @@ import * as utils from "../utils.js";
 
 const BuilderVersion = "0.1.0";
 
-/** Shared Node orchestration for independently importable shader builders. */
+/**
+ * Shared Node orchestration for independently importable shader builders.
+ *
+ * A build catalogs the exact build's `effect.dx11` sources for the target's
+ * quality tiers, requires each indexed source to declare its size and MD5,
+ * hands whole-effect conversion to the backend's format package, and stages a
+ * deterministic report plus a content-addressed overlay (with a droppable copy
+ * under `<output>/overlay/`). Output profiles are `effect.webgl2` and
+ * `effect.webgpu`; the Carbon WebGL/WebGPU containers are package formats, not
+ * resource profiles.
+ */
 export class CjsToolShaderBuilder
 {
 

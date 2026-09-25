@@ -1,3 +1,9 @@
+/**
+ * `@carbonenginejs/tools-core/sof`: exact-build SOF catalogs
+ * (`CjsToolSofRepository`, `CjsToolSofCatalog`), class-default expansion
+ * (`ExpandSofDefaults`, `PrepareSofDefaults`), and self-contained SOF bundles
+ * (`CjsToolSofBundle`).
+ */
 export {
     CjsToolSofCatalog,
     CjsToolSofRepository,

@@ -180,9 +180,9 @@ schema class after the evidence and wrong-answer traps have been checked.
 The earlier certificates projection task and sourceless ship-tree/traits/mastery
 lists are superseded by this page's 2026-08-16 record: all seven tables from
 `infobubbles.static` and `certificates.static` are generated. The
-[source-mapping owner](../research/static-data-sources.md#one-file-several-tables)
+`CJS_TOOL_SDE_CLIENT_SOURCES` JSDoc (`src/sde/build/defaultClientSdeSources.js`)
 records their keys and counts, the Expert Systems reason for retaining all 467
-`typeElements` rows, and the [failed filename/count search](../research/static-data-sources.md#what-the-search-that-failed-actually-proved).
+`typeElements` rows, and the failed filename/count search.
 No same-named file does not prove absence; a dataset may be nested or derived.
 The still-missing table list above remains the backlog for this dated record.
 

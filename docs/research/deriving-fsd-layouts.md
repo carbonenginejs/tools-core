@@ -10,7 +10,7 @@ Summary: Uses inert loader inspection and an exact-build export oracle to distin
 An extension is not a format check: see the
 [container families](fsd-record-conventions.md#the-client-is-not-one-data-format).
 For nonmatching filenames and nested tables, use the
-[source mappings](static-data-sources.md). Runtime owns reviewed decoding;
+source mappings (`CJS_TOOL_SDE_CLIENT_SOURCES`). Runtime owns reviewed decoding;
 tools-core owns evidence-producing inspection and export projections.
 
 ## The problem
@@ -197,7 +197,7 @@ close” gate are superseded, **not evidence those derivation questions were sol
 A map count at `rootOffset + 8` can be read without its field layout or record
 size. Use it to locate candidate files, but a file-level count misses tables
 nested inside a container. Enumerate before deriving; the
-[source-mapping owner](static-data-sources.md) records those traps.
+`CJS_TOOL_SDE_CLIENT_SOURCES` JSDoc (`src/sde/build/defaultClientSdeSources.js`) records those traps.
 
 Layout hashes are commonly shared, not guaranteed identical across publishers.
 Refuse an unaccepted identity. Add `acceptedSchemaIDs` only after measuring

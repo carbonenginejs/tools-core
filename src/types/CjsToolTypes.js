@@ -16,6 +16,12 @@ import { ToResourcePath } from "../map/CjsToolMap.js";
  * Deliberately narrow. `dogma`, `industry` and `skills` are their own answers,
  * they are expensive, and a panel wants them separately anyway. Widening this
  * to absorb them would make every type lookup pay for all three.
+ *
+ * Every resolved text is `{ text, language }`: the requested language when the
+ * source has it, else English, else the first language present, and it
+ * reports which one it got. A zh-primary target carries no `en` at all, so a
+ * reader that assumes English sees nothing. The sidecar is the derivation
+ * file `typeExtras_v1.json` beside the SDE database.
  */
 
 /** Identity fields taken straight from the source's own row. */
@@ -131,6 +137,7 @@ export class CjsToolTypes
      * the parent names nobody. So the answer is anchored on the parent - a
      * caller asking about a Tech II hull means "what else is this ship", not
      * "what descends from this exact row" - and the parent is included, first.
+     * Faction hulls are not variations: they carry no `variationParentTypeID`.
      *
      * @param {number|string} typeID Type identifier.
      * @param {object} [options] Answer options.
@@ -241,7 +248,10 @@ export class CjsToolTypes
         return answer;
     }
 
-    /** One bonus list, with its unit resolved and its order made explicit. */
+    /**
+     * One bonus list, with its unit resolved and its order made explicit:
+     * ascending by the source's `importance`, which is not its array order.
+     */
     async #Bonuses(records, language)
     {
         const bonuses = [];

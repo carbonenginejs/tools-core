@@ -50,7 +50,6 @@ format/runtime packages
 ## Start here
 
 - [Architecture and boundaries](architecture.md)
-- [Public API and subpaths](reference/api.md)
 - [Class catalogs](reference/classes/README.md)
 - [Build generated libraries](guides/generated-libraries.md)
 - [Build a profile-driven SDE](guides/sde-builds.md)

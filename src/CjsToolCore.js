@@ -2,7 +2,18 @@ import { EveSOF } from "@carbonenginejs/runtime/sof";
 import { CjsToolCache } from "./cache/CjsToolCache.js";
 import { PrepareSofDefaults } from "./sof/ExpandSofDefaults.js";
 
-/** Public Node composition root for cache, identity, and graph tooling. */
+/**
+ * Public Node composition root for cache, identity, and graph tooling.
+ *
+ * The SDE adapter is any object with `ResolveDna(selection)`; the usual one is
+ * a `CjsToolSde` over exact-build tables: `CjsToolSdeArchive.ResolveLatest()`
+ * gives the build, `PrepareDatabase({ ...exact, databasePath })` the SQLite
+ * store, and its `LoadTables(names)` the `CjsToolSde` input. Output shapes: `BuildSofValues*` returns the plain runtime model values
+ * (recommended); `BuildSofExpandedValuesAsync` returns the same graph with
+ * registered class defaults filled in for offline consumers;
+ * `BuildSofDocument*` returns the `carbon.document` node table for graph and
+ * diagnostic tooling. The `BuildType*` forms resolve a selection first.
+ */
 export class CjsToolCore
 {
 

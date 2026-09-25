@@ -1,3 +1,13 @@
+/**
+ * `@carbonenginejs/tools-core`: the package root.
+ *
+ * Re-exports the audio, black, build, cache, fsd, icons, index, library,
+ * prefetch, auth, proxy, sde, shader, skin, sof, target, weapon and utils
+ * surfaces, plus `CjsToolCore`, the facade that resolves SDE identity to SOF
+ * DNA and builds SOF values. Character, dogma, fitting, identity, industry,
+ * localisation, map, market, schema and skills are reachable only through their
+ * own subpaths. Prefer the narrowest subpath that owns a capability.
+ */
 export * from "./audio/index.js";
 export * from "./black/index.js";
 export * from "./build/index.js";

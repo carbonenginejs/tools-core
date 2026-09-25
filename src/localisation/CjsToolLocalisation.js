@@ -24,6 +24,14 @@
  * and the English name is still correct, but a consumer is told, because showing
  * a renamed item under the other name without saying so misrepresents it.
  *
+ * ## Order
+ *
+ * `English` answers from the first that applies: the source's own `en`
+ * (`published`, returned as-is and never reconciled against another source),
+ * a hand-written name (`manual`), the reference source by ID (`crosswalk`,
+ * refused when `groupID` disagrees), then a machine guess (`ai`). `source`
+ * always says which.
+ *
  * ## The gap this cannot close
  *
  * Some types appear in one source only, so no English exists to find. Those come

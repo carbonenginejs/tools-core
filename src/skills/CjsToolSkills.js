@@ -117,12 +117,13 @@ export class CjsToolSkills
     }
 
     /**
-     * What must be trained to reach one or more skills at given levels.
+     * What must be trained to reach one or more skills.
      *
      * The other two answers start from a **thing** - a hull needs these skills.
-     * This one starts from the **skills themselves**, at a level the caller
-     * chose, which is the question anyone planning training actually has and
-     * the only one of the three that takes a level as input.
+     * This one starts from the **skills themselves**, which is the question
+     * anyone planning training actually has. Targets are skill identifiers
+     * only; the route also accepts a POST body for plans too long for a query
+     * string, and tolerates `id:level` by discarding the level.
      *
      * Several targets are merged rather than answered separately, because the
      * useful answer is one plan. Two ships wanting the same skill at III and V
@@ -130,12 +131,12 @@ export class CjsToolSkills
      * them by hand is exactly where a consumer takes the first level it sees
      * and produces a plan that does not unlock the second ship.
      *
-     * A requested skill appears in the plan as itself, carrying `requested`.
-     * Its prerequisites do not change with the level asked for - a skill's
-     * requirements are fixed on the skill - but the level does decide what the
-     * caller must train, so it is what the entry reports.
+     * A requested skill appears in the plan as itself, carrying `requested`,
+     * with no level of its own; a requested skill that is also another's
+     * prerequisite takes the level that prerequisite demands. The answer
+     * carries `skills` (collapsed, keyed by id) and `outline` (see `#Outline`).
      *
-     * @param {Array<{typeID: number|string, level: number}>} targets Wanted skills.
+     * @param {Array<number|string|{typeID: number|string}>} targets Wanted skills.
      * @param {object} [options] Answer options.
      * @param {string} [options.language] Language to prefer for names.
      * @returns {Promise<object|null>} The plan, or null when no target resolves.
@@ -295,7 +296,9 @@ export class CjsToolSkills
      * One skill: what it costs to train, what it needs, and what it opens up.
      *
      * `unlocks` is the reverse of every other answer here and the reason this
-     * service holds an index at all - the SDE has no such direction.
+     * service holds an index at all - the SDE has no such direction. Unpublished
+     * types are left out of it, so a retired duplicate never appears as
+     * something a skill opens up.
      */
     async Skill(typeID, options = {})
     {

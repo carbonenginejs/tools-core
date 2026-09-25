@@ -89,7 +89,13 @@ export class CjsToolCharacterRepository
         }
     }
 
-    /** Loads and installs the newest direct document, with compatible migration fallback. */
+    /**
+     * Loads and installs the newest direct document, with compatible migration fallback.
+     *
+     * The first of v10 to v7 found in the custom cache is reused as-is. The key
+     * is target, build and schema version only; nothing records the inputs a
+     * library was built from, so rebuilt inputs under the same build go unseen.
+     */
     async #Load(target, build)
     {
         let data;

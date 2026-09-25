@@ -76,6 +76,5 @@ whole `data.black`. Pass `{ loadMode: "full" }` to
 
 ## Related documentation
 
-- [Public API and subpaths](../reference/api.md)
 - [Local HTTP route reference](../reference/http-routes.md)
 - [Prepare exact-build cache inputs](prefetch.md)

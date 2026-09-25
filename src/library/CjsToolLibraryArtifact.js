@@ -31,6 +31,10 @@ export class CjsToolLibraryArtifact
     /**
      * Writes a JSON library and its deterministic gzip companion to resolved
      * artifact paths.
+     *
+     * Each file is replaced atomically (temporary file, then rename), but the
+     * pair is not: the two replacements are independent, so a crash between
+     * them can leave a JSON and a gzip that describe different libraries.
      */
     static async write(filePath, value, options = {})
     {

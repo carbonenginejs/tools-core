@@ -10,6 +10,12 @@ const TargetRegistry = new CjsToolTargetRegistry();
  *
  * Acquisition, cache, CLI, and target policy remain in tools-core. The
  * deterministic multi-source join is shared with browser applications.
+ *
+ * Options naming a source target, game or provider are resolved against the
+ * registry and must name an audio-capable target; options naming none pass
+ * through unchanged, so synthetic and intermediate builds need no target.
+ * `CjsToolAudio` is the target-aware front door for callers that always have
+ * one.
  */
 export class CjsToolAudioBuilder extends CjsAudioLibraryBuilder
 {

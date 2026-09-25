@@ -1,3 +1,9 @@
+/**
+ * `@carbonenginejs/tools-core/fitting`: EVE fittings. `CjsToolFitting` joins parsed
+ * text to exact-build type and slot data; the codec functions (`ParseFitting`,
+ * `FormatAll`, ...) read and write EFT, DNA and chat links; the flag functions
+ * map slots and positions to inventory flags.
+ */
 export {
     CjsToolFitting,
     FITTING_CATEGORIES,

@@ -1,3 +1,9 @@
+/**
+ * `@carbonenginejs/tools-core/map`: region, constellation, system and celestial
+ * documents (`CjsToolMap`, `BuildMapIndex`), composed celestial names,
+ * stargate orientation, and derived per-system lighting (`BlackbodyColor`,
+ * `SunIntensity`).
+ */
 export { CjsToolMap, CELESTIAL_TABLES } from "./CjsToolMap.js";
 export { BuildMapIndex, MAP_INDEX_TABLES, NAMED_KINDS } from "./CjsToolMapIndex.js";
 export {

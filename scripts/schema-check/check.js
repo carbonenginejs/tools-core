@@ -1,5 +1,51 @@
 #!/usr/bin/env node
 // tools-core owns the checker; this consumer owns its coverage and debt floor.
+/**
+ * Schema drift gate: `npm run schema:check [-- --json] [-- --update]`.
+ *
+ * Compares a runtime checkout with the packed Carbon schema through
+ * `carbon-class --check --strict --json`. It runs on demand only (no lint or
+ * build hook calls it) and never emits classes, refreshes schemas or changes
+ * source. Inputs, with no sibling-checkout defaults:
+ * - schema: `carbon_schema_latest.gzip` in the package root (gitignored build
+ *   output of `schema:generate` / `schema:pack`), refused past seven days;
+ * - checker: this package's `bin/cjs-carbon-class.js`;
+ * - Carbon checkout: `CARBON_ROOT` or `CARBONENGINE_ROOT`;
+ * - runtime checkout: `CARBON_SCHEMA_RUNTIME_ROOT`, required; unset skips.
+ *
+ * An absent schema directory, absent Carbon checkout or unnamed runtime is an
+ * explicit SKIP. A partial or malformed schema tree fails: every indexed
+ * document and the enum catalog are validated, including ones no runtime class
+ * uses, before the checker is resolved.
+ *
+ * What fails: new or changed comparison findings against `baseline.json`
+ * (missing fields/methods, type/default/persistence differences, method
+ * metadata), unknown checker output, process or parse failures, and lost
+ * coverage. Coverage is tracked apart from debt: previously observed class and
+ * member identities, determinate defaults and metadata presence may not
+ * disappear, so a run that keeps its class count but parses no members fails.
+ * Classes under `dropped/` and AL (`trinityal`) results are excluded; AL parity
+ * has its own checker.
+ *
+ * Advisory only: scanner-family differences and additional native methods
+ * outside Blue reflection (count and delta printed every run). Blue alone
+ * cannot tell a faithful non-Blue method from an invented one. Blind spots: one
+ * exported class per file is compared; inheritance, statics, accessors,
+ * signatures and behaviour are not proven; `notImplemented` stub bodies satisfy
+ * the metadata comparison. Findings are evidence to check against Carbon, not
+ * authority; never rewrite runtime just to satisfy the scanner.
+ *
+ * `--update` banks fixes only after a PASS against the existing baseline: it
+ * drops resolved findings and gaps and adds new coverage. It refuses new
+ * findings, new gaps, lost coverage, a skipped run and a missing baseline; it
+ * is never a way to accept a fresh finding. Baseline keys are relative
+ * class/member identity plus evidence, not line numbers, so moving code keeps
+ * them stable. A legitimate removal that lowers coverage needs a reviewed
+ * baseline edit, not `--update`.
+ *
+ * Exit 0: PASS or reported SKIP. Exit 1: new findings or lost coverage.
+ * Exit 2: infrastructure error or refused update.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

@@ -20,7 +20,33 @@ const METADATA_FIELDS = new Set([
     "wap",
 ]);
 
-/** Retains decoded definitions losslessly and adds typed catalogs from an exact resource index. */
+/**
+ * Retains decoded definitions losslessly and adds typed catalogs from an exact resource index.
+ *
+ * `definitions` is a plain JSON object keyed by indexed logical path;
+ * `characterResources` is a keyed document map or its record array. Every
+ * definition is kept as JSON in `characterDefinitions`; a missing index entry,
+ * duplicate or non-JSON value fails the compile rather than dropping it.
+ *
+ * Typed projections are additive and atomic:
+ * - a `.type` below a sex-specific character root's `types/` folder that holds
+ *   exactly three or four values becomes a part type (`partPath`,
+ *   `resourceVersion`, `colorVariant`, and the fourth value as `bloodlineIDs`
+ *   with no availability meaning), joined to matching `characterResources`;
+ * - an exact `metadata.yaml` with only known part-metadata fields becomes a
+ *   `partMetadata` record, spelling the authored `dependantModifiers` as
+ *   `dependentModifiers` (the retained definition keeps the authored spelling),
+ *   linked to the baseline or `v<number>` owner folder; a folder no `.type`
+ *   names becomes a metadata-only part source.
+ * A malformed, newly shaped or conflicting value stays only in
+ * `characterDefinitions` and is recorded in `report.projectionErrors`.
+ *
+ * Part sources keep every exact definition path and source folder, stay
+ * separate per sex when one resource path is shared, and inventory only direct
+ * source files and ordinary `v<number>` child folders. Configuration, geometry
+ * and texture paths are unordered candidates: no model family, LOD, texture
+ * role or material meaning is inferred. No source bytes are read.
+ */
 export class CjsToolCharacterDefinitionCompiler
 {
 

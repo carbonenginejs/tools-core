@@ -1,3 +1,8 @@
+/**
+ * `@carbonenginejs/tools-core/dogma`: published attribute evaluation for a bare
+ * hull (`CjsToolDogma`), the skill profile it takes (`CjsToolDogmaProfile`),
+ * and the modifier arithmetic (`DogmaOperation`, `ApplyModifiers`).
+ */
 export {
     CjsToolDogma,
     DEFAULT_SECTIONS,

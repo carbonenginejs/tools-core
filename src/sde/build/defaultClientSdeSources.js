@@ -10,7 +10,16 @@
  *
  * This list is not the goal. The goal is every table CCP's export publishes -
  * 102 of them - and what is here is the compulsory set plus the dogma family.
- * `docs/reference/export-coverage.md` tracks the distance.
+ *
+ * Find a table's source by enumeration, not by filename: list every file the
+ * client ships, subtract the ones already read, and inspect the rest. The
+ * client's name is often not the export's (`icons` is `iconids.fsdbinary`,
+ * `typeLists` is `typelist.fsdbinary`, the SKINR tables are
+ * `ship_skin_design_*` and `ship_cosmetic_slot*`), and some tables are rows
+ * inside one shared container (`dataset`) rather than files of their own: the
+ * ship tree, `typeBonus` and `typeElements` live in `infobubbles.static`, and
+ * `masteries` beside `certificates` in `certificates.static`. A record-count
+ * sweep over files cannot find those.
  *
  * Measured 2026-08-14 against NetEase build 3466057 and CCP build 3466501,
  * extended 2026-08-15. `container` is a fact about the file; `required` mirrors

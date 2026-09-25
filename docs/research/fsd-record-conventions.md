@@ -209,7 +209,6 @@ conflation.
 ## Related
 
 - [deriving a dataset layout](deriving-fsd-layouts.md) — the method and its traps
-- [where an export table lives in the client](static-data-sources.md) — the
   datasets whose file is not named after them
 - The reviewed runtime readers under
   `@carbonenginejs/runtime/resource/formats/fsd/64/readers` define what each

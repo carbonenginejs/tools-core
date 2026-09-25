@@ -7,7 +7,18 @@ import { CjsToolCache } from "../cache/CjsToolCache.js";
 const GENERATED_INDEX_NAME = "audio";
 const GENERATED_MEDIA_VERSION = 1;
 
-/** Materializes raw Wwise bank members as a hash-safe generated index group. */
+/**
+ * Materializes raw Wwise bank members as a hash-safe generated index group.
+ *
+ * Each extractable embedded WEM window is written to the shared
+ * content-addressed cache as `res:/audio/bnk/<bankID>/<languageID>/<mediaID>.wem`
+ * and installed as the exact-build `audio` generated group in `fallback` mode,
+ * so it never replaces an official resource at the same path. The library
+ * gains a loose media record for it while keeping the embedded bank range;
+ * non-WEM members stay embedded only. The group's provenance records each
+ * source bank's path, storage address and checksum plus this builder's
+ * version, and `isCurrent` rejects the group when any of them changes.
+ */
 export class CjsToolAudioMediaBuilder
 {
 

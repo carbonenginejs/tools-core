@@ -306,7 +306,9 @@ function ProjectColor(color, colorSpec)
  * rule to `""`, which `industryAssemblyLines` needs and `blueprints` does not: applying this rule alone
  * takes `blueprints` from 5,071 of 5,082 rows matching to all 5,082. An empty
  * list and an absent one are the same statement, and the exporter picks the
- * shorter way of making it.
+ * shorter way of making it. That holds even where the record's presence bit is
+ * set: a present-but-empty list is dropped too, so the decoded value, not the
+ * bit, predicts export presence.
  *
  * @param {*} value Decoded value.
  * @returns {*} Value without empty arrays.

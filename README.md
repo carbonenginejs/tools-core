@@ -63,7 +63,6 @@ are retained losslessly; typed catalogs are additive indexes.
 
 - [Package documentation](docs/README.md)
 - [Architecture and boundaries](docs/architecture.md)
-- [Public API and subpaths](docs/reference/api.md)
 - [Build generated libraries](docs/guides/generated-libraries.md)
 - [Build a profile-driven SDE](docs/guides/sde-builds.md)
 - [Prepare exact-build cache inputs](docs/guides/prefetch.md)

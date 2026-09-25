@@ -24,7 +24,32 @@ const PART_SOURCE_CANDIDATE_FIELDS = [
     "textureCandidates",
 ];
 
-/** Gathers decoded or declared character JSON and materializes effective part-source versions. */
+/**
+ * Gathers decoded or declared character JSON and materializes effective part-source versions.
+ *
+ * Given the same `definitions` and `characterResources` as
+ * `CjsToolCharacterDefinitionCompiler.compile`, it also materializes each
+ * sparse part source into complete version records. A version that omits a
+ * candidate field (or `metadata`) inherits it from the single
+ * `resourceVersion: null` record; an explicit empty array means no candidates.
+ * Duplicate resource versions reject.
+ *
+ * Model bundles: each `.black` configuration candidate is decoded, and a
+ * bundle is kept only when its one authored geometry path is exactly one of
+ * the same version's geometry candidates; every candidate stays listed. A
+ * shared terminal `_lod<number>` on both paths adds `lod` with
+ * `lodOrigin: "matching-terminal-lod"`, and a shared normalized stem adds
+ * `modelFamily` with `modelFamilyOrigin: "matching-paired-resource-stem"`;
+ * neither selects among bundles or invents a fallback.
+ *
+ * Texture metadata: `.dds` and `.png` candidates share one extension-neutral
+ * identity, and the `.png` is inspected once for raw `oFFs`/`pHYs` placement
+ * data in `characterTextureMetadata`; the candidate itself is never rewritten.
+ * A PNG absent from the index is reported; an indexed fetch that returns no
+ * bytes fails the gather. `source` is an opened exact-build source with
+ * `Fetch(path)` or a lazy factory for one; `null` keeps gathering cache-only,
+ * reporting uncached inputs as cache misses rather than downloading them.
+ */
 export class CjsToolCharacterCatalogGatherer
 {
 

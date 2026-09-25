@@ -13,6 +13,10 @@
 //     [--generated-at <iso>] [--compact]
 //
 // --enrichment accepts a caller-supplied plain-JSON metadata overlay.
+// Without --out the library and its gzip sibling go to the shared exact-build
+// custom cache (`audio` v2), where CjsToolAudioRepository reads them. Any of
+// --event-media, --sfx or --music opens banks; --language (default en-us)
+// selects the graph language, recorded as eventMediaLanguage.
 import fs from "node:fs";
 import path from "node:path";
 import { CjsFileIndex } from "@carbonenginejs/runtime/tools/fileindex";

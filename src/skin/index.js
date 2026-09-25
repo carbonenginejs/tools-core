@@ -1,3 +1,8 @@
+/**
+ * `@carbonenginejs/tools-core/skin`: offline SKIN and SKINR libraries
+ * (`CjsToolSkin`, `CjsToolSkinBuilder`, `CjsToolSkinrBuilder`), SKINR patterns,
+ * and harvested public SKINR design observations and their store.
+ */
 export {
     CJS_SKIN_TABLES,
     CjsToolSkinBuilder,

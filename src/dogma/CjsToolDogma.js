@@ -32,8 +32,15 @@
  * This evaluates a bare hull. Modules, charges, rigs, subsystems, implants,
  * boosters, fleet effects, heat, and stacking penalties are not applied, and a
  * modifier that would need them is reported in `unsupportedEffects` rather than
- * skipped. Anything claiming fitting parity with the game or with Pyfa needs
- * all of that first.
+ * skipped, with a reason: `requires-fitted-items` (a location modifier acting on
+ * modules a bare hull lacks), `unknown-modifier-function`, or
+ * `unknown-operation`. `unavailableAttributes` is the matching statement for
+ * inputs: absent from this source, or present with no published value.
+ * Anything claiming fitting parity with the game or with Pyfa needs all of
+ * that first.
+ *
+ * The service's `GET` form evaluates with no skills and is cacheable by URL;
+ * `POST` carries a profile and mutates nothing.
  */
 
 import { CjsToolDogmaProfile } from "./CjsToolDogmaProfile.js";
