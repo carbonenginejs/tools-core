@@ -1,3 +1,14 @@
+/**
+ * Package linter; `prepack` runs it, so it gates every publish.
+ *
+ * `files` in package.json decides the artifact: `bin/`, `definitions/`,
+ * `docs/`, `scripts/` (minus `scripts/carbon-blue/reports/`), `src/`, and
+ * README, LICENSE and NOTICE. This linter resolves npm's own dry-run file
+ * inventory and rejects unreviewed roots, build output, archives, caches,
+ * dependency trees, agent/tool state, internal documentation markers and local
+ * machine paths. `test/` is not published but the repository is public, so it
+ * is reviewed on the same terms.
+ */
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";

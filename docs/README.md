@@ -56,7 +56,6 @@ format/runtime packages
 - [Prepare exact-build cache inputs](guides/prefetch.md)
 - [Build a SOF bundle](guides/sof-bundles.md)
 - [Run the local service](guides/local-service.md)
-- [Release this package](guides/releasing.md) — **read before pushing**: this
   repository is public and its history accumulates while pushing is paused
 
 ## Documentation map
