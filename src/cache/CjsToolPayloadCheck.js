@@ -32,11 +32,11 @@ import { isResFileAddressFor, parseResFileAddress } from "@carbonenginejs/runtim
 //   Carbon's RemoteFileCache knows only the index line
 //   `resPath,hashedName,md5,size`.
 //
-// describe() is pure naming and moves to runtime utils/resfile (as
-// describeResFileName, beside parseResFileAddress) at the next runtime
-// publish; the md5, gunzip and disk reads stay here, because runtime computes
-// no md5. readOriginal uses gunzipSync, fine for tools but blocking if it ever
-// runs on a service request path.
+// These rules stay here, not in runtime utils/resfile: they describe how THIS
+// provider stores payloads, and the library must work with any index and
+// source (CCP's own servers serve plain addresses only). readOriginal uses
+// gunzipSync, fine for tools but blocking if it ever runs on a service
+// request path.
 // - The path half of an address is checkable without the bytes, against the
 //   logical path it claims to be for.
 
