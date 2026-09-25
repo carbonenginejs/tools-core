@@ -271,5 +271,4 @@ being different worlds.
 
 ## Related documentation
 
-- [client static data sources](../research/client-static-data.md)
 - [building exact-target SDEs](../guides/sde-builds.md)
