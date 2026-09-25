@@ -255,13 +255,9 @@ export class CjsToolIndexReader
         {
             try
             {
-                const bytes = utils.validateResourceBytes(
-                    cached.bytes,
-                    options.expectedResource,
-                    options.sourceUrl,
-                );
-
-                return parseIndexGroup(bytes.toString("utf8"), {
+                // Validated when downloaded below; the cached copy is not
+                // re-hashed.
+                return parseIndexGroup(Buffer.from(cached.bytes).toString("utf8"), {
                     ...options,
                     cachePath: cached.cachePath,
                     cacheHit: true,

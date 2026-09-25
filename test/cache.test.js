@@ -74,12 +74,12 @@ test("uses the shared index, ResFiles, and deterministic custom paths", async ()
         )
     );
 
-    const first = await cache.WriteRemote(storagePath, bytes, { md5, size: bytes.byteLength });
-    const second = await cache.WriteRemote(storagePath, bytes, { md5, size: bytes.byteLength });
+    const first = await cache.WriteRemote(storagePath, bytes);
+    const second = await cache.WriteRemote(storagePath, bytes);
     assert.equal(first.cacheHit, false);
     assert.equal(second.cacheHit, true);
     assert.deepEqual(
-        Buffer.from((await cache.ReadRemote(storagePath, { md5, size: bytes.byteLength })).bytes),
+        Buffer.from((await cache.ReadRemote(storagePath)).bytes),
         Buffer.from(bytes)
     );
 });

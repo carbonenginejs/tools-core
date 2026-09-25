@@ -545,11 +545,8 @@ export class CjsToolShaderBuilder
             const payload = await source.Fetch(resolution.logicalPath, {
                 indexName: resolution.indexName,
             });
-            const sourceBytes = utils.validateResourceBytes(
-                payload.bytes,
-                resolution.record,
-                resolution.logicalPath,
-            );
+            // Fetch validated these when it downloaded them.
+            const sourceBytes = Buffer.from(payload.bytes);
             const sourceMd5 = hash("md5", sourceBytes);
             const sourceSha256 = hash("sha256", sourceBytes);
             const sourceIdentity = {

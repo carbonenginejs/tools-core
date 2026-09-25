@@ -129,7 +129,7 @@ async function Main(argv)
             throw new Error(`SoundbanksInfo logical path not in index: ${options.soundbanksinfo}`);
         }
 
-        const cached = await cache.ReadRemote(entry.storagePath, CacheExpectation(entry));
+        const cached = await cache.ReadRemote(entry.storagePath);
 
         if (!cached)
         {
@@ -180,10 +180,7 @@ async function Main(argv)
                 throw new Error(`${option} resource is not indexed: ${logicalPath}`);
             }
 
-            const cached = await cache.ReadRemote(
-                entry.location,
-                CacheExpectation(entry),
-            );
+            const cached = await cache.ReadRemote(entry.location);
 
             if (!cached)
             {
@@ -237,18 +234,6 @@ async function Main(argv)
         musicNodes: library.music ? Object.keys(library.music.nodes).length : 0,
     }, null, 2));
     return 0;
-}
-
-function CacheExpectation(entry)
-{
-    const byteLength = Number(
-        entry.byteLength ?? entry.uncompressedSize ?? 0,
-    );
-
-    return {
-        ...(entry.checksum ? { md5: entry.checksum } : {}),
-        ...(byteLength > 0 ? { size: byteLength } : {}),
-    };
 }
 
 function NormalizeLanguage(value)

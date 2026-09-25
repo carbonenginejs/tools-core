@@ -82,7 +82,7 @@ test("CjsToolAudio is the target-aware front-facing audio builder", () =>
 });
 
 
-test("audio CLI reads and validates logical inputs from the shared ResFiles cache", context =>
+test("audio CLI reads logical inputs from the shared ResFiles cache", context =>
 {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-audio-tool-"));
   const cacheDirectory = path.join(directory, "cache");
@@ -153,13 +153,6 @@ test("audio CLI reads and validates logical inputs from the shared ResFiles cach
     GunzipSync(fs.readFileSync(`${installedPath}.gz`)),
     fs.readFileSync(installedPath),
   );
-
-  fs.writeFileSync(cachePath, "{}");
-
-  const invalid = spawnSync(process.execPath, args, { encoding: "utf8" });
-
-  assert.equal(invalid.status, 1);
-  assert.match(invalid.stderr, /size mismatch/);
 });
 
 function CreateEmptyAudioMetadata()

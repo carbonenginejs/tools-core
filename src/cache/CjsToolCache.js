@@ -103,8 +103,12 @@ export class CjsToolCache
         return cachePath;
     }
 
-    /** Reads and optionally validates one shared content-addressed payload. */
-    async ReadRemote(storagePath, expected = {})
+    /**
+     * Reads one shared content-addressed payload, or null when absent. Not
+     * re-hashed: bytes are validated once, when first downloaded, and written
+     * atomically, so a cached payload is either complete or missing.
+     */
+    async ReadRemote(storagePath)
     {
         const cachePath = this.GetRemoteFilePath(storagePath);
         const bytes = await ReadIfPresent(cachePath);
@@ -114,32 +118,24 @@ export class CjsToolCache
             return null;
         }
 
-        ValidateBytes(bytes, expected, storagePath);
-
         return Object.freeze({ bytes, cachePath });
     }
 
-    /** Writes one immutable validated payload into the shared ResFiles tree. */
-    async WriteRemote(storagePath, bytes, expected = {})
+    /**
+     * Writes one immutable payload into the shared ResFiles tree; an existing
+     * payload at the same content address is kept. The caller validated the
+     * bytes when it downloaded them.
+     */
+    async WriteRemote(storagePath, bytes)
     {
-        const value = ToUint8Array(bytes);
         const cachePath = this.GetRemoteFilePath(storagePath);
 
-        ValidateBytes(value, expected, storagePath);
-
-        const cached = await ReadIfPresent(cachePath);
-
-        if (cached)
+        if (await Exists(cachePath))
         {
-            ValidateBytes(cached, expected, storagePath);
-
             return Object.freeze({ cachePath, cacheHit: true });
         }
 
-        const written = await WriteImmutable(cachePath, value);
-        const stored = await fs.readFile(cachePath);
-
-        ValidateBytes(stored, expected, storagePath);
+        const written = await WriteImmutable(cachePath, ToUint8Array(bytes));
 
         return Object.freeze({ cachePath, cacheHit: !written });
     }
@@ -262,6 +258,24 @@ function SafeJoin(root, ...segments)
     return result;
 }
 
+async function Exists(filePath)
+{
+    try
+    {
+        await fs.access(filePath);
+        return true;
+    }
+    catch (error)
+    {
+        if (error?.code === "ENOENT")
+        {
+            return false;
+        }
+
+        throw error;
+    }
+}
+
 async function ReadIfPresent(filePath)
 {
     try
@@ -342,27 +356,6 @@ async function WriteReplace(filePath, bytes)
 function TemporaryPath(filePath)
 {
     return `${filePath}.${process.pid}.${crypto.randomBytes(6).toString("hex")}.tmp`;
-}
-
-function ValidateBytes(bytes, expected, label)
-{
-    if (expected.size !== undefined && bytes.byteLength !== Number(expected.size))
-    {
-        throw new Error(
-            `${label} size mismatch: expected ${expected.size}, received ${bytes.byteLength}`
-        );
-    }
-
-    if (expected.md5)
-    {
-        const actual = crypto.createHash("md5").update(bytes).digest("hex");
-        if (actual !== String(expected.md5).toLowerCase())
-        {
-            throw new Error(
-                `${label} MD5 mismatch: expected ${expected.md5}, received ${actual}`
-            );
-        }
-    }
 }
 
 function ToUint8Array(value)

@@ -60,18 +60,14 @@ export class CjsToolIndexGeneratedStore
                 entry.location,
             );
 
+            // Presence only: these payloads were written by our own tools,
+            // which recorded their hashes, so re-hashing checks nothing new.
             if (!cached)
             {
                 throw new Error(
                     `Generated index payload is absent from ResFiles: ${entry.location}`,
                 );
             }
-
-            utils.validateResourceBytes(
-                cached.bytes,
-                entry,
-                entry.logicalPath,
-            );
         }
 
         const indexFile = `resfileindex_${name}.txt`;

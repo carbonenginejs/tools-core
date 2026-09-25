@@ -1163,7 +1163,7 @@ export class CjsToolIndexOverlay
             .map((record) => this.#CreateResolution(record)));
     }
 
-    /** Reads and validates one persistent overlay payload. */
+    /** Reads one persistent overlay payload; it was validated when installed. */
     async Read(record)
     {
         if (this.storageKind !== "persistent-overlay")
@@ -1174,10 +1174,7 @@ export class CjsToolIndexOverlay
         const payloadPath = this.GetPayloadPath(record);
         const bytes = await fs.readFile(payloadPath);
 
-        return Object.freeze({
-            bytes: utils.validateResourceBytes(bytes, record, record.logicalPath),
-            payloadPath,
-        });
+        return Object.freeze({ bytes, payloadPath });
     }
 
     /** Gets one payload path without allowing an index entry to escape the store. */

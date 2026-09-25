@@ -573,10 +573,7 @@ test("audio repository optionally materializes embedded WEMs as generated resour
                         return source.Fetch(logicalPath);
                     }
 
-                    const cached = await cache.ReadRemote(entry.location, {
-                        md5: entry.checksum,
-                        size: entry.uncompressedSize,
-                    });
+                    const cached = await cache.ReadRemote(entry.location);
 
                     return { bytes: cached.bytes };
                 },

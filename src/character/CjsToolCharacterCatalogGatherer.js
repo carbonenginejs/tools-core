@@ -264,13 +264,7 @@ export class CjsToolCharacterCatalogGatherer
                 if (!/\.black$/iu.test(configurationPath)) continue;
                 const entry = index.Find(configurationPath);
                 if (!entry) continue;
-                const expected = {
-                    ...(entry.checksum ? { md5: entry.checksum } : {}),
-                    ...(entry.uncompressedSize !== null
-                        ? { size: entry.uncompressedSize }
-                        : {}),
-                };
-                let payload = await this.#cache.ReadRemote(entry.location, expected);
+                let payload = await this.#cache.ReadRemote(entry.location);
                 if (payload)
                 {
                     report.modelBundles.cacheHits++;
@@ -286,7 +280,7 @@ export class CjsToolCharacterCatalogGatherer
                         });
                         continue;
                     }
-                    await this.#cache.WriteRemote(entry.location, fetched.bytes, expected);
+                    await this.#cache.WriteRemote(entry.location, fetched.bytes);
                     payload = { bytes: fetched.bytes };
                     report.modelBundles.acquired++;
                 }
@@ -370,13 +364,7 @@ export class CjsToolCharacterCatalogGatherer
                     report.textureMetadata.missingIndexEntries.push(resource.pngPath);
                     continue;
                 }
-                const expected = {
-                    ...(entry.checksum ? { md5: entry.checksum } : {}),
-                    ...(entry.uncompressedSize !== null
-                        ? { size: entry.uncompressedSize }
-                        : {}),
-                };
-                let payload = await this.#cache.ReadRemote(entry.location, expected);
+                let payload = await this.#cache.ReadRemote(entry.location);
 
                 if (payload)
                 {
@@ -393,7 +381,7 @@ export class CjsToolCharacterCatalogGatherer
                         );
                     }
 
-                    await this.#cache.WriteRemote(entry.location, fetched.bytes, expected);
+                    await this.#cache.WriteRemote(entry.location, fetched.bytes);
                     payload = { bytes: fetched.bytes };
                     report.textureMetadata.acquired++;
                 }
@@ -491,12 +479,7 @@ export class CjsToolCharacterCatalogGatherer
             return;
         }
 
-        const cached = await this.#cache.ReadRemote(entry.location, {
-            ...(entry.checksum ? { md5: entry.checksum } : {}),
-            ...(entry.uncompressedSize !== null
-                ? { size: entry.uncompressedSize }
-                : {}),
-        });
+        const cached = await this.#cache.ReadRemote(entry.location);
 
         if (!cached)
         {

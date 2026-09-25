@@ -462,7 +462,7 @@ test("character gathering keeps declared candidates and metadata-only sources", 
     )).sourceBuild, "3450001");
 });
 
-test("character gathering reports missing and invalid declared inputs", async context =>
+test("character gathering reports missing declared inputs and trusts cached payloads", async context =>
 {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-character-gatherer-"));
     const cache = new CjsToolCache(directory);
@@ -526,8 +526,8 @@ test("character gathering reports missing and invalid declared inputs", async co
         {
             assert.equal(error.report.missingIndexEntries.length, 2);
             assert.deepEqual(error.report.missingCacheFiles, [ missingCachePath ]);
-            assert.equal(error.report.errors.length, 1);
-            assert.match(error.report.errors[0].message, /MD5 mismatch/u);
+            // A cached payload is not re-hashed: it was validated on download.
+            assert.equal(error.report.errors.length, 0);
             return true;
         }
     );

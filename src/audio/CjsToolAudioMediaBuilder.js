@@ -107,10 +107,7 @@ export class CjsToolAudioMediaBuilder
                     .digest("hex");
                 const storagePath = resFileAddress(logicalPath, checksum);
 
-                await this.#cache.WriteRemote(storagePath, payload, {
-                    md5: checksum,
-                    size: byteLength,
-                });
+                await this.#cache.WriteRemote(storagePath, payload);
 
                 const entry = {
                     logicalPath,
