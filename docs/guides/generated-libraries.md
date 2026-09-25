@@ -315,50 +315,6 @@ dogma charge groups and sizes for ammunition compatibility. The official
 launcher projectile catalog remains separate because filenames do not prove an
 ammunition-to-projectile TypeID relation.
 
-## JavaScript composition
-
-```js
-import { CjsToolSde, CjsToolSdeArchive } from "@carbonenginejs/tools-core/sde";
-
-const archive = new CjsToolSdeArchive();
-const exact = await archive.ResolveLatest();
-const database = await archive.PrepareDatabase({
-    ...exact,
-    databasePath: "<cache database path>",
-});
-const sde = new CjsToolSde(await database.LoadTables([
-    "types",
-    "graphics",
-    "skins",
-    "skinMaterials",
-    "skinLicenses",
-    "materialSets",
-    "graphicMaterialSets",
-    "groups",
-]));
-```
-
-`materialSets` and `groups` are **optional**: an SDE lacking either still
-prepares rather than failing, because each is wanted by one consumer rather than
-by the resolution everything shares. `groups` carries `categoryID`, which is what
-separates a ship from its blueprints and from the NPC entities flying the same
-hull.
-
-The root `CjsToolCore` facade may then resolve identity to SOF DNA.
-`BuildSofValues()` returns the recommended plain runtime model values;
-`BuildSofExpandedValuesAsync()` returns the same wrapper-free graph with
-registered Trinity/audio class defaults filled in for offline consumers;
-`BuildSofDocument()` returns the explicit `carbon.document` node table for
-diagnostic or graph tooling.
-
-## Shader outputs
-
-Shader builders catalog exact `.sm_*` sources, validate size and MD5, delegate
-whole-effect conversion to the owning format package, and stage immutable
-reports and overlays. Public output profiles are `effect.webgl2` and
-`effect.webgpu`; Carbon WebGL and WebGPU are package formats, not resource profiles.
-Missing inputs remain missing and are never concealed by a legacy fallback.
-
 ## Reproducibility and safety
 
 Fetched archives, SQLite/WAL files, indexes, generated reports, and game-derived
