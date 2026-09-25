@@ -41,9 +41,8 @@ Options:
 ## Texture conversion
 
 DDS payloads are decoded through `@carbonenginejs/runtime/resource`'s software decoder and
-written as 8-bit RGBA PNG. Two-channel BC5/`ATI2` normal maps store only X and
-Y, so their Z is reconstructed as `sqrt(1 - x² - y²)` during conversion;
-without that step a generic image consumer reads a zero blue channel.
+written as 8-bit RGBA PNG. Two-channel BC5 normal maps get their Z channel
+reconstructed, so they read as ordinary normal maps.
 
 Conversion exists because consumers differ in what they can read. Blender 5.0,
 for example, decodes DXT and BC5 DDS itself but not BC7 (`DX10` header,

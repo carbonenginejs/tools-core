@@ -50,9 +50,7 @@ async function main()
         throw new Error("Select profiles positionally or with --profile, not both");
     }
 
-    const cacheDirectory = path.resolve(
-        String(args.cache ?? path.join(".cache", "tool-core")),
-    );
+    const cacheDirectory = resolveCacheRoot(args.cache);
     const toolCache = new CjsToolCache(cacheDirectory);
     const indexes = new CjsToolIndex({
         cache: new CjsToolIndexCache({ directory: cacheDirectory }),

@@ -11,8 +11,10 @@ Summary: Starts and consumes the loopback query, resource, and generated-library
 npm run service -- --cache <cache> --data <persistent-data>
 ```
 
-The launcher binds to loopback, selects an available port by default, and
-writes one JSON bootstrap record to stdout. The record contains only listener,
+The launcher binds to loopback on port 5510 by default (`--port 0` picks any
+free port) and writes one JSON bootstrap record to stdout. The port is fixed
+because EVE SSO matches its registered callback URL exactly.
+`cjs-tools-service --help` lists every option. The record contains only listener,
 cache, data, protocol, and capability information; it never contains
 credentials.
 
@@ -97,9 +99,9 @@ SFX graph when built with `--sfx`, and the dynamic music graph when built with
 the required banks are indexed. Prepared or converted source variants become
 selectable when their descriptors are present.
 
-The service does not inspect an installed game client's cache. Optional
-prefetch uses only its configured tools cache and validates every cache hit
-through the normal exact-build index source.
+The service does not inspect an installed game client's cache. It reads only
+its configured tools cache, and trusts a payload already there without
+re-hashing it; size and checksum are checked when tools-core downloads one.
 
 Generated artifacts are prepared on their first request by default: a missing
 EVE SDE downloads and prepares itself, and a missing audio library builds from

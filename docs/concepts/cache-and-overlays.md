@@ -28,9 +28,8 @@ every target shares them and a second store is pure duplication.
 ## Cache layout
 
 Exact-build indexes are keyed by **target**. Target is the identity; provider,
-game and client are things a target has. Before 2026-08-15 the key was
-`game + provider`, which separated the four targets only by accident and is why
-`cjs-tools-cache-migrate` exists:
+game and client are things a target has. `cjs-tools-cache-migrate` moves a
+cache written under the older `game + provider` key:
 
 ```text
 <cache>/targets/<target>/builds/<build>/indexes/<file-name>
@@ -97,9 +96,8 @@ The build matters more here than it looks - not because a supplied index could
 contaminate anything, but because it could be quietly incomplete. The payload
 store is one pool for every game, provider and client, keyed by the file's own
 hash, so two publishers shipping the same bytes share one entry and cannot
-collide. That is why a supplied index is nearly free: measured 2026-09-17,
-34,413 of Frontier's 48,394 payloads are byte-identical to EVE build 3503375's,
-and 116,630 of Serenity's 125,335 are. What an index does carry is the claim
+collide, and most of a supplied target's payloads are usually already there
+from EVE. What an index does carry is the claim
 "this is the file list of build N", and an index filed under a build it did not
 come from still resolves everything it names while silently missing whatever
 that build added.

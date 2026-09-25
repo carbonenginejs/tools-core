@@ -48,9 +48,7 @@ async function main()
     const cache = args.noCache
         ? null
         : new CjsToolIndexCache({
-            directory: args.cache
-                ? path.resolve(String(args.cache))
-                : path.resolve(".cache", "tool-core"),
+            directory: resolveCacheRoot(args.cache),
         });
     const tool = new CjsToolIndex({ profiles, cache });
 

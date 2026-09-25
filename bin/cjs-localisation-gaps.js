@@ -21,6 +21,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { resolveCacheRoot } from "../src/cache/resolveCacheRoot.js";
 import { CjsToolSdeDatabase } from "../src/sde/index.js";
 import { CjsToolLocalisation, ReadManualNames } from "../src/localisation/index.js";
 
@@ -54,7 +55,8 @@ async function Main(argv)
 
     if (!options.target) throw new Error("--target is required");
 
-    const cacheRoot = options.cache ?? path.resolve(process.cwd(), "..", ".cache", "tool-core");
+    // Run from a sibling checkout, so the default is the parent's cache.
+    const cacheRoot = resolveCacheRoot(options.cache, { cwd: path.resolve(process.cwd(), "..") });
     const target = await OpenTarget(cacheRoot, options.target, options.build);
     const reference = options.reference === "none"
         ? null

@@ -133,18 +133,6 @@ to its own 404 — or worse, to its `index.html`. The address is advertised as
 `x-carbon-resfile` on every resource response regardless, so a caller can adopt
 it without the redirect being on.
 
-Two provider-shaped routes were removed on 2026-08-15 —
-`/games/<game>/providers/<provider>/clients` and
-`/games/<game>/providers/<provider>/builds/<build>`. They needed two keys to
-reach one answer and separated the four targets only by accident: Eve+ccp,
-Frontier+ccp, Eve+serenity and Eve+infinity happen to be distinct pairs, nothing
-enforced that they would stay so, and a duplicate target id already throws. Use
-`/<target>/metadata` and `/<target>/<build>/build`.
-
-**`/ccp/<build>/…` is also gone**, along with the `ccp → eve` alias behind it. A
-provider is not an address: the `ccp` provider covers Frontier as well as EVE, so
-the alias only ever meant `eve` by convention. Use `/eve/<build>/…`.
-
 ### Describing a target
 
 `/<target>/metadata` answers what a target is, and which build each of its
@@ -412,8 +400,7 @@ GET /eve/<sde-build>/dna/resolve?name=<type-name>
 GET /eve/<sde-build>/dna/search?q=<term>&limit=40
 ```
 
-Neither is a table lookup, which is why neither lives under `sde` — they were
-there until 2026-08-17 and moved out unaliased.
+Neither is a table lookup, which is why neither lives under `sde`.
 
 `dna/resolve` answers type + skin -> DNA. `dna/search` is the inverse, and takes
 a whole DNA, a partial one, or any single part of one — a hull, faction, race,
@@ -527,111 +514,23 @@ GET /eve/<sde-build>/map/celestials/<celestialID>
 by its own id; the nested forms are for navigation and are never required to
 reach a record.
 
-### Ids do not tell you what a thing is
+Positions are `[x, y, z]` arrays and rotations `[x, y, z, w]`. Every answer
+that carries a position also carries a `frame` block that declares the axes,
+handedness and units, and nothing is rounded. Positions are float64 metres: use
+`localPosition` (relative to the parent named in `orbit`) for anything a
+float32 renderer places, and never a system's galactic `position`. Stargates
+have no parent. Anything with artwork carries `graphicID` and a `graphics`
+object (`expand=graphics`) whose paths are the ones the resource route serves.
 
-`mapStars`, `mapPlanets`, `mapMoons` and `mapAsteroidBelts` all occupy the
-40000000 range and interleave — 40000002 is a planet, 40000003 a belt, 40000004
-a moon. `map/celestials/<id>` probes the tables rather than reading the range,
-and anything deciding a kind from an id is guessing.
+Celestial names, stargate orientation, the sun's colour and intensity, and the
+nebula stamped onto every level are computed, not published; `CjsToolMap`'s
+JSDoc states each rule and the measurement behind it. `scene.postProcess` is
+always `null`. An id does not say what kind of thing it is: stars, planets,
+moons and belts interleave in one range.
 
-### Vectors are arrays
-
-Positions are `[x, y, z]` and rotations are `[x, y, z, w]`, not `{x, y, z}`
-objects, so they can be handed straight to gl-matrix or a typed array with no
-conversion pass. The component order, the forward and up axes and the handedness
-are declared once in each answer's `frame` block rather than repeated as key
-names on every vector — which is what keeps the compact form self-describing.
-
-The star is always at `[0, 0, 0]`. The SDE omits its position entirely
-because it *is* the system origin, and that is measured rather than assumed:
-across all 68023 planets the distance from the origin matches the planet's own
-published `orbitRadius` to within 0.0001%. The map supplies it so no consumer
-has to carry that special case.
-
-### One shape for every graphic
-
-Anything with artwork carries `graphicID` as the provenance pointer and a
-`graphics` object containing `sofDna` and **loadable** resource paths. With
-`expand=graphics` (or `expand=all`), prefer a non-null `sofDna` over `resFilePath`.
-DNA is resolved from the same graphic fields used by `/dna/resolve`; it is
-`null` for resource-only graphics. Both are retained when available:
-
-| Entity | Roles |
-| --- | --- |
-| region / constellation / system nebula | `scene` |
-| star | `sofDna`, `resFilePath` |
-| planet, moon | `sofDna`, `resFilePath`, `shaderPreset`, `heightMap1`, `heightMap2` |
-| belt, station, stargate | `sofDna`, `resFilePath` |
-
-Paths are rewritten to the form the resource route actually serves: `.red`
-becomes `.black`, and case is normalised. The SDE names the legacy `.red`
-container, which is not served — emitting it verbatim hands the consumer an
-address that 404s and makes a naming problem look like a missing asset. Only the
-container extension is touched; a `.dds` or `.gr2` is already the served name.
-
-The unmodified SDE string is deliberately not duplicated into the answer.
-`graphicID` points at it, and `GET /{target}/{build}/sde/graphics/{id}` returns
-it exactly as published.
-
-### The nebula is on every level
-
-The background belongs to the region, but every level of the answer carries it
-resolved — region, constellation, system, a system's celestials, and search
-results — so drawing a system never costs three requests. Below the region it is
-stamped `fromRegionID`, because a system does not author a backdrop and a
-consumer that thinks otherwise will build a control that cannot work.
-
-### Positions, and the float32 problem
-
-EVE positions are float64 metres and renderers are float32. Every answer that
-carries a position also carries a `frame` block declaring what the numbers mean.
-Nothing is rounded on the way out.
-
-Measured in one prepared SDE, comparing the float32 quantum at each magnitude
-against the size of the object being positioned:
-
-| Frame | Median error | Objects smaller than their own error |
-| --- | --- | --- |
-| Galactic (system positions) | 3.4e10 m | everything — 115 light-seconds |
-| System-relative, moons | 2.6e5 m | none: 0 of 344457 fall inside their planet |
-| System-relative, stations | 6.6e4 m | 91.2% — a station is ~10 km |
-| System-relative, stargates | 2.6e5 m | 99.8% — a gate is ~2.5 km |
-| Parent-relative (`localPosition`) | 1.3e-1 m | 0.02% of stations |
-
-Three rules follow:
-
-- **Never send a system's own `position` to a renderer.** It is galactic, for
-  map layout and for the stargate orientation rule.
-- **System-relative placement is sound between bodies.** The moon-inside-its-
-  planet failure does not occur anywhere in the cluster.
-- **Use `localPosition` for anything built.** Relative to its parent, a
-  station's error drops from 65 km to 12 cm. Each celestial reports its parent
-  as `orbit: { id, kind }`.
-
-Stargates carry no `orbitID` — not one of the 13978 — so they cannot be made
-parent-relative, and a consumer that flies to one must re-origin on the camera.
-
-### What is computed rather than published
-
-| Field | Rule |
-| --- | --- |
-| Celestial `name` | The SDE ships none for planets, moons, belts, stations, stars or gates. Composed the way the game presents them: `Jita IV - Moon 4 - Caldari Navy Assembly Plant`. |
-| Stargate `direction` / `rotation` | A gate faces its destination *system*. Not published anywhere; reported with `orientationRule` so a computed orientation is distinguishable from a read one. `direction` is convention-free, `rotation` assumes +Z forward, +Y up, right-handed. |
-| `scene.sun.color` | Blackbody colour from the star's temperature, via the Planckian locus. Linear RGB, not gamma encoded. |
-| `scene.sun.intensity` | A presentation curve — the fourth root of luminosity over the cluster median — not a physical quantity. Raw `luminosity` is reported beside it. |
-| `scene.nebula.scenePath` | The region's `nebulaID` graphic, `.red` rewritten to `.black` and lower-cased. `graphicFile` keeps the SDE's own string. |
-| `scene.postProcess` | Always `null`. Nothing in the SDE or in any nebula scene names a post process for a location; environment volumes placed in space carry it instead, and those are not part of the SDE. `null` means "choose one", and is not a gap to be filled with a guess. |
-
-Names, orientations and the search index come from the `mapIndex` derivation.
-`GET /map` reports whether it is present and whether it is `degraded` — the
-degraded path rebuilds in memory without `mapMoons`, which names stations one
-level coarser. Materialise it for a database already on disk with:
-
-```sh
-node bin/cjs-sde-prepare.js --build <build> --refresh
-```
-
-which recomputes derivations and query indexes without re-acquiring the archive.
+`GET /map` reports whether the `mapIndex` derivation is present or `degraded`.
+Materialise it for a database already on disk with
+`node bin/cjs-sde-prepare.js --build <build> --refresh`.
 
 ## Dogma routes
 
@@ -750,6 +649,32 @@ that pasted EFT can hand back a chat link without a second call:
   "formats": { "dna": "587:2913;2:…::", "chatLink": "<url=fitting:…>My Fit</url>", "eft": "[Rifter, My Fit]\n…" }
 }
 ```
+
+## Service routes
+
+```text
+GET  /v1/health
+GET  /v1/skinr[/facets|/cards|/designs/<id>[?form=raw]|/listings/<id>]
+GET  /v1/identity/resolve?q=<name>&kind=<kind>
+GET  /v1/identity/characters/<characterID>
+GET  /v1/market/orders?region=<regionID>&type=<typeID>
+GET  /v1/market/history?region=<regionID>&type=<typeID>
+GET  /v1/market/plex
+POST /v1/resources/resolve   { source, logicalPath, options? }
+POST /v1/resources/fetch     { source, logicalPath, options? }
+```
+
+These sit under `/v1/` rather than a target route because none of them is an
+attribute of a client build. `health` reports the protocol, capabilities and
+the ESI compatibility date the service uses. The SKINR routes read designs and
+listings this service has already harvested; they need no token. Identity and
+market answers come from ESI; market responses let a browser cache them for a
+short time only, whatever ESI allows. The two resource routes take an exact
+numeric `source.build` and a `source.provider`; `fetch` fills the cache and
+reports the resolution, size, cache path and whether it was a cache hit.
+
+Each of these answers `501` when the service was started without the part it
+needs, and `400` for a malformed id, region, type or kind.
 
 ## Authenticated ESI routes
 
