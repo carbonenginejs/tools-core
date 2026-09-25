@@ -552,6 +552,60 @@ test("Blue property flags follow the exposure macro", () =>
     assert.deepEqual(byName.persisted.ioDecorators, [ "readwrite", "persist" ]);
 });
 
+test("a base Carbon never exposes takes its flags from the subclasses that do", (t) =>
+{
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "carbon-class-base-"));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const base = {
+        family: "lights", blueClass: "FixtureLight", cppClass: "FixtureLight",
+        fields: [
+            { cppName: "m_radius", cppType: "float" },
+            { cppName: "m_profile", cppType: "float" },
+            { cppName: "m_hidden", cppType: "float" }
+        ]
+    };
+    const sub = (name, profileFlags) => ({
+        family: "lights", blueClass: name, cppClass: name,
+        attributes: [
+            { blueName: "radius", member: "m_radius", cppType: "float", declaredOn: "FixtureLight", flags: [ "READWRITE", "PERSIST" ] },
+            { blueName: "profile", member: "m_profile", cppType: "float", declaredOn: "FixtureLight", flags: profileFlags }
+        ]
+    });
+    WriteSchema(root, "lights", "FixtureLight", base);
+    WriteSchema(root, "lights", "FixturePointLight", sub("FixturePointLight", [ "READ" ]));
+    WriteSchema(root, "lights", "FixtureSpotLight", sub("FixtureSpotLight", [ "READWRITE" ]));
+
+    const expected = deriveExpectedFields(base, { schemaRoot: root, family: "lights" });
+    const byName = Object.fromEntries(expected.fields.map(field => [ field.name, field ]));
+
+    assert.deepEqual(byName.radius.editFlags, [ "READ", "WRITE", "PERSIST" ]);
+    assert.equal(byName.radius.editFlagConflict, undefined);
+    assert.deepEqual(byName.hidden.editFlags, []);
+    assert.deepEqual(byName.profile.editFlagConflict.map(item => item.exposers), [ [ "FixturePointLight" ], [ "FixtureSpotLight" ] ]);
+
+    const result = compareClass(expected, parseClassFile(`
+@type.define({ className: "FixtureLight" })
+export class FixtureLight
+{
+    @edit.readwrite
+    @edit.persist
+    @type.float32
+    radius = 0;
+
+    @edit.readwrite
+    @type.float32
+    profile = 0;
+
+    @type.float32
+    hidden = 0;
+}
+`));
+    const notes = Object.fromEntries(result.fields.map(field => [ field.name, field.notes.join(" | ") ]));
+    assert.doesNotMatch(notes.radius, /edit-flags differ/u);
+    assert.doesNotMatch(notes.profile, /edit-flags differ/u);
+    assert.match(notes.profile, /subclass exposures disagree on edit flags: FixturePointLight \[READ\]; FixtureSpotLight \[READ, WRITE\]/u);
+});
+
 test("edit flags are compared as a set, reporting missing and extra flags", () =>
 {
     const expected = deriveExpectedFields(MakeEditFlagDoc());

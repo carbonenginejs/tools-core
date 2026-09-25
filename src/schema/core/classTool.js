@@ -1890,6 +1890,90 @@ function ownerExposesBlueField(schemaRoot, family, ownerName, fieldName)
     );
 }
 
+const subclassExposureCache = new Map();
+
+/**
+ * Every attribute a class declares on a base that does not expose it, keyed by
+ * base class then member path, with the subclasses that expose it and how.
+ * Carbon exposes a field only on concrete classes, so a base such as Tr2Light
+ * learns its flags from Tr2PointLight, Tr2SpotLight and the rest.
+ */
+function subclassExposures(schemaRoot)
+{
+    let byOwner = subclassExposureCache.get(schemaRoot);
+    if (byOwner) return byOwner;
+
+    byOwner = new Map();
+    subclassExposureCache.set(schemaRoot, byOwner);
+    if (!fs.existsSync(schemaRoot)) return byOwner;
+
+    for (const entry of fs.readdirSync(schemaRoot, { withFileTypes: true }))
+    {
+        if (!entry.isDirectory()) continue;
+        const directory = path.join(schemaRoot, entry.name);
+        for (const file of fs.readdirSync(directory))
+        {
+            if (!file.endsWith(".json")) continue;
+            let doc = null;
+            try { doc = readJson(path.join(directory, file)); }
+            catch { continue; }
+            const exposer = doc.cppClass || doc.blueClass || null;
+            for (const attr of Array.isArray(doc.attributes) ? doc.attributes : [])
+            {
+                const owner = attr.declaredOn || attr.black?.declaredOn || null;
+                if (!owner || owner === exposer || !attr.member) continue;
+                // An embedded owner (m_destination.m_path, declared on
+                // Tr2BindingPoint) is keyed by its leaf; its Blue name belongs
+                // to the embedding class, so it is not carried over.
+                const memberPath = normalizeMemberPath(attr.member);
+                const embedded = memberPath.includes(".");
+                const member = embedded ? `m_${memberLeafName(memberPath)}` : memberPath;
+                if (!byOwner.has(owner)) byOwner.set(owner, new Map());
+                const members = byOwner.get(owner);
+                if (!members.has(member)) members.set(member, []);
+                members.get(member).push({
+                    exposer,
+                    blueName: embedded ? null : attr.blueName || null,
+                    flags: Array.isArray(attr.flags) ? attr.flags : []
+                });
+            }
+        }
+    }
+    return byOwner;
+}
+
+/**
+ * The flags a base-class member takes from the subclasses that expose it.
+ * Returns null when no subclass exposes it, { flags, blueName } when every
+ * subclass agrees, and { conflict } when they disagree: the checker then
+ * reports the disagreement rather than picking one.
+ */
+function subclassExposureFor(schemaRoot, ownerName, member)
+{
+    const exposures = subclassExposures(schemaRoot).get(ownerName)?.get(normalizeMemberPath(member));
+    if (!exposures?.length) return null;
+
+    const flagKey = item => expectedEditFlags(item.flags).join("|");
+    const flagSets = new Set(exposures.map(flagKey));
+    if (flagSets.size > 1)
+    {
+        const byFlags = new Map();
+        for (const item of exposures)
+        {
+            const key = flagKey(item);
+            if (!byFlags.has(key)) byFlags.set(key, []);
+            byFlags.get(key).push(item.exposer);
+        }
+        return { conflict: [ ...byFlags ].map(([ key, exposers ]) => ({ editFlags: key ? key.split("|") : [], exposers })) };
+    }
+
+    const blueNames = new Set(exposures.map(item => item.blueName));
+    return {
+        flags: exposures[0].flags,
+        blueName: blueNames.size === 1 ? [ ...blueNames ][0] : null
+    };
+}
+
 function ownerExposesBlueMethod(schemaRoot, family, ownerName, methodName)
 {
     const ownerDoc = readFamilySchemaDoc(schemaRoot, family, ownerName);
@@ -2111,7 +2195,8 @@ export function deriveExpectedFields(doc, options = {})
     {
         for (const field of usableRawFields)
         {
-            const name = stripMemberPrefix(field.cppName);
+            const exposure = subclassExposureFor(schemaRoot, meta.cppClass, field.cppName);
+            const name = exposure?.blueName || stripMemberPrefix(field.cppName);
             if (!name) continue;
             const kindInfo = inferKindFromCpp(field.cppType, name, schemaRoot, className);
             const parsedDefault = parseSchemaDefault(field.default, kindInfo.kind, {
@@ -2120,11 +2205,13 @@ export function deriveExpectedFields(doc, options = {})
                 className,
                 schemaRoot
             });
-            const notes = [];
-            pushExpected(buildExpectedField({
+            const notes = exposure?.flags ? [ "edit flags from subclass exposures" ] : [];
+            const expected = buildExpectedField({
                 name, member: field.cppName, cppType: field.cppType || null,
-                flags: [], kindInfo, parsedDefault, notes
-            }));
+                flags: exposure?.flags || [], kindInfo, parsedDefault, notes
+            });
+            if (exposure?.conflict) expected.editFlagConflict = exposure.conflict;
+            pushExpected(expected);
         }
     }
 
@@ -3035,10 +3122,19 @@ export function compareClass(expected, parsed, options = {})
         }
 
         // Edit flags: the exact Be::EDITFLAGS set, compared both ways.
+        // A base member whose subclasses expose it differently has no one
+        // answer; the disagreement is reported instead of a mismatch.
         let missingIo = false;
         const missingFlags = exp.editFlags.filter(flag => !act.editFlags.includes(flag));
         const extraFlags = act.editFlags.filter(flag => !exp.editFlags.includes(flag));
-        if (missingFlags.length || extraFlags.length)
+        if (exp.editFlagConflict)
+        {
+            const views = exp.editFlagConflict
+                .map(item => `${item.exposers.join(", ")} [${item.editFlags.join(", ")}]`)
+                .join("; ");
+            notes.push(`subclass exposures disagree on edit flags: ${views}`);
+        }
+        else if (missingFlags.length || extraFlags.length)
         {
             missingIo = true;
             const wanted = [ ...(exp.notify ? [ "notify" ] : []), ...exp.ioDecorators ].map(n => `@edit.${n}`).join(", ") || "none";
