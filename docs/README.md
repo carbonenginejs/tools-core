@@ -8,7 +8,7 @@ Summary: Entry point for the Node toolchain, generated-library, and local-servic
 > **This tree is the package's PUBLIC documentation. It ships inside the npm
 > artifact**, so it carries nothing private — no machine paths, no credentials,
 > no internal-only material — and it describes what the shipped package does:
-> its concepts, references, guides and published roadmap.
+> its concepts, references and guides.
 >
 > Internal decisions, direction and research are kept separately and are not in
 > this tree. The two are split by audience, not by topic, which means **a
@@ -25,9 +25,10 @@ through local Node services.
 ## Use this package when
 
 Use tools-core for Node-side preparation, build orchestration, persistent
-caches, or local HTTP services that require credentials and server policy. Browser clients and remote readers belong in
-`@carbonenginejs/runtime/tools`; runtime graph and domain behavior remain in
-their owning runtime subpaths.
+caches, or local HTTP services that require credentials and server policy.
+Browser code does not import it: a browser reaches tools-core through its HTTP
+routes. Runtime graph and domain behavior remain in their owning runtime
+subpaths.
 
 ## Where it fits
 
@@ -44,7 +45,7 @@ format/runtime packages
           +------> local HTTP services
                              |
                              v
-                runtime/tools and applications
+                browsers, Blender and applications
 ```
 
 ## Start here
@@ -56,7 +57,6 @@ format/runtime packages
 - [Prepare exact-build cache inputs](guides/prefetch.md)
 - [Build a SOF bundle](guides/sof-bundles.md)
 - [Run the local service](guides/local-service.md)
-  repository is public and its history accumulates while pushing is paused
 
 ## Documentation map
 
@@ -65,6 +65,3 @@ format/runtime packages
 - [Profile-driven SDE builds](guides/sde-builds.md)
 - [Local HTTP route reference](reference/http-routes.md)
 - [Maintained class catalogs](reference/classes/README.md)
-
-The adjacent JSON files under `protocols/` are published conformance fixtures
-and are replayed by package tests.

@@ -27,8 +27,8 @@ Tools-core owns:
 
 Tools-core does not own:
 
-- browser clients or browser-safe remote readers, which belong in
-  `@carbonenginejs/runtime/tools`;
+- browser clients: they call the HTTP routes, and the realtime client and
+  server live in `@carbonenginejs/demos`;
 - runtime-owned audio-library construction and raw-resource decoding, which
   tools-core calls with an injected exact-build index/cache source;
 - runtime-owned character-library schema, hydration, and deterministic
@@ -58,8 +58,7 @@ Runtime and engine packages must not import tools-core. Tools-core calls
 the runtime audio builder with a Node byte source and serializes
 `library.GetValues()`; it coordinates rather than duplicates joins, decoding,
 or conversion. It applies the same boundary to the runtime character
-combined-library builder. Browser remote
-clients remain optional consumers of the resulting service.
+combined-library builder.
 
 ## Schema staging
 
@@ -100,15 +99,5 @@ without changing the underlying `sde/icons` answer.
 
 ## Service path
 
-`CjsToolHttpProxy` exposes exact-build query and byte routes.
-
-The authenticated realtime host that used to sit beside it - its hub, its
-transport, its provider integrations and its webhook ingress - now lives in the
-demos package, which owns both halves of that protocol under the `TnyRealtime`
-names.
-
-## Current limitations
-
-Browser-client protocol consumption remains in `@carbonenginejs/runtime/tools`.
-The conformance suite imports that client and wire surface directly from the
-combined runtime and proves it agrees with tools-core's server protocol.
+`CjsToolHttpProxy` exposes exact-build query and byte routes; the
+[route reference](reference/http-routes.md) lists them.
