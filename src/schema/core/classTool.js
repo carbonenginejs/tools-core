@@ -2540,7 +2540,7 @@ function handleStatement(stmt, pending, line, fields, methods, helpers)
         // in would make a field's type depend on decorator order.
         const typeDecorators = pending.filter(d => d.ns === "type"
             && d.name !== "define" && d.name !== "enum" && d.name !== "hideInherited");
-        const ioDecorators = pending.filter(d => d.ns === "io");
+        const ioDecorators = pending.filter(d => d.ns === "edit");
 
         // Both spellings are read while packages migrate from schema.enum to
         // type.enum; only type.enum is emitted.
@@ -2996,11 +2996,11 @@ export function compareClass(expected, parsed, options = {})
         if (!ioSatisfied(exp.io, act.ioNames))
         {
             missingIo = true;
-            notes.push(`missing-io-flag: schema flags [${exp.flags.join(", ")}] expect @io.${exp.io}; file has ${act.ioNames.length ? act.ioNames.map(n => `@io.${n}`).join(", ") : "none"}`);
+            notes.push(`missing-io-flag: schema flags [${exp.flags.join(", ")}] expect @edit.${exp.io}; file has ${act.ioNames.length ? act.ioNames.map(n => `@edit.${n}`).join(", ") : "none"}`);
         }
         if (exp.notify && !act.notify)
         {
-            notes.push("expected @io.notify");
+            notes.push("expected @edit.notify");
         }
 
         // default.
@@ -3605,7 +3605,7 @@ export function renderClassFile(expected, options = {})
 
     const importNames = ["type"];
     if (usesMethods) importNames.push("carbon", "impl");
-    if (usesIo) importNames.push("io");
+    if (usesIo) importNames.push("edit");
     // An enum field needs no extra import: type.enum lives in the `type`
     // namespace, which is always imported.
     importNames.sort();
@@ -3681,8 +3681,8 @@ export function renderClassFile(expected, options = {})
     {
         if (index > 0) lines.push("");
         lines.push(`  /** ${field.member || field.name} (${field.cppType || field.kind}${field.enumType ? ` - enum ${field.enumType}` : ""})${field.flags.length ? ` [${field.flags.join(", ")}]` : ""} */`);
-        if (field.notify) lines.push("  @io.notify");
-        if (field.io) lines.push(`  @io.${field.io}`);
+        if (field.notify) lines.push("  @edit.notify");
+        if (field.io) lines.push(`  @edit.${field.io}`);
         lines.push(`  @type.${renderTypeDecorator(field)}`);
         if (field.enumType) lines.push(`  @type.enum("${field.enumType}")`);
         lines.push(`  ${renderFieldDecl(field, isJs)}`);

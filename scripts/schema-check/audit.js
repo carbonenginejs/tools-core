@@ -11,10 +11,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-// The committed schema archive. tools-core generates it and copies it here
-// (`npm run schema:pack -- --out <dir>`), and it is COMMITTED, so nobody needs
-// a Carbon checkout or the generator to run this gate - only to refresh it.
-const SNAPSHOT = path.join(packageRoot, "scripts", "carbon_schema_latest.gzip");
+// The packed schema archive, where `npm run schema:pack` writes it: the
+// package root. This checker lives beside the generator, so the archive is
+// local build output (gitignored), refreshed by `schema:generate`.
+const SNAPSHOT = path.join(packageRoot, "carbon_schema_latest.gzip");
 const slash = value => value.replaceAll("\\", "/");
 
 function readJson(file)
@@ -139,7 +139,7 @@ function unpackSnapshot()
     if (!fs.existsSync(SNAPSHOT))
     {
         throw new Error(`Schema snapshot missing: ${SNAPSHOT}. `
-            + "Regenerate the tree in tools-core and run scripts/schema/pack.js <tree>.");
+            + "Run npm run schema:generate (or schema:pack over an existing tree).");
     }
 
     const payload = JSON.parse(zlib.gunzipSync(fs.readFileSync(SNAPSHOT)).toString("utf8"));
@@ -149,7 +149,7 @@ function unpackSnapshot()
     {
         throw new Error(`Schema snapshot is ${ageDays.toFixed(1)} days old `
             + `(limit ${MAX_SNAPSHOT_AGE_DAYS}, packed ${payload.packedAt}). `
-            + "Regenerate the tree in tools-core and run scripts/schema/pack.js <tree>.");
+            + "Run npm run schema:generate (or schema:pack over an existing tree).");
     }
 
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-schema-"));
@@ -164,49 +164,17 @@ function unpackSnapshot()
 }
 
 
-/**
- * Where the checker lives, WITHOUT reaching into a sibling directory.
- *
- * An installed dependency, found through node's own resolution. Nothing else.
- * If it is not installed the caller skips - it does not guess a relative path
- * and quietly succeed on one machine.
- *
- * @param {object} options Caller overrides.
- * @param {string} runtimeRoot This package's root.
- * @returns {string|null} The tools root, or null when unresolvable.
- */
-function resolveToolsRoot(options, runtimeRoot)
-{
-    // `options.toolsRoot` is for TESTS, which pass a fixture inside their own
-    // temporary directory. There is deliberately no environment variable: an
-    // env var pointing at a sibling checkout is the same reach with extra
-    // steps, and it is the reach that made this gate work on one machine and
-    // silently skip everywhere else.
-    if (options.toolsRoot) return path.resolve(options.toolsRoot);
-
-    try
-    {
-        const require_ = createRequire(path.join(runtimeRoot, "package.json"));
-        return path.dirname(require_.resolve("@carbonenginejs/tools-core/package.json"));
-    }
-    catch
-    {
-        return null;
-    }
-}
-
-
 /** Run strict class checks and return raw findings with independent AST inventory. */
 export async function collectReport(options = {})
 {
-    const runtimeRoot = path.resolve(options.runtimeRoot || process.env.CARBON_SCHEMA_RUNTIME_ROOT || packageRoot);
-    // NO CROSS-DIRECTORY DEFAULTS. A package must not reach into a sibling by
-    // relative path. The landed version defaulted to `../tools-core` and
-    // `../../carbonengine`, which works only on a machine with the whole
-    // organization checked out side by side and silently does nothing
-    // everywhere else. The checker is resolved as a DEPENDENCY, or configured
+    // The runtime checkout to inspect must be named: this checker lives in
+    // tools-core, and defaulting to its own root would inspect the wrong source.
+    const namedRuntimeRoot = options.runtimeRoot || process.env.CARBON_SCHEMA_RUNTIME_ROOT || null;
+    const runtimeRoot = path.resolve(namedRuntimeRoot ?? packageRoot);
+    // NO CROSS-DIRECTORY DEFAULTS: nothing reaches a sibling by relative path.
+    // The checker is this package; the runtime and Carbon checkouts are named
     // explicitly, or this skips and says which.
-    const toolsRoot = resolveToolsRoot(options, runtimeRoot);
+    const toolsRoot = options.toolsRoot ? path.resolve(options.toolsRoot) : packageRoot;
     // The schema comes from ONE FILE IN THIS DIRECTORY - no sibling reach, no
     // environment variable, no configuration. `options.schemaRoot` remains for
     // tests, which point at a fixture inside their own temporary directory.
@@ -226,6 +194,7 @@ export async function collectReport(options = {})
     const schema = inspectSchemaTree(schemaRoot);
     if (!toolsRoot) return { status: "SKIP", reason: "Checker unresolvable: add @carbonenginejs/tools-core as a dependency" };
     if (carbonRoot && absentDirectory(path.resolve(carbonRoot))) return { status: "SKIP", reason: `Carbon checkout absent: ${carbonRoot}` };
+    if (!namedRuntimeRoot) return { status: "SKIP", reason: "No runtime checkout named: set CARBON_SCHEMA_RUNTIME_ROOT" };
     const checker = path.join(toolsRoot, "bin/cjs-carbon-class.js");
     fs.accessSync(checker, fs.constants.R_OK);
     // Resolve the declared development dependency only after optional prerequisites.

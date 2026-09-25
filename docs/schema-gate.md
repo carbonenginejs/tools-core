@@ -22,16 +22,20 @@ Where it reads from, with no sibling-checkout defaults:
 
 - the schema from the packed snapshot `scripts/carbon_schema_latest.gzip`
   (produced by `npm run schema:pack`);
-- the checker from the installed `@carbonenginejs/tools-core` dependency;
+- the checker from this package;
 - the Carbon checkout from `CARBON_ROOT` or `CARBONENGINE_ROOT`;
-- the source to inspect from `CARBON_SCHEMA_RUNTIME_ROOT`, defaulting to this
-  package's own root.
+- the runtime checkout to inspect from `CARBON_SCHEMA_RUNTIME_ROOT`, which must
+  be set: without it the gate skips and says so.
 
-**Not currently working (2026-09-25):** `schema:pack` writes the snapshot to
-the package root while the checker looks under `scripts/`, and the file is
-gitignored, so the check stops with "Schema snapshot missing". The default
-source root is this package rather than a runtime checkout. Both need a
-decision before the gate is relied on.
+The snapshot `carbon_schema_latest.gzip` in the package root is local build
+output (gitignored), written by `npm run schema:generate` or `schema:pack`, and
+refused once older than seven days.
+
+**State (2026-09-26): runs, and fails on an unbanked baseline.** The baseline
+dates from 2026-09-09. Against runtime it reports 853 classes, 2,111 findings,
+1,081 of them new, and 11 lost-coverage records, several from classes that
+moved files. Triage the new findings against Carbon before banking anything;
+`--update` must not be used to accept them.
 
 The entire absent schema directory or absent Carbon checkout produces an
 explicit SKIP. An existing partial or malformed schema tree fails validation.
