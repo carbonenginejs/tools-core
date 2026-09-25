@@ -31,8 +31,6 @@
  * `GetSkinTypeIDs`, which rescans every licence per skin: at roughly 7,000
  * skins and 11,800 licences that is 80 million comparisons for an answer one
  * pass already has.
- *
- * @see /docs/contracts/dna-reverse-index.md
  */
 
 /** A clause segment: a name, `?`, and a `;`-joined body. */

@@ -24,8 +24,6 @@
  * Append to `DERIVATIONS`. A derivation declares what it needs, so an SDE
  * missing an input is skipped rather than half-built — the register is the only
  * place that has to change.
- *
- * @see /docs/contracts/dna-reverse-index.md
  */
 import fs from "node:fs/promises";
 import path from "node:path";
