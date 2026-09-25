@@ -1266,9 +1266,14 @@ test("redirects a build-shaped resource to its immutable content address", async
     const origin = `http://127.0.0.1:${server.address().port}`;
     const redirected = await fetch(`${origin}/eve/88/res/${shaderPath}`, { redirect: "manual" });
 
+    // fetch always advertises gzip, so it is sent to the compressed address
+    // (7b6ab7b); ?gzip=false is the escape hatch back to the raw one.
     assert.equal(redirected.status, 302);
-    assert.equal(redirected.headers.get("location"), `/resfiles/${address}`);
+    assert.equal(redirected.headers.get("location"), `/resfiles/${address}.gz`);
+    assert.equal(redirected.headers.get("vary"), "accept-encoding");
     assert.equal(redirected.headers.get("x-carbon-resfile"), address);
+    const raw = await fetch(`${origin}/eve/88/res/${shaderPath}?gzip=false`, { redirect: "manual" });
+    assert.equal(raw.headers.get("location"), `/resfiles/${address}`);
 
     // The redirect is followed to bytes, and THAT url is the immutable one. A
     // build-shaped url cannot be: `/eve/88/...` means something else after a
