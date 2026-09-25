@@ -2186,7 +2186,12 @@ export function deriveExpectedFields(doc, options = {})
             className: declaredOn || className,
             schemaRoot
         });
-        const flags = property.readOnly ? ["READ"] : ["READWRITE"];
+        // blueexposure/include/BlueExposureMacrosPython.h: MAP_PROPERTY is
+        // READWRITE, MAP_PROPERTY_READONLY is READ and MAP_PROPERTY_PERSISTED is
+        // READWRITE | PERSIST.
+        const flags = property.readOnly
+            ? ["READ"]
+            : property.macro === "MAP_PROPERTY_PERSISTED" ? ["READWRITE", "PERSIST"] : ["READWRITE"];
 
         pushExpected(buildExpectedField({
             name,

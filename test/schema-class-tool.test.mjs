@@ -531,6 +531,27 @@ test("expected edit flags are Carbon's exact set: PERSIST implies no access", ()
     assert.deepEqual(byName.stored.ioDecorators, [ "persistOnly" ]);
 });
 
+test("Blue property flags follow the exposure macro", () =>
+{
+    const property = (blueName, macro, extra = {}) => ({ blueName, macro, getter: `Get${blueName}`, setter: `Set${blueName}`, cppType: "float", ...extra });
+    const expected = deriveExpectedFields({
+        family: "eve",
+        blueClass: "EveFixture",
+        cppClass: "EveFixture",
+        properties: [
+            property("plain", "MAP_PROPERTY"),
+            property("readonly", "MAP_PROPERTY_READONLY", { setter: null, readOnly: true }),
+            property("persisted", "MAP_PROPERTY_PERSISTED")
+        ]
+    });
+    const byName = Object.fromEntries(expected.fields.map(field => [ field.name, field ]));
+
+    assert.deepEqual(byName.plain.editFlags, [ "READ", "WRITE" ]);
+    assert.deepEqual(byName.readonly.editFlags, [ "READ" ]);
+    assert.deepEqual(byName.persisted.editFlags, [ "READ", "WRITE", "PERSIST" ]);
+    assert.deepEqual(byName.persisted.ioDecorators, [ "readwrite", "persist" ]);
+});
+
 test("edit flags are compared as a set, reporting missing and extra flags", () =>
 {
     const expected = deriveExpectedFields(MakeEditFlagDoc());
