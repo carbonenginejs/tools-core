@@ -1,28 +1,37 @@
 # Schema drift gate
 
 Status: Experimental
-Scope: Runtime repository development checks
-Audience: Runtime maintainers
+Scope: The `schema:check` script in this package
+Audience: Maintainers comparing runtime source with the Carbon schema
 Summary: Explains the read-only schema comparison gate, coverage floor, baseline updates, and known blind spots.
 
 ## Running the gate
 
-The `lint:schema` script compares runtime source with a locally available
-tools-core schema tree using `carbon-class --check --strict --json`. It is
-included in lint and the `prebuild:npm` hook. It never emits classes, refreshes
-schemas, or changes runtime source.
+`npm run schema:check` compares a runtime source checkout with the packed
+Carbon schema using `carbon-class --check --strict --json`. It is run on
+demand; no lint or build hook calls it. It never emits classes, refreshes
+schemas, or changes source.
 
 ```sh
-npm run lint:schema
-npm run lint:schema -- --json
+npm run schema:check
+npm run schema:check -- --json
+npm run schema:check -- --update   # banks fixes only; never to silence a finding
 ```
 
-Local source builds can select the read targets through `CARBON_SCHEMA_ROOT`,
-`CARBON_SCHEMA_TOOLS_ROOT`, and `CARBON_ROOT` (or `CARBONENGINE_ROOT`).
-`CARBON_SCHEMA_RUNTIME_ROOT` selects the source checkout to inspect; it does
-not change where the script stores its baseline. The defaults use the local
-development checkout layout. The parser is the inspected runtime's declared
-`@babel/parser` development dependency.
+Where it reads from, with no sibling-checkout defaults:
+
+- the schema from the packed snapshot `scripts/carbon_schema_latest.gzip`
+  (produced by `npm run schema:pack`);
+- the checker from the installed `@carbonenginejs/tools-core` dependency;
+- the Carbon checkout from `CARBON_ROOT` or `CARBONENGINE_ROOT`;
+- the source to inspect from `CARBON_SCHEMA_RUNTIME_ROOT`, defaulting to this
+  package's own root.
+
+**Not currently working (2026-09-25):** `schema:pack` writes the snapshot to
+the package root while the checker looks under `scripts/`, and the file is
+gitignored, so the check stops with "Schema snapshot missing". The default
+source root is this package rather than a runtime checkout. Both need a
+decision before the gate is relied on.
 
 The entire absent schema directory or absent Carbon checkout produces an
 explicit SKIP. An existing partial or malformed schema tree fails validation.
@@ -74,7 +83,7 @@ not independently prove scanner completeness against Carbon.
 ## Banking fixes
 
 ```sh
-npm run lint:schema -- --update
+npm run schema:check -- --update
 ```
 
 `--update` banks fixes only after a passing comparison against the existing
