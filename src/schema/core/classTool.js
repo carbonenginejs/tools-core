@@ -28,8 +28,8 @@ export const KNOWN_TYPE_KINDS = new Set([
 ]);
 
 export const KNOWN_IO_KINDS = new Set([
-    "notify", "owned", "persist", "persistOnly", "read", "readwrite",
-    "reference", "write"
+    "hidden", "none", "notify", "owned", "persist", "persistOnly", "read",
+    "readwrite", "reference", "rpersist", "write"
 ]);
 
 const IDENTITY_MAT3 = [1, 0, 0, 0, 1, 0, 0, 0, 1];
@@ -1652,17 +1652,81 @@ export function schemaBaseClassForDoc(doc, options = {})
     return null;
 }
 
+// Be::EDITFLAGS (blueexposure/include/BlueTypes.h): the access and
+// serialization flags a field's `@edit` decorators must reproduce exactly.
+// Each flag stands alone; PERSIST does not imply READ or WRITE. The editor
+// flags FLAGS and ENUM are not compared here.
+const EDIT_FLAG_ORDER = [ "READ", "WRITE", "NOTIFY", "HIDDEN", "PERSIST", "RPERSIST" ];
+const EDIT_FLAG_ALIASES = { READWRITE: [ "READ", "WRITE" ], PERSISTONLY: [ "HIDDEN", "PERSIST" ] };
+
+// The flags each runtime `@edit.<name>` decorator sets (CjsSchema.edit).
+const EDIT_DECORATOR_FLAGS = {
+    none: [],
+    read: [ "READ" ],
+    write: [ "WRITE" ],
+    readwrite: [ "READ", "WRITE" ],
+    notify: [ "NOTIFY" ],
+    hidden: [ "HIDDEN" ],
+    persist: [ "PERSIST" ],
+    rpersist: [ "RPERSIST" ],
+    persistOnly: [ "HIDDEN", "PERSIST" ]
+};
+
+/** Expands Carbon's flag names to the exact compared set, in canonical order. */
+function expectedEditFlags(flags)
+{
+    const set = new Set();
+    for (const flag of flags || [])
+    {
+        const name = String(flag).toUpperCase();
+        for (const expanded of EDIT_FLAG_ALIASES[name] || [ name ]) set.add(expanded);
+    }
+    return EDIT_FLAG_ORDER.filter(flag => set.has(flag));
+}
+
+/** The flags a field's parsed `@edit` decorators set together. */
+function actualEditFlags(decoratorNames)
+{
+    const set = new Set();
+    for (const name of decoratorNames || [])
+    {
+        for (const flag of EDIT_DECORATOR_FLAGS[name] || []) set.add(flag);
+    }
+    return EDIT_FLAG_ORDER.filter(flag => set.has(flag));
+}
+
+/**
+ * The `@edit` decorators that reproduce a flag set: `readwrite` for READ and
+ * WRITE together, `persistOnly` for HIDDEN and PERSIST together, otherwise one
+ * decorator per flag. `notify` is listed separately by the caller.
+ */
+function editDecoratorsFor(editFlags)
+{
+    const set = new Set(editFlags);
+    const names = [];
+    if (set.has("READ") && set.has("WRITE")) names.push("readwrite");
+    else if (set.has("READ")) names.push("read");
+    else if (set.has("WRITE")) names.push("write");
+    if (set.has("HIDDEN") && set.has("PERSIST")) names.push("persistOnly");
+    else
+    {
+        if (set.has("HIDDEN")) names.push("hidden");
+        if (set.has("PERSIST")) names.push("persist");
+    }
+    if (set.has("RPERSIST")) names.push("rpersist");
+    return names;
+}
+
 function expectedIo(flags)
 {
-    const set = new Set((flags || []).map(flag => String(flag).toUpperCase()));
-    let ioName = null;
-    if (set.has("PERSISTONLY")) ioName = "persistOnly";
-    else if (set.has("PERSIST")) ioName = "persist";
-    else if (set.has("READWRITE")) ioName = "readwrite";
-    else if (set.has("READ") && set.has("WRITE")) ioName = "readwrite";
-    else if (set.has("READ")) ioName = "read";
-    else if (set.has("WRITE")) ioName = "write";
-    return { ioName, notify: set.has("NOTIFY") };
+    const editFlags = expectedEditFlags(flags);
+    const decorators = editDecoratorsFor(editFlags);
+    return {
+        editFlags,
+        decorators,
+        ioName: decorators.length ? decorators.join("+") : null,
+        notify: editFlags.includes("NOTIFY")
+    };
 }
 
 function unionFlags(...lists)
@@ -2240,6 +2304,8 @@ function buildExpectedField({ name, member, cppType, flags, kindInfo, parsedDefa
         enumOwnerClass: kindInfo.enumOwnerClass || null,
         rotationLike: kindInfo.kind === "quat",
         io: io.ioName,
+        ioDecorators: io.decorators,
+        editFlags: io.editFlags,
         notify: io.notify,
         default: parsedDefault,
         notes: notes || []
@@ -2555,6 +2621,7 @@ function handleStatement(stmt, pending, line, fields, methods, helpers)
             typeArg: typeDecorators.length && typeDecorators[0].arg !== undefined ? parseTypeArg(typeDecorators[0].arg) : null,
             ioNames: ioDecorators.filter(d => d.name !== "notify").map(d => d.name),
             notify: ioDecorators.some(d => d.name === "notify"),
+            editFlags: actualEditFlags(ioDecorators.map(d => d.name)),
             enumArg: (() => {
                 const enumDecorator = enumDecorators[0];
                 return enumDecorator && enumDecorator.arg !== undefined ? stripQuotes(enumDecorator.arg) : null;
@@ -2790,35 +2857,6 @@ function kindsCompatible(expected, actualKind)
     return { match: false };
 }
 
-const IO_CAPS = {
-    persist: ["read", "write", "persist"],
-    persistOnly: ["persist", "persistOnly"],
-    readwrite: ["read", "write"],
-    read: ["read"],
-    write: ["write"]
-};
-
-function capsFor(ioName)
-{
-    return new Set(IO_CAPS[ioName] || []);
-}
-
-function ioSatisfied(expectedIoName, actualIoNames)
-{
-    if (!expectedIoName) return true;
-    const need = capsFor(expectedIoName);
-    const have = new Set();
-    for (const name of actualIoNames || [])
-    {
-        for (const cap of capsFor(name)) have.add(cap);
-    }
-    for (const cap of need)
-    {
-        if (!have.has(cap)) return false;
-    }
-    return true;
-}
-
 function defaultsEqual(a, b)
 {
     if (Array.isArray(a) && Array.isArray(b))
@@ -2991,16 +3029,19 @@ export function compareClass(expected, parsed, options = {})
             notes.push(`enum type differs: schema "${exp.enumType}" vs file "${act.enumArg}"`);
         }
 
-        // io.
+        // Edit flags: the exact Be::EDITFLAGS set, compared both ways.
         let missingIo = false;
-        if (!ioSatisfied(exp.io, act.ioNames))
+        const missingFlags = exp.editFlags.filter(flag => !act.editFlags.includes(flag));
+        const extraFlags = act.editFlags.filter(flag => !exp.editFlags.includes(flag));
+        if (missingFlags.length || extraFlags.length)
         {
             missingIo = true;
-            notes.push(`missing-io-flag: schema flags [${exp.flags.join(", ")}] expect @edit.${exp.io}; file has ${act.ioNames.length ? act.ioNames.map(n => `@edit.${n}`).join(", ") : "none"}`);
-        }
-        if (exp.notify && !act.notify)
-        {
-            notes.push("expected @edit.notify");
+            const wanted = [ ...(exp.notify ? [ "notify" ] : []), ...exp.ioDecorators ].map(n => `@edit.${n}`).join(", ") || "none";
+            const had = [ ...(act.notify ? [ "notify" ] : []), ...act.ioNames ].map(n => `@edit.${n}`).join(", ") || "none";
+            const parts = [];
+            if (missingFlags.length) parts.push(`missing ${missingFlags.join(", ")}`);
+            if (extraFlags.length) parts.push(`extra ${extraFlags.join(", ")}`);
+            notes.push(`edit-flags differ (${parts.join("; ")}): schema flags [${exp.flags.join(", ")}] expect ${wanted}; file has ${had}`);
         }
 
         // default.
@@ -3463,7 +3504,7 @@ function summaryLine(summary)
         `${summary.typeMismatch} type-mismatch`,
         `${summary.missingInFile} missing-in-file`,
         `${summary.extraInFile} extra-in-file`,
-        `${summary.missingIoFlag} missing-io-flag`,
+        `${summary.missingIoFlag} edit-flag mismatch`,
         `${summary.wrongDefault} wrong-default`,
         `${summary.classPolicy} class-policy`,
         `${summary.methodMatch} method-match`,
@@ -3682,7 +3723,7 @@ export function renderClassFile(expected, options = {})
         if (index > 0) lines.push("");
         lines.push(`  /** ${field.member || field.name} (${field.cppType || field.kind}${field.enumType ? ` - enum ${field.enumType}` : ""})${field.flags.length ? ` [${field.flags.join(", ")}]` : ""} */`);
         if (field.notify) lines.push("  @edit.notify");
-        if (field.io) lines.push(`  @edit.${field.io}`);
+        for (const decorator of field.ioDecorators || []) lines.push(`  @edit.${decorator}`);
         lines.push(`  @type.${renderTypeDecorator(field)}`);
         if (field.enumType) lines.push(`  @type.enum("${field.enumType}")`);
         lines.push(`  ${renderFieldDecl(field, isJs)}`);

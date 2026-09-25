@@ -502,3 +502,71 @@ test("a class with no define reports null metadata rather than throwing", () =>
     assert.equal(parsed.define.carbon, null);
     assert.equal(parsed.define.modelledOn, null);
 });
+
+function MakeEditFlagDoc()
+{
+    return {
+        family: "audio",
+        blueClass: "AudEmitter",
+        cppClass: "AudEmitter",
+        attributes: [
+            { blueName: "persisted", member: "m_persisted", cppType: "float", flags: ["PERSIST"], default: { json: 0 } },
+            { blueName: "edited", member: "m_edited", cppType: "float", flags: ["READWRITE", "PERSIST", "NOTIFY"], default: { json: 0 } },
+            { blueName: "stored", member: "m_stored", cppType: "float", flags: ["PERSISTONLY"], default: { json: 0 } }
+        ]
+    };
+}
+
+test("expected edit flags are Carbon's exact set: PERSIST implies no access", () =>
+{
+    const expected = deriveExpectedFields(MakeEditFlagDoc());
+    const byName = Object.fromEntries(expected.fields.map(field => [ field.name, field ]));
+
+    assert.deepEqual(byName.persisted.editFlags, [ "PERSIST" ]);
+    assert.deepEqual(byName.persisted.ioDecorators, [ "persist" ]);
+    assert.deepEqual(byName.edited.editFlags, [ "READ", "WRITE", "NOTIFY", "PERSIST" ]);
+    assert.deepEqual(byName.edited.ioDecorators, [ "readwrite", "persist" ]);
+    assert.equal(byName.edited.notify, true);
+    assert.deepEqual(byName.stored.editFlags, [ "HIDDEN", "PERSIST" ]);
+    assert.deepEqual(byName.stored.ioDecorators, [ "persistOnly" ]);
+});
+
+test("edit flags are compared as a set, reporting missing and extra flags", () =>
+{
+    const expected = deriveExpectedFields(MakeEditFlagDoc());
+    const result = compareClass(expected, parseClassFile(`
+        @type.define({ className: "AudEmitter", family: "audio" })
+        export class AudEmitter extends CjsModel
+        {
+            @edit.readwrite
+            @edit.persist
+            @type.float32
+            persisted = 0;
+
+            @edit.notify
+            @edit.persist
+            @type.float32
+            edited = 0;
+
+            @edit.persistOnly
+            @type.float32
+            stored = 0;
+        }
+    `));
+    const notes = Object.fromEntries(result.fields.map(field => [ field.name, (field.notes || []).join("; ") ]));
+
+    assert.match(notes.persisted, /edit-flags differ \(extra READ, WRITE\)/u);
+    assert.match(notes.edited, /edit-flags differ \(missing READ, WRITE\)/u);
+    assert.doesNotMatch(notes.stored, /edit-flags differ/u);
+    assert.equal(result.summary.missingIoFlag, 2);
+});
+
+test("emitted classes carry the decorators for the exact flag set", () =>
+{
+    const doc = MakeEditFlagDoc();
+    const source = renderClassFile(deriveExpectedFields(doc), { doc, js: true });
+
+    assert.match(source, /@edit\.persist\n  @type\.float32\n  persisted/u);
+    assert.match(source, /@edit\.notify\n  @edit\.readwrite\n  @edit\.persist\n  @type\.float32\n  edited/u);
+    assert.match(source, /@edit\.persistOnly\n  @type\.float32\n  stored/u);
+});
