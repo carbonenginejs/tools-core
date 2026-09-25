@@ -75,9 +75,9 @@ and 256 MiB general defaults remain unchanged.
 - Prefetch operates only through tools-core indexes and its configured shared
   cache. It never searches, reads, modifies, or manages an installed game
   client's cache.
-- Files placed into the tools cache by an external provisioning step are not
-  trusted implicitly. The normal index read validates their declared size and
-  checksum before reporting a cache hit.
+- A payload already in the tools cache is trusted as a cache hit without
+  re-hashing, including one placed there by an external provisioning step.
+  Size and checksum are checked only when tools-core downloads a payload.
 - Prefetch is not an HTTP endpoint. It is preparation work for a CLI process or
   service startup; applications continue to read through the existing route
   families.
