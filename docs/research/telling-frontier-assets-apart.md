@@ -1,6 +1,6 @@
 # Telling Frontier's own content from EVE carryover
 
-Status: Method
+Status: Experimental
 Visibility: Internal
 Scope: Identifying which Frontier types and assets are Frontier's own
 Audience: Anyone browsing, cataloguing or previewing Frontier content

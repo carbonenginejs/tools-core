@@ -5,16 +5,6 @@ Scope: `@carbonenginejs/tools-core` core, audio, cache, character, indexing, lib
 Audience: Users, maintainers, and automated readers
 Summary: Provides source-backed purpose descriptors for tools-core foundations and indexed resource tooling.
 
-<!-- class:CjsToolIndexSuppliedStore -->
-## `CjsToolIndexSuppliedStore`
-
-Resource indexes an operator hands us, for a client whose binaries are not public.
-
-- Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsToolIndexSuppliedStore.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
 <!-- class:CjsToolAudio -->
 ## `CjsToolAudio`
 
@@ -28,7 +18,7 @@ Front-facing audio-library build tool.
 <!-- class:CjsToolAudioBuilder -->
 ## `CjsToolAudioBuilder`
 
-Node target-policy wrapper around the runtime audio optional library builder.
+Node target-policy wrapper around the runtime-owned audio-library builder.
 
 - Export: `@carbonenginejs/tools-core/audio`
 - Source: `src/audio/CjsToolAudioBuilder.js`
@@ -38,7 +28,7 @@ Node target-policy wrapper around the runtime audio optional library builder.
 <!-- class:CjsToolAudioMediaBuilder -->
 ## `CjsToolAudioMediaBuilder`
 
-Materializes raw Wwise bank members as a hash-safe generated resource index.
+Materializes raw Wwise bank members as a hash-safe generated index group.
 
 - Export: `@carbonenginejs/tools-core/audio`
 - Source: `src/audio/CjsToolAudioMediaBuilder.js`
@@ -62,36 +52,6 @@ Opens exact-build prepared audio libraries and their indexed byte sources.
 
 - Export: `@carbonenginejs/tools-core/audio`
 - Source: `src/audio/CjsToolAudioRepository.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolSofRepository -->
-## `CjsToolSofRepository`
-
-Opens exact-build runtime SOF catalogs lazily by default, with an explicit full `data.black` mode.
-
-- Export: `@carbonenginejs/tools-core/sof`
-- Source: `src/sof/CjsToolSofRepository.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolSofCatalog -->
-## `CjsToolSofCatalog`
-
-Provides read-only catalog and asynchronous lazy detail/DNA answers for one exact runtime SOF build.
-
-- Export: `@carbonenginejs/tools-core/sof`
-- Source: `src/sof/CjsToolSofRepository.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolSofBundle -->
-## `CjsToolSofBundle`
-
-Writes one self-contained SOF bundle: the GPU-free carbon.document plus its geometry and decoded textures, laid out for consumers that cannot run Carbon shaders or decode BC7/BC5 payloads themselves (the Blender add-ons).
-
-- Export: `@carbonenginejs/tools-core/sof`
-- Source: `src/sof/CjsToolSofBundle.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
@@ -132,6 +92,16 @@ Shared game-compatible cache for every CarbonEngineJS Node tool.
 
 - Export: `@carbonenginejs/tools-core/cache`
 - Source: `src/cache/CjsToolCache.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolPayloadCheck -->
+## `CjsToolPayloadCheck`
+
+Validates resource bytes, and stored payloads, against their published identity.
+
+- Export: `@carbonenginejs/tools-core/cache`
+- Source: `src/cache/CjsToolPayloadCheck.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
@@ -195,13 +165,13 @@ Public Node composition root for cache, identity, and graph tooling.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsToolIndexGraph -->
-## `CjsToolIndexGraph`
+<!-- class:CjsToolIndex -->
+## `CjsToolIndex`
 
-Complete immutable app/res index graph for one provider and exact build.
+Facade for complete indexes and cached remote app/res file retrieval.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsToolIndexGraph.js`
+- Source: `src/indexing/CjsToolIndex.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
@@ -218,7 +188,7 @@ Immutable target/build answers derived from one composed resource view.
 <!-- class:CjsToolIndexBuildResolver -->
 ## `CjsToolIndexBuildResolver`
 
-Resolves an exact build or provider channel to one exact remote build.
+Resolves an exact build or target client to one exact remote build.
 
 - Export: `@carbonenginejs/tools-core/index`
 - Source: `src/indexing/CjsToolIndexBuildResolver.js`
@@ -245,6 +215,25 @@ One immutable resource entry from an app/res index.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
+<!-- class:CjsToolIndexGeneratedStore -->
+## `CjsToolIndexGeneratedStore`
+
+Exact-build generated resfileindex groups backed by shared ResFiles bytes.
+
+- Source: `src/indexing/CjsToolIndexGeneratedStore.js`
+- Visibility: Internal
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolIndexGraph -->
+## `CjsToolIndexGraph`
+
+Complete immutable app/res index graph for one target and exact build.
+
+- Export: `@carbonenginejs/tools-core/index`
+- Source: `src/indexing/CjsToolIndexGraph.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
 <!-- class:CjsToolIndexGroup -->
 ## `CjsToolIndexGroup`
 
@@ -253,16 +242,6 @@ One immutable appfileindex or resfileindex parsed as an ordered group.
 - Export: `@carbonenginejs/tools-core/index`
 - Source: `src/indexing/CjsToolIndexGroup.js`
 - Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolIndexGeneratedStore -->
-## `CjsToolIndexGeneratedStore`
-
-Persists exact-build generated resfileindex groups over shared hash-safe payloads.
-
-- Export: Internal
-- Source: `src/indexing/CjsToolIndexGeneratedStore.js`
-- Visibility: Internal
 - Kind: CarbonEngineJS
 
 <!-- class:CjsToolIndexOverlaySource -->
@@ -295,26 +274,6 @@ Persistent target-specific resource overlays stored outside disposable caches.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsToolIndexTargetProfile -->
-## `CjsToolIndexTargetProfile`
-
-Immutable target-selected acquisition profile. Game and provider are metadata.
-
-- Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsToolIndexTargetProfile.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolIndexTargetProfileRegistry -->
-## `CjsToolIndexTargetProfileRegistry`
-
-Immutable registry of target-keyed acquisition profiles.
-
-- Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsToolIndexTargetProfileRegistry.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
 <!-- class:CjsToolIndexReader -->
 ## `CjsToolIndexReader`
 
@@ -335,13 +294,33 @@ Cached, read-only remote payload source opened from one complete index graph.
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsToolIndex -->
-## `CjsToolIndex`
+<!-- class:CjsToolIndexSuppliedStore -->
+## `CjsToolIndexSuppliedStore`
 
-Facade for complete indexes and cached remote app/res file retrieval.
+Resource indexes an operator hands us, for a client whose binaries are not public.
 
 - Export: `@carbonenginejs/tools-core/index`
-- Source: `src/indexing/CjsToolIndex.js`
+- Source: `src/indexing/CjsToolIndexSuppliedStore.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolIndexTargetProfile -->
+## `CjsToolIndexTargetProfile`
+
+Immutable remote-acquisition profile selected by target.
+
+- Export: `@carbonenginejs/tools-core/index`
+- Source: `src/indexing/CjsToolIndexTargetProfile.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolIndexTargetProfileRegistry -->
+## `CjsToolIndexTargetProfileRegistry`
+
+Immutable registry of target-keyed remote acquisition profiles.
+
+- Export: `@carbonenginejs/tools-core/index`
+- Source: `src/indexing/CjsToolIndexTargetProfileRegistry.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
@@ -352,7 +331,7 @@ Shared deadlines, cancellation, and streaming response limits for remote reads.
 
 - Source: `src/internal/CjsToolBoundedFetch.js`
 - Visibility: Internal
-- Kind: Internal implementation
+- Kind: CarbonEngineJS
 
 <!-- class:CjsToolBoundedFetchError -->
 ## `CjsToolBoundedFetchError`
@@ -361,7 +340,7 @@ Stable internal failure emitted by the bounded network boundary.
 
 - Source: `src/internal/CjsToolBoundedFetch.js`
 - Visibility: Internal
-- Kind: Internal implementation
+- Kind: CarbonEngineJS
 
 <!-- class:CjsToolLibraryArtifact -->
 ## `CjsToolLibraryArtifact`
@@ -386,9 +365,39 @@ Plans and acquires exact-build resource sets supplied by named profiles.
 <!-- class:CjsToolHttpProxy -->
 ## `CjsToolHttpProxy`
 
-Minimal optional HTTP adapter over a CjsToolCore instance.
+Minimal optional HTTP adapter over exact-build tool services.
 
 - Export: `@carbonenginejs/tools-core/proxy`
 - Source: `src/proxy/CjsToolHttpProxy.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolSofBundle -->
+## `CjsToolSofBundle`
+
+Writes one self-contained SOF bundle: the GPU-free carbon.document plus its geometry and decoded textures, laid out for consumers that cannot run Carbon shaders or decode BC7/BC5 payloads themselves (the Blender add-ons).
+
+- Export: `@carbonenginejs/tools-core/sof`
+- Source: `src/sof/CjsToolSofBundle.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolSofCatalog -->
+## `CjsToolSofCatalog`
+
+Read-only GPU-free SOF answers for one exact target/build.
+
+- Export: `@carbonenginejs/tools-core/sof`
+- Source: `src/sof/CjsToolSofRepository.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolSofRepository -->
+## `CjsToolSofRepository`
+
+Cached exact-build SOF catalogs opened from composed index sources.
+
+- Export: `@carbonenginejs/tools-core/sof`
+- Source: `src/sof/CjsToolSofRepository.js`
 - Visibility: Public
 - Kind: CarbonEngineJS

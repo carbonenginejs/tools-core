@@ -1,6 +1,6 @@
 # Frontier universe data: what exists and what is missing
 
-Status: Investigation
+Status: Experimental
 Visibility: Internal
 Scope: The Frontier SDE build profile and the map tables it does not yet produce
 Audience: Anyone adding regions, constellations, systems, planets or stations to Frontier
