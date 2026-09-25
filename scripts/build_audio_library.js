@@ -16,7 +16,9 @@
 // Without --out the library and its gzip sibling go to the shared exact-build
 // custom cache (`audio` v2), where CjsToolAudioRepository reads them. Any of
 // --event-media, --sfx or --music opens banks; --language (default en-us)
-// selects the graph language, recorded as eventMediaLanguage.
+// selects the graph language, recorded as eventMediaLanguage. --sfx derives
+// eventMedia from the lowered SFX graph; --music adds the music graph and
+// needs music.bnk and music_essential.bnk indexed. The two combine.
 import fs from "node:fs";
 import path from "node:path";
 import { CjsFileIndex } from "@carbonenginejs/runtime/tools/fileindex";

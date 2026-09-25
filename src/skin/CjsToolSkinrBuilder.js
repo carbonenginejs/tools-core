@@ -32,7 +32,13 @@ export const CJS_SKINR_TABLES = Object.freeze([
     "groups",
 ]);
 
-/** Builds the deterministic offline library for player-authored SKINR data. */
+/**
+ * Builds the deterministic offline library for player-authored SKINR data.
+ *
+ * Owns component, slot, ship-tree and slot-configuration relations from the
+ * exact-build SDE; types appear only as projected joins (faction, ship-tree
+ * group, slot configuration), never as complete type records.
+ */
 export class CjsToolSkinrBuilder
 {
 

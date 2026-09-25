@@ -41,7 +41,15 @@ const LAUNCHER_SIZE_RULES = Object.freeze([
 const PROJECTILE_GRAPHIC_PATTERN =
     /^res:([/]dx9[/]model[/]turret[/]launcher[/]).+_missile[.]red$/iu;
 
-/** Builds the deterministic SDE-backed weapon and ammunition library. */
+/**
+ * Builds the deterministic SDE-backed weapon and ammunition library.
+ *
+ * Weapon types join to their graphics and resource paths. Ammunition
+ * compatibility comes from dogma charge groups, narrowed by charge size when
+ * the weapon has one. On EVE, launcher missile projectile graphics join to the
+ * ammunition whose impact graphic shares their authored resource folder;
+ * Frontier has no projectile join.
+ */
 export class CjsToolWeaponBuilder
 {
 

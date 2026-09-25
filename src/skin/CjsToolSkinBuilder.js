@@ -17,7 +17,12 @@ export const CJS_SKIN_TABLES = Object.freeze([
     "types",
 ]);
 
-/** Builds the deterministic offline library for developer-authored SKINs. */
+/**
+ * Builds the deterministic offline library for developer-authored SKINs.
+ *
+ * Owns skin, material, license and type relations from the exact-build SDE;
+ * types appear only through a name index, never as complete type records.
+ */
 export class CjsToolSkinBuilder
 {
 

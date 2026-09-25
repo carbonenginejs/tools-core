@@ -9,7 +9,14 @@ import * as utils from "../utils.js";
 
 const OPAQUE_MEDIA_TYPE = "application/octet-stream";
 
-/** Resolves and reads playable media from one immutable audio library. */
+/**
+ * Resolves and reads playable media from one immutable audio library.
+ *
+ * Accepts only schema-v2 documents and validates their music graph against
+ * the media tables. A media ID resolves to a loose (prepared first) or
+ * embedded-bank-window selection ranked by media type and language, so the
+ * HTTP adapter serves bytes without understanding WEM or BNK.
+ */
 export class CjsToolAudioSource
 {
 

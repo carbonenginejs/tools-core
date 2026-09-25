@@ -2,7 +2,11 @@ import { CjsToolAudioBuilder } from "./CjsToolAudioBuilder.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 
-/** Front-facing audio-library build tool. */
+/**
+ * Front-facing audio-library build tool: every build names an audio-capable
+ * target and an exact source build. `CjsToolAudioBuilder` accepts unscoped
+ * synthetic and intermediate values.
+ */
 export class CjsToolAudio
 {
 

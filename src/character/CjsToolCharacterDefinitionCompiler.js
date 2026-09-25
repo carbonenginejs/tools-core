@@ -46,11 +46,27 @@ const METADATA_FIELDS = new Set([
  * source files and ordinary `v<number>` child folders. Configuration, geometry
  * and texture paths are unordered candidates: no model family, LOD, texture
  * role or material meaning is inferred. No source bytes are read.
+ *
+ * Part-metadata dependency and occlusion strings are kept verbatim, each with
+ * a reference record. A plain normalized path links to an existing part
+ * source, a part source created for an indexed candidate folder, and a
+ * modifier location when exactly one matches. A `<path>###<number>`
+ * dependency is parsed into `modifierPath` and `weight`; an unweighted
+ * `utilityshapes/` dependency gets weight 1. Any other `#`-suffixed value
+ * stays unresolved and is only counted.
  */
 export class CjsToolCharacterDefinitionCompiler
 {
 
-    /** Compiles decoded JSON without reading source bytes or inferring render policy. */
+    /**
+     * Compiles decoded JSON without reading source bytes or inferring render policy.
+     *
+     * Returns `characterDefinitions`, `partTypes`, `partMetadata`, sparse
+     * `partSources`, and a `report` with retained, projected, unprojected and
+     * dropped counts, unlinked definitions, `projectionErrors`, unresolved
+     * resource paths, multi-source and multi-folder counts, and candidate and
+     * modifier-reference counts.
+     */
     static compile(index, {
         definitions = {},
         characterResources = {},

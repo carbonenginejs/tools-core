@@ -8,7 +8,7 @@ Summary: Provides source-backed purpose descriptors for tools-core foundations a
 <!-- class:CjsToolAudio -->
 ## `CjsToolAudio`
 
-Front-facing audio-library build tool.
+Front-facing audio-library build tool: every build names an audio-capable target and an exact source build.
 
 - Export: `@carbonenginejs/tools-core/audio`
 - Source: `src/audio/CjsToolAudio.js`

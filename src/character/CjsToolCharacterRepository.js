@@ -6,7 +6,15 @@ import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
 import * as utils from "../utils.js";
 import { CjsToolCharacterBuilder } from "./CjsToolCharacterBuilder.js";
 
-/** Opens exact-build prepared character libraries from the shared tool cache. */
+/**
+ * Opens exact-build prepared character libraries from the shared tool cache.
+ *
+ * The prepared library is the schema-v10 `character` document in the
+ * exact-build custom cache, where `build:character` also installs it (with its
+ * gzip sibling) when `--out` is omitted. A missing library is auto-prepared
+ * through the runtime character builder, which decodes the build's twelve
+ * required cFSD documents; that base library carries no catalog inputs.
+ */
 export class CjsToolCharacterRepository
 {
 
