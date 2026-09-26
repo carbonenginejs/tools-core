@@ -2280,6 +2280,25 @@ export function deriveExpectedFields(doc, options = {})
             ? ["READ"]
             : property.macro === "MAP_PROPERTY_PERSISTED" ? ["READWRITE", "PERSIST"] : ["READWRITE"];
 
+        // Carbon may expose one name twice, as an attribute and a property
+        // (Tr2FloatParameter "value": PERSISTONLY attribute, READWRITE
+        // property). Blue holds both entries, so the field carries both sets.
+        const existing = fields.find(field => field.name === name);
+        if (existing)
+        {
+            const merged = unionFlags(existing.flags, flags);
+            const io = expectedIo(merged);
+            Object.assign(existing, {
+                flags: merged,
+                io: io.ioName,
+                ioDecorators: io.decorators,
+                editFlags: io.editFlags,
+                notify: io.notify,
+                notes: [ ...existing.notes, "also a Blue property" ]
+            });
+            continue;
+        }
+
         pushExpected(buildExpectedField({
             name,
             member: property.getter || property.setter || null,

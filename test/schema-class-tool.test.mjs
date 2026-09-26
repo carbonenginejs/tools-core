@@ -552,6 +552,25 @@ test("Blue property flags follow the exposure macro", () =>
     assert.deepEqual(byName.persisted.ioDecorators, [ "readwrite", "persist" ]);
 });
 
+test("a name exposed as both attribute and property carries both flag sets", () =>
+{
+    const expected = deriveExpectedFields({
+        family: "trinity",
+        blueClass: "FixtureParameter",
+        cppClass: "FixtureParameter",
+        attributes: [
+            { blueName: "value", member: "m_value", cppType: "float", flags: [ "PERSISTONLY" ] }
+        ],
+        properties: [
+            { blueName: "value", macro: "MAP_PROPERTY", getter: "GetValue", setter: "SetValue", cppType: "float" }
+        ]
+    });
+
+    assert.equal(expected.fields.length, 1);
+    assert.deepEqual(expected.fields[0].editFlags, [ "READ", "WRITE", "HIDDEN", "PERSIST" ]);
+    assert.deepEqual(expected.fields[0].ioDecorators, [ "readwrite", "persistOnly" ]);
+});
+
 test("a base Carbon never exposes takes its flags from the subclasses that do", (t) =>
 {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "carbon-class-base-"));
