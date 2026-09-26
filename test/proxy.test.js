@@ -606,6 +606,55 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
     }
 });
 
+test("answers a DNA resolve that selects nothing as 404 and an ambiguous one as 409", async context =>
+{
+    const Coded = (message, code) => Object.assign(new Error(message), { code });
+    const source = {
+        target: "eve",
+        game: "Eve",
+        provider: "ccp",
+        build: "3435006",
+        async Resolve(selection)
+        {
+            if (selection.name === "Apocalypse Tyrantbreaker")
+            {
+                throw Coded(`SDE name "${selection.name}" not found`, "CJS_SDE_NOT_FOUND");
+            }
+            if (selection.name === "Twin")
+            {
+                throw Coded(`SDE name "${selection.name}" is ambiguous (2 identities)`, "CJS_SDE_AMBIGUOUS");
+            }
+            throw new Error("database exploded");
+        },
+    };
+    const proxy = new CjsToolHttpProxy({ sde: { async OpenTarget() { return source; } } });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const root = `http://127.0.0.1:${server.address().port}`;
+
+    const missing = await fetch(`${root}/eve/latest/dna/resolve?name=Apocalypse%20Tyrantbreaker`);
+    const missingBody = await missing.json();
+
+    assert.equal(missing.status, 404);
+    assert.match(missingBody.error, /Apocalypse Tyrantbreaker/);
+    assert.deepEqual(missingBody.selection, { name: "Apocalypse Tyrantbreaker" });
+
+    assert.equal((await fetch(`${root}/eve/latest/dna/resolve?name=Twin`)).status, 409);
+
+    // Anything uncoded is still the tool's failure, not the caller's.
+    const broken = await fetch(`${root}/eve/latest/dna/resolve?name=Other`);
+
+    assert.equal(broken.status, 500);
+    assert.equal((await broken.json()).error, "Internal tool error");
+});
+
 test("serves the combined schema-v10 character document", async context =>
 {
     const values = CjsToolCharacter.build(CreateCharacterDocuments(), {

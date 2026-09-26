@@ -440,13 +440,14 @@ function ResolveNameCandidates(candidates, name)
 {
     if (!candidates.length)
     {
-        throw new Error(`SDE name "${name}" not found`);
+        throw SelectionError(`SDE name "${name}" not found`, "CJS_SDE_NOT_FOUND");
     }
 
     if (candidates.length > 1)
     {
-        throw new Error(
-            `SDE name "${name}" is ambiguous (${candidates.length} identities)`
+        throw SelectionError(
+            `SDE name "${name}" is ambiguous (${candidates.length} identities)`,
+            "CJS_SDE_AMBIGUOUS"
         );
     }
 
@@ -776,10 +777,25 @@ function RequireExisting(value, label)
 {
     if (!value)
     {
-        throw new Error(`${label} not found`);
+        throw SelectionError(`${label} not found`, "CJS_SDE_NOT_FOUND");
     }
 
     return value;
+}
+
+/**
+ * An error about the caller's selection rather than the service, coded so a
+ * route can answer it as the client's mistake: CJS_SDE_NOT_FOUND (404) or
+ * CJS_SDE_AMBIGUOUS (409). Uncoded, it would reach the proxy as a 500.
+ * @param {String} message
+ * @param {String} code
+ * @returns {Error}
+ */
+function SelectionError(message, code)
+{
+    const error = new Error(message);
+    error.code = code;
+    return error;
 }
 
 function RecordId(record)

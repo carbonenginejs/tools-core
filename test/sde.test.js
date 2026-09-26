@@ -72,6 +72,15 @@ test("resolves names, type IDs, and shared graphic IDs deterministically", () =>
         skinID: "9001"
     });
     assert.equal(sde.ResolveDna({ name: "Rifter" }), "rifter:minmatar:minmatar");
+    // A name or ID that selects nothing is coded, so a route can answer 404.
+    assert.throws(
+        () => sde.ResolveDna({ name: "Apocalypse Tyrantbreaker" }),
+        error => error.code === "CJS_SDE_NOT_FOUND" && /Apocalypse Tyrantbreaker/.test(error.message)
+    );
+    assert.throws(
+        () => sde.ResolveTypeDna(999999),
+        error => error.code === "CJS_SDE_NOT_FOUND"
+    );
     assert.equal(sde.ResolveTypeDna(587), "rifter:minmatar:minmatar");
     assert.equal(sde.ResolveGraphicDna(42), "rifter:minmatar:minmatar");
 });

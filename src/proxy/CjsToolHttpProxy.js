@@ -2218,10 +2218,27 @@ export class CjsToolHttpProxy
             );
         }
 
-        WriteJson(response, 200, {
-            ...identity,
-            ...await source.Resolve(selection),
-        }, headers);
+        let resolved;
+        try
+        {
+            resolved = await source.Resolve(selection);
+        }
+        catch (error)
+        {
+            // A name or ID that selects nothing, or more than one thing, is the
+            // caller's question going unanswered - not a tool failure.
+            const statusCode = error?.code === "CJS_SDE_NOT_FOUND" ? 404
+                : error?.code === "CJS_SDE_AMBIGUOUS" ? 409
+                    : null;
+
+            if (statusCode === null) throw error;
+
+            WriteJson(response, statusCode, { ...identity, error: error.message, selection }, headers);
+
+            return;
+        }
+
+        WriteJson(response, 200, { ...identity, ...resolved }, headers);
     }
 
     /** Serves one SDE query route. */
