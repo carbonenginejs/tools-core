@@ -371,7 +371,7 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
         }
     `));
     assert.equal(incomplete.summary.methodMetadata, 1);
-    assert.match(incomplete.methods[0].notes.join(" "), /requires @impl\.reason/);
+    assert.match(incomplete.methods[0].notes.join(" "), /requires an explanation in the method JSDoc/);
 
     const missingStatus = compareClass(MakeExpectedMethods(), parseClassFile(`
         @type.define({ className: "AudEmitter", family: "audio" })
@@ -663,4 +663,79 @@ test("emitted classes carry the decorators for the exact flag set", () =>
     assert.match(source, /@edit\.persist\n  @type\.float32\n  persisted/u);
     assert.match(source, /@edit\.notify\n  @edit\.readwrite\n  @edit\.persist\n  @type\.float32\n  edited/u);
     assert.match(source, /@edit\.persistOnly\n  @type\.float32\n  stored/u);
+});
+
+test("method reasons accept attached JSDoc and retain legacy decorators", () =>
+{
+    const sources = [
+        `/** Adapted: Uses injected audio services. */
+        @carbon.renamed("SetPlacement")
+        @impl.adapted
+        SetPlacement() { return true; }`,
+        `/**
+         * Applies placement.
+         *
+         * Adapted: Uses injected
+         * audio services.
+         *
+         * @returns {boolean} Completion.
+         */
+        @carbon.renamed(
+            "SetPlacement"
+        )
+        @impl.adapted
+        SetPlacement() { return true; }`,
+        `/** Custom: Supplies a JavaScript-only entry point. */
+        @carbon.renamed("SetPlacement") @impl.custom
+        SetPlacement() { return true; }`,
+        `@carbon.renamed("SetPlacement")
+        @impl.adapted
+        @impl.reason("Legacy reason")
+        SetPlacement() { return true; }`
+    ];
+    for (const member of sources)
+    {
+        for (const newline of ["\n", "\r\n"])
+        {
+            const source = `export class AudEmitter { ${member}\n}`.replaceAll("\n", newline);
+            const parsed = parseClassFile(source);
+            assert.equal(parsed.methods[0].hasReason, true, source);
+            assert.equal(compareClass(MakeExpectedMethods(), parsed).summary.methodMetadata, 0);
+        }
+    }
+});
+
+test("method reasons reject unrelated comments, wrong statuses and examples", () =>
+{
+    const prefixes = [
+        "/** Adapted: */",
+        "/** Custom: Wrong status. */",
+        "// Adapted: Ordinary comment.",
+        "/* Adapted: Ordinary comment. */",
+        "/** @example\n * Adapted: Only an example.\n */",
+        "/** Adapted: Old member. */\n Previous() {}",
+        "/** Adapted: Old field. */\n value = 1;",
+        "/** Adapted: Interrupted. */\n // not attached",
+        "value = '/** Adapted: Quoted text. */';",
+        "value = `/** Adapted: Template text. */`;"
+    ];
+    for (const prefix of prefixes)
+    {
+        const parsed = parseClassFile(`export class AudEmitter
+        {
+            ${prefix}
+            @carbon.renamed("SetPlacement")
+            @impl.adapted
+            SetPlacement() { return true; }
+        }`);
+        const method = parsed.methods.find(item => item.name === "SetPlacement");
+        assert.equal(method.hasReason, false, prefix);
+    }
+    const classDoc = parseClassFile(`/** Adapted: Class explanation. */
+        export class AudEmitter {
+            @carbon.renamed("SetPlacement")
+            @impl.adapted
+            SetPlacement() { return true; }
+        }`);
+    assert.equal(classDoc.methods[0].hasReason, false);
 });
