@@ -1465,6 +1465,26 @@ test("Black definitions flatten Carbon bases and retain empty concrete classes",
     assert.equal(Object.hasOwn(classes, "ScannerStruct"), false);
 });
 
+test("Black definitions carry Carbon's curve key layouts from the field resolutions", async () =>
+{
+    // Without a layout a Tr2CurveScalar's keys stayed an opaque structure list
+    // and hydrated as one default key: every .black curve was flat (the cloak
+    // overlay's CloakAmount read 0 throughout).
+    const { DEFAULT_FIELD_RESOLUTIONS } = await import("../src/schema/core/schemaFieldResolutions.js");
+    const scalar = DEFAULT_FIELD_RESOLUTIONS.Tr2CurveScalar.keys.wire.structure;
+    const quaternion = DEFAULT_FIELD_RESOLUTIONS.Tr2CurveQuaternion.keys.wire.structure;
+
+    assert.equal(scalar.size, 20);
+    assert.deepEqual(scalar.members.map(member => [ member.name, member.offset, member.type ]), [
+        [ "time", 0, "float32" ], [ "value", 4, "float32" ], [ "leftTangent", 8, "float32" ], [ "rightTangent", 12, "float32" ],
+        [ "id", 16, "uint16" ], [ "interpolation", 18, "uint8" ], [ "tangentType", 19, "uint8" ],
+    ]);
+    assert.equal(quaternion.size, 24);
+    assert.deepEqual(quaternion.members.map(member => [ member.name, member.offset, member.type ]), [
+        [ "time", 0, "float32" ], [ "value", 4, "quaternion" ], [ "id", 20, "uint16" ], [ "interpolation", 22, "uint16" ],
+    ]);
+});
+
 test("Black definitions type a class-scope struct leaf by the leaf, not as an enum", () =>
 {
     // Scan reports name the struct `Outer.Inner`; the member's C++ type says

@@ -43,6 +43,45 @@ export const DEFAULT_FIELD_RESOLUTIONS = deepFreeze({
             source: "trinity/trinity/Shader/Tr2Effect.h:41-47; blue/src/BlackReader.cpp:534-596",
         },
     },
+    Tr2CurveScalar: {
+        keys: {
+            wire: {
+                beType: "IROOT", container: "list",
+                structure: {
+                    name: "Tr2CurveScalarKey", size: 20,
+                    members: [
+                        { name: "time", offset: 0, type: "float32" },
+                        { name: "value", offset: 4, type: "float32" },
+                        { name: "leftTangent", offset: 8, type: "float32" },
+                        { name: "rightTangent", offset: 12, type: "float32" },
+                        { name: "id", offset: 16, type: "uint16" },
+                        { name: "interpolation", offset: 18, type: "uint8" },
+                        { name: "tangentType", offset: 19, type: "uint8" },
+                    ],
+                },
+            },
+            reason: "Four floats, a uint16 id and two uint8 enums; without the layout every key list decodes as one default key and the curve is flat.",
+            source: "trinity/trinity/Curves/Tr2CurveScalar.cpp:11-20 (Tr2CurveScalarKeyDef); Tr2CurveScalar.h:54-72",
+        },
+    },
+    Tr2CurveQuaternion: {
+        keys: {
+            wire: {
+                beType: "IROOT", container: "list",
+                structure: {
+                    name: "Tr2CurveQuaternionKey", size: 24,
+                    members: [
+                        { name: "time", offset: 0, type: "float32" },
+                        { name: "value", offset: 4, type: "quaternion" },
+                        { name: "id", offset: 20, type: "uint16" },
+                        { name: "interpolation", offset: 22, type: "uint16" },
+                    ],
+                },
+            },
+            reason: "A float time, a quaternion, a uint16 id and a uint16 interpolation; without the layout the keys do not decode.",
+            source: "trinity/trinity/Curves/Tr2CurveQuaternion.cpp:11-17 (Tr2CurveQuaternionKeyDef); Tr2CurveQuaternion.h:9-21",
+        },
+    },
     EveChildQuad: {
         brightness: {
             member: "m_brightness",
