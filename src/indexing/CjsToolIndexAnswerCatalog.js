@@ -1,3 +1,4 @@
+import { BlueResFileSystemRemote, CjsBluePaths, RemoteFileCache } from "@carbonenginejs/runtime/blue";
 import { normalizeLogicalPath } from "./CjsToolIndexEntry.js";
 
 const MAX_RES_PATH_INSERT_PATHS = 4096;
@@ -12,9 +13,17 @@ export class CjsToolIndexAnswerCatalog
 
     #hullInserts;
 
+    #bluePaths;
+
     /**
      * Snapshots normalized resource paths and derives immutable answer-category
      * indexes.
+     *
+     * The build's paths service is composed as Carbon's client composes it
+     * (ResourceLoading.cpp): a RemoteFileCache over this build's index,
+     * registered on a BluePaths as a remote file system. Resource path inserts
+     * are decided by its FileExists, as Carbon's SOF asks BePaths
+     * (EveSOFDNA.cpp:11-14). One per exact build, since a host serves several.
      */
     constructor(source)
     {
@@ -23,8 +32,8 @@ export class CjsToolIndexAnswerCatalog
             throw new TypeError("Index answer catalog requires a source with Match(pattern)");
         }
 
-        const paths = new Set(source.Match("res:/**", { root: "res" })
-            .map(item => normalizeLogicalPath(item.logicalPath)));
+        const entries = source.Match("res:/**", { root: "res" });
+        const paths = new Set(entries.map(item => normalizeLogicalPath(item.logicalPath)));
 
         this.target = source.target ?? null;
         this.game = source.game ?? null;
@@ -35,6 +44,7 @@ export class CjsToolIndexAnswerCatalog
         this.#paths = Object.freeze([...paths].sort((left, right) => left.localeCompare(right)));
         this.#pathSet = paths;
         this.#hullInserts = new Map();
+        this.#bluePaths = CreateBluePaths(entries);
 
         Object.freeze(this);
     }
@@ -171,7 +181,7 @@ export class CjsToolIndexAnswerCatalog
                 const baseFileName = `${candidateHull}_m.dds`;
                 const basePath = [ ...segments.slice(0, -2), baseFileName ].join("/");
 
-                if (this.#pathSet.has(basePath))
+                if (this.#bluePaths.FileExists(basePath))
                 {
                     inserts.add(insert);
                 }
@@ -250,7 +260,7 @@ export class CjsToolIndexAnswerCatalog
             const insertedFileName = `${fileName.slice(0, suffix)}_${insertName}${fileName.slice(suffix)}`;
             const insertedPath = `${originalPath.slice(0, separator + 1)}${insertName}/${insertedFileName}`;
 
-            return this.#pathSet.has(insertedPath) ? insertedPath : originalPath;
+            return this.#bluePaths.FileExists(insertedPath) ? insertedPath : originalPath;
         }));
     }
 
@@ -298,4 +308,33 @@ function HasIgnoredEffectFolder(logicalPath)
     const segments = logicalPath.slice(logicalPath.indexOf(":/") + 2).split("/");
 
     return segments.includes("effect") || segments.includes("effects");
+}
+
+/**
+ * The build's paths service: its index entries as a RemoteFileCache index -
+ * Carbon's four columns, res path, stored name, md5, size (RemoteFileCache.cpp
+ * :328-377) - registered on a BluePaths through a remote file system. The
+ * composed entries already carry overlay precedence, so they make one index.
+ *
+ * Registered for existence only, as the WebGPU demo composes it: the cache is
+ * not installed with SetRemoteFileCache, because that would make
+ * FileExistsLocally ask a local byte store this catalog does not have.
+ */
+function CreateBluePaths(entries)
+{
+    const lines = entries.map(entry => [
+        normalizeLogicalPath(entry.logicalPath),
+        entry.location ?? "",
+        entry.checksum ?? "",
+        entry.uncompressedSize ?? 0,
+    ].join(","));
+    const remoteFileCache = new RemoteFileCache();
+
+    remoteFileCache.AddFileIndex(lines.join("\n"));
+
+    const bluePaths = new CjsBluePaths();
+
+    bluePaths.RegisterFileSystem(new BlueResFileSystemRemote(remoteFileCache));
+
+    return bluePaths;
 }
