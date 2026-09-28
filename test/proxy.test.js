@@ -655,7 +655,7 @@ test("answers a DNA resolve that selects nothing as 404 and an ambiguous one as 
     assert.equal((await broken.json()).error, "Internal tool error");
 });
 
-test("serves the combined schema-v10 character document", async context =>
+test("serves the combined schema-v11 character document", async context =>
 {
     const values = CjsToolCharacter.build(CreateCharacterDocuments(), {
         sourceTarget: "eve",
@@ -733,7 +733,7 @@ test("serves the combined schema-v10 character document", async context =>
     assert.equal(response.headers.get("x-carbon-answer"), "character");
     assert.equal(response.headers.get("x-carbon-target"), "eve");
     assert.equal(response.headers.get("x-carbon-build"), "3450001");
-    assert.equal(wholeLibrary.schemaVersion, 10);
+    assert.equal(wholeLibrary.schemaVersion, 11);
     assert.equal(wholeLibrary.sourceTarget, "eve");
     assert.equal(wholeLibrary.documents.characterResources[0].typeID, "9001");
     assert.deepEqual(await alias.json(), wholeLibrary);
