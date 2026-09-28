@@ -164,11 +164,16 @@ export class CjsToolSofCatalog
 
     #prepareDefaults;
 
+    #onWarning;
+
+    #allPatterns = null;
+
     /** Creates one SOF catalog from caller-supplied configuration. */
     constructor({
         catalogNames = CreateCatalogNames([]),
         library = null,
         loadMode = "full",
+        onWarning = WriteWarning,
         prepareDefaults = PrepareSofDefaults,
         source,
         sof,
@@ -197,6 +202,7 @@ export class CjsToolSofCatalog
         this.#library = library;
         this.#sof = sof;
         this.#prepareDefaults = prepareDefaults;
+        this.#onWarning = typeof onWarning === "function" ? onWarning : WriteWarning;
         Object.freeze(this);
     }
 
@@ -248,11 +254,39 @@ export class CjsToolSofCatalog
         if (this.#library)
         {
             if (!await this.#EnsureNamed("hull", hull)) return null;
-            await Promise.all(this.ListPatterns().map(name =>
-                this.#library.FetchPattern(name)));
+            await this.#LoadAllPatterns();
         }
 
         return this.ListHullPatterns(hull);
+    }
+
+    /**
+     * Loads every indexed pattern file once, keyed the way Carbon keys them.
+     *
+     * Carbon's EveSOFDataMgr::LoadPatternData keys a pattern by the object's
+     * own name (`m_patternData[pattern->m_name]`), not by any file name, and a
+     * bad entry is logged rather than failing the load. A file can name itself
+     * differently from its file name (patterns/cny_2025_triglavian.black holds
+     * cny_2026_triglavian), so each file is fetched by PATH, which publishes it
+     * under its own name, and a failure is reported and skipped.
+     */
+    #LoadAllPatterns()
+    {
+        this.#allPatterns ??= (async () =>
+        {
+            const files = this.#catalogNames.pattern.names;
+            const results = await Promise.allSettled(files.map(name =>
+                this.#library.FetchPattern(CatalogPath("pattern", name))));
+
+            results.forEach((result, index) =>
+            {
+                if (result.status === "rejected")
+                {
+                    this.#onWarning(`SOF pattern ${CatalogPath("pattern", files[index])} skipped: ${result.reason?.message ?? result.reason}`);
+                }
+            });
+        })();
+        return this.#allPatterns;
     }
 
     /** Returns one hull record by canonical SOF name. */
@@ -472,11 +506,38 @@ export class CjsToolSofCatalog
         const config = CATALOGS[kind];
         const value = NormalizeCatalogName(name);
 
+        if (kind === "pattern") return this.#EnsurePattern(value);
         if (config.get && this.#sof.dataMgr[config.get](value) !== null) return true;
         if (!this.#catalogNames[kind].set.has(value)) return false;
 
         await this.#library[config.fetch](value);
         return true;
+    }
+
+    /**
+     * Loads one pattern by its Carbon key, the object's own name. A name that
+     * is also a file name is fetched by path; a name no file carries (the
+     * object inside a differently named file) needs every pattern loaded.
+     */
+    async #EnsurePattern(name)
+    {
+        const dataMgr = this.#sof.dataMgr;
+
+        if (dataMgr.HasPatternData(name)) return true;
+        if (this.#catalogNames.pattern.set.has(name))
+        {
+            try
+            {
+                await this.#library.FetchPattern(CatalogPath("pattern", name));
+            }
+            catch (error)
+            {
+                this.#onWarning(`SOF pattern ${CatalogPath("pattern", name)} skipped: ${error?.message ?? error}`);
+            }
+            if (dataMgr.HasPatternData(name)) return true;
+        }
+        await this.#LoadAllPatterns();
+        return dataMgr.HasPatternData(name);
     }
 
     /** Loads and projects one named catalog record. */
@@ -534,6 +595,18 @@ function CreateCatalogNames(resFileIndex)
             set: new Set(names),
         })];
     })));
+}
+
+/** The res path of one indexed catalog file. */
+function CatalogPath(kind, fileName)
+{
+    return `${SOF_BASE_PATH}/${CATALOGS[kind].directory}/${fileName}.black`;
+}
+
+/** The default warning sink: one line on stderr. */
+function WriteWarning(message)
+{
+    process.stderr.write(`${message}\n`);
 }
 
 function NormalizeCatalogName(value)
