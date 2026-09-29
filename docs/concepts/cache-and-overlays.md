@@ -119,6 +119,14 @@ cache:
 <data>/ResFiles/<shard>/<path-fnv1>_<content-md5>
 ```
 
+The `carbon.resource-overlay` version 1 manifest accepts an optional boolean
+`enabled`. An omitted field means `true`. With `"enabled": false`, the loader
+excludes the overlay before reading its index, so it cannot resolve resources,
+appear in resource listings (including `/res/resfiles`), or be inherited by
+another target. Other value types are rejected. Existing manifests need no
+changes. Already opened resource views retain their contents; reopen the view
+or restart the service to apply a manifest change.
+
 Resolution order is:
 
 1. override overlays;

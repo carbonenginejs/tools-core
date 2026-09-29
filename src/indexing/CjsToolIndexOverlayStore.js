@@ -1046,7 +1046,8 @@ export class CjsToolIndexOverlayStore
 
     /**
      * Validates an overlay manifest and index before opening an immutable
-     * build-compatible view.
+     * build-compatible view. Disabled manifests return no overlay before index
+     * loading; an omitted enabled field keeps the overlay active.
      */
     async #OpenOverlay(directory, target, build, expected)
     {
@@ -1054,6 +1055,12 @@ export class CjsToolIndexOverlayStore
         const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
 
         validateManifest(manifest, target, expected, path.basename(directory));
+
+        // Exclude disabled manifests before loading any index or composing inheritance.
+        if (manifest.enabled === false)
+        {
+            return null;
+        }
 
         if (!manifest.builds.includes("*") && !manifest.builds.includes(build))
         {
@@ -1353,6 +1360,11 @@ function validateManifest(manifest, target, expected, directoryName)
     if (normalizeTargetId(manifest.target) !== target)
     {
         throw new Error(`Overlay target mismatch: ${manifest.target}`);
+    }
+
+    if (manifest.enabled !== undefined && typeof manifest.enabled !== "boolean")
+    {
+        throw new TypeError("Overlay enabled must be a boolean");
     }
 
     manifest.name = normalizeOverlayName(manifest.name);

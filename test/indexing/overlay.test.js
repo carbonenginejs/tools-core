@@ -7,6 +7,7 @@ import test from "node:test";
 import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 
 import {
+    CjsToolIndexAnswerCatalog,
     CjsToolIndexOverlaySource,
     CjsToolIndexOverlayStore,
     CjsToolIndexCache,
@@ -173,6 +174,96 @@ test("composes persistent overrides and fallbacks around the official res index"
         "https://res.test/official/file",
     ]);
 });
+
+test("disabled overlays are absent from local resolution and listings", async context =>
+{
+    await checkEnabledOverlay(context, false);
+});
+
+test("disabled overlays are absent from inherited resolution and listings", async context =>
+{
+    await checkEnabledOverlay(context, true);
+});
+
+/** Checks manifest activation through local or inherited index composition. */
+async function checkEnabledOverlay(context, inherited)
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlay-enabled-"));
+    const sourceDirectory = path.join(directory, "source");
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
+    const name = "legacy-gles";
+    const logicalPath = "res:/optional.bin";
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+    await writePayload(sourceDirectory, "aa/optional", "optional");
+    const imported = await store.Import({
+        target: "eve",
+        game: "Eve",
+        provider: "test",
+        name,
+        mode: "fallback",
+        builds: [ "*" ],
+        sourceDirectory,
+        entries: [ { logicalPath, location: "aa/optional" } ],
+    });
+    const manifestPath = path.join(imported.directory, "overlay.json");
+    const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+    const indexUrl = inherited ? "https://alternate-indexes.test" : "https://indexes.test";
+    const appUrl = inherited ? "https://alternate-app.test" : "https://app.test";
+    const target = inherited ? "netease" : "eve";
+    const tool = new CjsToolIndex({
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile, CrossProfile ]),
+        targets: CrossProviderTargets,
+        overlays: store,
+        cache: null,
+        fetch: createFetch({
+            [`${indexUrl}/eveonline_77.txt`]: row("app:/resfileindex.txt", "aa/main"),
+            [`${appUrl}/aa/main`]: row("res:/official.bin", "aa/official"),
+        }),
+    });
+
+    // Negative controls: both old manifests and explicitly enabled ones resolve.
+    assert.equal(Object.hasOwn(manifest, "enabled"), false);
+    for (const enabled of [ undefined, true, false ])
+    {
+        if (enabled === undefined)
+        {
+            delete manifest.enabled;
+        }
+        else
+        {
+            manifest.enabled = enabled;
+        }
+        await fs.writeFile(manifestPath, JSON.stringify(manifest));
+        const source = await tool.OpenTarget(target, "77");
+        const listed = new CjsToolIndexAnswerCatalog(source).ListResFiles();
+
+        assert.equal(source.Resolve("res:/official.bin").overlay, undefined);
+        if (enabled === false)
+        {
+            assert.throws(() => source.Resolve(logicalPath), { code: "CJS_RESOURCE_NOT_FOUND" });
+            assert.deepEqual(source.Match(logicalPath), []);
+            assert.deepEqual(listed, [ "res:/official.bin" ]);
+            assert.deepEqual(source.indexes.availableIndexes, [ "main" ]);
+            assert.deepEqual(await store.OpenTarget("eve", "77", { names: [ name ] }), []);
+        }
+        else
+        {
+            assert.equal(source.Resolve(logicalPath).overlay, name);
+            assert.deepEqual(listed, [ "res:/official.bin", logicalPath ]);
+            assert.equal(source.availableIndexes.includes(name), true);
+        }
+    }
+
+    // A disabled manifest is filtered before its index is read.
+    manifest.enabled = "false";
+    await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    await assert.rejects(() => store.OpenTarget("eve", "77"), /enabled must be a boolean/u);
+    manifest.enabled = false;
+    await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    await fs.unlink(path.join(imported.directory, manifest.indexFile));
+    assert.deepEqual(await store.OpenTarget("eve", "77"), []);
+}
 
 test("rejects replacement imports and ignores overlays for incompatible builds", async context =>
 {
