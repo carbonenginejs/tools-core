@@ -4,7 +4,7 @@ import http from "node:http";
 import { ESI_COMPATIBILITY_DATE } from "../auth/CjsToolEsiCompatibilityDate.js";
 import { CjsToolEveSso } from "../auth/CjsToolEveSso.js";
 import { CjsToolBlack } from "../black/CjsToolBlack.js";
-import { CjsToolIndexAnswerCatalog } from "../indexing/CjsToolIndexAnswerCatalog.js";
+import { CjsToolIndexAnswerCatalog, HullTextureResPaths } from "../indexing/CjsToolIndexAnswerCatalog.js";
 import { CjsToolSkin } from "../skin/CjsToolSkin.js";
 import { CjsToolSkinrPattern } from "../skin/CjsToolSkinrPattern.js";
 import { CjsToolWeapon } from "../weapon/CjsToolWeapon.js";
@@ -1536,11 +1536,14 @@ export class CjsToolHttpProxy
         {
             const hull = normalizeRouteSegment(segments[1]);
             const catalog = await this.#GetIndexAnswerCatalog(route.target, route.build);
+            // The hull's own texture paths decide its inserts, not its name.
+            const sofCatalog = await this.#GetSofCatalog(route.target, route.build);
+            const texturePaths = HullTextureResPaths(await sofCatalog.GetHullAsync(hull));
 
             WriteJson(
                 response,
                 200,
-                catalog.ListHullResPathInserts(hull),
+                catalog.ListHullResPathInserts(hull, texturePaths),
                 CreateAnswerHeaders(catalog, "respathinserts", { hull }),
             );
 

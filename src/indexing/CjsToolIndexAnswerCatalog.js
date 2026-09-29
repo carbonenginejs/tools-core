@@ -137,7 +137,22 @@ export class CjsToolIndexAnswerCatalog
     }
 
     /** Lists inserted resource profiles proven to exist for one SOF hull. */
-    ListHullResPathInserts(hull)
+    /**
+     * Lists the resource path inserts a hull's textures can take.
+     *
+     * Carbon has no such list: it rewrites each hull texture path on its own
+     * (EveSOFDNA::ModifyTextureResPath, EveSOFDNA.cpp:945-1000), for the
+     * textures of every mesh area and instanced mesh of the hull (EveSOF.cpp
+     * :835-841, :2488-2491). An insert is listed here when that rewrite would
+     * change at least one of the hull's texture paths - a folder beside the
+     * texture holding the inserted file. The textures decide, not the hull's
+     * name: gc1_t2b is textured from gc1_base and gc1_t2a files.
+     *
+     * @param {string} hull SOF hull name, the cache key.
+     * @param {string[]} texturePaths The hull's texture res paths (HullTextureResPaths).
+     * @returns {readonly string[]} Insert names, sorted.
+     */
+    ListHullResPathInserts(hull, texturePaths)
     {
         const hullName = normalizeName(hull, "SOF hull");
         const cached = this.#hullInserts.get(hullName);
@@ -147,52 +162,40 @@ export class CjsToolIndexAnswerCatalog
             return cached;
         }
 
-        const hullNames = hullName.endsWith("_fn")
-            ? [ hullName, `${hullName.slice(0, -3)}_t1` ]
-            : [ hullName ];
         const inserts = new Set();
 
-        for (const path of this.#paths)
+        for (const path of texturePaths)
         {
-            if (HasIgnoredEffectFolder(path))
+            const texturePath = normalizeLogicalPath(path);
+            const separator = texturePath.lastIndexOf("/");
+
+            if (separator < 0)
             {
                 continue;
             }
 
-            const segments = path.split("/");
+            const folder = texturePath.slice(0, separator);
 
-            if (segments.length < 3)
+            for (const name of this.#bluePaths.GetDirectoryContents(folder))
             {
-                continue;
-            }
-
-            const fileName = segments.at(-1);
-            const insert = segments.at(-2);
-
-            for (const candidateHull of hullNames)
-            {
-                const insertedMaterial = `${candidateHull}_${insert}_m.dds`;
-
-                if (fileName !== insertedMaterial)
+                if (inserts.has(name) || !this.#bluePaths.IsDirectory(`${folder}/${name}`))
                 {
                     continue;
                 }
 
-                const baseFileName = `${candidateHull}_m.dds`;
-                const basePath = [ ...segments.slice(0, -2), baseFileName ].join("/");
+                const insertedPath = InsertedResPath(texturePath, name);
 
-                if (this.#bluePaths.FileExists(basePath))
+                if (insertedPath !== null && this.#bluePaths.FileExists(insertedPath))
                 {
-                    inserts.add(insert);
+                    inserts.add(name);
                 }
             }
         }
 
         // `none` is Carbon's word for "no insert", so a folder of that name
         // could never be asked for and listing it would offer a choice that
-        // does nothing. `base` was removed here too and should not have been:
-        // it is not a Carbon concept, so it is an ordinary folder name and a
-        // hull shipping one deserves to have it listed.
+        // does nothing. `base` is not a Carbon concept, so it is an ordinary
+        // folder name and a hull shipping one deserves to have it listed.
         inserts.delete("none");
 
         const result = Object.freeze([...inserts].sort((left, right) => left.localeCompare(right)));
@@ -241,26 +244,14 @@ export class CjsToolIndexAnswerCatalog
             // could have found. Nothing else changes by removing it: an insert
             // naming a folder that does not exist already falls back to the
             // original path.
-            if (insertName === "none"
-                || !originalPath.startsWith("res:/")
-                || HasIgnoredEffectFolder(originalPath))
+            if (insertName === "none")
             {
                 return originalPath;
             }
 
-            const separator = originalPath.lastIndexOf("/");
-            const fileName = originalPath.slice(separator + 1);
-            const suffix = fileName.lastIndexOf("_");
+            const insertedPath = InsertedResPath(originalPath, insertName);
 
-            if (separator < 0 || suffix < 1)
-            {
-                return originalPath;
-            }
-
-            const insertedFileName = `${fileName.slice(0, suffix)}_${insertName}${fileName.slice(suffix)}`;
-            const insertedPath = `${originalPath.slice(0, separator + 1)}${insertName}/${insertedFileName}`;
-
-            return this.#bluePaths.FileExists(insertedPath) ? insertedPath : originalPath;
+            return insertedPath !== null && this.#bluePaths.FileExists(insertedPath) ? insertedPath : originalPath;
         }));
     }
 
@@ -301,6 +292,70 @@ function NormalizeResourcePath(value)
     }
 
     return logicalPath;
+}
+
+/**
+ * Where Carbon's texture rewrite would look for an insert's variant, or null
+ * when the path cannot take one (EveSOFDNA.cpp:976-990): the insert as a
+ * folder beside the file, and `_<insert>` before the file's last underscore -
+ * `gc1/gc1_t2a_m.dds` with `navy` is `gc1/navy/gc1_t2a_navy_m.dds`. Paths
+ * outside res:/ and in effect folders are left alone, as this route always has.
+ *
+ * @param {string} logicalPath A normalized res path.
+ * @param {string} insert The insert name.
+ * @returns {string|null} The inserted path.
+ */
+function InsertedResPath(logicalPath, insert)
+{
+    if (!logicalPath.startsWith("res:/") || HasIgnoredEffectFolder(logicalPath))
+    {
+        return null;
+    }
+
+    const separator = logicalPath.lastIndexOf("/");
+    const fileName = logicalPath.slice(separator + 1);
+    const suffix = fileName.lastIndexOf("_");
+
+    if (separator < 0 || suffix < 1)
+    {
+        return null;
+    }
+
+    return `${logicalPath.slice(0, separator + 1)}${insert}/${fileName.slice(0, suffix)}_${insert}${fileName.slice(suffix)}`;
+}
+
+/**
+ * The texture res paths Carbon's rewrite touches for one hull record: every
+ * mesh area's textures (EveSOF.cpp:835-841) and every instanced mesh's
+ * (:2488-2491). A texture map is `{ name: { resFilePath } }`, Carbon's std::map.
+ *
+ * @param {object|null} hull A SOF hull record, as GetHullAsync returns it.
+ * @returns {string[]} Its texture paths, without duplicates.
+ */
+export function HullTextureResPaths(hull)
+{
+    const paths = new Set();
+
+    if (!hull)
+    {
+        return [];
+    }
+
+    const add = textures =>
+    {
+        for (const texture of Object.values(textures ?? {}))
+        {
+            if (texture?.resFilePath) paths.add(texture.resFilePath);
+        }
+    };
+
+    for (const areas of [ hull.opaqueAreas, hull.decalAreas, hull.transparentAreas, hull.additiveAreas, hull.distortionAreas ])
+    {
+        for (const area of areas ?? []) add(area.textures);
+    }
+    for (const mesh of hull.instancedMeshes ?? []) add(mesh.textures);
+
+    return [ ...paths ];
 }
 
 function HasIgnoredEffectFolder(logicalPath)

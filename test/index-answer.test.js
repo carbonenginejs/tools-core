@@ -60,8 +60,22 @@ test("derives build answers from one composed resource view", () =>
         "res:/texture/environment/nebula/amarr_cube_refl.png",
         "res:/texture/environment/nebula/amarr_cube.dds",
     ]);
-    assert.deepEqual(catalog.ListHullResPathInserts("AB1_T1"), [ "igc", "navy" ]);
-    assert.deepEqual(catalog.ListHullResPathInserts("ab1_fn"), [ "igc", "navy" ]);
+    const ab1Textures = [
+        "res:/dx9/model/ship/amarr/battleship/ab1/ab1_t1_m.dds",
+        "res:/dx9/model/ship/amarr/battleship/ab1/ab1_t1_n.dds",
+    ];
+    assert.deepEqual(catalog.ListHullResPathInserts("AB1_T1", ab1Textures), [ "igc", "navy" ]);
+    // A hull textured from another hull's files (the gc1_t2b shape): the
+    // textures decide, not the hull's name.
+    assert.deepEqual(catalog.ListHullResPathInserts("zz9_t2b", ab1Textures), [ "igc", "navy" ]);
+    // Shared textures count through their own folders.
+    assert.deepEqual(catalog.ListHullResPathInserts("zz8_t1", [
+        "res:/texture/shared/ships/plates/shared_m.dds",
+    ]), [ "navy" ]);
+    // No texture with an inserted variant: nothing to offer.
+    assert.deepEqual(catalog.ListHullResPathInserts("zz7_t1", [
+        "res:/dx9/model/ship/amarr/battleship/ab1/ab1_t1_n.dds",
+    ]), []);
     assert.deepEqual(catalog.ResolveHullResPathInserts("ab1_t1", "navy", [
         "RES:/DX9/MODEL/SHIP/AMARR/BATTLESHIP/AB1/AB1_T1_M.DDS",
         "res:/dx9/model/ship/amarr/battleship/ab1/ab1_t1_n.dds",
@@ -148,7 +162,8 @@ test("serves build answers with exact-build identity", async context =>
         "res:/texture/environment/nebula/amarr_cube.dds",
     ]);
     assert.deepEqual(await resfiles.json(), SortedPaths);
-    assert.deepEqual(await inserts.json(), [ "igc", "navy" ]);
+    // Listing needs the hull's textures, so it needs the SOF service.
+    assert.equal(inserts.status, 501);
     assert.equal(unavailableSofCatalog.status, 501);
     assert.deepEqual(await resolved.json(), [
         "res:/dx9/model/ship/amarr/battleship/ab1/navy/ab1_t1_navy_m.dds",
@@ -164,6 +179,54 @@ test("serves build answers with exact-build identity", async context =>
     assert.equal(resolved.headers.get("x-carbon-sof-hull"), "ab1_t1");
     assert.equal(resolved.headers.get("x-carbon-respath-insert"), "navy");
     assert.equal(matchCount, 1);
+});
+
+test("lists a hull's inserts from the textures its SOF hull uses", async context =>
+{
+    const hulls = {
+        // Textured from another hull's files: the textures decide.
+        zz9_t2b: {
+            opaqueAreas: [ { textures: {
+                AlbedoMap: { resFilePath: "res:/dx9/model/ship/amarr/battleship/ab1/ab1_t1_m.dds" },
+            } } ],
+            instancedMeshes: [ { textures: {
+                PlateMap: { resFilePath: "res:/texture/shared/ships/plates/shared_m.dds" },
+            } } ],
+        },
+    };
+    const proxy = new CjsToolHttpProxy({
+        indexes: {
+            Open()
+            {
+                throw new Error("Generic index opening was not expected");
+            },
+            async OpenTarget()
+            {
+                return createSource();
+            },
+        },
+        sof: {
+            OpenSource()
+            {
+                return { async GetHullAsync(hull) { return hulls[hull] ?? null; } };
+            },
+        },
+    });
+    const server = proxy.CreateServer();
+
+    await new Promise((resolve, reject) =>
+    {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+    context.after(() => new Promise(resolve => server.close(resolve)));
+
+    const root = `http://127.0.0.1:${server.address().port}/eve/latest`;
+    const listed = await fetch(`${root}/sof/hulls/zz9_t2b/respathinserts`);
+    const unknown = await fetch(`${root}/sof/hulls/zz0_t1/respathinserts`);
+
+    assert.deepEqual(await listed.json(), [ "igc", "navy" ]);
+    assert.deepEqual(await unknown.json(), []);
 });
 
 test("returns original paths for inactive inserts and rejects malformed path requests", () =>
