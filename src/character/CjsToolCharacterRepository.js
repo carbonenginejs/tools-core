@@ -20,6 +20,8 @@ export class CjsToolCharacterRepository
 
     #cache;
 
+    #memory;
+
     #autoPrepare;
 
     #indexes;
@@ -30,6 +32,7 @@ export class CjsToolCharacterRepository
 
     /** Creates a prepared-library repository with optional cache/build services. */
     constructor({
+        memory = null,
         cache = new CjsToolCache(),
         indexes = null,
         targets = new CjsToolTargetRegistry(),
@@ -51,6 +54,9 @@ export class CjsToolCharacterRepository
             throw new TypeError("CjsToolCharacterRepository targets must be a CjsToolTargetRegistry");
         }
 
+        this.#libraries = memory ? memory.CreateMap("character.libraries",
+            key => key.split("\0").slice(0, 2)) : new Map();
+        this.#memory = memory;
         this.#cache = cache;
         this.#autoPrepare = autoPrepare === true;
         this.#indexes = indexes;
@@ -68,6 +74,10 @@ export class CjsToolCharacterRepository
         const exactBuild = await this.#ResolveBuild(resolvedTarget.id, build);
         const key = `${resolvedTarget.id}\0${exactBuild}`;
 
+        if (this.#memory && build === "latest")
+        {
+            this.#memory.MarkCurrent(resolvedTarget.id, "resources", exactBuild);
+        }
         if (!this.#libraries.has(key))
         {
             const loading = this.#Load(resolvedTarget, exactBuild).catch(error =>

@@ -114,3 +114,43 @@ An SDE `latest` reference resolves independently from the app/resource build,
 and the SDE is never guaranteed to match the current remote game build; when a
 newer SDE cannot be acquired the service answers from the newest prepared
 database it has. See the SDE section of the local HTTP route reference.
+
+## Bound resident build memory
+
+The launcher uses one shared expiry timer for resource sources, SOF and derived
+answer catalogs, SDE handles, topic composers, and audio/character libraries.
+Disk cache files remain available for transparent reopening. Independent
+repository instances retain their existing lifetime policy.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `--cache-idle-ms` | 60000 | Idle lifetime of pinned/non-current builds, in milliseconds |
+| `--cache-current-idle-ms` | 600000 | Idle lifetime of current builds, in milliseconds |
+| `--cache-current-builds-per-target` | 1 | Number of latest resource/SDE pairs remembered per target |
+| `--cache-maximum-builds` | 2 | Total resident units retained after a request |
+| `--cache-maximum-entries` | 64 | Secondary limit on references across participating caches |
+| `--cache-sweep-ms` | 10000 | Interval of the single expiry timer, in milliseconds |
+
+All values must be positive integers. A successful latest lookup identifies the
+current resources and SDE facets independently; they count as one unit for that
+target. Each pinned build counts separately. Distinct SDE handles falling back
+to the same build also consume units, because each may retain decoded tables.
+Changing builds does not by itself evict a pinned consumer: its short idle
+window applies until a total budget is exceeded.
+
+Expiry runs first, then the total budgets retire the least recently accessed
+units. Budget retirement removes a current resource/SDE pair together. Maintenance
+waits for active HTTP handlers to finish and holds new handlers until retirement
+completes. It removes dependent topic references before closing database handles,
+including localisation references to another target. The next request reopens
+what it needs. Timer intervals and active requests may delay expiry; limits
+apply to retained idle owners, not peak allocations inside active requests.
+
+The canonical client targets include `frontier`, `eve`, `serenity`, and
+`infinity`; `netease` is provider metadata. The default total of two units is
+conservative for a 3.9 GB host. Four fully warmed current pairs have not been
+measured together and cannot be promised to fit safely in that memory. Keep the
+two-unit default and accept reopening, or measure the required workload on a
+larger host before raising `--cache-maximum-builds` to four. Increasing the
+count does not reserve RAM or impose a byte limit. Decoded table and catalog
+sizes vary with requests; allow memory for transient decoding, Node and the OS.

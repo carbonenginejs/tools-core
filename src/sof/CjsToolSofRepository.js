@@ -19,6 +19,8 @@ export class CjsToolSofRepository
 
     #catalogs;
 
+    #memory;
+
     #createSof;
 
     #loadMode;
@@ -31,6 +33,7 @@ export class CjsToolSofRepository
      * Creates a SOF repository from caller-supplied configuration.
      */
     constructor({
+        memory = null,
         createSof = CreateRuntimeSof,
         loadMode = "lazy",
         maximumCatalogs = 4,
@@ -61,7 +64,9 @@ export class CjsToolSofRepository
             );
         }
 
-        this.#catalogs = new Map();
+        this.#memory = memory;
+        this.#catalogs = memory ? memory.CreateMap("sof.catalogs",
+            key => key.split("\0").slice(0, 2)) : new Map();
         this.#createSof = createSof;
         this.#loadMode = loadMode;
         this.#maximumCatalogs = maximumCatalogs;
@@ -80,7 +85,10 @@ export class CjsToolSofRepository
         {
             loading = this.#OpenSource(source);
             this.#catalogs.set(key, loading);
-            RetainNewest(this.#catalogs, this.#maximumCatalogs);
+            if (!this.#memory)
+            {
+                RetainNewest(this.#catalogs, this.#maximumCatalogs);
+            }
             loading.catch(() =>
             {
                 if (this.#catalogs.get(key) === loading)

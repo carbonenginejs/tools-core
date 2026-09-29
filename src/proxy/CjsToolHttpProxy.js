@@ -133,6 +133,7 @@ export class CjsToolHttpProxy
 
     /** Creates a versioned loopback adapter over optional resource and SOF services. */
     constructor({
+        memory = null,
         indexes = null,
         sof = null,
         sde = null,
@@ -225,6 +226,7 @@ export class CjsToolHttpProxy
             throw new TypeError("CjsToolHttpProxy maxRequestBytes must be a positive integer");
         }
 
+        this.memory = memory;
         this.indexes = indexes;
         this.sof = sof;
         this.sde = sde;
@@ -247,19 +249,71 @@ export class CjsToolHttpProxy
         // deployment step rather than a behaviour every caller inherits.
         this.addressedRedirects = addressedRedirects === true;
         this.maxRequestBytes = maxRequestBytes;
-        this.#answerCatalogs = new Map();
-        this.#targetSources = new Map();
-        this.#sofCatalogs = new Map();
-        this.#skinLibraries = new Map();
-        this.#weaponLibraries = new Map();
-        this.#maps = new Map();
-        this.#dogmas = new Map();
-        this.#types = new Map();
-        this.#icons = new Map();
-        this.#industries = new Map();
-        this.#localisations = new Map();
-        this.#fittings = new Map();
-        this.#skills = new Map();
+        this.#answerCatalogs = memory ? memory.CreateMap("proxy.answerCatalogs", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: false }) : new Map();
+        this.#targetSources = memory ? memory.CreateMap("proxy.targetSources", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: false }) : new Map();
+        this.#sofCatalogs = memory ? memory.CreateMap("proxy.sofCatalogs", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: false }) : new Map();
+        this.#skinLibraries = memory ? memory.CreateMap("proxy.skinLibraries", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: true }) : new Map();
+        this.#weaponLibraries = memory ? memory.CreateMap("proxy.weaponLibraries", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: true }) : new Map();
+        this.#maps = memory ? memory.CreateMap("proxy.maps", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: true }) : new Map();
+        this.#dogmas = memory ? memory.CreateMap("proxy.dogmas", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: true }) : new Map();
+        this.#types = memory ? memory.CreateMap("proxy.types", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: true }) : new Map();
+        this.#icons = memory ? memory.CreateMap("proxy.icons", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: true }) : new Map();
+        this.#industries = memory ? memory.CreateMap("proxy.industries", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: true }) : new Map();
+        this.#localisations = memory ? memory.CreateMap("proxy.localisations", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[1]];
+        }, { dependent: true }) : new Map();
+        this.#fittings = memory ? memory.CreateMap("proxy.fittings", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: true }) : new Map();
+        this.#skills = memory ? memory.CreateMap("proxy.skills", key =>
+        {
+            const parts = key.split("\0");
+            return [parts[0], parts[3]];
+        }, { dependent: true }) : new Map();
         this.capabilities = Object.freeze({
             resources: indexes !== null,
             audio: audio !== null,
@@ -299,6 +353,14 @@ export class CjsToolHttpProxy
 
     /** Handles one local tools-core HTTP request. */
     async Handle(request, response)
+    {
+        return this.memory
+            ? this.memory.Run(() => this.#HandleRequest(request, response))
+            : this.#HandleRequest(request, response);
+    }
+
+    /** Dispatches a request while its build owners remain protected. */
+    async #HandleRequest(request, response)
     {
         const url = new URL(request.url || "/", "http://tools-core.local");
 
@@ -1836,6 +1898,10 @@ export class CjsToolHttpProxy
     async #ResolveBuilds(target, build, client = undefined)
     {
         const resources = await this.indexes.ResolveTargetBuild(target, build, { client });
+        if (this.memory && build === "latest")
+        {
+            this.memory.MarkCurrent(resources.target ?? target, "resources", resources.build);
+        }
 
         if (!this.sde || typeof this.sde.ResolveTargetBuild !== "function")
         {
@@ -1872,6 +1938,10 @@ export class CjsToolHttpProxy
             .then(resolution =>
             {
                 const clamped = ClampSdeBuild(resolution.build, resources.build);
+                if (this.memory && build === "latest")
+                {
+                    this.memory.MarkCurrent(resolution.target ?? target, "sde", clamped);
+                }
 
                 // `source` means two different things depending on who filled
                 // it in: a reason token from the index resolver, and the URL it
@@ -1940,7 +2010,10 @@ export class CjsToolHttpProxy
         {
             loading = Promise.resolve().then(() => this.sof.OpenSource(source));
             this.#sofCatalogs.set(key, loading);
-            RetainNewest(this.#sofCatalogs, 4);
+            if (!this.memory)
+            {
+                RetainNewest(this.#sofCatalogs, 4);
+            }
             loading.catch(() =>
             {
                 if (this.#sofCatalogs.get(key) === loading)
@@ -2002,6 +2075,10 @@ export class CjsToolHttpProxy
             ? await this.indexes.ResolveTargetBuild(target, build)
             : null;
         const exactBuild = resolution?.build ?? build;
+        if (this.memory && build === "latest")
+        {
+            this.memory.MarkCurrent(resolution?.target ?? target, "resources", exactBuild);
+        }
         const key = [
             target,
             resolution?.game ?? "",
@@ -2019,7 +2096,10 @@ export class CjsToolHttpProxy
                 { client: resolution?.client ?? undefined },
             ));
             this.#targetSources.set(key, loading);
-            RetainNewest(this.#targetSources, 4);
+            if (!this.memory)
+            {
+                RetainNewest(this.#targetSources, 4);
+            }
             loading.catch(() =>
             {
                 if (this.#targetSources.get(key) === loading)

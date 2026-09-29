@@ -29,6 +29,8 @@ export class CjsToolAudioRepository
 
     #cache;
 
+    #memory;
+
     #defaultLanguage;
 
     #indexes;
@@ -43,6 +45,7 @@ export class CjsToolAudioRepository
 
     /** Creates an exact-build audio repository over shared cache and indexes. */
     constructor({
+        memory = null,
         cache = new CjsToolCache(),
         indexes,
         targets = new CjsToolTargetRegistry(),
@@ -74,6 +77,9 @@ export class CjsToolAudioRepository
             );
         }
 
+        this.#libraries = memory ? memory.CreateMap("audio.libraries",
+            key => key.split("\0").slice(0, 2)) : new Map();
+        this.#memory = memory;
         this.#cache = cache;
         this.#indexes = indexes;
         this.#targets = targets;
@@ -111,6 +117,10 @@ export class CjsToolAudioRepository
         const sourceIdentity = await this.#ResolveBuild(resolvedTarget, build);
         const key = `${resolvedTarget.id}\0${sourceIdentity.build}`;
 
+        if (this.#memory && build === "latest")
+        {
+            this.#memory.MarkCurrent(resolvedTarget.id, "resources", sourceIdentity.build);
+        }
         if (!this.#libraries.has(key))
         {
             const loading = this.#Load(resolvedTarget, sourceIdentity).catch(error =>

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs/promises";
+import { CjsToolBuildCache } from "../src/internal/CjsToolBuildCache.js";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -62,6 +63,14 @@ async function main()
 
     LoadToolEnv(args.env);
 
+    const memory = new CjsToolBuildCache({
+        idleMs: Number(args.cacheIdleMs ?? 60000),
+        currentIdleMs: Number(args.cacheCurrentIdleMs ?? 600000),
+        currentBuildsPerTarget: Number(args.cacheCurrentBuildsPerTarget ?? 1),
+        maximumBuilds: Number(args.cacheMaximumBuilds ?? 2),
+        maximumEntries: Number(args.cacheMaximumEntries ?? 64),
+        sweepMs: Number(args.cacheSweepMs ?? 10000),
+    });
     const host = normalizeHost(args.host ?? "127.0.0.1");
     // Default to a FIXED port, not an ephemeral one. An OAuth redirect_uri
     // must match its registration exactly, so a port that changes per run can
@@ -96,10 +105,11 @@ async function main()
         ),
     });
     const sde = new CjsToolSdeRepository({
+        memory,
         cache: toolCache,
         autoPrepare: args.noSdeAutoPrepare !== true,
     });
-    const characters = new CjsToolCharacterRepository({ cache: toolCache, indexes });
+    const characters = new CjsToolCharacterRepository({ cache: toolCache, indexes, memory });
     const musicLibraryPath = args.musicLibrary
         ? path.resolve(String(args.musicLibrary))
         : null;
@@ -116,6 +126,7 @@ async function main()
         ? null
         : JSON.parse(await fs.readFile(musicLibraryPath, "utf8"));
     const audio = new CjsToolAudioRepository({
+        memory,
         cache: toolCache,
         indexes,
         autoPrepare: args.noAudioAutoPrepare !== true,
@@ -124,7 +135,7 @@ async function main()
         musicDirectory,
     });
     const sofLoadMode = args.sofFull === true ? "full" : "lazy";
-    const sof = new CjsToolSofRepository({ loadMode: sofLoadMode });
+    const sof = new CjsToolSofRepository({ loadMode: sofLoadMode, memory });
     let prefetchReport = null;
 
     if (args.prefetch !== undefined)
@@ -149,6 +160,7 @@ async function main()
 
     const auth = CreateEsiAuth(dataDirectory, port);
     const proxy = new CjsToolHttpProxy({
+        memory,
         indexes,
         addressedRedirects: args.addressedRedirects === true,
         sof,
@@ -202,6 +214,7 @@ async function main()
         server.listen(port, host, resolve);
     });
 
+    memory.Start();
     const address = server.address();
 
     if (!address || typeof address === "string")
@@ -227,6 +240,7 @@ async function main()
     {
         server.close(async () =>
         {
+            await memory.Close();
             await sde.Close();
             process.exitCode = 0;
         });
@@ -359,6 +373,12 @@ Options:
   --no-sde-auto-prepare     Disable default on-request EVE SDE preparation
   --no-audio-auto-prepare   Disable default on-request audio-library builds
   --audio-individual-media  Materialize embedded WEMs into a generated index
+  --cache-idle-ms <n>       Pinned-build idle expiry (60000 ms)
+  --cache-current-idle-ms <n> Current-pair idle expiry (600000 ms)
+  --cache-current-builds-per-target <n> Current pairs per target (1)
+  --cache-maximum-builds <n> Total resident units, including pinned builds (2)
+  --cache-maximum-entries <n> Total cache references (64)
+  --cache-sweep-ms <n>      Shared expiry interval (10000 ms)
   --sof-full               Load monolithic SOF data.black instead of lazy named records
   --music-library <file>    Optional neutral music-library JSON catalog
   --music-directory <dir>   Local root containing catalog playlist/song files

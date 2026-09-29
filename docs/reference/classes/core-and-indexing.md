@@ -342,6 +342,15 @@ Stable internal failure emitted by the bounded network boundary.
 - Visibility: Internal
 - Kind: CarbonEngineJS
 
+<!-- class:CjsToolBuildCache -->
+## `CjsToolBuildCache`
+
+Coordinates idle expiry and request-safe retirement of service build caches.
+
+- Source: `src/internal/CjsToolBuildCache.js`
+- Visibility: Internal
+- Kind: CarbonEngineJS
+
 <!-- class:CjsToolLibraryArtifact -->
 ## `CjsToolLibraryArtifact`
 

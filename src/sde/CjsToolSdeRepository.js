@@ -28,6 +28,8 @@ export class CjsToolSdeRepository
 
     #open;
 
+    #memory;
+
     #preparers;
 
     #targets;
@@ -41,7 +43,9 @@ export class CjsToolSdeRepository
         this.#archive = options.archive ?? new CjsToolSdeArchive();
         this.#cache = options.cache ?? new CjsToolCache();
         this.#targets = options.targets ?? new CjsToolTargetRegistry();
-        this.#open = new Map();
+        this.#memory = options.memory ?? null;
+        this.#open = this.#memory ? this.#memory.CreateMap("sde.sources",
+            key => key.split(":").slice(0, 2), { close: source => source.Close() }) : new Map();
         // Auto-preparation is the default: the archive is addressable per build,
         // so a missing database is prepared on first request unless explicitly
         // disabled. Only the *latest* channel is a single record; older builds
@@ -230,7 +234,16 @@ export class CjsToolSdeRepository
             this.#open.set(key, opening);
         }
 
-        return this.#open.get(key);
+        const source = await this.#open.get(key);
+        if (this.#memory)
+        {
+            this.#memory.SetIdentity(this.#open, key, source.target, source.build, "sde");
+            if (buildValue === "latest")
+            {
+                this.#memory.MarkCurrent(source.target, "sde", source.build);
+            }
+        }
+        return source;
     }
 
     /** Closes every cached database handle. */
