@@ -1257,8 +1257,10 @@ function toAttributeSchema(classInfo, attr, reviewNotes, classMap, sourceRefs, e
 
     const fieldInfo = resolveAttributeFieldInfo(classInfo, attr, classMap, reviewNotes, resolution);
     const field = fieldInfo ? fieldInfo.field : null;
-    const defaultInfo = field?.sourceNestedDefault
-        ? { member: attr.member, value: field.sourceNestedDefault }
+    // null explicitly means the wrapper's root initializer cannot supply a
+    // leaf default; undefined retains the ordinary source-default lookup.
+    const defaultInfo = field?.sourceNestedDefault !== undefined
+        ? field.sourceNestedDefault === null ? null : { member: attr.member, value: field.sourceNestedDefault }
         : resolveDefault(classInfo, attr, field, classMap);
     const black = toBlackAttributeSchema(classInfo, attr, fieldInfo, field, reviewNotes, sourceRefs, enumNames, resolution);
     const schema = compactObject({
@@ -1975,12 +1977,25 @@ const SOURCE_NESTED_FIELD_OVERRIDES = Object.freeze({
 
 function resolveSourceNestedField(rootType, leafPath, memberPath)
 {
+    // PriorityBlend.h:11-27: Attribute<T> owns T value and bool enabled.
+    // Do not reuse the wrapper initializer as either leaf's default. Carbon
+    // has both Attribute(T) and Attribute(T, bool); unresolved constructor
+    // arguments are unknown metadata, never a guessed false or root value.
+    const attribute = /^PriorityBlend::Attribute\s*<\s*(.+)\s*>$/.exec(rootType);
+    if (attribute && (leafPath === "value" || leafPath === "enabled"))
+    {
+        return {
+            name: memberPath,
+            type: leafPath === "enabled" ? "bool" : attribute[1].trim(),
+            sourceNestedDefault: null
+        };
+    }
     const leaf = SOURCE_NESTED_FIELD_OVERRIDES[rootType]?.[leafPath];
     if (!leaf) return null;
     return {
         name: memberPath,
         type: leaf.type,
-        sourceNestedDefault: leaf.defaultValue || null
+        sourceNestedDefault: leaf.defaultValue || undefined
     };
 }
 

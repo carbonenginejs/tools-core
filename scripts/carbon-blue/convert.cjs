@@ -1121,7 +1121,10 @@ function expandLocalClassMacros(text)
     {
         const body = match[3].replace(/\\(?=\r?\n)/g, "");
         const declaresType = /\b(?:class|struct)\s+\w|\bBLUE_(?:CLASS|STRUCT|INTERFACE)\s*\(/.test(body);
-        if (!declaresType && !/\bEXPOSURE_BEGIN\b|\bBLUE_DEFINE\w*\s*\(/.test(body)) continue;
+        // Tr2PostProcessAttributes_Blue.cpp:41-47 declares persisted Enabled/
+        // value pairs inside an existing class, rather than a whole class.
+        const declaresPostProcessAttributes = /^POSTPROCESSATTRIBUTE_DEFINE(?:_ENUM)?$/.test(match[1]);
+        if (!declaresType && !declaresPostProcessAttributes && !/\bEXPOSURE_BEGIN\b|\bBLUE_DEFINE\w*\s*\(/.test(body)) continue;
         macros.push({
             name: match[1],
             params: match[2].split(",").map(param => param.trim()).filter(Boolean),
