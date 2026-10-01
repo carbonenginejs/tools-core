@@ -450,8 +450,24 @@ function splitTopLevelArgs(input)
     const parts = [];
     let depth = 0;
     let current = "";
+    let quote = null;
+    let escaped = false;
     for (const ch of String(input))
     {
+        if (quote)
+        {
+            current += ch;
+            if (escaped) escaped = false;
+            else if (ch === "\\") escaped = true;
+            else if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '"' || ch === "'")
+        {
+            quote = ch;
+            current += ch;
+            continue;
+        }
         if (ch === "(" || ch === "[" || ch === "{" || ch === "<") depth++;
         else if (ch === ")" || ch === "]" || ch === "}" || ch === ">") depth = Math.max(0, depth - 1);
 
@@ -823,8 +839,11 @@ function resolveEnumDefault(expression, enumType, className, schemaRoot = DEFAUL
 }
 
 // Source-proven typedef aliases where the alias name does not carry enough structure.
-// These come from trinity/trinity/Shader/Tr2EffectDescription.h.
+// Shader aliases come from trinity/trinity/Shader/Tr2EffectDescription.h;
+// other owners are identified beside their entries.
 const COLLECTION_TYPE_ALIASES = Object.freeze({
+    // Tr2MaterialParameterStore.h stores the Blue interface dictionary.
+    PITriEffectParameterDict: { kind: "map", arg: { kind: "objectRef", className: "ITriEffectParameter" } },
     Tr2EffectResourceMap: { kind: "map", arg: "Tr2EffectResource" },
     Tr2SamplerSetupMap: { kind: "map", arg: "Tr2SamplerSetup" },
     Tr2EffectParameterAnnotationMap: { kind: "list", arg: "Tr2EffectParameterAnnotation" },
@@ -986,6 +1005,11 @@ const REVIEWED_NATIVE_FIELD_INCLUSIONS = Object.freeze({
 });
 
 const SOURCE_FIELD_OVERRIDES = Object.freeze({
+    // Tr2CurveColor.h and its PARENTLOCK constructor initializers own four
+    // embedded curves. IROOT hydration requires these destinations to exist.
+    Tr2CurveColor: Object.freeze(Object.fromEntries(["r", "g", "b", "a"].map(name => [name,
+        Object.freeze({ kind: "struct", typeArg: "Tr2CurveScalar", factory: "Tr2CurveScalar" })
+    ]))),
     CompressionOptions: Object.freeze({
         // nvtt::Quality_Production; Blue exposes the chooser key PRODUCTION.
         quality: Object.freeze({ kind: "int32", enumType: "Quality", default: 2 })
@@ -1334,6 +1358,12 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
     // BlueTypeTraits.h maps BlueWeakRef<T> to IROOTWEAKREF, not IROOTPTR.
     const weakRef = type.match(/^(?:BlueWeakRef|std::weak_ptr)\s*<\s*(.+)\s*>$/);
     if (weakRef) return { kind: "weakRef", arg: cleanNamedType(weakRef[1]) };
+    // Tr2Effect.h declares this alias locally; do not guess a global
+    // EffectResource class from the alias spelling.
+    if (className === "Tr2Effect" && named === "EffectResourceList")
+    {
+        return { kind: "list", arg: { kind: "objectRef", className: "ITriEffectResourceParameter" } };
+    }
     if (COLLECTION_TYPE_ALIASES[named]) return { ...COLLECTION_TYPE_ALIASES[named] };
     if (type.includes("std::vector") || /(?:Vector|List)$/.test(named)) return { kind: "list", arg: collectionItemType(original) };
     if (type.includes("std::map") || /Map$/.test(named)) return { kind: "map", arg: collectionItemType(original) };
@@ -1455,7 +1485,13 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
         case "objectRef":
             return { kind: "model", arg: cleanNamedType(effectiveCppType) };
         case "container":
-            return { kind: "list", arg: collectionItemType(effectiveCppType) };
+        {
+            const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
+            const resolvedCollection = ["list", "map", "set", "array"].includes(resolved.kind);
+            const kind = black.container === "dict" ? "map"
+                : resolvedCollection ? resolved.kind : "list";
+            return { kind, arg: (resolvedCollection ? resolved.arg : null) || collectionItemType(effectiveCppType) };
+        }
         case "binaryBlock":
             return { kind: "typedArray", arg: "Uint8Array" };
         case "inlineObject":
@@ -1464,7 +1500,8 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
             // Math value types (Quaternion, Color, Vector2/3/4, matrices) are wired as
             // inline objects in some docs but map to their @type.* math kinds, not struct.
             const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
-            if (INLINE_CPP_KINDS.has(resolved.kind)) return resolved;
+            if (INLINE_CPP_KINDS.has(resolved.kind)
+                && !["model", "objectRef", "weakRef"].includes(resolved.kind)) return resolved;
             return { kind: "struct", arg: cleanNamedType(effectiveCppType) };
         }
         default:
@@ -2919,14 +2956,65 @@ function normalizeFieldName(rawName)
 function parseTypeArg(value)
 {
     const trimmed = String(value).trim();
-    if (trimmed.startsWith("{"))
+    if (trimmed.startsWith("{") && trimmed.endsWith("}"))
     {
-        const classNameMatch = trimmed.match(/className\s*:\s*["']([^"']+)["']/);
-        if (classNameMatch) return classNameMatch[1];
-        const kindMatch = trimmed.match(/kind\s*:\s*["']([^"']+)["']/);
-        return kindMatch ? kindMatch[1] : trimmed;
+        try { return JSON.parse(trimmed); }
+        catch { /* Hand-authored descriptors may use unquoted keys. */ }
+        // Parse only data literals, never evaluate decorator source. Retain
+        // every descriptor key, including nested item/value descriptors.
+        const result = {};
+        for (const entry of splitTopLevelArgs(trimmed.slice(1, -1)))
+        {
+            if (!entry.trim()) continue;
+            const match = entry.match(/^\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[A-Za-z_$][\w$]*)\s*:\s*([\s\S]+)$/);
+            if (!match) return trimmed;
+            Object.defineProperty(result, stripQuotes(match[1]), {
+                value: parseTypeArg(match[2]), enumerable: true, configurable: true, writable: true
+            });
+        }
+        return result;
+    }
+    if (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    {
+        return splitTopLevelArgs(trimmed.slice(1, -1)).filter(part => part.trim()).map(parseTypeArg);
+    }
+    if (trimmed === "true") return true;
+    if (trimmed === "false") return false;
+    if (trimmed === "null") return null;
+    if (/^-?(?:\d+\.?\d*|\.\d+)$/.test(trimmed)) return Number(trimmed);
+    if (trimmed.startsWith('"'))
+    {
+        try { return JSON.parse(trimmed); }
+        catch { return trimmed; }
     }
     return stripQuotes(trimmed);
+}
+
+// Same kind aliases as runtime schema/types/carbonTypes.js. A built-in value
+// name in a collection remains a value; only class names denote references.
+const TYPE_ARG_KIND_ALIASES = Object.freeze({
+    bool: "boolean", float: "float32", double: "float64",
+    vec2: "vector2", vec3: "vector3", vec4: "vector4",
+    quat: "quaternion", mat3: "matrix3", mat4: "matrix4"
+});
+
+function normalizedTypeArg(value, collection = false)
+{
+    if (collection && typeof value === "string")
+    {
+        const kind = TYPE_ARG_KIND_ALIASES[value] || value;
+        const known = KNOWN_TYPE_KINDS.has(value) || Object.values(TYPE_ARG_KIND_ALIASES).includes(kind) || kind === "enum";
+        value = known ? { kind } : { kind: "objectRef", className: value };
+    }
+    if (typeof value === "string") return stripStructureSuffix(value);
+    if (Array.isArray(value)) return value.map(item => item && typeof item === "object" ? normalizedTypeArg(item) : item);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key,
+        key === "className" ? stripStructureSuffix(value[key])
+            : key === "kind" ? TYPE_ARG_KIND_ALIASES[value[key]] || value[key]
+            : key === "itemType" || key === "valueType" ? normalizedTypeArg(value[key], true)
+            : value[key] && typeof value[key] === "object" ? normalizedTypeArg(value[key]) : value[key]
+    ]));
 }
 
 function stripQuotes(value)
@@ -3228,11 +3316,13 @@ export function compareClass(expected, parsed, options = {})
 
         // typeArg comparison (objectRef/struct/rawStruct/list item). Carbon's generated
         // "<Item>Structure" wrappers are the same runtime item type.
-        if (exp.typeArg && act.typeArg && stripStructureSuffix(exp.typeArg) !== stripStructureSuffix(act.typeArg))
+        if (exp.typeArg && act.typeArg
+            && JSON.stringify(normalizedTypeArg(exp.typeArg, ["list", "array", "map", "set"].includes(exp.kind)))
+                !== JSON.stringify(normalizedTypeArg(act.typeArg, ["list", "array", "map", "set"].includes(act.kind))))
         {
             results.push({
                 name, verdict: "type-mismatch", severity: "error", symbol: "cross",
-                notes: [`item/ref type differs: schema "${exp.typeArg}" vs file "${act.typeArg}"`],
+                notes: [`item/ref type differs: schema ${JSON.stringify(exp.typeArg)} vs file ${JSON.stringify(act.typeArg)}`],
                 expected: exportExpected(exp),
                 actual: exportActual(act)
             });
@@ -4183,11 +4273,11 @@ function renderTypeDecorator(field)
     }
     if (field.kind === "list" || field.kind === "array" || field.kind === "set")
     {
-        return `${field.kind}("${field.typeArg || "unknown"}")`;
+        return `${field.kind}(${JSON.stringify(field.typeArg || "unknown")})`;
     }
     if (field.kind === "map")
     {
-        return `map("${field.typeArg || "unknown"}")`;
+        return `map(${JSON.stringify(field.typeArg || "unknown")})`;
     }
     if (field.kind === "typedArray")
     {

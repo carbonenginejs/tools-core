@@ -11,6 +11,144 @@ import {
     renderClassFile
 } from "../src/schema/core/classTool.js";
 
+test("embedded color curves retain their allocated destinations in both schema forms", () =>
+{
+    // Tr2CurveColor.h:40-43, Tr2CurveColor.cpp:10-18 and its Blue IROOT entries.
+    const fields = ["r", "g", "b", "a"].map(name => ({
+        names: { [name]: ["name"], [`m_${name}`]: ["member"] },
+        cppType: "PTr2CurveScalar", beType: "IROOT", wireType: "inlineObject",
+        flags: ["READWRITE", "PERSIST"]
+    }));
+    for (const attributes of [false, true])
+    {
+        const doc = {
+            family: "curves", blueClass: "Tr2CurveColor", cppClass: "Tr2CurveColor",
+            ...(attributes ? { attributes: fields.map((black, index) => ({
+                blueName: ["r", "g", "b", "a"][index], member: `m_${["r", "g", "b", "a"][index]}`,
+                cppType: black.cppType, black
+            })) } : { black: { fields } })
+        };
+        const expected = deriveExpectedFields(doc);
+        assert.equal(expected.fields.length, 4);
+        for (const field of expected.fields)
+        {
+            assert.equal(field.kind, "struct");
+            assert.equal(field.typeArg, "Tr2CurveScalar");
+            assert.deepEqual(field.default.value, { __factory: "Tr2CurveScalar" });
+        }
+        const source = renderClassFile(expected, { doc, js: true });
+        assert.match(source, /import \{ Tr2CurveScalar \} from "\.\/Tr2CurveScalar\.js"/);
+        assert.equal((source.match(/= new Tr2CurveScalar\(\);/g) || []).length, 4);
+        assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
+        const missingStorage = source.replaceAll("new Tr2CurveScalar()", "null");
+        assert.equal(compareClass(expected, parseClassFile(missingStorage), { strict: true }).summary.drift, true);
+    }
+});
+
+test("source-proven parameter dictionary and effect resource alias retain reference descriptors", () =>
+{
+    // Tr2MaterialParameterStore.h:55 and Tr2Effect.h:178-179.
+    const cases = [
+        ["Tr2MaterialParameterStore", "parameters", "PITriEffectParameterDict", "dict", "map", "ITriEffectParameter"],
+        ["Tr2Effect", "resources", "EffectResourceList", "list", "list", "ITriEffectResourceParameter"]
+    ];
+    for (const [className, name, cppType, container, kind, itemClass] of cases)
+    {
+        for (const attributes of [false, true])
+        {
+            const black = { names: { [name]: ["name"], [`m_${name}`]: ["member"] },
+                cppType, container, beType: "IROOT", wireType: "container", flags: ["READWRITE", "PERSIST"] };
+            const doc = { family: "shader", blueClass: className, cppClass: className,
+                ...(attributes ? { attributes: [{ blueName: name, member: `m_${name}`, cppType, black }] }
+                    : { black: { fields: [black] } }) };
+            const expected = deriveExpectedFields(doc);
+            const descriptor = { kind: "objectRef", className: itemClass };
+            assert.equal(expected.fields[0].kind, kind);
+            assert.deepEqual(expected.fields[0].typeArg, descriptor);
+            const source = renderClassFile(expected, { doc, js: true });
+            const parsed = parseClassFile(source);
+            assert.deepEqual(parsed.fields[0].typeArg, descriptor);
+            assert.equal(compareClass(expected, parsed, { strict: true }).summary.drift, false);
+            const wrongKind = source.replace('"kind":"objectRef"', '"kind":"struct"');
+            assert.equal(compareClass(expected, parseClassFile(wrongKind)).summary.typeMismatch, 1);
+            const shorthand = source.replace(JSON.stringify(descriptor), JSON.stringify(itemClass));
+            assert.equal(compareClass(expected, parseClassFile(shorthand), { strict: true }).summary.drift, false);
+        }
+    }
+    const unrelated = deriveExpectedFields({ blueClass: "Other", cppClass: "Other",
+        attributes: [{ blueName: "resources", cppType: "EffectResourceList" }] });
+    assert.notDeepEqual(unrelated.fields[0].typeArg, { kind: "objectRef", className: "ITriEffectResourceParameter" });
+    const unresolved = deriveExpectedFields({ blueClass: "Other", cppClass: "Other",
+        attributes: [{ blueName: "entries", cppType: "PUnreviewedDict",
+            black: { wireType: "container", container: "dict" } }] });
+    assert.equal(unresolved.fields[0].kind, "map");
+    assert.equal(unresolved.fields[0].typeArg, null);
+});
+
+test("descriptor parsing and comparison preserve nested data and ignore key order", () =>
+{
+    const expected = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture",
+        attributes: [{ blueName: "items", cppType: "std::vector<ThingPtr>" }] });
+    expected.fields[0].typeArg = { kind: "list", itemType: { kind: "weakRef", className: "Thing" } };
+    const source = renderClassFile(expected, { js: true });
+    const literal = JSON.stringify(expected.fields[0].typeArg);
+    const reordered = source.replace(literal, "{ itemType: { className: Thing, kind: 'weakRef' }, kind: 'list' }");
+    assert.deepEqual(parseClassFile(reordered).fields[0].typeArg, expected.fields[0].typeArg);
+    assert.equal(compareClass(expected, parseClassFile(reordered), { strict: true }).summary.drift, false);
+    assert.equal(compareClass(expected, parseClassFile(reordered.replace("'weakRef'", "'objectRef'"))).summary.typeMismatch, 1);
+    assert.equal(compareClass(expected, parseClassFile(reordered.replace("className: Thing", "className: Other"))).summary.typeMismatch, 1);
+    const metadata = { kind: "objectRef", className: "Thing", metadata: { label: "a,b{c}", enabled: true, ranks: [1, 2] } };
+    expected.fields[0].typeArg = metadata;
+    assert.deepEqual(parseClassFile(renderClassFile(expected, { js: true })).fields[0].typeArg, metadata);
+    expected.fields[0].typeArg = { kind: "string" };
+    const scalar = renderClassFile(expected, { js: true });
+    assert.equal(compareClass(expected, parseClassFile(scalar.replace('{"kind":"string"}', '"string"'))).summary.typeMismatch, 0);
+    assert.equal(compareClass(expected, parseClassFile(scalar.replace('{"kind":"string"}', '{"kind":"objectRef","className":"string"}'))).summary.typeMismatch, 1);
+});
+
+test("collection value shorthand matches value descriptors without becoming class references", () =>
+{
+    // Existing source-backed EveSpaceObjectVSData overrides retain uint32[4]
+    // bone offsets and Matrix4[2] custom mask storage.
+    const expected = deriveExpectedFields({ blueClass: "EveSpaceObjectVSData", cppClass: "EveSpaceObjectVSData",
+        attributes: [
+            { blueName: "boneOffsets", member: "boneOffsets", cppType: "uint32_t[4]" },
+            { blueName: "customMaskMatrix", member: "customMaskMatrix", cppType: "Matrix4[2]" }
+        ] });
+    const source = renderClassFile(expected, { js: true });
+    assert.deepEqual(expected.fields.map(field => field.typeArg), ["uint32", "mat4"]);
+    for (const [shorthand, kind] of [["uint32", "uint32"], ["mat4", "mat4"], ["mat4", "matrix4"]])
+    {
+        const correct = source.replace(`array("${shorthand}")`, `array({ kind: "${kind}" })`);
+        assert.equal(compareClass(expected, parseClassFile(correct), { strict: true }).summary.drift, false);
+        const wrong = source.replace(`array("${shorthand}")`, `array({ kind: "objectRef", className: "${shorthand}" })`);
+        assert.equal(compareClass(expected, parseClassFile(wrong), { strict: true }).summary.typeMismatch, 1);
+    }
+    const fixture = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture",
+        attributes: [{ blueName: "items", cppType: "std::vector<ThingPtr>" }] });
+    for (const shorthand of ["string", "unknown", "uint32", "mat4"])
+    {
+        fixture.fields[0].typeArg = shorthand;
+        const text = renderClassFile(fixture, { js: true });
+        const correct = text.replace(`list("${shorthand}")`, `list({ kind: "${shorthand}" })`);
+        assert.equal(compareClass(fixture, parseClassFile(correct), { strict: true }).summary.drift, false);
+        const wrong = text.replace(`list("${shorthand}")`, `list({ kind: "objectRef", className: "${shorthand}" })`);
+        assert.equal(compareClass(fixture, parseClassFile(wrong), { strict: true }).summary.typeMismatch, 1);
+    }
+});
+
+test("inline wire declarations defeat pointer spelling without changing reference or math declarations", () =>
+{
+    const expected = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture", attributes: [
+        { blueName: "embedded", cppType: "PChild", black: { beType: "IROOT", wireType: "inlineObject" } },
+        { blueName: "reference", cppType: "ChildPtr", black: { beType: "IROOTPTR", wireType: "objectRef" } },
+        { blueName: "rotation", cppType: "Quaternion", black: { wireType: "inlineObject" } }
+    ] });
+    assert.deepEqual(expected.fields.map(field => field.kind), ["struct", "model", "quat"]);
+    // Unknown embedded classes do not acquire an invented allocation policy.
+    assert.equal(expected.fields[0].default.value, null);
+});
+
 function WriteSchema(root, family, name, doc)
 {
     const directory = path.join(root, family);
