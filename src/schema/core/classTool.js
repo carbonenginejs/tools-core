@@ -1489,7 +1489,14 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
             const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
             const resolvedCollection = ["list", "map", "set", "array"].includes(resolved.kind);
             const kind = black.container === "dict" ? "map"
+                : black.container === "array" ? "array"
                 : resolvedCollection ? resolved.kind : "list";
+            // A reviewed native layout supplies both item identity and ABI.
+            // Never infer stride or offsets from the exposed member types.
+            if (black.structure && ["list", "array"].includes(kind))
+            {
+                return { kind, arg: { kind: "rawStruct", className: black.structure.name }, structure: black.structure };
+            }
             return { kind, arg: (resolvedCollection ? resolved.arg : null) || collectionItemType(effectiveCppType) };
         }
         case "binaryBlock":
@@ -2471,6 +2478,7 @@ function buildExpectedField({ name, key = name, role = "member", member, getter 
         flags: flags || [],
         kind: kindInfo.kind,
         typeArg: kindInfo.arg || null,
+        ...(kindInfo.structure ? { structure: kindInfo.structure } : {}),
         enumType: kindInfo.enumType || null,
         enumQualifiedName: kindInfo.enumQualifiedName || null,
         enumOwnerClass: kindInfo.enumOwnerClass || null,
@@ -2850,6 +2858,11 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
     const args = declaration?.arg === undefined ? [] : splitTopLevelArgs(declaration.arg);
     const name = args.length ? stripQuotes(args[0]) : key;
     const index = args[1]?.match(/\bindex\s*:\s*(\d+)/);
+    const typeDecorator = typeDecorators[0];
+    const collection = ["list", "array"].includes(typeDecorator?.name);
+    const typeArgs = typeDecorator?.arg === undefined ? []
+        : collection ? splitTopLevelArgs(typeDecorator.arg) : [typeDecorator.arg];
+    const typeOptions = collection && typeArgs[1] ? parseTypeArg(typeArgs[1]) : null;
     return {
         name,
         key,
@@ -2859,7 +2872,8 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
         line,
         kinds: typeDecorators.map(d => d.name),
         kind: typeDecorators.length ? typeDecorators[0].name : null,
-        typeArg: typeDecorators.length && typeDecorators[0].arg !== undefined ? parseTypeArg(typeDecorators[0].arg) : null,
+        typeArg: typeArgs.length ? parseTypeArg(typeArgs[0]) : null,
+        ...(typeOptions && Object.hasOwn(typeOptions, "structure") ? { structure: typeOptions.structure } : {}),
         ioNames: ioDecorators.filter(d => d.name !== "notify").map(d => d.name),
         notify: ioDecorators.some(d => d.name === "notify"),
         editFlags: actualEditFlags(ioDecorators.map(d => d.name)),
@@ -3015,6 +3029,15 @@ function normalizedTypeArg(value, collection = false)
             : key === "itemType" || key === "valueType" ? normalizedTypeArg(value[key], true)
             : value[key] && typeof value[key] === "object" ? normalizedTypeArg(value[key]) : value[key]
     ]));
+}
+
+// Layouts are exact ABI data: normalize key order only, never member order,
+// names, offsets, widths, or padding.
+function normalizedStructure(value)
+{
+    if (Array.isArray(value)) return value.map(normalizedStructure);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, normalizedStructure(value[key])]));
 }
 
 function stripQuotes(value)
@@ -3333,6 +3356,19 @@ export function compareClass(expected, parsed, options = {})
             notes.push(`item/ref type "${exp.typeArg}" unspecified in file`);
         }
 
+        if (JSON.stringify(normalizedStructure(exp.structure || null)) !== JSON.stringify(normalizedStructure(act.structure || null)))
+        {
+            results.push({
+                name, verdict: "type-mismatch", severity: "error", symbol: "cross",
+                notes: [!act.structure ? "native structure layout missing in file"
+                    : !exp.structure ? "native structure layout is not declared by schema"
+                        : "native structure layout differs (name, stride, members, offsets or types)"],
+                expected: exportExpected(exp),
+                actual: exportActual(act)
+            });
+            continue;
+        }
+
         // enum meta.
         if (exp.enumType && !act.enumArg)
         {
@@ -3582,6 +3618,7 @@ function exportExpected(exp)
         setterParameterType: exp.setterParameterType || null,
         type: exp.kind,
         typeArg: exp.typeArg,
+        ...(exp.structure ? { structure: exp.structure } : {}),
         enumType: exp.enumType,
         io: exp.io,
         notify: exp.notify,
@@ -3602,6 +3639,7 @@ function exportActual(field)
         ...(field.index === undefined ? {} : { index: field.index }),
         type: field.kind,
         typeArg: field.typeArg,
+        ...(field.structure ? { structure: field.structure } : {}),
         enumArg: field.enumArg,
         io: field.ioNames.length ? field.ioNames.join("+") : null,
         notify: field.notify,
@@ -4273,7 +4311,9 @@ function renderTypeDecorator(field)
     }
     if (field.kind === "list" || field.kind === "array" || field.kind === "set")
     {
-        return `${field.kind}(${JSON.stringify(field.typeArg || "unknown")})`;
+        const options = field.structure && ["list", "array"].includes(field.kind)
+            ? `, ${JSON.stringify({ structure: field.structure })}` : "";
+        return `${field.kind}(${JSON.stringify(field.typeArg || "unknown")}${options})`;
     }
     if (field.kind === "map")
     {

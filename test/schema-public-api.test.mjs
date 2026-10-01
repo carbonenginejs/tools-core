@@ -11,6 +11,40 @@ class Schema {}
 class Namespace {}
 class Type {}
 
+test("verified native layouts persist through attribute, class and compact Black exports", async () =>
+{
+    const { DEFAULT_FIELD_RESOLUTIONS } = await import("../src/schema/core/schemaFieldResolutions.js");
+    const cases = [["Tr2Effect", ["options", "constParameters"]], ["Tr2CurveScalar", ["keys"]], ["Tr2CurveQuaternion", ["keys"]]];
+    const report = { carbonRoot: "/synthetic/carbonengine", generatedAt: "2026-10-01T00:00:00.000Z", enums: [],
+        families: [{ name: "fixture", root: "trinity", classes: cases.map(([name, fields]) => ({
+            name, family: "fixture", headerFiles: [`trinity/${name}.h`], cppFiles: [], bases: [], methods: [], reviewNotes: [],
+            fields: fields.map(field => ({ name: `m_${field}`, type: `${DEFAULT_FIELD_RESOLUTIONS[name][field].wire.structure.name}StructureList` })),
+            blue: { isExposed: true, files: [`trinity/${name}_Blue.cpp`], defines: [{ macro: "BLUE_DEFINE", name }],
+                exposures: [{ macro: "EXPOSURE_BEGIN", name }], properties: [], methods: [], interfaces: [],
+                attributes: fields.map((field, index) => ({ macro: "MAP_ATTRIBUTE", name: field, nameSource: "literal",
+                    member: `m_${field}`, flags: ["READWRITE", "PERSIST"], source: `trinity/${name}_Blue.cpp`, line: index + 1 })) }
+        })) }] };
+    const bundle = CjsFormatCarbon.read(report);
+    const compact = CjsFormatCarbon.readBlackDefinitions(report).classes;
+    const sizes = [];
+    for (const [name, fields] of cases)
+    {
+        const doc = bundle.families[0].classes.find(value => value.cppClass === name);
+        for (const field of fields)
+        {
+            const structure = DEFAULT_FIELD_RESOLUTIONS[name][field].wire.structure;
+            sizes.push(structure.size);
+            assert.deepEqual(doc.attributes.find(value => value.blueName === field).black.structure, structure);
+            assert.deepEqual(doc.black.fields.find(value => nameForRole(value, "name") === field).structure, structure);
+            assert.deepEqual(compact[name][field].structure, structure);
+        }
+    }
+    assert.deepEqual(sizes, [16, 24, 20, 24]);
+    // The shared-string slot is eight native bytes; its uint16 wire index
+    // must not collapse the value offset or recompute the 24-byte stride.
+    assert.equal(compact.Tr2Effect.constParameters.structure.members[1].offset, 8);
+});
+
 const REPO = path.resolve(".");
 
 function nameForRole(field, role)

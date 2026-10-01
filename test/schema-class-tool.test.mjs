@@ -10,6 +10,83 @@ import {
     parseClassFile,
     renderClassFile
 } from "../src/schema/core/classTool.js";
+import { DEFAULT_FIELD_RESOLUTIONS } from "../src/schema/core/schemaFieldResolutions.js";
+
+test("verified raw layouts survive both schema inputs and list/array decorator round trips", () =>
+{
+    for (const [className, name] of [["Tr2Effect", "options"], ["Tr2Effect", "constParameters"],
+        ["Tr2CurveScalar", "keys"], ["Tr2CurveQuaternion", "keys"]])
+    {
+        const structure = DEFAULT_FIELD_RESOLUTIONS[className][name].wire.structure;
+        for (const attributes of [false, true])
+        {
+            const black = { names: { [name]: ["name"], [`m_${name}`]: ["member"] },
+                cppType: `${structure.name}StructureList`, wireType: "container", container: "list",
+                structure, flags: ["READWRITE", "PERSIST"] };
+            const doc = { blueClass: className, cppClass: className,
+                ...(attributes ? { attributes: [{ blueName: name, member: `m_${name}`, black }] }
+                    : { black: { fields: [black] } }) };
+            const expected = deriveExpectedFields(doc);
+            assert.equal(expected.fields[0].kind, "list");
+            assert.deepEqual(expected.fields[0].typeArg, { kind: "rawStruct", className: structure.name });
+            assert.deepEqual(expected.fields[0].structure, structure);
+            for (const kind of ["list", "array"])
+            {
+                expected.fields[0].kind = kind;
+                const source = renderClassFile(expected, { js: true });
+                const parsed = parseClassFile(source);
+                assert.deepEqual(parsed.fields[0].structure, structure);
+                assert.equal(compareClass(expected, parsed, { strict: true }).summary.drift, false);
+                assert.deepEqual(compareClass(expected, parsed).fields[0].expected.structure, structure);
+                assert.deepEqual(compareClass(expected, parsed).fields[0].actual.structure, structure);
+                assert.equal(compareClass(expected, parseClassFile(source.replaceAll("@type.", "@types.")), { strict: true }).summary.drift, false);
+
+                const options = `, ${JSON.stringify({ structure })}`;
+                assert.equal(compareClass(expected, parseClassFile(source.replace(options, `, { structure: ${JSON.stringify(structure)} }`)), { strict: true }).summary.drift, false);
+                const missing = compareClass(expected, parseClassFile(source.replace(options, "")), { strict: true });
+                assert.equal(missing.summary.typeMismatch, 1);
+                assert.match(missing.fields[0].notes.join(" "), /layout missing/);
+                for (const mutate of [
+                    value => { value.size += 8; },
+                    value => { value.members[0].offset += 1; },
+                    value => { value.members[0].type = "uint8"; },
+                    value => { value.members.reverse(); },
+                    value => { value.name += "Other"; }
+                ])
+                {
+                    const changed = structuredClone(structure);
+                    mutate(changed);
+                    const result = compareClass(expected, parseClassFile(source.replace(options, `, ${JSON.stringify({ structure: changed })}`)));
+                    assert.equal(result.summary.typeMismatch, 1);
+                    assert.match(result.fields[0].notes.join(" "), /layout differs/);
+                }
+                const reordered = { members: structure.members.map(member => ({ type: member.type, offset: member.offset, name: member.name })),
+                    size: structure.size, name: structure.name };
+                assert.equal(compareClass(expected, parseClassFile(source.replace(options, `, ${JSON.stringify({ structure: reordered })}`)), { strict: true }).summary.drift, false);
+            }
+        }
+    }
+});
+
+test("ordinary reference collections retain one argument without an inferred native layout", () =>
+{
+    const expected = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture",
+        attributes: [{ blueName: "children", cppType: "std::vector<ChildPtr>", black: { wireType: "container", container: "list" } }] });
+    assert.equal(expected.fields[0].structure, undefined);
+    const source = renderClassFile(expected, { js: true });
+    assert.match(source, /@type\.list\("Child"\)/);
+    assert.doesNotMatch(source, /rawStruct|structure/);
+    assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
+    const layout = DEFAULT_FIELD_RESOLUTIONS.Tr2Effect.options.wire.structure;
+    const explicitArray = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture",
+        attributes: [{ blueName: "items", black: { wireType: "container", container: "array", structure: layout } }] });
+    assert.equal(explicitArray.fields[0].kind, "array");
+    assert.deepEqual(explicitArray.fields[0].structure, layout);
+    const extra = source.replace('list("Child")', `list("Child", ${JSON.stringify({ structure: layout })})`);
+    const result = compareClass(expected, parseClassFile(extra));
+    assert.equal(result.summary.typeMismatch, 1);
+    assert.match(result.fields[0].notes.join(" "), /not declared by schema/);
+});
 
 test("embedded color curves retain their allocated destinations in both schema forms", () =>
 {
