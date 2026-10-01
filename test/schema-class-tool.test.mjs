@@ -12,6 +12,33 @@ import {
 } from "../src/schema/core/classTool.js";
 import { DEFAULT_FIELD_RESOLUTIONS } from "../src/schema/core/schemaFieldResolutions.js";
 
+test("verified structure collections require an item descriptor while ordinary collections retain their policy", () =>
+{
+    const structure = DEFAULT_FIELD_RESOLUTIONS.Tr2Effect.constParameters.wire.structure;
+    for (const kind of ["list", "array"])
+    {
+        const expected = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture",
+            attributes: [{ blueName: "items", black: { wireType: "container", container: kind, structure } }] });
+        const source = renderClassFile(expected, { js: true });
+        const broken = source.replace(JSON.stringify(expected.fields[0].typeArg), "null");
+        const parsed = parseClassFile(broken);
+        assert.equal(parsed.fields[0].typeArg, null);
+        assert.deepEqual(parsed.fields[0].structure, structure);
+        for (const strict of [false, true])
+        {
+            const result = compareClass(expected, parsed, { strict });
+            assert.equal(result.summary.typeMismatch, 1);
+            assert.equal(result.summary.drift, true);
+            assert.match(result.fields[0].notes.join(" "), /structure collection item type missing/);
+        }
+        const ordinary = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture",
+            attributes: [{ blueName: "items", cppType: "std::vector<ChildPtr>" }] });
+        ordinary.fields[0].kind = kind;
+        const unspecified = renderClassFile(ordinary, { js: true }).replace(`${kind}("Child")`, `${kind}(null)`);
+        assert.equal(compareClass(ordinary, parseClassFile(unspecified), { strict: true }).summary.drift, false);
+    }
+});
+
 test("verified raw layouts survive both schema inputs and list/array decorator round trips", () =>
 {
     for (const [className, name] of [["Tr2Effect", "options"], ["Tr2Effect", "constParameters"],

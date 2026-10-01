@@ -3353,6 +3353,16 @@ export function compareClass(expected, parsed, options = {})
         }
         if (exp.typeArg && !act.typeArg)
         {
+            if (exp.structure)
+            {
+                results.push({
+                    name, verdict: "type-mismatch", severity: "error", symbol: "cross",
+                    notes: ["native structure collection item type missing in file"],
+                    expected: exportExpected(exp),
+                    actual: exportActual(act)
+                });
+                continue;
+            }
             notes.push(`item/ref type "${exp.typeArg}" unspecified in file`);
         }
 
