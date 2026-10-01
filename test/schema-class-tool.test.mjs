@@ -158,7 +158,7 @@ test("embedded-struct leaves resolve through docs declared in another family", (
     assert.equal(flags.default?.value, 1);
 });
 
-test("readonly Blue properties are projected into readonly runtime fields", () =>
+test("readonly Blue properties retain their live declaration role", () =>
 {
     const expected = deriveExpectedFields({
         family: "audio",
@@ -178,6 +178,8 @@ test("readonly Blue properties are projected into readonly runtime fields", () =
     assert.equal(expected.fields[0].name, "front");
     assert.equal(expected.fields[0].kind, "vec3");
     assert.equal(expected.fields[0].io, "read");
+    assert.equal(expected.fields[0].role, "property");
+    assert.equal(expected.fields[0].default.determinate, false);
 });
 
 test("reviewed native decal fields are merged with Blue attributes without exposing other native state", () =>
@@ -552,7 +554,7 @@ test("Blue property flags follow the exposure macro", () =>
     assert.deepEqual(byName.persisted.ioDecorators, [ "readwrite", "persist" ]);
 });
 
-test("a name exposed as both attribute and property carries both flag sets", () =>
+test("a name exposed as both attribute and property preserves separate roles and flags", () =>
 {
     const expected = deriveExpectedFields({
         family: "trinity",
@@ -566,9 +568,17 @@ test("a name exposed as both attribute and property carries both flag sets", () 
         ]
     });
 
-    assert.equal(expected.fields.length, 1);
-    assert.deepEqual(expected.fields[0].editFlags, [ "READ", "WRITE", "HIDDEN", "PERSIST" ]);
-    assert.deepEqual(expected.fields[0].ioDecorators, [ "readwrite", "persistOnly" ]);
+    assert.equal(expected.fields.length, 2);
+    assert.deepEqual(expected.fields.map(field => [field.role, field.name, field.key]), [
+        [ "member", "value", "_value" ],
+        [ "property", "value", "value" ]
+    ]);
+    assert.deepEqual(expected.fields[0].editFlags, [ "HIDDEN", "PERSIST" ]);
+    assert.deepEqual(expected.fields[0].ioDecorators, [ "persistOnly" ]);
+    assert.deepEqual(expected.fields[1].editFlags, [ "READ", "WRITE" ]);
+    assert.deepEqual(expected.fields[1].ioDecorators, [ "readwrite" ]);
+    assert.equal(expected.fields[1].getter, "GetValue");
+    assert.equal(expected.fields[1].setter, "SetValue");
 });
 
 test("a base Carbon never exposes takes its flags from the subclasses that do", (t) =>
@@ -738,4 +748,201 @@ test("method reasons reject unrelated comments, wrong statuses and examples", ()
             SetPlacement() { return true; }
         }`);
     assert.equal(classDoc.methods[0].hasReason, false);
+});
+
+
+function MakeShipPropertyDoc()
+{
+    // EveShip2_Blue.cpp:21-22 persists m_boosters separately from the live
+    // GetBoosters/SetBoosters property. These flags must never be unioned.
+    return {
+        family: "eve",
+        blueClass: "FixtureShip",
+        cppClass: "FixtureShip",
+        attributes: [{
+            blueName: "boosters", member: "m_boosters", cppType: "EveBoosterSet2Ptr",
+            flags: ["PERSISTONLY"],
+            black: { beType: "IROOTPTR", wireType: "objectRef", cppType: "EveBoosterSet2Ptr" }
+        }],
+        properties: [{
+            blueName: "boosters", macro: "MAP_PROPERTY", getter: "GetBoosters", setter: "SetBoosters",
+            cppType: "EveBoosterSet2*", getterReturnType: "EveBoosterSet2*", setterParameterType: "EveBoosterSet2 *"
+        }]
+    };
+}
+
+test("stored and live ship declarations survive emission, parsing and comparison", () =>
+{
+    const doc = MakeShipPropertyDoc();
+    const expected = deriveExpectedFields(doc);
+    const source = renderClassFile(expected, { doc, js: true });
+    const parsed = parseClassFile(source);
+    const result = compareClass(expected, parsed, { strict: true });
+
+    assert.match(source, /@meta\.member\("boosters"\)/);
+    assert.match(source, /_boosters = null;/);
+    assert.match(source, /@meta\.property\("boosters"\)/);
+    assert.match(source, /get boosters\(\)/);
+    assert.match(source, /set boosters\(value\)/);
+    assert.match(source, /@impl\.notImplemented\s+get boosters/);
+    assert.match(source, /FixtureShip\.SetBoosters is not implemented/);
+    assert.deepEqual(parsed.fields.map(field => [field.role, field.name, field.key]), [
+        ["member", "boosters", "_boosters"], ["property", "boosters", "boosters"]
+    ]);
+    assert.equal(parsed.fields[1].get, true);
+    assert.equal(parsed.fields[1].set, true);
+    assert.equal(result.summary.match, 2);
+    assert.equal(result.summary.drift, false);
+    assert.equal(result.fields[1].expected.getterReturnType, "EveBoosterSet2*");
+    assert.equal(result.fields[1].expected.setterParameterType, "EveBoosterSet2 *");
+
+    // Counterexample: the old emitter passed a field with merged flags and
+    // silently omitted the setter. The role-aware checker must reject it.
+    const merged = parseClassFile(`
+        @type.define({ className: "FixtureShip", family: "eve" })
+        export class FixtureShip extends CjsModel
+        {
+            @edit.readwrite
+            @edit.persistOnly
+            @type.model("EveBoosterSet2")
+            boosters = null;
+        }
+    `);
+    const rejected = compareClass(expected, merged, { strict: true });
+    assert.equal(rejected.summary.missingInFile, 1);
+    assert.equal(rejected.summary.missingIoFlag, 1);
+    assert.equal(rejected.summary.drift, true);
+    assert.equal(rejected.fields.find(field => field.verdict === "missing-in-file").expected.role, "property");
+});
+
+test("new namespace aliases retain stored member names, indices and live accessor types", () =>
+{
+    const parsed = parseClassFile(`
+        @meta.define({ className: "FixtureShip", family: "eve" })
+        export class FixtureShip extends CjsModel
+        {
+            @meta.member("boosters", { index: 3 })
+            @meta.edit.persistOnly
+            @types.model(EveBoosterSet2)
+            _boosters = null;
+
+            @meta.property("boosters")
+            @meta.edit.readwrite
+            @types.objectRef("EveBoosterSet2")
+            get boosters() { return this._boosters; }
+
+            @meta.property("boosters")
+            set boosters(value) { this.SetBoosters(value); }
+        }
+    `);
+    assert.equal(parsed.define.className, "FixtureShip");
+    assert.equal(parsed.fields[0].index, 3);
+    assert.equal(parsed.fields[0].typeArg, "EveBoosterSet2");
+    assert.equal(parsed.fields.length, 2);
+    assert.equal(compareClass(deriveExpectedFields(MakeShipPropertyDoc()), parsed, { strict: true }).summary.drift, false);
+
+    const expected = deriveExpectedFields(MakeShipPropertyDoc());
+    expected.fields[0].index = 3;
+    assert.match(renderClassFile(expected, { js: true }), /@meta\.member\("boosters", \{ index: 3 \}\)/);
+    assert.equal(parseClassFile(`@types.define("Fixture") export class Fixture {}`).define.className, "Fixture");
+});
+
+test("a base's stored member does not hide a separately inherited live property", (t) =>
+{
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "carbon-class-role-owner-"));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    WriteSchema(root, "eve", "FixtureBase", {
+        family: "eve", blueClass: "FixtureBase", cppClass: "FixtureBase",
+        attributes: [{ blueName: "boosters", member: "m_boosters", cppType: "EveBoosterSet2Ptr" }]
+    });
+    const doc = MakeShipPropertyDoc();
+    doc.attributes[0].declaredOn = "FixtureBase";
+    doc.properties[0].declaredOn = "FixtureBase";
+    const expected = deriveExpectedFields(doc, { schemaRoot: root, family: "eve" });
+    assert.deepEqual(expected.fields.map(field => [field.role, field.name]), [["property", "boosters"]]);
+    assert.equal(expected.meta.inheritedSkipped, 1);
+});
+
+test("narrow and wide strings remain distinct through the generator pipeline", () =>
+{
+    // EveSOFData.h:1516-1517 and EveSOFData_Blue.cpp:920-921.
+    const doc = {
+        family: "eve", blueClass: "FixtureSoundEmitter", cppClass: "FixtureSoundEmitter",
+        attributes: [
+            { blueName: "name", member: "m_name", cppType: "std::string", flags: ["READWRITE", "PERSIST"], black: { wireType: "stringRef" } },
+            { blueName: "prefix", member: "m_prefix", cppType: "std::wstring", flags: ["READWRITE", "PERSIST"], black: { wireType: "wstringRef" } },
+            { blueName: "wide", member: "m_wide", cppType: "std::basic_string<wchar_t, std::char_traits<wchar_t>, std::allocator<wchar_t>>", flags: [] },
+            { blueName: "shared", member: "m_shared", cppType: "BlueSharedStringW", flags: [] }
+        ]
+    };
+    const expected = deriveExpectedFields(doc);
+    assert.deepEqual(expected.fields.map(field => field.kind), ["string", "wstring", "wstring", "wstring"]);
+    const source = renderClassFile(expected, { doc, js: true });
+    assert.match(source, /@type\.wstring\s+prefix = "";/);
+    assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
+    const oldSource = source.replaceAll("@type.wstring", "@type.string");
+    assert.equal(compareClass(expected, parseClassFile(oldSource), { strict: true }).summary.typeMismatch, 3);
+});
+
+test("weak references retain their distinct type rather than becoming strong references", () =>
+{
+    const doc = {
+        family: "eve", blueClass: "FixtureWeakRef", cppClass: "FixtureWeakRef",
+        attributes: [{
+            blueName: "owner", member: "m_owner", cppType: "BlueWeakRef<FixtureShip>", flags: [],
+            black: { beType: "IROOTWEAKREF", wireType: "objectRef", cppType: "BlueWeakRef<FixtureShip>" }
+        }]
+    };
+    const expected = deriveExpectedFields(doc);
+    assert.equal(expected.fields[0].kind, "weakRef");
+    assert.equal(expected.fields[0].typeArg, "FixtureShip");
+    const source = renderClassFile(expected, { doc, js: true });
+    assert.match(source, /@type\.weakRef\("FixtureShip"\)/);
+    assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
+    assert.equal(compareClass(expected, parseClassFile(source.replace("@type.weakRef", "@type.objectRef"))).summary.typeMismatch, 1);
+});
+
+test("known method signatures survive derivation, comparison reports and emitted comments", () =>
+{
+    const parameters = [{ type: "float", name: "scale", default: "1.0f" }];
+    const doc = {
+        family: "eve", blueClass: "FixtureMethod", cppClass: "FixtureMethod",
+        methods: [{
+            blueName: "Scale", target: "SetScale", macro: "MAP_METHOD_AND_WRAP",
+            returnType: "void", parameters
+        }]
+    };
+    const expected = deriveExpectedFields(doc);
+    const source = renderClassFile(expected, { doc, js: true });
+    const result = compareClass(expected, parseClassFile(source));
+    assert.equal(expected.methods[0].returnType, "void");
+    assert.deepEqual(expected.methods[0].parameters, parameters);
+    assert.equal(result.methods[0].expected.returnType, "void");
+    assert.deepEqual(result.methods[0].expected.parameters, parameters);
+    assert.match(source, /Native signature: void SetScale\(float scale\)/);
+    assert.match(source, /Scale\(\.\.\.args\)/);
+    assert.equal(result.summary.drift, false);
+});
+
+
+test("property metadata on a setter names the whole getter/setter declaration", () =>
+{
+    const parsed = parseClassFile(`
+        export class Fixture
+        {
+            get current() { return this._current; }
+
+            @meta.property("boosters", { index: 2 })
+            @types.objectRef("FixtureChild")
+            @meta.edit.readwrite
+            set current(value) { this._current = value; }
+        }
+    `);
+    assert.equal(parsed.fields.length, 1);
+    assert.equal(parsed.fields[0].name, "boosters");
+    assert.equal(parsed.fields[0].key, "current");
+    assert.equal(parsed.fields[0].role, "property");
+    assert.equal(parsed.fields[0].index, 2);
+    assert.equal(parsed.fields[0].typeArg, "FixtureChild");
+    assert.deepEqual(parsed.fields[0].editFlags, ["READ", "WRITE"]);
 });

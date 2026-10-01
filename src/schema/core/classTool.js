@@ -24,7 +24,7 @@ export const KNOWN_TYPE_KINDS = new Set([
     "int8", "int16", "int32", "int64", "list", "mat3", "mat4", "map",
     "model", "objectRef", "path", "quat", "rawStruct", "set", "string", "struct",
     "typedArray", "uint8", "uint16", "uint32", "uint64", "unknown",
-    "vec2", "vec3", "vec4"
+    "vec2", "vec3", "vec4", "weakRef", "wstring"
 ]);
 
 export const KNOWN_IO_KINDS = new Set([
@@ -37,14 +37,14 @@ const IDENTITY_MAT4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
 const TYPE_DEFAULT = {
     boolean: false,
-    string: "", path: "", expression: "",
+    string: "", wstring: "", path: "", expression: "",
     float32: 0, float64: 0,
     int8: 0, int16: 0, int32: 0, int64: 0,
     uint8: 0, uint16: 0, uint32: 0, uint64: 0,
     vec2: [0, 0], vec3: [0, 0, 0], vec4: [0, 0, 0, 0], color: [0, 0, 0, 0],
     quat: [0, 0, 0, 1], mat3: IDENTITY_MAT3, mat4: IDENTITY_MAT4,
     list: [], array: [], map: { __container: "map" }, set: { __container: "set" },
-    model: null, objectRef: null, struct: null, rawStruct: null, typedArray: null, unknown: null
+    model: null, objectRef: null, weakRef: null, struct: null, rawStruct: null, typedArray: null, unknown: null
 };
 
 // Source-backed named constants used in constructor defaults. Keep this list
@@ -546,10 +546,14 @@ function normalizeCppType(cppType)
 
 function normalizeCppTypeName(cppType)
 {
-    return normalizeCppType(cppType)
-        .replace(/\s*\*+$/, "")
-        .replace(/\bstd::basic_string\s*<[^>]+>/g, "std::string")
-        .trim();
+    const type = normalizeCppType(cppType).replace(/\s*\*+$/, "").trim();
+    if (/^std::basic_string\s*</.test(type))
+    {
+        const characterType = splitTopLevelArgs(type.slice(type.indexOf("<") + 1, type.lastIndexOf(">")))[0];
+        if (characterType === "wchar_t") return "std::wstring";
+        if (characterType === "char") return "std::string";
+    }
+    return type;
 }
 
 function isRotationLike(name)
@@ -1327,6 +1331,9 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
 
     if (!type) return { kind: "unknown" };
     if (isTimeScalarCpp(original)) return { kind: "float64" };
+    // BlueTypeTraits.h maps BlueWeakRef<T> to IROOTWEAKREF, not IROOTPTR.
+    const weakRef = type.match(/^(?:BlueWeakRef|std::weak_ptr)\s*<\s*(.+)\s*>$/);
+    if (weakRef) return { kind: "weakRef", arg: cleanNamedType(weakRef[1]) };
     if (COLLECTION_TYPE_ALIASES[named]) return { ...COLLECTION_TYPE_ALIASES[named] };
     if (type.includes("std::vector") || /(?:Vector|List)$/.test(named)) return { kind: "list", arg: collectionItemType(original) };
     if (type.includes("std::map") || /Map$/.test(named)) return { kind: "map", arg: collectionItemType(original) };
@@ -1355,8 +1362,10 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
         case "uint64_t": case "size_t": case "ulonglong": return { kind: "uint64" };
         case "float": return { kind: "float32" };
         case "double": return { kind: "float64" };
-        case "std::string": case "std::wstring": case "BlueSharedString": case "BlueSharedStringW":
+        case "std::string": case "BlueSharedString":
             return { kind: isExpressionLike(name) ? "expression" : "string" };
+        case "std::wstring": case "BlueSharedStringW":
+            return { kind: "wstring" };
         case "Vector2": return { kind: "vec2" };
         case "Vector3": return { kind: "vec3" };
         case "Vector4": return { kind: isRotationLike(name) ? "quat" : isColorLike(name) ? "color" : "vec4" };
@@ -1403,6 +1412,11 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
 
     // Be::Time/CcpTime wired as enum "Time" (or LONG) is still a numeric seconds scalar.
     if (isTimeScalarCpp(effectiveCppType)) return { kind: "float64" };
+    if (black.beType === "IROOTWEAKREF")
+    {
+        const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
+        return { kind: "weakRef", arg: resolved.arg || cleanNamedType(effectiveCppType) };
+    }
 
     if (black.wireType === "enum" || black.enumType)
     {
@@ -1414,8 +1428,10 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
 
     switch (black.wireType)
     {
-        case "stringRef": case "wstringRef":
+        case "stringRef":
             return { kind: isExpressionLike(name) ? "expression" : "string" };
+        case "wstringRef":
+            return { kind: "wstring" };
         case "bool": return { kind: "boolean" };
         case "float32": return { kind: "float32" };
         case "int32": return { kind: "int32" };
@@ -1877,15 +1893,13 @@ function readFamilySchemaDoc(schemaRoot, family, typeName)
     return null;
 }
 
-function ownerExposesBlueField(schemaRoot, family, ownerName, fieldName)
+function ownerExposesBlueField(schemaRoot, family, ownerName, fieldName, role = "member")
 {
     const ownerDoc = readFamilySchemaDoc(schemaRoot, family, ownerName);
     if (!ownerDoc) return true;
 
-    return [
-        ...(Array.isArray(ownerDoc.attributes) ? ownerDoc.attributes : []),
-        ...(Array.isArray(ownerDoc.properties) ? ownerDoc.properties : [])
-    ].some(item =>
+    const entries = role === "property" ? ownerDoc.properties : ownerDoc.attributes;
+    return (Array.isArray(entries) ? entries : []).some(item =>
         (item.blueName || roleKey(item.black?.names, "name") || item.name || null) === fieldName
     );
 }
@@ -2066,8 +2080,9 @@ export function deriveExpectedFields(doc, options = {})
 
     const pushExpected = (raw) =>
     {
-        if (!raw.name || seen.has(raw.name)) return;
-        seen.add(raw.name);
+        const identity = fieldIdentity(raw);
+        if (!raw.name || seen.has(identity)) return;
+        seen.add(identity);
         fields.push(raw);
     };
 
@@ -2257,22 +2272,16 @@ export function deriveExpectedFields(doc, options = {})
             !includeInherited &&
             declaredOn &&
             declaredOn !== meta.cppClass &&
-            ownerExposesBlueField(schemaRoot, family, declaredOn, name)
+            ownerExposesBlueField(schemaRoot, family, declaredOn, name, "property")
         )
         {
             inheritedSkipped++;
             continue;
         }
 
-        const cppType = property.cppType || property.getterReturnType || property.setterValueType || null;
+        const cppType = property.cppType || property.getterReturnType || property.setterParameterType || property.setterValueType || null;
         if (!isUsefulCppType(cppType)) continue;
         const kindInfo = inferKindFromCpp(cppType, name, schemaRoot, declaredOn || className);
-        const parsedDefault = parseSchemaDefault(null, kindInfo.kind, {
-            enumType: kindInfo.enumType,
-            enumQualifiedName: kindInfo.enumQualifiedName,
-            className: declaredOn || className,
-            schemaRoot
-        });
         // blueexposure/include/BlueExposureMacrosPython.h: MAP_PROPERTY is
         // READWRITE, MAP_PROPERTY_READONLY is READ and MAP_PROPERTY_PERSISTED is
         // READWRITE | PERSIST.
@@ -2280,34 +2289,37 @@ export function deriveExpectedFields(doc, options = {})
             ? ["READ"]
             : property.macro === "MAP_PROPERTY_PERSISTED" ? ["READWRITE", "PERSIST"] : ["READWRITE"];
 
-        // Carbon may expose one name twice, as an attribute and a property
-        // (Tr2FloatParameter "value": PERSISTONLY attribute, READWRITE
-        // property). Blue holds both entries, so the field carries both sets.
-        const existing = fields.find(field => field.name === name);
-        if (existing)
-        {
-            const merged = unionFlags(existing.flags, flags);
-            const io = expectedIo(merged);
-            Object.assign(existing, {
-                flags: merged,
-                io: io.ioName,
-                ioDecorators: io.decorators,
-                editFlags: io.editFlags,
-                notify: io.notify,
-                notes: [ ...existing.notes, "also a Blue property" ]
-            });
-            continue;
-        }
-
         pushExpected(buildExpectedField({
             name,
+            role: "property",
+            getter: property.getter || null,
+            setter: property.setter || null,
+            getterReturnType: property.getterReturnType || null,
+            setterParameterType: property.setterParameterType || property.setterValueType || null,
             member: property.getter || property.setter || null,
             cppType,
             flags,
             kindInfo,
-            parsedDefault,
+            parsedDefault: { determinate: false, source: "property" },
             notes: ["Blue property"]
         }));
+    }
+
+    // Same-name native attributes and properties are distinct declarations.
+    // Keep stored data off the live accessor so readers never invoke a setter.
+    const propertyNames = new Set(fields.filter(field => field.role === "property").map(field => field.name));
+    const storedKeys = new Set(fields.filter(field => field.role === "member").map(field => field.key));
+    for (const field of fields)
+    {
+        if (field.role !== "member" || !propertyNames.has(field.name)) continue;
+        const key = `_${field.name}`;
+        if (storedKeys.has(key) || propertyNames.has(key))
+        {
+            throw withCode(new Error(`Cannot assign storage key ${key} for ${className}.${field.name}.`), "field-key-collision");
+        }
+        storedKeys.delete(field.key);
+        storedKeys.add(key);
+        field.key = key;
     }
 
     applySourceFieldOverrides(className, fields);
@@ -2400,12 +2412,24 @@ function sourceSharedEnum(name, className = null)
     } : null;
 }
 
-function buildExpectedField({ name, member, cppType, flags, kindInfo, parsedDefault, notes })
+// Exposed names are unique within a declaration role, not across roles.
+function fieldIdentity(field)
+{
+    return `${field.role || "member"}:${field.name}`;
+}
+
+function buildExpectedField({ name, key = name, role = "member", member, getter = null, setter = null, getterReturnType = null, setterParameterType = null, cppType, flags, kindInfo, parsedDefault, notes })
 {
     const io = expectedIo(flags);
     return {
         name,
+        key,
+        role,
         member: member || null,
+        getter,
+        setter,
+        getterReturnType,
+        setterParameterType,
         cppType: cppType || null,
         flags: flags || [],
         kind: kindInfo.kind,
@@ -2555,7 +2579,7 @@ function statementComplete(stmt)
 // Decorators may be namespaced through a schema object (e.g. @CjsSchema.type.float32);
 // the last two segments are the namespace (`type`/`io`/`schema`) and the kind.
 const DECOR_LEAD_RE = /^@(?:[A-Za-z_$][\w$]*\.)*([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\s*(\([\s\S]*?\))?/;
-const FIELD_RE = /^(?:(?:public|private|protected|readonly|declare|override)\s+)*(#?[A-Za-z_$][\w$]*|\[[^\]]+\])\s*(?::\s*([^=]+?))?\s*=\s*([\s\S]*?);\s*$/;
+const FIELD_RE = /^(?:(?:public|private|protected|readonly|declare|override|accessor)\s+)*(#?[A-Za-z_$][\w$]*|\[[^\]]+\])\s*(?::\s*([^=]+?))?\s*=\s*([\s\S]*?);\s*$/;
 const METHOD_RE = /^(?:(?:public|private|protected|override|async)\s+)*(#?[A-Za-z_$][\w$]*|\[[^\]]+\])\s*\(/;
 
 /**
@@ -2624,7 +2648,7 @@ export function parseClassFile(rawText, options = {})
             {
                 if (!pending.length) pendingDoc = attachedJsdoc(text, jsdocs, statementOffset);
                 pending.push({
-                    ns: dm[1],
+                    ns: dm[1] === "types" ? "type" : dm[1],
                     name: dm[2],
                     arg: dm[3] ? dm[3].slice(1, -1).trim() : undefined
                 });
@@ -2673,7 +2697,7 @@ export function parseClassFile(rawText, options = {})
 // donor, and should not be compared against one.
 function parseDefine(src)
 {
-    const decorator = src.match(/@(?:[A-Za-z_$][\w$]*\.)*type\.define\(\s*(\{[\s\S]*?\}|"[^"]*"|'[^']*'|[A-Za-z_$][\w$]*)\s*\)/);
+    const decorator = src.match(/@(?:[A-Za-z_$][\w$]*\.)*(?:type|types|meta)\.define\(\s*(\{[\s\S]*?\}|"[^"]*"|'[^']*'|[A-Za-z_$][\w$]*)\s*\)/);
     const call = src.match(/\bCjsSchema\.define\(\s*[A-Za-z_$][\w$]*\s*,\s*(\{[\s\S]*?\})\s*\)/);
     const match = decorator ?? call;
     const empty = { className: null, family: null, carbon: null, modelledOn: null };
@@ -2707,53 +2731,60 @@ function handleStatement(stmt, pending, line, fields, methods, helpers, jsdoc)
 {
     const trimmed = stmt.trim();
 
-    // Methods / getters / constructors / static members are helpers.
-    if (/^(?:static|get|set|constructor)\b/.test(trimmed))
+    // Static members and constructors are helpers, not instance declarations.
+    if (/^(?:static|constructor)\b/.test(trimmed))
     {
-        const nameMatch = trimmed.match(/(?:static|get|set|async)?\s*([A-Za-z_$][\w$]*)/);
+        const nameMatch = trimmed.match(/(?:static)?\s*([A-Za-z_$][\w$]*)/);
         if (nameMatch) helpers.push(nameMatch[1]);
         return false;
+    }
+
+    const accessorMatch = trimmed.match(/^(get|set)\s+(#?[A-Za-z_$][\w$]*|\[[^\]]+\])\s*\(/);
+    if (accessorMatch)
+    {
+        const key = normalizeFieldName(accessorMatch[2]);
+        helpers.push(key);
+        const field = buildParsedField(key, null, "", pending, line, "property");
+        const previous = fields.find(item => item.role === field.role && item.key === key);
+        if (previous)
+        {
+            // The two JS accessors describe the same live property. They must
+            // not merge with a stored member exposing the same Blue name.
+            if (pending.some(d => d.ns === "meta" && (d.name === "member" || d.name === "property")))
+            {
+                previous.name = field.name;
+                if (field.index !== undefined) previous.index = field.index;
+            }
+            previous.kinds = [...new Set([...previous.kinds, ...field.kinds])];
+            previous.ioNames = [...new Set([...previous.ioNames, ...field.ioNames])];
+            previous.editFlags = [...new Set([...previous.editFlags, ...field.editFlags])];
+            previous.kind ||= field.kind;
+            previous.typeArg ||= field.typeArg;
+            previous.enumArg ||= field.enumArg;
+            previous.hasType ||= field.hasType;
+            previous.hasIo ||= field.hasIo;
+            previous.notify ||= field.notify;
+            previous[accessorMatch[1]] = true;
+        }
+        else
+        {
+            field[accessorMatch[1]] = true;
+            fields.push(field);
+        }
+        return true;
     }
 
     const fieldMatch = trimmed.match(FIELD_RE);
     if (fieldMatch)
     {
-        const rawName = fieldMatch[1];
-        // A method disguised as `name(... ) {...}` won't match FIELD_RE (needs `=`), so we're safe.
-        const name = normalizeFieldName(rawName);
-        const annotation = fieldMatch[2] ? fieldMatch[2].trim() : null;
-        const initializer = fieldMatch[3].trim();
-
-        // enum and hideInherited live in the `type` namespace but are not type
-        // KINDS: typeDecorators[0] decides the field's kind, so letting either
-        // in would make a field's type depend on decorator order.
-        const typeDecorators = pending.filter(d => d.ns === "type"
-            && d.name !== "define" && d.name !== "enum" && d.name !== "hideInherited");
-        const ioDecorators = pending.filter(d => d.ns === "edit");
-
-        // Both spellings are read while packages migrate from schema.enum to
-        // type.enum; only type.enum is emitted.
-        const enumDecorators = pending.filter(d => (d.ns === "type" || d.ns === "schema") && d.name === "enum");
-
-        const field = {
-            name,
-            annotation,
+        fields.push(buildParsedField(
+            normalizeFieldName(fieldMatch[1]),
+            fieldMatch[2] ? fieldMatch[2].trim() : null,
+            fieldMatch[3].trim(),
+            pending,
             line,
-            kinds: typeDecorators.map(d => d.name),
-            kind: typeDecorators.length ? typeDecorators[0].name : null,
-            typeArg: typeDecorators.length && typeDecorators[0].arg !== undefined ? parseTypeArg(typeDecorators[0].arg) : null,
-            ioNames: ioDecorators.filter(d => d.name !== "notify").map(d => d.name),
-            notify: ioDecorators.some(d => d.name === "notify"),
-            editFlags: actualEditFlags(ioDecorators.map(d => d.name)),
-            enumArg: (() => {
-                const enumDecorator = enumDecorators[0];
-                return enumDecorator && enumDecorator.arg !== undefined ? stripQuotes(enumDecorator.arg) : null;
-            })(),
-            hasType: typeDecorators.length > 0,
-            hasIo: ioDecorators.length > 0,
-            default: parseJsDefault(initializer, typeDecorators.length ? typeDecorators[0].name : null)
-        };
-        fields.push(field);
+            /^accessor\s/.test(trimmed) ? "property" : "member"
+        ));
         return true;
     }
 
@@ -2766,10 +2797,43 @@ function handleStatement(stmt, pending, line, fields, methods, helpers, jsdoc)
         return false;
     }
 
-    // Non-field, non-method (e.g. a bare declaration) -> record as helper name if any.
     const nameMatch = trimmed.match(/^([A-Za-z_$][\w$]*)/);
     if (nameMatch) helpers.push(nameMatch[1]);
     return false;
+}
+
+function buildParsedField(key, annotation, initializer, pending, line, defaultRole)
+{
+    // enum/hideInherited describe a type declaration, but are not type kinds.
+    const typeDecorators = pending.filter(d => d.ns === "type"
+        && d.name !== "define" && d.name !== "enum" && d.name !== "hideInherited");
+    const ioDecorators = pending.filter(d => d.ns === "edit");
+    const enumDecorators = pending.filter(d => (d.ns === "type" || d.ns === "schema") && d.name === "enum");
+    const declaration = pending.find(d => d.ns === "meta" && (d.name === "member" || d.name === "property"));
+    const args = declaration?.arg === undefined ? [] : splitTopLevelArgs(declaration.arg);
+    const name = args.length ? stripQuotes(args[0]) : key;
+    const index = args[1]?.match(/\bindex\s*:\s*(\d+)/);
+    return {
+        name,
+        key,
+        role: declaration?.name || defaultRole,
+        ...(index ? { index: Number(index[1]) } : {}),
+        annotation,
+        line,
+        kinds: typeDecorators.map(d => d.name),
+        kind: typeDecorators.length ? typeDecorators[0].name : null,
+        typeArg: typeDecorators.length && typeDecorators[0].arg !== undefined ? parseTypeArg(typeDecorators[0].arg) : null,
+        ioNames: ioDecorators.filter(d => d.name !== "notify").map(d => d.name),
+        notify: ioDecorators.some(d => d.name === "notify"),
+        editFlags: actualEditFlags(ioDecorators.map(d => d.name)),
+        enumArg: (() => {
+            const enumDecorator = enumDecorators[0];
+            return enumDecorator && enumDecorator.arg !== undefined ? stripQuotes(enumDecorator.arg) : null;
+        })(),
+        hasType: typeDecorators.length > 0,
+        hasIo: ioDecorators.length > 0,
+        default: parseJsDefault(initializer, typeDecorators.length ? typeDecorators[0].name : null)
+    };
 }
 
 /** Returns only the real JSDoc immediately preceding this decorator run. */
@@ -3052,8 +3116,8 @@ export function compareClass(expected, parsed, options = {})
 
     // File fields that carry a @type or @io decorator are "data" fields.
     const dataFields = parsed.fields.filter(field => field.hasType || field.hasIo);
-    const dataByName = new Map(dataFields.map(field => [field.name, field]));
-    const undecoratedByName = new Map(parsed.fields.filter(field => !field.hasType && !field.hasIo).map(field => [field.name, field]));
+    const dataByName = new Map(dataFields.map(field => [fieldIdentity(field), field]));
+    const undecoratedByName = new Map(parsed.fields.filter(field => !field.hasType && !field.hasIo).map(field => [fieldIdentity(field), field]));
 
     // Interface / no-field fallback: never silently pass.
     if (expected.fallback)
@@ -3075,17 +3139,18 @@ export function compareClass(expected, parsed, options = {})
         };
     }
 
-    const expectedByName = new Map(expected.fields.map(field => [field.name, field]));
+    const expectedByName = new Map(expected.fields.map(field => [fieldIdentity(field), field]));
     const names = new Set([...expectedByName.keys(), ...dataByName.keys()]);
 
-    for (const name of [...names].sort())
+    for (const identity of [...names].sort())
     {
-        const exp = expectedByName.get(name) || null;
-        const act = dataByName.get(name) || null;
+        const exp = expectedByName.get(identity) || null;
+        const act = dataByName.get(identity) || null;
+        const name = (exp || act).name;
 
         if (exp && !act)
         {
-            const undecorated = undecoratedByName.get(name);
+            const undecorated = undecoratedByName.get(identity);
             if (undecorated)
             {
                 results.push({
@@ -3216,7 +3281,11 @@ export function compareClass(expected, parsed, options = {})
         let wrongDefault = false;
         let info = false;
         const schemaHasConcreteDefault = exp.default.determinate && exp.default.source !== "canonical";
-        if (!act.default.determinate)
+        if (exp.role === "property")
+        {
+            // A live getter has no stored field initializer to compare.
+        }
+        else if (!act.default.determinate)
         {
             info = true;
             notes.push("file default indeterminate (not compared)");
@@ -3413,6 +3482,14 @@ function addClassPolicyResults(results, meta, parsed, options = {})
 function exportExpected(exp)
 {
     return {
+        name: exp.name,
+        key: exp.key || exp.name,
+        role: exp.role || "member",
+        ...(exp.index === undefined ? {} : { index: exp.index }),
+        getter: exp.getter || null,
+        setter: exp.setter || null,
+        getterReturnType: exp.getterReturnType || null,
+        setterParameterType: exp.setterParameterType || null,
         type: exp.kind,
         typeArg: exp.typeArg,
         enumType: exp.enumType,
@@ -3429,6 +3506,10 @@ function exportExpected(exp)
 function exportActual(field)
 {
     return {
+        name: field.name,
+        key: field.key || field.name,
+        role: field.role || "member",
+        ...(field.index === undefined ? {} : { index: field.index }),
         type: field.kind,
         typeArg: field.typeArg,
         enumArg: field.enumArg,
@@ -3450,7 +3531,9 @@ function exportExpectedMethod(method)
         interface: method.interface || null,
         static: method.static ?? null,
         virtual: method.virtual ?? null,
-        pureVirtual: method.pureVirtual ?? null
+        pureVirtual: method.pureVirtual ?? null,
+        returnType: method.returnType || null,
+        parameters: method.parameters || []
     };
 }
 
@@ -3793,6 +3876,8 @@ export function renderClassFile(expected, options = {})
 
     const usesIo = fields.some(field => field.io || field.notify);
     const usesMethods = methods.length > 0;
+    const usesProperties = fields.some(field => field.role === "property");
+    const usesRoles = usesProperties || fields.some(field => (field.key && field.key !== field.name) || field.index !== undefined);
 
     // Enums routed to a shared runtime subpath are imported and
     // aliased as class statics rather than inlined, so a single source owns the
@@ -3813,7 +3898,9 @@ export function renderClassFile(expected, options = {})
     }
 
     const importNames = ["type"];
-    if (usesMethods) importNames.push("carbon", "impl");
+    if (usesMethods) importNames.push("carbon");
+    if (usesMethods || usesProperties) importNames.push("impl");
+    if (usesRoles) importNames.push("meta");
     if (usesIo) importNames.push("edit");
     // An enum field needs no extra import: type.enum lives in the `type`
     // namespace, which is always imported.
@@ -3890,11 +3977,42 @@ export function renderClassFile(expected, options = {})
     {
         if (index > 0) lines.push("");
         lines.push(`  /** ${field.member || field.name} (${field.cppType || field.kind}${field.enumType ? ` - enum ${field.enumType}` : ""})${field.flags.length ? ` [${field.flags.join(", ")}]` : ""} */`);
+        if (field.role === "property" || (field.key && field.key !== field.name) || field.index !== undefined)
+        {
+            lines.push(`  ${renderRoleDecorator(field)}`);
+        }
         if (field.notify) lines.push("  @edit.notify");
         for (const decorator of field.ioDecorators || []) lines.push(`  @edit.${decorator}`);
         lines.push(`  @type.${renderTypeDecorator(field)}`);
         if (field.enumType) lines.push(`  @type.enum("${field.enumType}")`);
-        lines.push(`  ${renderFieldDecl(field, isJs)}`);
+        if (field.role !== "property")
+        {
+            lines.push(`  ${renderFieldDecl(field, isJs)}`);
+            return;
+        }
+
+        // A generated live property is an explicit porting obligation. A
+        // direct backing assignment would silently drop the native setter.
+        const accessors = [];
+        if (field.getter) accessors.push({ kind: "get", target: field.getter });
+        if (field.setter) accessors.push({ kind: "set", target: field.setter });
+        if (!accessors.length) accessors.push({ kind: "get", target: field.name });
+        accessors.forEach((accessor, accessorIndex) =>
+        {
+            if (accessorIndex)
+            {
+                lines.push("");
+                lines.push(`  /** Carbon property setter ${accessor.target}. */`);
+                lines.push(`  ${renderRoleDecorator(field)}`);
+            }
+            lines.push("  @impl.notImplemented");
+            const parameter = accessor.kind === "set" ? (isJs ? "value" : "value: unknown") : "";
+            const annotation = !isJs && accessor.kind === "get" ? ": unknown" : "";
+            lines.push(`  ${accessor.kind} ${fieldPropertyName(field.key || field.name)}(${parameter})${annotation}`);
+            lines.push("  {");
+            lines.push(`    throw new Error("${className}.${accessor.target} is not implemented in CarbonEngineJS.");`);
+            lines.push("  }");
+        });
     });
 
     if (fields.length && methods.length) lines.push("");
@@ -3976,7 +4094,13 @@ function renderMethodComment(method)
     const target = method.target && method.target !== method.name ? ` -> ${method.target}` : "";
     const macro = method.macro ? ` (${method.macro})` : "";
     const contract = method.interface ? ` [${method.interface} contract]` : "";
-    return `/** Carbon method ${method.name}${target}${macro}${contract}. */`;
+    const parameters = (method.parameters || []).map(parameter =>
+        `${parameter.type || parameter.cppType || "unknown"}${parameter.name ? ` ${parameter.name}` : ""}`
+    ).join(", ");
+    const signature = method.returnType
+        ? ` Native signature: ${method.returnType} ${method.target || method.name}(${parameters}).`
+        : "";
+    return `/** Carbon method ${method.name}${target}${macro}${contract}.${signature} */`;
 }
 
 function renderMethodDecl(method, isJs)
@@ -4045,9 +4169,15 @@ export function renderEnums(enums, options = {})
     return lines.join("\n");
 }
 
+function renderRoleDecorator(field)
+{
+    const index = field.index === undefined ? "" : `, { index: ${field.index} }`;
+    return `@meta.${field.role || "member"}(${JSON.stringify(field.name)}${index})`;
+}
+
 function renderTypeDecorator(field)
 {
-    if (field.kind === "model" || field.kind === "objectRef" || field.kind === "struct" || field.kind === "rawStruct")
+    if (field.kind === "model" || field.kind === "objectRef" || field.kind === "weakRef" || field.kind === "struct" || field.kind === "rawStruct")
     {
         return `${field.kind}("${field.typeArg || field.cppType || "unknown"}")`;
     }
@@ -4073,7 +4203,7 @@ function renderFieldDecl(field, isJs)
         ? `[${value.map(item => renderLiteral(item, field.typeArg)).join(", ")}]`
         : renderLiteral(value, field.kind);
     let annotation = renderFieldAnnotation(field, isJs);
-    return `${fieldPropertyName(field.name)}${annotation} = ${literal};`;
+    return `${fieldPropertyName(field.key || field.name)}${annotation} = ${literal};`;
 }
 
 function renderFieldAnnotation(field, isJs)
