@@ -5,12 +5,97 @@ import path from "node:path";
 import test from "node:test";
 
 import {
+    buildJsonReport,
     compareClass,
     deriveExpectedFields,
+    KNOWN_TYPE_KINDS,
     parseClassFile,
     renderClassFile
 } from "../src/schema/core/classTool.js";
 import { DEFAULT_FIELD_RESOLUTIONS } from "../src/schema/core/schemaFieldResolutions.js";
+
+test("resource syntax normalizes to an object reference descriptor through type aliases and accessors", () =>
+{
+    const descriptor = { kind: "objectRef", className: "TriGeometryRes", runtimeOnly: true };
+    assert.equal(KNOWN_TYPE_KINDS.has("resource"), false);
+    for (const spelling of ["@type.resource(TriGeometryRes)", "@types.resource('TriGeometryRes')",
+        '@CjsSchema.type.resource("TriGeometryRes")'])
+    {
+        const parsed = parseClassFile(`export class Fixture {\n${spelling}\n_geometryRes = null;\n}`);
+        const field = parsed.fields[0];
+        assert.equal(field.kind, "objectRef");
+        assert.deepEqual(field.kinds, ["objectRef"]);
+        assert.equal(field.typeArg, "TriGeometryRes");
+        assert.deepEqual(field.type, descriptor);
+        assert.deepEqual(field.default, { determinate: true, value: null });
+    }
+    for (const accessor of ["get", "set"])
+    {
+        const parsed = parseClassFile(`export class Fixture {
+            ${accessor === "get" ? "@types.resource(TriGeometryRes)" : ""}
+            get geometry() { return this._geometryRes; }
+            ${accessor === "set" ? "@types.resource(TriGeometryRes)" : ""}
+            set geometry(value) { this._geometryRes = value; }
+        }`);
+        assert.equal(parsed.fields.length, 1);
+        assert.deepEqual(parsed.fields[0].type, descriptor);
+        assert.equal(parsed.fields[0].role, "property");
+    }
+});
+
+test("explicit resource descriptors survive emission and reports without native resource inference", () =>
+{
+    const native = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture", attributes: [
+        { blueName: "geometry", member: "m_geometry", cppType: "TriGeometryResPtr", flags: ["READWRITE", "PERSIST"] }
+    ] });
+    assert.equal(native.fields[0].kind, "objectRef");
+    assert.equal(native.fields[0].type, undefined);
+    assert.doesNotMatch(renderClassFile(native, { js: true }), /@type\.resource/);
+
+    const descriptor = { kind: "objectRef", className: "TriGeometryRes", runtimeOnly: true };
+    const expected = { ...native, fields: [{ ...native.fields[0], type: descriptor }] };
+    const snapshot = structuredClone(expected);
+    const source = renderClassFile(expected, { js: true });
+    assert.match(source, /@type\.resource\("TriGeometryRes"\)/);
+    assert.deepEqual(expected, snapshot, "canonical projection does not mutate an explicit input record");
+    const parsed = parseClassFile(source);
+    const result = compareClass(expected, parsed, { strict: true });
+    assert.equal(result.summary.drift, false);
+    const report = JSON.parse(JSON.stringify(buildJsonReport(result)));
+    assert.deepEqual(report.fields[0].expected.type, descriptor);
+    assert.deepEqual(report.fields[0].actual.type, descriptor);
+    assert.equal(report.fields[0].expected.typeArg, "TriGeometryRes");
+
+    const ordinary = { ...native, fields: [{ ...native.fields[0], type: { ...descriptor, runtimeOnly: false } }] };
+    const ordinarySource = renderClassFile(ordinary, { js: true });
+    assert.match(ordinarySource, /@type\.objectRef\("TriGeometryRes"\)/);
+    assert.equal(compareClass(ordinary, parseClassFile(ordinarySource), { strict: true }).summary.drift, false);
+});
+
+test("resource comparisons reject marker loss, accidental runtime-only references and missing class identity", () =>
+{
+    const native = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture", attributes: [
+        { blueName: "geometry", cppType: "TriGeometryResPtr", flags: ["HIDDEN", "PERSIST"] }
+    ] });
+    const expected = { ...native, fields: [{ ...native.fields[0],
+        type: { kind: "objectRef", className: "TriGeometryRes", runtimeOnly: true } }] };
+    const source = renderClassFile(expected, { js: true });
+    for (const strict of [false, true])
+    {
+        const lost = compareClass(expected, parseClassFile(source.replace("@type.resource", "@type.objectRef")), { strict });
+        assert.equal(lost.summary.typeMismatch, 1);
+        assert.equal(lost.summary.drift, true);
+        assert.match(lost.fields[0].notes.join(" "), /runtime-only reference differs/);
+        const added = compareClass(native, parseClassFile(source), { strict });
+        assert.equal(added.summary.typeMismatch, 1);
+        assert.equal(added.summary.drift, true);
+        const missing = compareClass(expected, parseClassFile(source.replace('resource("TriGeometryRes")', "resource(null)")), { strict });
+        assert.equal(missing.summary.typeMismatch, 1);
+        assert.match(missing.fields[0].notes.join(" "), /reference class missing/);
+        const wrong = compareClass(expected, parseClassFile(source.replace('resource("TriGeometryRes")', 'resource("TriTextureRes")')), { strict });
+        assert.equal(wrong.summary.typeMismatch, 1);
+    }
+});
 
 test("verified structure collections require an item descriptor while ordinary collections retain their policy", () =>
 {

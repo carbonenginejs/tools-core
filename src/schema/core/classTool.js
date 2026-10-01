@@ -2805,6 +2805,7 @@ function handleStatement(stmt, pending, line, fields, methods, helpers, jsdoc)
             previous.editFlags = [...new Set([...previous.editFlags, ...field.editFlags])];
             previous.kind ||= field.kind;
             previous.typeArg ||= field.typeArg;
+            previous.type ||= field.type;
             previous.enumArg ||= field.enumArg;
             previous.hasType ||= field.hasType;
             previous.hasIo ||= field.hasIo;
@@ -2863,6 +2864,11 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
     const typeArgs = typeDecorator?.arg === undefined ? []
         : collection ? splitTopLevelArgs(typeDecorator.arg) : [typeDecorator.arg];
     const typeOptions = collection && typeArgs[1] ? parseTypeArg(typeArgs[1]) : null;
+    // resource is authoring syntax for one canonical object reference fact,
+    // not a distinct runtime kind or an edit/persistence flag.
+    const resource = typeDecorator?.name === "resource";
+    const kind = resource ? "objectRef" : typeDecorator?.name || null;
+    const typeArg = typeArgs.length ? parseTypeArg(typeArgs[0]) : null;
     return {
         name,
         key,
@@ -2870,9 +2876,10 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
         ...(index ? { index: Number(index[1]) } : {}),
         annotation,
         line,
-        kinds: typeDecorators.map(d => d.name),
-        kind: typeDecorators.length ? typeDecorators[0].name : null,
-        typeArg: typeArgs.length ? parseTypeArg(typeArgs[0]) : null,
+        kinds: typeDecorators.map(d => d.name === "resource" ? "objectRef" : d.name),
+        kind,
+        typeArg,
+        ...(resource ? { type: { kind: "objectRef", className: typeArg, runtimeOnly: true } } : {}),
         ...(typeOptions && Object.hasOwn(typeOptions, "structure") ? { structure: typeOptions.structure } : {}),
         ioNames: ioDecorators.filter(d => d.name !== "notify").map(d => d.name),
         notify: ioDecorators.some(d => d.name === "notify"),
@@ -2883,7 +2890,7 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
         })(),
         hasType: typeDecorators.length > 0,
         hasIo: ioDecorators.length > 0,
-        default: parseJsDefault(initializer, typeDecorators.length ? typeDecorators[0].name : null)
+        default: parseJsDefault(initializer, kind)
     };
 }
 
@@ -3170,6 +3177,16 @@ function sliceBalanced(src, openIndex)
 const STRING_ALIASES = new Set(["string", "path", "expression"]);
 const LIST_ALIASES = new Set(["list", "array"]);
 
+// Explicit expected records may carry the canonical reference descriptor.
+// Keep it intact while adapting to the tool's existing kind/typeArg view;
+// native schema derivation never infers the runtime-only fact.
+function explicitReferenceField(field)
+{
+    return field.type?.kind === "objectRef"
+        ? { ...field, kind: "objectRef", typeArg: field.type.className ?? null }
+        : field;
+}
+
 // Returns { match:boolean, info?:string }
 function kindsCompatible(expected, actualKind)
 {
@@ -3250,7 +3267,7 @@ export function compareClass(expected, parsed, options = {})
         };
     }
 
-    const expectedByName = new Map(expected.fields.map(field => [fieldIdentity(field), field]));
+    const expectedByName = new Map(expected.fields.map(explicitReferenceField).map(field => [fieldIdentity(field), field]));
     const names = new Set([...expectedByName.keys(), ...dataByName.keys()]);
 
     for (const identity of [...names].sort())
@@ -3337,6 +3354,19 @@ export function compareClass(expected, parsed, options = {})
         }
         if (compat.info) notes.push(compat.info);
 
+        const expectedRuntimeOnly = exp.type?.runtimeOnly === true;
+        const actualRuntimeOnly = act.type?.runtimeOnly === true;
+        if (expectedRuntimeOnly !== actualRuntimeOnly)
+        {
+            results.push({
+                name, verdict: "type-mismatch", severity: "error", symbol: "cross",
+                notes: [`runtime-only reference differs: schema ${expectedRuntimeOnly} vs file ${actualRuntimeOnly}`],
+                expected: exportExpected(exp),
+                actual: exportActual(act)
+            });
+            continue;
+        }
+
         // typeArg comparison (objectRef/struct/rawStruct/list item). Carbon's generated
         // "<Item>Structure" wrappers are the same runtime item type.
         if (exp.typeArg && act.typeArg
@@ -3353,11 +3383,12 @@ export function compareClass(expected, parsed, options = {})
         }
         if (exp.typeArg && !act.typeArg)
         {
-            if (exp.structure)
+            if (exp.structure || expectedRuntimeOnly)
             {
                 results.push({
                     name, verdict: "type-mismatch", severity: "error", symbol: "cross",
-                    notes: ["native structure collection item type missing in file"],
+                    notes: [exp.structure ? "native structure collection item type missing in file"
+                        : "runtime-only reference class missing in file"],
                     expected: exportExpected(exp),
                     actual: exportActual(act)
                 });
@@ -3626,7 +3657,7 @@ function exportExpected(exp)
         setter: exp.setter || null,
         getterReturnType: exp.getterReturnType || null,
         setterParameterType: exp.setterParameterType || null,
-        type: exp.kind,
+        type: exp.type || exp.kind,
         typeArg: exp.typeArg,
         ...(exp.structure ? { structure: exp.structure } : {}),
         enumType: exp.enumType,
@@ -3647,7 +3678,7 @@ function exportActual(field)
         key: field.key || field.name,
         role: field.role || "member",
         ...(field.index === undefined ? {} : { index: field.index }),
-        type: field.kind,
+        type: field.type || field.kind,
         typeArg: field.typeArg,
         ...(field.structure ? { structure: field.structure } : {}),
         enumArg: field.enumArg,
@@ -4009,7 +4040,7 @@ export function renderClassFile(expected, options = {})
     const runtimeBase = resolveRuntimeBase(options, isJs);
     const baseClass = runtimeBase.className;
     const baseImport = runtimeBase.importPath;
-    const fields = expected.fields || [];
+    const fields = (expected.fields || []).map(explicitReferenceField);
     const methods = expected.methods || [];
 
     const usesIo = fields.some(field => field.io || field.notify);
@@ -4315,6 +4346,10 @@ function renderRoleDecorator(field)
 
 function renderTypeDecorator(field)
 {
+    if (field.type?.kind === "objectRef" && field.type.runtimeOnly === true)
+    {
+        return `resource(${JSON.stringify(field.type.className || "unknown")})`;
+    }
     if (field.kind === "model" || field.kind === "objectRef" || field.kind === "weakRef" || field.kind === "struct" || field.kind === "rawStruct")
     {
         return `${field.kind}("${field.typeArg || field.cppType || "unknown"}")`;
