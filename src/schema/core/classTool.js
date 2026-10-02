@@ -13,6 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isResourcePathMember } from "./schemaResourcePaths.js";
 import { normalizeSchemaClassPurpose } from "./schemaClassPurposes.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -1393,9 +1394,9 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
         case "float": return { kind: "float32" };
         case "double": return { kind: "float64" };
         case "std::string": case "BlueSharedString":
-            return { kind: isExpressionLike(name) ? "expression" : "string" };
+            return { kind: isResourcePathMember(className, name) ? "path" : isExpressionLike(name) ? "expression" : "string" };
         case "std::wstring": case "BlueSharedStringW":
-            return { kind: "wstring" };
+            return { kind: isResourcePathMember(className, name) ? "path" : "wstring" };
         case "Vector2": return { kind: "vec2" };
         case "Vector3": return { kind: "vec3" };
         case "Vector4": return { kind: isRotationLike(name) ? "quat" : isColorLike(name) ? "color" : "vec4" };
@@ -1459,9 +1460,9 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
     switch (black.wireType)
     {
         case "stringRef":
-            return { kind: isExpressionLike(name) ? "expression" : "string" };
+            return { kind: isResourcePathMember(className, name) ? "path" : isExpressionLike(name) ? "expression" : "string" };
         case "wstringRef":
-            return { kind: "wstring" };
+            return { kind: isResourcePathMember(className, name) ? "path" : "wstring" };
         case "bool": return { kind: "boolean" };
         case "float32": return { kind: "float32" };
         case "int32": return { kind: "int32" };
