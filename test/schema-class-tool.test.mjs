@@ -1273,3 +1273,24 @@ test("property metadata on a setter names the whole getter/setter declaration", 
     assert.equal(parsed.fields[0].typeArg, "FixtureChild");
     assert.deepEqual(parsed.fields[0].editFlags, ["READ", "WRITE"]);
 });
+
+test("generated classes default to no base and retain explicit base overrides", () =>
+{
+    const expected = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture", family: "eve", attributes: [] });
+    const source = renderClassFile(expected, { js: true });
+    assert.match(source, /export class Fixture\s*\{/);
+    assert.doesNotMatch(source, /CjsModel|runtime\/model/);
+    assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
+    const legacy = source.replace("export class Fixture", "export class Fixture extends CjsModel");
+    assert.equal(compareClass(expected, parseClassFile(legacy), { strict: true }).summary.drift, true);
+    for (const base of ["CjsModel", "NativeBase"])
+    {
+        const options = { js: true, extendsClass: base };
+        const explicit = renderClassFile(expected, options);
+        assert.ok(explicit.includes("export class Fixture extends " + base));
+        assert.equal(compareClass(expected, parseClassFile(explicit), { ...options, strict: true }).summary.drift, false);
+    }
+    const unresolved = renderClassFile(expected, { js: true, extendsClass: "NativeBase", extendsImportFor: () => null });
+    assert.match(unresolved, /export class Fixture\s*\{/);
+    assert.doesNotMatch(unresolved, /CjsModel|runtime\/model/);
+});

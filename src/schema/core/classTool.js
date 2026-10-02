@@ -3618,15 +3618,15 @@ function addClassPolicyResults(results, meta, parsed, options = {})
     const requiredFamily = options.runtimeFamily || meta.runtimeFamily || meta.family || null;
     const allowSourceProven = options.sourceProven === undefined ? !parsed.generated : Boolean(options.sourceProven);
 
-    const expectedBase = options.runtimeBaseClass || options.extendsClass || "CjsModel";
-    if (meta.className && parsed.base !== expectedBase && !allowSourceProven)
+    const expectedBase = options.runtimeBaseClass || options.extendsClass || null;
+    if (meta.className && (parsed.base || null) !== expectedBase && !allowSourceProven)
     {
         results.push({
             name: "<class>",
             verdict: "class-policy",
             severity: "error",
             symbol: "cross",
-            notes: [`schema-backed class must extend ${expectedBase}; found ${parsed.base || "no base class"}`],
+            notes: [`${expectedBase ? `schema-backed class must extend ${expectedBase}` : "schema-backed class must have no base class"}; found ${parsed.base || "no base class"}`],
             expected: { base: expectedBase, family: requiredFamily },
             actual: { base: parsed.base || null, family: parsed.define?.family || null }
         });
@@ -3986,8 +3986,8 @@ function defaultBaseImportFor(baseClass, isJs)
 
 function resolveRuntimeBase(options, isJs)
 {
-    const baseClass = options.extendsClass || options.runtimeBaseClass || "CjsModel";
-    if (baseClass === "CjsModel")
+    const baseClass = options.extendsClass || options.runtimeBaseClass || null;
+    if (!baseClass || baseClass === "CjsModel")
     {
         return {
             className: baseClass,
@@ -4009,7 +4009,7 @@ function resolveRuntimeBase(options, isJs)
         if (!importPath)
         {
             return {
-                className: "CjsModel",
+                className: null,
                 importPath: null
             };
         }
@@ -4099,7 +4099,7 @@ export function renderClassFile(expected, options = {})
     {
         lines.push(`import { ${baseClass} } from "${baseImport}";`);
     }
-    else
+    else if (baseClass)
     {
         lines.push(`import { ${baseClass} } from "@carbonenginejs/runtime/model";`);
     }
@@ -4138,7 +4138,7 @@ export function renderClassFile(expected, options = {})
         ? `/** ${purpose} */`
         : `/** ${jsClassName} (${family}) - generated${meta.shapeHash ? ` from schema shapeHash ${shortHash(meta.shapeHash)}` : ""}. */`);
     lines.push(`@type.define({ className: "${jsClassName}", family: "${family}"${purpose ? `, purpose: ${JSON.stringify(purpose)}` : ""} })`);
-    lines.push(`export class ${jsClassName} extends ${baseClass}`);
+    lines.push(`export class ${jsClassName}${baseClass ? ` extends ${baseClass}` : ""}`);
     lines.push("{");
     lines.push("");
 
