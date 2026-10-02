@@ -266,3 +266,31 @@ test("a field default that calls a constructor is not read as a method", () =>
     assert.ok(!names.includes("IdentityMatrix"), "a field default is not a method");
     assert.ok(!names.includes("Vector4"), "a field default is not a method");
 });
+
+
+test("nested struct methods belong to the struct, including constructors and names shared with the owner", () =>
+{
+    const parsed = scanner.__test.parseHeaderFile(`
+        class AtlasOwner
+        {
+        public:
+            void Resize();
+            void After();
+        private:
+            struct Atlas
+            {
+                Atlas();
+                void Resize(int width);
+                bool Reserve();
+                void Drop();
+            };
+        };
+    `, "AtlasOwner.h");
+    const owner = parsed.classes.find(item => item.name === "AtlasOwner");
+    const atlas = parsed.classes.find(item => item.name === "AtlasOwner.Atlas");
+    assert.deepEqual(owner.methods.map(item => item.name), ["Resize", "After"]);
+    assert.deepEqual(atlas.methods.map(item => item.name), ["Atlas", "Resize", "Reserve", "Drop"]);
+    assert.ok(owner.methods.every(item => item.declaredOn === "AtlasOwner"));
+    assert.ok(atlas.methods.every(item => item.declaredOn === "AtlasOwner.Atlas"));
+    assert.equal(atlas.methods.find(item => item.name === "Reserve").line, 12);
+});

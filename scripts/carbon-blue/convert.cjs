@@ -817,7 +817,8 @@ function parseHeaderFile(text, source)
                 declarationKind: "struct",
                 bases: [],
                 fields: qualifySiblingTypes(parseFields(structDef.body, source, structDef.line)),
-                methods: []
+                methods: parseMethodDeclarations(structDef.body, source, structDef.line)
+                    .map(method => ({ ...method, declaredOn: `${className}.${structDef.name}` }))
             });
         }
 
@@ -1683,8 +1684,11 @@ function maskRanges(text, ranges)
 
 function parseMethodDeclarations(body, source, baseLine = 1)
 {
+    // Nested struct methods have their own owner record. Mask those bodies
+    // exactly as field parsing does, retaining newlines for source locations.
+    const nested = extractNestedStructFields(body, source, baseLine);
     const methods = [];
-    const lines = body.split(/\r?\n/);
+    const lines = maskRanges(body, nested.ranges).split(/\r?\n/);
 
     for (let i = 0; i < lines.length; i++)
     {
