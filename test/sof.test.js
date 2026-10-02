@@ -49,11 +49,11 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
         {
             prepareDefaultsCount++;
         },
-        createSof(options)
+        async createSof(options)
         {
             createCount++;
             receivedFiles = options.resFileIndex;
-            const sof = EveSOF.Create(options);
+            const sof = (await EveSOF.Create(options));
 
             const buildValues = (dna, options = {}) =>
             {
@@ -92,14 +92,14 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
     assert.deepEqual(first.ListMaterials(), [ "gold" ]);
     assert.deepEqual(first.ListLayouts(), [ "antennae" ]);
     assert.deepEqual(first.ListPatterns(), [ "alpha", "stripes" ]);
-    assert.deepEqual(first.ListHullPatterns("AB1_T1"), [ "alpha", "stripes" ]);
-    assert.deepEqual(first.ListHullPatterns("zz1_t1"), []);
-    assert.equal(first.ListHullPatterns("missing"), null);
-    assert.equal(first.GetHull("AB1_T1").name, "ab1_t1");
-    assert.deepEqual(first.GetMaterial("GOLD").parameters.PaintColor, [1, 2, 3, 4]);
-    assert.equal(first.GetPatternHull("STRIPES", "AB1_T1").layerAndProjection.length, 2);
-    assert.equal(first.GetPatternHull("stripes", "missing"), null);
-    assert.deepEqual(first.InspectDna("ab1_t1:amarrbase:amarr"), {
+    assert.deepEqual((await first.ListHullPatterns("AB1_T1")), [ "alpha", "stripes" ]);
+    assert.deepEqual((await first.ListHullPatterns("zz1_t1")), []);
+    assert.equal((await first.ListHullPatterns("missing")), null);
+    assert.equal((await first.GetHull("AB1_T1")).name, "ab1_t1");
+    assert.deepEqual((await first.GetMaterial("GOLD")).parameters.PaintColor, [1, 2, 3, 4]);
+    assert.equal((await first.GetPatternHull("STRIPES", "AB1_T1")).layerAndProjection.length, 2);
+    assert.equal((await first.GetPatternHull("stripes", "missing")), null);
+    assert.deepEqual((await first.InspectDna("ab1_t1:amarrbase:amarr")), {
         buildable: true,
         valid: true,
         error: null,
@@ -125,7 +125,7 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
     assert.equal(first.target, "eve");
     assert.equal(first.build, "3435006");
 
-    const groups = first.GetDnaVisibilityGroups("ab1_t1:amarrbase:amarr");
+    const groups = (await first.GetDnaVisibilityGroups("ab1_t1:amarrbase:amarr"));
 
     assert.deepEqual(groups.declared, [ "primary", "holiday_19" ]);
     assert.deepEqual(groups.visible, [ "primary" ]);
@@ -134,7 +134,7 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
         groups.sets.map(set => [ set.kind, set.visibilityGroup, set.visible ]),
         [ [ "hullDecalSets", "primary", true ], [ "hullDecalSets", "police", false ] ],
     );
-    assert.equal(first.GetDnaVisibilityGroups("missing:amarrbase:amarr"), null);
+    assert.equal((await first.GetDnaVisibilityGroups("missing:amarrbase:amarr")), null);
 });
 
 test("defaults to generic-first SOF loading and fetches indexed records on demand", async () =>
@@ -179,13 +179,13 @@ test("defaults to generic-first SOF loading and fetches indexed records on deman
         },
     };
     const repository = new CjsToolSofRepository({
-        createSof(options)
+        async createSof(options)
         {
             assert.equal(Object.hasOwn(options, "black"), false);
             assert.equal(typeof options.lazyData.source, "function");
             lazySource = options.lazyData.source;
 
-            const sof = EveSOF.Create({
+            const sof = (await EveSOF.Create({
                 black: {
                     hull: [],
                     faction: [],
@@ -195,7 +195,7 @@ test("defaults to generic-first SOF loading and fetches indexed records on deman
                     pattern: [],
                     generic: { materialPrefixes: [], variants: [] },
                 },
-            });
+            }));
             const library = {
                 async FetchHull(name)
                 {
@@ -215,7 +215,7 @@ test("defaults to generic-first SOF loading and fetches indexed records on deman
     assert.equal(catalog.loadMode, "lazy");
     assert.deepEqual(fetched, [genericPath]);
     assert.deepEqual(catalog.ListHulls(), [ "ab1_t1" ]);
-    assert.equal(catalog.GetHull("ab1_t1"), null);
+    assert.equal((await catalog.GetHull("ab1_t1")).name, "ab1_t1");
     assert.equal((await catalog.GetHullAsync("AB1_T1")).name, "ab1_t1");
     assert.equal((await catalog.GetHullAsync("ab1_t1")).name, "ab1_t1");
     assert.equal(await catalog.GetHullAsync("missing"), null);

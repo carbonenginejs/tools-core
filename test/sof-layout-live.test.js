@@ -31,13 +31,13 @@ test("real deathless hangar retains every available placement and returns HTTP 2
         records.set(logicalPath, value);
         return value;
     };
-    const sof = new EveSOF().Register({ lazyData: { source: Read }, resFileIndex: paths });
+    const sof = (await new EveSOF().Register({ lazyData: { source: Read }, resFileIndex: paths }));
     const options = { seedOverwrite: 658 };
     const values = await sof.BuildValuesFromDNAAsync(dna, options);
     assert.equal(values._type, "EveStation2");
     const missing = base + "/hulls/mmipr_xl_01a.black";
     assert.ok(failures.has(missing));
-    assert.ok(sof.GetSofLibraryBuilder().GetLoadErrors().some(item => item.path === missing && item.error === failures.get(missing)));
+    assert.ok((await sof.GetSofLibraryBuilder()).GetLoadErrors().some(item => item.path === missing && item.error === failures.get(missing)));
     const layout = records.get(base + "/layouts/deathless_hangar.black");
     const CheckDescriptors = value =>
     {
@@ -54,7 +54,7 @@ test("real deathless hangar retains every available placement and returns HTTP 2
         for (const child of Object.values(value)) CheckDescriptors(child);
     };
     CheckDescriptors(layout);
-    const plan = sof.PlanLayoutFromDNA(dna, options);
+    const plan = (await sof.PlanLayoutFromDNA(dna, options));
     const container = values.effectChildren.find(child => child.name === "layouts");
     assert.ok(container);
     const geometry = new Set();
@@ -74,8 +74,8 @@ test("real deathless hangar retains every available placement and returns HTTP 2
         if (hull.geometryResFilePath) assert.ok(geometry.has(hull.geometryResFilePath), "Placement absent: " + placement.name);
     }
     // Negative control: restoring fail-fast catalog loading rejects this same asset.
-    const negative = new EveSOF().Register({ lazyData: { source: Read }, resFileIndex: paths });
-    negative.GetSofLibraryBuilder()._ResolveNamedOperation = async operation => operation;
+    const negative = (await new EveSOF().Register({ lazyData: { source: Read }, resFileIndex: paths }));
+    (await negative.GetSofLibraryBuilder())._ResolveNamedOperation = async operation => operation;
     await assert.rejects(negative.BuildValuesFromDNAAsync(dna, options), /mmipr_xl_01a.black/);
 
     const source = {

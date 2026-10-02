@@ -1,4 +1,4 @@
-import { EveSOF } from "@carbonenginejs/runtime/sof";
+import { EveSOF, EveSOFDNA } from "@carbonenginejs/runtime/sof";
 import { PrepareSofDefaults } from "./ExpandSofDefaults.js";
 
 const SOF_BASE_PATH = "res:/dx9/model/spaceobjectfactory";
@@ -145,7 +145,7 @@ export class CjsToolSofRepository
                 resFileIndex,
             });
             await sof.InitializeAsync();
-            library = sof.GetSofLibraryBuilder();
+            library = (await sof.GetSofLibraryBuilder());
         }
 
         return new CjsToolSofCatalog({
@@ -251,9 +251,9 @@ export class CjsToolSofCatalog
     }
 
     /** Returns patterns applicable to one normalized hull selection. */
-    ListHullPatterns(hull)
+    async ListHullPatterns(hull)
     {
-        return this.#sof.dataMgr.ListPatternDataNamesForHull(hull);
+        return this.ListHullPatternsAsync(hull);
     }
 
     /** Loads one hull and every indexed pattern before listing applications. */
@@ -265,7 +265,7 @@ export class CjsToolSofCatalog
             await this.#LoadAllPatterns();
         }
 
-        return this.ListHullPatterns(hull);
+        return this.#sof.dataMgr.ListPatternDataNamesForHull(hull);
     }
 
     /**
@@ -298,9 +298,9 @@ export class CjsToolSofCatalog
     }
 
     /** Returns one hull record by canonical SOF name. */
-    GetHull(name)
+    async GetHull(name)
     {
-        return this.#sof.dataMgr.GetHullDataJson(name);
+        return this.#GetNamedAsync("hull", name);
     }
 
     /** Loads and returns one hull record by canonical SOF name. */
@@ -310,9 +310,9 @@ export class CjsToolSofCatalog
     }
 
     /** Returns one faction record by canonical SOF name. */
-    GetFaction(name)
+    async GetFaction(name)
     {
-        return this.#sof.dataMgr.GetFactionDataJson(name);
+        return this.#GetNamedAsync("faction", name);
     }
 
     /** Loads and returns one faction record by canonical SOF name. */
@@ -322,9 +322,9 @@ export class CjsToolSofCatalog
     }
 
     /** Returns one race record by canonical SOF name. */
-    GetRace(name)
+    async GetRace(name)
     {
-        return this.#sof.dataMgr.GetRaceDataJson(name);
+        return this.#GetNamedAsync("race", name);
     }
 
     /** Loads and returns one race record by canonical SOF name. */
@@ -334,9 +334,9 @@ export class CjsToolSofCatalog
     }
 
     /** Returns one material record by canonical SOF name. */
-    GetMaterial(name)
+    async GetMaterial(name)
     {
-        return this.#sof.dataMgr.GetMaterialDataJson(name);
+        return this.#GetNamedAsync("material", name);
     }
 
     /** Loads and returns one material record by canonical SOF name. */
@@ -346,9 +346,9 @@ export class CjsToolSofCatalog
     }
 
     /** Returns one layout record by canonical SOF name. */
-    GetLayout(name)
+    async GetLayout(name)
     {
-        return this.#sof.dataMgr.GetLayoutDataJson(name);
+        return this.#GetNamedAsync("layout", name);
     }
 
     /** Loads and returns one layout record by canonical SOF name. */
@@ -358,9 +358,9 @@ export class CjsToolSofCatalog
     }
 
     /** Returns one hull-specific pattern projection by canonical names. */
-    GetPatternHull(pattern, hull)
+    async GetPatternHull(pattern, hull)
     {
-        return this.#sof.dataMgr.GetPatternHullDataJson(pattern, hull);
+        return this.GetPatternHullAsync(pattern, hull);
     }
 
     /** Loads the selected pattern and hull before returning their application. */
@@ -375,16 +375,16 @@ export class CjsToolSofCatalog
             if (!hasPattern || !hasHull) return null;
         }
 
-        return this.GetPatternHull(pattern, hull);
+        return this.#sof.dataMgr.GetPatternHullDataJson(pattern, hull);
     }
 
     /**
      * Parses one DNA string against the catalog without constructing runtime
      * objects.
      */
-    InspectDna(dna)
+    async InspectDna(dna)
     {
-        return this.#sof.InspectDna(RequireDna(dna));
+        return this.InspectDnaAsync(dna);
     }
 
     /**
@@ -402,7 +402,14 @@ export class CjsToolSofCatalog
 
             if (!this.#HasDnaRequirements(requirements))
             {
-                return this.#sof.InspectDna(value);
+                // The exact index already proves essential data absent. Parse
+                // the prepared catalog for its native invalid-selection result
+                // without requesting a resource known not to exist.
+                const selection = new EveSOFDNA();
+                selection.Setup(value, this.#sof.dataMgr);
+                const buildable = selection.IsValid();
+                const valid = buildable && selection.ValidateContent();
+                return { buildable, valid, error: selection.GetParseError() ?? (valid ? null : "invalid-content") };
             }
 
             await this.#library.EnsureFromDNA(value);
@@ -412,10 +419,9 @@ export class CjsToolSofCatalog
     }
 
     /** Reports the visibility groups one DNA authors, declares, and resolves. */
-    GetDnaVisibilityGroups(dna)
+    async GetDnaVisibilityGroups(dna)
     {
-        const value = RequireDna(dna);
-        return this.#sof.GetDnaVisibilityGroups(value);
+        return this.GetDnaVisibilityGroupsAsync(dna);
     }
 
     /** Loads one DNA's catalog closure before reporting visibility groups. */
@@ -423,7 +429,7 @@ export class CjsToolSofCatalog
     {
         const inspection = await this.InspectDnaAsync(dna);
         return inspection.buildable && inspection.valid
-            ? this.GetDnaVisibilityGroups(dna)
+            ? this.#sof.GetDnaVisibilityGroups(RequireDna(dna))
             : null;
     }
 
@@ -580,11 +586,11 @@ export class CjsToolSofCatalog
 
 }
 
-function CreateRuntimeSof(options)
+async function CreateRuntimeSof(options)
 {
     return Object.hasOwn(options, "lazyData")
-        ? new EveSOF().Register(options)
-        : EveSOF.Create(options);
+        ? (await new EveSOF().Register(options))
+        : (await EveSOF.Create(options));
 }
 
 function CreateCatalogNames(resFileIndex)

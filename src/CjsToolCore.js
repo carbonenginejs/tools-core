@@ -63,9 +63,9 @@ export class CjsToolCore
      * values, `_type` on polymorphic nodes, `_id`/`_ref` only for shared
      * identity — no node table, `kind`/`fields` records, or `raw` payloads.
      */
-    BuildSofValues(dna, options = {})
+    async BuildSofValues(dna, options = {})
     {
-        return ValidateValues(this.sof.BuildValuesFromDNA(RequireDna(dna), options));
+        return ValidateValues(await this.sof.BuildValuesFromDNA(RequireDna(dna), options));
     }
 
     /** Returns the complete async plain model-values graph. */
@@ -88,7 +88,7 @@ export class CjsToolCore
     }
 
     /** Resolves a prepared identity selection and builds its SOF values. */
-    BuildTypeSofValues(selection, options = {})
+    async BuildTypeSofValues(selection, options = {})
     {
         return this.BuildSofValues(this.ResolveDna(selection), options);
     }
@@ -115,9 +115,9 @@ export class CjsToolCore
      * for explicit graph tooling (fragment import, lossless unknown fields,
      * detached-node diagnostics). New consumers should use BuildSofValues.
      */
-    BuildSofDocument(dna, options = {})
+    async BuildSofDocument(dna, options = {})
     {
-        return ValidateDocument(this.sof.BuildFromDNA(RequireDna(dna), options));
+        return ValidateDocument(await this.sof.BuildFromDNA(RequireDna(dna), options));
     }
 
     /** Async compatibility/diagnostic carbon.document build. */
@@ -130,7 +130,7 @@ export class CjsToolCore
     }
 
     /** Resolves a prepared identity selection and builds its SOF document. */
-    BuildTypeSofDocument(selection, options = {})
+    async BuildTypeSofDocument(selection, options = {})
     {
         return this.BuildSofDocument(this.ResolveDna(selection), options);
     }

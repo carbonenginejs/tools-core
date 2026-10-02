@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { CjsToolCore } from "../src/index.js";
 
-test("resolves identity to DNA and returns runtime SOF carbon.document JSON", () =>
+test("resolves identity to DNA and returns runtime SOF carbon.document JSON", async () =>
 {
     const core = new CjsToolCore({
         cache: {},
@@ -12,18 +12,18 @@ test("resolves identity to DNA and returns runtime SOF carbon.document JSON", ()
             BuildFromDNA: dna => ({ schema: "carbon.document", version: 1, dna, objects: {} })
         }
     });
-    const document = core.BuildTypeSofDocument({ hull: "rifter", faction: "minmatar", race: "minmatar" });
+    const document = (await core.BuildTypeSofDocument({ hull: "rifter", faction: "minmatar", race: "minmatar" }));
     assert.equal(document.schema, "carbon.document");
     assert.equal(document.dna, "rifter:minmatar:minmatar");
 });
 
-test("keeps compact graph projection outside the current contract", () =>
+test("keeps compact graph projection outside the current contract", async () =>
 {
     const core = new CjsToolCore({
         cache: {},
         sof: { BuildFromDNA: () => ({ schema: "other.document" }) }
     });
-    assert.throws(() => core.BuildSofDocument("rifter:minmatar:minmatar"), /unsupported document schema/);
+    (await assert.rejects(async () => (await core.BuildSofDocument("rifter:minmatar:minmatar")), /unsupported document schema/));
 });
 
 test("builds plain SOF model values as the recommended boundary", async () =>
@@ -55,7 +55,7 @@ test("builds plain SOF model values as the recommended boundary", async () =>
         }
     });
 
-    const values = core.BuildTypeSofValues({ hull: "rifter", faction: "minmatar", race: "minmatar" });
+    const values = (await core.BuildTypeSofValues({ hull: "rifter", faction: "minmatar", race: "minmatar" }));
     assert.equal(values._type, "EveShip2");
     assert.equal(values.dna, "rifter:minmatar:minmatar");
     assert.equal(values.mesh._type, "Tr2Mesh");
@@ -71,17 +71,17 @@ test("builds plain SOF model values as the recommended boundary", async () =>
     assert.deepEqual(seen, [false, false, true]);
 });
 
-test("rejects a carbon.document offered as model values", () =>
+test("rejects a carbon.document offered as model values", async () =>
 {
     const documentCore = new CjsToolCore({
         cache: {},
         sof: { BuildValuesFromDNA: () => ({ schema: "carbon.document", nodes: [], roots: {} }) }
     });
-    assert.throws(() => documentCore.BuildSofValues("rifter:minmatar:minmatar"), /carbon.document where plain model values/);
+    (await assert.rejects(async () => (await documentCore.BuildSofValues("rifter:minmatar:minmatar")), /carbon.document where plain model values/));
 
     const untypedCore = new CjsToolCore({
         cache: {},
         sof: { BuildValuesFromDNA: () => ({ dna: "x" }) }
     });
-    assert.throws(() => untypedCore.BuildSofValues("rifter:minmatar:minmatar"), /root _type/);
+    (await assert.rejects(async () => (await untypedCore.BuildSofValues("rifter:minmatar:minmatar")), /root _type/));
 });

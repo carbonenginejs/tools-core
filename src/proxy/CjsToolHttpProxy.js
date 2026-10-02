@@ -1720,7 +1720,7 @@ export class CjsToolHttpProxy
 
             if (subTopic === "visibilitygroups")
             {
-                const groups = catalog.GetDnaVisibilityGroups(dna);
+                const groups = await catalog.GetDnaVisibilityGroups(dna);
 
                 if (groups === null)
                 {
