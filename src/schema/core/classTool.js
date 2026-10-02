@@ -18,7 +18,7 @@ import { normalizeSchemaClassPurpose } from "./schemaClassPurposes.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_SCHEMA_ROOT = path.resolve(HERE, "..", "schema");
 
-// Full @type.* kind list from runtime/src/global/schema/CjsSchema.js (excluding class-level `define`).
+// Full @meta.type.* kind list from runtime/src/global/schema/CjsSchema.js (excluding class-level `define`).
 export const KNOWN_TYPE_KINDS = new Set([
     "array", "boolean", "color", "expression", "float32", "float64",
     "int8", "int16", "int32", "int64", "list", "mat3", "mat4", "map",
@@ -548,7 +548,7 @@ function parseSchemaDefault(def, kind, context = {})
 }
 
 // ---------------------------------------------------------------------------
-// C++ type -> @type.* kind mapping (ported from carbonTypes.js:131-209)
+// C++ type -> @meta.type.* kind mapping (ported from carbonTypes.js:131-209)
 // ---------------------------------------------------------------------------
 
 function normalizeCppType(cppType)
@@ -1505,7 +1505,7 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
         case "struct":
         {
             // Math value types (Quaternion, Color, Vector2/3/4, matrices) are wired as
-            // inline objects in some docs but map to their @type.* math kinds, not struct.
+            // inline objects in some docs but map to their @meta.type.* math kinds, not struct.
             const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
             if (INLINE_CPP_KINDS.has(resolved.kind)
                 && !["model", "objectRef", "weakRef"].includes(resolved.kind)) return resolved;
@@ -1719,7 +1719,7 @@ export function schemaBaseClassForDoc(doc, options = {})
 const EDIT_FLAG_ORDER = [ "READ", "WRITE", "NOTIFY", "HIDDEN", "PERSIST", "RPERSIST" ];
 const EDIT_FLAG_ALIASES = { READWRITE: [ "READ", "WRITE" ], PERSISTONLY: [ "HIDDEN", "PERSIST" ] };
 
-// The flags each runtime `@edit.<name>` decorator sets (CjsSchema.edit).
+// The flags each runtime `@meta.blue.<name>` decorator sets (CjsSchema.edit).
 const EDIT_DECORATOR_FLAGS = {
     none: [],
     read: [ "READ" ],
@@ -2388,7 +2388,7 @@ export function deriveExpectedFields(doc, options = {})
     return { fields, methods, fallback: null, meta };
 }
 
-// Enums a class's fields reference through @type.enum without owning them.
+// Enums a class's fields reference through @meta.type.enum without owning them.
 // Prefer an exact/class-scoped source declaration, then an unambiguous scanner
 // catalog entry, then a bounded shared source vocabulary. No short-name choice
 // is made between distinct scanner declarations.
@@ -2676,7 +2676,7 @@ export function parseClassFile(rawText, options = {})
         if (!line) continue;
         const statementOffset = bodyOpen + 1 + bodyOffsets[idx] + rawLines[idx].indexOf(line);
 
-        // A decorator whose argument spans lines (e.g. @type.array({\n ... })) must be
+        // A decorator whose argument spans lines (e.g. @meta.type.array({\n ... })) must be
         // joined before stripping, otherwise the tail swallows the following field.
         while (line.startsWith("@") && !bracketsBalanced(line) && idx + 1 < rawLines.length)
         {
@@ -2692,9 +2692,18 @@ export function parseClassFile(rawText, options = {})
             if (dm)
             {
                 if (!pending.length) pendingDoc = attachedJsdoc(text, jsdocs, statementOffset);
+                let namespace = dm[1] === "types" ? "type" : dm[1];
+                let name = dm[2];
+                // Public spelling changes do not change the comparison records.
+                if (namespace === "blue") namespace = ["method", "renamed", "contextual", "inherit", "mapInterface", "interfaceTable"].includes(name) ? "carbon" : "edit";
+                if (namespace === "meta" && (name === "ours" || name === "reason" || IMPLEMENTATION_STATUS_NAMES.has(name)))
+                {
+                    namespace = "impl";
+                    if (name === "ours") name = "custom";
+                }
                 pending.push({
-                    ns: dm[1] === "types" ? "type" : dm[1],
-                    name: dm[2],
+                    ns: namespace,
+                    name,
                     arg: dm[3] ? dm[3].slice(1, -1).trim() : undefined
                 });
                 line = line.slice(dm[0].length).trim();
@@ -2726,7 +2735,7 @@ export function parseClassFile(rawText, options = {})
     return { className, base, define, fields, methods, helpers, generated };
 }
 
-// Two spellings, because the runtime has two. `@type.define({ ... })` is the
+// Two spellings, because the runtime has two. `@meta.define({ ... })` is the
 // decorator; `CjsSchema.define(Class, { ... })` is the same metadata as a call,
 // used where a file must stay parseable by raw Node - the abstraction layer is
 // imported straight from source by its tests, and decorator syntax would break
@@ -2973,7 +2982,7 @@ function normalizeFieldName(rawName)
 }
 
 // A @type decorator argument is either a quoted/bare name or an options object
-// (e.g. @type.array({ kind: "struct", className: "Tr2CurveScalarKey" })).
+// (e.g. @meta.type.array({ kind: "struct", className: "Tr2CurveScalarKey" })).
 function parseTypeArg(value)
 {
     const trimmed = String(value).trim();
@@ -3291,7 +3300,7 @@ export function compareClass(expected, parsed, options = {})
             }
             results.push({
                 name, verdict: "missing-in-file", severity: "error", symbol: "cross",
-                notes: [`schema expects @type.${exp.kind}${exp.typeArg ? `("${exp.typeArg}")` : ""} ${name}${exp.member ? ` (${exp.member})` : ""} [${exp.flags.join(", ")}]`],
+                notes: [`schema expects @meta.type.${exp.kind}${exp.typeArg ? `("${exp.typeArg}")` : ""} ${name}${exp.member ? ` (${exp.member})` : ""} [${exp.flags.join(", ")}]`],
                 expected: exportExpected(exp),
                 actual: null
             });
@@ -3313,7 +3322,7 @@ export function compareClass(expected, parsed, options = {})
         {
             results.push({
                 name, verdict: "type-mismatch", severity: "error", symbol: "cross",
-                notes: [`multiple-type-decorators: [${act.kinds.map(k => `@type.${k}`).join(", ")}]`],
+                notes: [`multiple-type-decorators: [${act.kinds.map(k => `@meta.type.${k}`).join(", ")}]`],
                 expected: exportExpected(exp),
                 actual: exportActual(act)
             });
@@ -3323,7 +3332,7 @@ export function compareClass(expected, parsed, options = {})
         {
             results.push({
                 name, verdict: "type-mismatch", severity: "error", symbol: "cross",
-                notes: [`unknown-type-kind: @type.${act.kind}`],
+                notes: [`unknown-type-kind: @meta.type.${act.kind}`],
                 expected: exportExpected(exp),
                 actual: exportActual(act)
             });
@@ -3331,7 +3340,7 @@ export function compareClass(expected, parsed, options = {})
         }
         if (!act.kind)
         {
-            // Decorated with @io only, no @type.
+            // Decorated with @io only, no @meta.type.
             results.push({
                 name, verdict: "type-mismatch", severity: "error", symbol: "cross",
                 notes: ["missing-type-decorator: field has @io but no @type"],
@@ -3346,7 +3355,7 @@ export function compareClass(expected, parsed, options = {})
         {
             results.push({
                 name, verdict: "type-mismatch", severity: "error", symbol: "cross",
-                notes: [`schema expects @type.${exp.kind}, file has @type.${act.kind}`],
+                notes: [`schema expects @meta.type.${exp.kind}, file has @meta.type.${act.kind}`],
                 expected: exportExpected(exp),
                 actual: exportActual(act)
             });
@@ -3413,7 +3422,7 @@ export function compareClass(expected, parsed, options = {})
         // enum meta.
         if (exp.enumType && !act.enumArg)
         {
-            notes.push(`expected @type.enum("${exp.enumType}")`);
+            notes.push(`expected @meta.type.enum("${exp.enumType}")`);
         }
         else if (exp.enumType && act.enumArg && exp.enumType !== act.enumArg)
         {
@@ -3436,8 +3445,8 @@ export function compareClass(expected, parsed, options = {})
         else if (missingFlags.length || extraFlags.length)
         {
             missingIo = true;
-            const wanted = [ ...(exp.notify ? [ "notify" ] : []), ...exp.ioDecorators ].map(n => `@edit.${n}`).join(", ") || "none";
-            const had = [ ...(act.notify ? [ "notify" ] : []), ...act.ioNames ].map(n => `@edit.${n}`).join(", ") || "none";
+            const wanted = [ ...(exp.notify ? [ "notify" ] : []), ...exp.ioDecorators ].map(n => `@meta.blue.${n}`).join(", ") || "none";
+            const had = [ ...(act.notify ? [ "notify" ] : []), ...act.ioNames ].map(n => `@meta.blue.${n}`).join(", ") || "none";
             const parts = [];
             if (missingFlags.length) parts.push(`missing ${missingFlags.join(", ")}`);
             if (extraFlags.length) parts.push(`extra ${extraFlags.join(", ")}`);
@@ -3549,8 +3558,8 @@ function compareMethods(expectedMethods, parsedMethods)
         if (!actual.hasCarbon || !hasExpectedCarbon)
         {
             notes.push(expectsRename
-                ? `expected @carbon.renamed("${expected.name}")`
-                : "expected @carbon.method");
+                ? `expected @meta.blue.renamed("${expected.name}")`
+                : "expected @meta.blue.method");
         }
         if (actual.implStatusNames.length === 0)
         {
@@ -3558,14 +3567,14 @@ function compareMethods(expectedMethods, parsedMethods)
         }
         else if (actual.implStatusNames.length > 1)
         {
-            notes.push(`multiple implementation-status decorators: ${actual.implStatusNames.map(name => `@impl.${name}`).join(", ")}`);
+            notes.push(`multiple implementation-status decorators: ${actual.implStatusNames.map(name => `@meta.${name}`).join(", ")}`);
         }
         else if (
             (actual.implStatusNames[0] === "adapted" || actual.implStatusNames[0] === "custom") &&
             !actual.hasReason
         )
         {
-            notes.push(`@impl.${actual.implStatusNames[0]} requires an explanation in the method JSDoc (Adapted: or Custom:)`);
+            notes.push(`@meta.${actual.implStatusNames[0]} requires an explanation in the method JSDoc (Adapted: or Custom:)`);
         }
 
         const severity = notes.length ? "error" : "ok";
@@ -3639,7 +3648,7 @@ function addClassPolicyResults(results, meta, parsed, options = {})
             verdict: "class-policy",
             severity: "error",
             symbol: "cross",
-            notes: [`@type.define family must be "${requiredFamily}"; found ${parsed.define?.family || "no family"}`],
+            notes: [`@meta.define family must be "${requiredFamily}"; found ${parsed.define?.family || "no family"}`],
             expected: { base: expectedBase, family: requiredFamily },
             actual: { base: parsed.base || null, family: parsed.define?.family || null }
         });
@@ -4043,10 +4052,6 @@ export function renderClassFile(expected, options = {})
     const fields = (expected.fields || []).map(explicitReferenceField);
     const methods = expected.methods || [];
 
-    const usesIo = fields.some(field => field.io || field.notify);
-    const usesMethods = methods.length > 0;
-    const usesProperties = fields.some(field => field.role === "property");
-    const usesRoles = usesProperties || fields.some(field => (field.key && field.key !== field.name) || field.index !== undefined);
 
     // Enums routed to a shared runtime subpath are imported and
     // aliased as class statics rather than inlined, so a single source owns the
@@ -4066,14 +4071,7 @@ export function renderClassFile(expected, options = {})
         }
     }
 
-    const importNames = ["type"];
-    if (usesMethods) importNames.push("carbon");
-    if (usesMethods || usesProperties) importNames.push("impl");
-    if (usesRoles) importNames.push("meta");
-    if (usesIo) importNames.push("edit");
-    // An enum field needs no extra import: type.enum lives in the `type`
-    // namespace, which is always imported.
-    importNames.sort();
+    const importNames = ["meta"];
 
     // Math fields use runtime factories and built-in Float32Array types.
     const mathNs = new Set();
@@ -4137,7 +4135,7 @@ export function renderClassFile(expected, options = {})
     lines.push(purpose
         ? `/** ${purpose} */`
         : `/** ${jsClassName} (${family}) - generated${meta.shapeHash ? ` from schema shapeHash ${shortHash(meta.shapeHash)}` : ""}. */`);
-    lines.push(`@type.define({ className: "${jsClassName}", family: "${family}"${purpose ? `, purpose: ${JSON.stringify(purpose)}` : ""} })`);
+    lines.push(`@meta.define({ className: "${jsClassName}", family: "${family}"${purpose ? `, purpose: ${JSON.stringify(purpose)}` : ""} })`);
     lines.push(`export class ${jsClassName}${baseClass ? ` extends ${baseClass}` : ""}`);
     lines.push("{");
     lines.push("");
@@ -4150,10 +4148,10 @@ export function renderClassFile(expected, options = {})
         {
             lines.push(`  ${renderRoleDecorator(field)}`);
         }
-        if (field.notify) lines.push("  @edit.notify");
-        for (const decorator of field.ioDecorators || []) lines.push(`  @edit.${decorator}`);
-        lines.push(`  @type.${renderTypeDecorator(field)}`);
-        if (field.enumType) lines.push(`  @type.enum("${field.enumType}")`);
+        if (field.notify) lines.push("  @meta.blue.notify");
+        for (const decorator of field.ioDecorators || []) lines.push(`  @meta.blue.${decorator}`);
+        lines.push(`  @meta.type.${renderTypeDecorator(field)}`);
+        if (field.enumType) lines.push(`  @meta.type.enum("${field.enumType}")`);
         if (field.role !== "property")
         {
             lines.push(`  ${renderFieldDecl(field, isJs)}`);
@@ -4174,7 +4172,7 @@ export function renderClassFile(expected, options = {})
                 lines.push(`  /** Carbon property setter ${accessor.target}. */`);
                 lines.push(`  ${renderRoleDecorator(field)}`);
             }
-            lines.push("  @impl.notImplemented");
+            lines.push("  @meta.notImplemented");
             const parameter = accessor.kind === "set" ? (isJs ? "value" : "value: unknown") : "";
             const annotation = !isJs && accessor.kind === "get" ? ": unknown" : "";
             lines.push(`  ${accessor.kind} ${fieldPropertyName(field.key || field.name)}(${parameter})${annotation}`);
@@ -4191,9 +4189,9 @@ export function renderClassFile(expected, options = {})
         if (index > 0) lines.push("");
         lines.push(`  ${renderMethodComment(method)}`);
         lines.push(method.target && method.target !== method.name
-            ? `  @carbon.renamed("${method.name}")`
-            : "  @carbon.method");
-        lines.push("  @impl.notImplemented");
+            ? `  @meta.blue.renamed("${method.name}")`
+            : "  @meta.blue.method");
+        lines.push("  @meta.notImplemented");
         lines.push(`  ${renderMethodDecl(method, isJs)}`);
         lines.push("  {");
         lines.push(`    throw new Error("${className}.${method.name} is not implemented in CarbonEngineJS.");`);
@@ -4213,7 +4211,7 @@ export function renderClassFile(expected, options = {})
     });
 
     // Shared enums the fields reference without owning: stamped as class
-    // statics so @type.enum("X") always resolves via `Constructor[X]`.
+    // statics so @meta.type.enum("X") always resolves via `Constructor[X]`.
     // Import-routed enums are excluded here and aliased from the import below.
     //
     // KNOWN DEFECT: this inlines a SECOND frozen object for a vocabulary the
@@ -4244,7 +4242,7 @@ export function renderClassFile(expected, options = {})
         lines.push("  });");
     });
 
-    // Import-routed enum statics: alias the class-static name (the @type.enum
+    // Import-routed enum statics: alias the class-static name (the @meta.type.enum
     // key) to the imported vocabulary object.
     importedEnumNames.forEach((enumName, index) =>
     {

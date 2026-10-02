@@ -18,7 +18,7 @@ test("resource syntax normalizes to an object reference descriptor through type 
 {
     const descriptor = { kind: "objectRef", className: "TriGeometryRes", runtimeOnly: true };
     assert.equal(KNOWN_TYPE_KINDS.has("resource"), false);
-    for (const spelling of ["@type.resource(TriGeometryRes)", "@types.resource('TriGeometryRes')",
+    for (const spelling of ["@meta.type.resource(TriGeometryRes)", "@meta.type.resource('TriGeometryRes')",
         '@CjsSchema.type.resource("TriGeometryRes")'])
     {
         const parsed = parseClassFile(`export class Fixture {\n${spelling}\n_geometryRes = null;\n}`);
@@ -32,9 +32,9 @@ test("resource syntax normalizes to an object reference descriptor through type 
     for (const accessor of ["get", "set"])
     {
         const parsed = parseClassFile(`export class Fixture {
-            ${accessor === "get" ? "@types.resource(TriGeometryRes)" : ""}
+            ${accessor === "get" ? "@meta.type.resource(TriGeometryRes)" : ""}
             get geometry() { return this._geometryRes; }
-            ${accessor === "set" ? "@types.resource(TriGeometryRes)" : ""}
+            ${accessor === "set" ? "@meta.type.resource(TriGeometryRes)" : ""}
             set geometry(value) { this._geometryRes = value; }
         }`);
         assert.equal(parsed.fields.length, 1);
@@ -50,13 +50,13 @@ test("explicit resource descriptors survive emission and reports without native 
     ] });
     assert.equal(native.fields[0].kind, "objectRef");
     assert.equal(native.fields[0].type, undefined);
-    assert.doesNotMatch(renderClassFile(native, { js: true }), /@type\.resource/);
+    assert.doesNotMatch(renderClassFile(native, { js: true }), /@meta\.type\.resource/);
 
     const descriptor = { kind: "objectRef", className: "TriGeometryRes", runtimeOnly: true };
     const expected = { ...native, fields: [{ ...native.fields[0], type: descriptor }] };
     const snapshot = structuredClone(expected);
     const source = renderClassFile(expected, { js: true });
-    assert.match(source, /@type\.resource\("TriGeometryRes"\)/);
+    assert.match(source, /@meta\.type\.resource\("TriGeometryRes"\)/);
     assert.deepEqual(expected, snapshot, "canonical projection does not mutate an explicit input record");
     const parsed = parseClassFile(source);
     const result = compareClass(expected, parsed, { strict: true });
@@ -68,7 +68,7 @@ test("explicit resource descriptors survive emission and reports without native 
 
     const ordinary = { ...native, fields: [{ ...native.fields[0], type: { ...descriptor, runtimeOnly: false } }] };
     const ordinarySource = renderClassFile(ordinary, { js: true });
-    assert.match(ordinarySource, /@type\.objectRef\("TriGeometryRes"\)/);
+    assert.match(ordinarySource, /@meta\.type\.objectRef\("TriGeometryRes"\)/);
     assert.equal(compareClass(ordinary, parseClassFile(ordinarySource), { strict: true }).summary.drift, false);
 });
 
@@ -82,7 +82,7 @@ test("resource comparisons reject marker loss, accidental runtime-only reference
     const source = renderClassFile(expected, { js: true });
     for (const strict of [false, true])
     {
-        const lost = compareClass(expected, parseClassFile(source.replace("@type.resource", "@type.objectRef")), { strict });
+        const lost = compareClass(expected, parseClassFile(source.replace("@meta.type.resource", "@meta.type.objectRef")), { strict });
         assert.equal(lost.summary.typeMismatch, 1);
         assert.equal(lost.summary.drift, true);
         assert.match(lost.fields[0].notes.join(" "), /runtime-only reference differs/);
@@ -151,7 +151,7 @@ test("verified raw layouts survive both schema inputs and list/array decorator r
                 assert.equal(compareClass(expected, parsed, { strict: true }).summary.drift, false);
                 assert.deepEqual(compareClass(expected, parsed).fields[0].expected.structure, structure);
                 assert.deepEqual(compareClass(expected, parsed).fields[0].actual.structure, structure);
-                assert.equal(compareClass(expected, parseClassFile(source.replaceAll("@type.", "@types.")), { strict: true }).summary.drift, false);
+                assert.equal(compareClass(expected, parseClassFile(source.replaceAll("@meta.type.", "@meta.type.")), { strict: true }).summary.drift, false);
 
                 const options = `, ${JSON.stringify({ structure })}`;
                 assert.equal(compareClass(expected, parseClassFile(source.replace(options, `, { structure: ${JSON.stringify(structure)} }`)), { strict: true }).summary.drift, false);
@@ -186,7 +186,7 @@ test("ordinary reference collections retain one argument without an inferred nat
         attributes: [{ blueName: "children", cppType: "std::vector<ChildPtr>", black: { wireType: "container", container: "list" } }] });
     assert.equal(expected.fields[0].structure, undefined);
     const source = renderClassFile(expected, { js: true });
-    assert.match(source, /@type\.list\("Child"\)/);
+    assert.match(source, /@meta\.type\.list\("Child"\)/);
     assert.doesNotMatch(source, /rawStruct|structure/);
     assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
     const layout = DEFAULT_FIELD_RESOLUTIONS.Tr2Effect.options.wire.structure;
@@ -646,12 +646,12 @@ test("emitted math fields import the combined runtime math subpath", () =>
 test("renamed Blue methods require Carbon provenance and one implementation status", () =>
 {
     const parsed = parseClassFile(`
-        @type.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ className: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
-            @carbon.renamed("SetPlacement")
-            @impl.adapted
-            @impl.reason("Web Audio placement seam.")
+            @meta.blue.renamed("SetPlacement")
+            @meta.adapted
+            @meta.reason("Web Audio placement seam.")
             SetPlacement()
             {
                 return true;
@@ -667,7 +667,7 @@ test("renamed Blue methods require Carbon provenance and one implementation stat
 test("method checking distinguishes missing, unexposed, and incomplete methods", () =>
 {
     const missing = compareClass(MakeExpectedMethods(), parseClassFile(`
-        @type.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ className: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
         }
@@ -676,7 +676,7 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
     assert.equal(missing.summary.drift, true);
 
     const unexposed = compareClass(MakeExpectedMethods(), parseClassFile(`
-        @type.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ className: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
             SetPlacement()
@@ -688,11 +688,11 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
     assert.equal(unexposed.summary.existingUnexposedMethod, 1);
 
     const incomplete = compareClass(MakeExpectedMethods(), parseClassFile(`
-        @type.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ className: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
-            @carbon.renamed("SetPlacement")
-            @impl.adapted
+            @meta.blue.renamed("SetPlacement")
+            @meta.adapted
             SetPlacement()
             {
                 return true;
@@ -703,10 +703,10 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
     assert.match(incomplete.methods[0].notes.join(" "), /requires an explanation in the method JSDoc/);
 
     const missingStatus = compareClass(MakeExpectedMethods(), parseClassFile(`
-        @type.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ className: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
-            @carbon.renamed("SetPlacement")
+            @meta.blue.renamed("SetPlacement")
             SetPlacement()
             {
                 return true;
@@ -717,12 +717,12 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
     assert.match(missingStatus.methods[0].notes.join(" "), /exactly one implementation-status/);
 
     const multipleStatuses = compareClass(MakeExpectedMethods(), parseClassFile(`
-        @type.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ className: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
-            @carbon.renamed("SetPlacement")
-            @impl.implemented
-            @impl.notSupported
+            @meta.blue.renamed("SetPlacement")
+            @meta.implemented
+            @meta.notSupported
             SetPlacement()
             {
                 return true;
@@ -736,18 +736,18 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
 test("additional Carbon methods are informative rather than Blue schema drift", () =>
 {
     const parsed = parseClassFile(`
-        @type.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ className: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
-            @carbon.renamed("SetPlacement")
-            @impl.implemented
+            @meta.blue.renamed("SetPlacement")
+            @meta.implemented
             SetPlacement()
             {
                 return true;
             }
 
-            @carbon.method
-            @impl.implemented
+            @meta.blue.method
+            @meta.implemented
             GetFront()
             {
                 return null;
@@ -769,7 +769,7 @@ test("the define metadata is read from the decorator and from the call form alik
     // that reads only the decorator sees the whole layer as undeclared.
     const decorated = parseClassFile([
         "import { type } from \"#schema\";",
-        "@type.define({ className: \"Tr2Thing\", family: \"trinity\" })",
+        "@meta.define({ className: \"Tr2Thing\", family: \"trinity\" })",
         "export class Tr2Thing {}"
     ].join("\n"));
 
@@ -801,7 +801,7 @@ test("a declared donor is read, and a qualified one keeps only its class", () =>
     assert.equal(suffixed.define.modelledOn, null);
 
     const qualified = parseClassFile([
-        "@type.define({ className: \"CjsBitmapDimensions\", carbon: \"ImageIO::BitmapDimensions\" })",
+        "@meta.define({ className: \"CjsBitmapDimensions\", carbon: \"ImageIO::BitmapDimensions\" })",
         "export class CjsBitmapDimensions {}"
     ].join("\n"));
 
@@ -815,7 +815,7 @@ test("modelledOn is read separately, because it is the opposite claim", () =>
     // two surfaces. Collapsing them would make a declined port look like a
     // failed one.
     const parsed = parseClassFile([
-        "@type.define({ className: \"CjsWebgpuWorkQueue\", modelledOn: \"MetalWorkQueue\" })",
+        "@meta.define({ className: \"CjsWebgpuWorkQueue\", modelledOn: \"MetalWorkQueue\" })",
         "export class CjsWebgpuWorkQueue {}"
     ].join("\n"));
 
@@ -940,19 +940,19 @@ test("a base Carbon never exposes takes its flags from the subclasses that do", 
     assert.deepEqual(byName.profile.editFlagConflict.map(item => item.exposers), [ [ "FixturePointLight" ], [ "FixtureSpotLight" ] ]);
 
     const result = compareClass(expected, parseClassFile(`
-@type.define({ className: "FixtureLight" })
+@meta.define({ className: "FixtureLight" })
 export class FixtureLight
 {
-    @edit.readwrite
-    @edit.persist
-    @type.float32
+    @meta.blue.readwrite
+    @meta.blue.persist
+    @meta.type.float32
     radius = 0;
 
-    @edit.readwrite
-    @type.float32
+    @meta.blue.readwrite
+    @meta.type.float32
     profile = 0;
 
-    @type.float32
+    @meta.type.float32
     hidden = 0;
 }
 `));
@@ -966,21 +966,21 @@ test("edit flags are compared as a set, reporting missing and extra flags", () =
 {
     const expected = deriveExpectedFields(MakeEditFlagDoc());
     const result = compareClass(expected, parseClassFile(`
-        @type.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ className: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
-            @edit.readwrite
-            @edit.persist
-            @type.float32
+            @meta.blue.readwrite
+            @meta.blue.persist
+            @meta.type.float32
             persisted = 0;
 
-            @edit.notify
-            @edit.persist
-            @type.float32
+            @meta.blue.notify
+            @meta.blue.persist
+            @meta.type.float32
             edited = 0;
 
-            @edit.persistOnly
-            @type.float32
+            @meta.blue.persistOnly
+            @meta.type.float32
             stored = 0;
         }
     `));
@@ -997,17 +997,17 @@ test("emitted classes carry the decorators for the exact flag set", () =>
     const doc = MakeEditFlagDoc();
     const source = renderClassFile(deriveExpectedFields(doc), { doc, js: true });
 
-    assert.match(source, /@edit\.persist\n  @type\.float32\n  persisted/u);
-    assert.match(source, /@edit\.notify\n  @edit\.readwrite\n  @edit\.persist\n  @type\.float32\n  edited/u);
-    assert.match(source, /@edit\.persistOnly\n  @type\.float32\n  stored/u);
+    assert.match(source, /@meta\.blue\.persist\n  @meta\.type\.float32\n  persisted/u);
+    assert.match(source, /@meta\.blue\.notify\n  @meta\.blue\.readwrite\n  @meta\.blue\.persist\n  @meta\.type\.float32\n  edited/u);
+    assert.match(source, /@meta\.blue\.persistOnly\n  @meta\.type\.float32\n  stored/u);
 });
 
 test("method reasons accept attached JSDoc and retain legacy decorators", () =>
 {
     const sources = [
         `/** Adapted: Uses injected audio services. */
-        @carbon.renamed("SetPlacement")
-        @impl.adapted
+        @meta.blue.renamed("SetPlacement")
+        @meta.adapted
         SetPlacement() { return true; }`,
         `/**
          * Applies placement.
@@ -1017,17 +1017,17 @@ test("method reasons accept attached JSDoc and retain legacy decorators", () =>
          *
          * @returns {boolean} Completion.
          */
-        @carbon.renamed(
+        @meta.blue.renamed(
             "SetPlacement"
         )
-        @impl.adapted
+        @meta.adapted
         SetPlacement() { return true; }`,
         `/** Custom: Supplies a JavaScript-only entry point. */
-        @carbon.renamed("SetPlacement") @impl.custom
+        @meta.blue.renamed("SetPlacement") @meta.ours
         SetPlacement() { return true; }`,
-        `@carbon.renamed("SetPlacement")
-        @impl.adapted
-        @impl.reason("Legacy reason")
+        `@meta.blue.renamed("SetPlacement")
+        @meta.adapted
+        @meta.reason("Legacy reason")
         SetPlacement() { return true; }`
     ];
     for (const member of sources)
@@ -1061,8 +1061,8 @@ test("method reasons reject unrelated comments, wrong statuses and examples", ()
         const parsed = parseClassFile(`export class AudEmitter
         {
             ${prefix}
-            @carbon.renamed("SetPlacement")
-            @impl.adapted
+            @meta.blue.renamed("SetPlacement")
+            @meta.adapted
             SetPlacement() { return true; }
         }`);
         const method = parsed.methods.find(item => item.name === "SetPlacement");
@@ -1070,8 +1070,8 @@ test("method reasons reject unrelated comments, wrong statuses and examples", ()
     }
     const classDoc = parseClassFile(`/** Adapted: Class explanation. */
         export class AudEmitter {
-            @carbon.renamed("SetPlacement")
-            @impl.adapted
+            @meta.blue.renamed("SetPlacement")
+            @meta.adapted
             SetPlacement() { return true; }
         }`);
     assert.equal(classDoc.methods[0].hasReason, false);
@@ -1111,7 +1111,7 @@ test("stored and live ship declarations survive emission, parsing and comparison
     assert.match(source, /@meta\.property\("boosters"\)/);
     assert.match(source, /get boosters\(\)/);
     assert.match(source, /set boosters\(value\)/);
-    assert.match(source, /@impl\.notImplemented\s+get boosters/);
+    assert.match(source, /@meta\.notImplemented\s+get boosters/);
     assert.match(source, /FixtureShip\.SetBoosters is not implemented/);
     assert.deepEqual(parsed.fields.map(field => [field.role, field.name, field.key]), [
         ["member", "boosters", "_boosters"], ["property", "boosters", "boosters"]
@@ -1126,12 +1126,12 @@ test("stored and live ship declarations survive emission, parsing and comparison
     // Counterexample: the old emitter passed a field with merged flags and
     // silently omitted the setter. The role-aware checker must reject it.
     const merged = parseClassFile(`
-        @type.define({ className: "FixtureShip", family: "eve" })
+        @meta.define({ className: "FixtureShip", family: "eve" })
         export class FixtureShip extends CjsModel
         {
-            @edit.readwrite
-            @edit.persistOnly
-            @type.model("EveBoosterSet2")
+            @meta.blue.readwrite
+            @meta.blue.persistOnly
+            @meta.type.model("EveBoosterSet2")
             boosters = null;
         }
     `);
@@ -1150,12 +1150,12 @@ test("new namespace aliases retain stored member names, indices and live accesso
         {
             @meta.member("boosters", { index: 3 })
             @meta.edit.persistOnly
-            @types.model(EveBoosterSet2)
+            @meta.type.model(EveBoosterSet2)
             _boosters = null;
 
             @meta.property("boosters")
             @meta.edit.readwrite
-            @types.objectRef("EveBoosterSet2")
+            @meta.type.objectRef("EveBoosterSet2")
             get boosters() { return this._boosters; }
 
             @meta.property("boosters")
@@ -1171,7 +1171,7 @@ test("new namespace aliases retain stored member names, indices and live accesso
     const expected = deriveExpectedFields(MakeShipPropertyDoc());
     expected.fields[0].index = 3;
     assert.match(renderClassFile(expected, { js: true }), /@meta\.member\("boosters", \{ index: 3 \}\)/);
-    assert.equal(parseClassFile(`@types.define("Fixture") export class Fixture {}`).define.className, "Fixture");
+    assert.equal(parseClassFile(`@meta.define("Fixture") export class Fixture {}`).define.className, "Fixture");
 });
 
 test("a base's stored member does not hide a separately inherited live property", (t) =>
@@ -1205,9 +1205,9 @@ test("narrow and wide strings remain distinct through the generator pipeline", (
     const expected = deriveExpectedFields(doc);
     assert.deepEqual(expected.fields.map(field => field.kind), ["string", "wstring", "wstring", "wstring"]);
     const source = renderClassFile(expected, { doc, js: true });
-    assert.match(source, /@type\.wstring\s+prefix = "";/);
+    assert.match(source, /@meta\.type\.wstring\s+prefix = "";/);
     assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
-    const oldSource = source.replaceAll("@type.wstring", "@type.string");
+    const oldSource = source.replaceAll("@meta.type.wstring", "@meta.type.string");
     assert.equal(compareClass(expected, parseClassFile(oldSource), { strict: true }).summary.typeMismatch, 3);
 });
 
@@ -1224,9 +1224,9 @@ test("weak references retain their distinct type rather than becoming strong ref
     assert.equal(expected.fields[0].kind, "weakRef");
     assert.equal(expected.fields[0].typeArg, "FixtureShip");
     const source = renderClassFile(expected, { doc, js: true });
-    assert.match(source, /@type\.weakRef\("FixtureShip"\)/);
+    assert.match(source, /@meta\.type\.weakRef\("FixtureShip"\)/);
     assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
-    assert.equal(compareClass(expected, parseClassFile(source.replace("@type.weakRef", "@type.objectRef"))).summary.typeMismatch, 1);
+    assert.equal(compareClass(expected, parseClassFile(source.replace("@meta.type.weakRef", "@meta.type.objectRef"))).summary.typeMismatch, 1);
 });
 
 test("known method signatures survive derivation, comparison reports and emitted comments", () =>
@@ -1260,7 +1260,7 @@ test("property metadata on a setter names the whole getter/setter declaration", 
             get current() { return this._current; }
 
             @meta.property("boosters", { index: 2 })
-            @types.objectRef("FixtureChild")
+            @meta.type.objectRef("FixtureChild")
             @meta.edit.readwrite
             set current(value) { this._current = value; }
         }
@@ -1293,4 +1293,46 @@ test("generated classes default to no base and retain explicit base overrides", 
     const unresolved = renderClassFile(expected, { js: true, extendsClass: "NativeBase", extendsImportFor: () => null });
     assert.match(unresolved, /export class Fixture\s*\{/);
     assert.doesNotMatch(unresolved, /CjsModel|runtime\/model/);
+});
+
+
+test("compact namespaces preserve legacy parsed records and separate UI hints", () =>
+{
+    const legacy = `
+@type.define({ className: "CompactFixture", family: "trinity" })
+export class CompactFixture {
+  @meta.member("exposed") @type.float32 @edit.readwrite @edit.persist @edit.notify
+  _value = 1;
+  @meta.property("exposed") @type.float32 @edit.read @impl.implemented
+  get value() { return this._value; }
+  @type.resource("Texture") @edit.hidden
+  texture = null;
+  @type.int32 @type.enum("Options") @edit.flags
+  options = 0;
+  @type.list("Part") @edit.rpersist
+  parts = [];
+  /** Adapted: callback receives its context explicitly. */
+  @carbon.renamed("Apply") @carbon.contextual(["render"]) @impl.adapted
+  apply(context) {}
+  /** Custom: JavaScript host helper. */
+  @impl.custom
+  helper() {}
+}`;
+    const compact = legacy.replaceAll("@type.define", "@meta.define")
+        .replaceAll("@type.", "@meta.type.").replaceAll("@edit.", "@meta.blue.")
+        .replaceAll("@carbon.", "@meta.blue.").replaceAll("@impl.custom", "@meta.ours")
+        .replaceAll("@impl.", "@meta.");
+    assert.deepEqual(parseClassFile(compact), parseClassFile(legacy));
+    const hints = parseClassFile(`export class Hints {
+      @meta.type.float32 @meta.ui.hidden @meta.ui.readOnly
+      value = 0;
+    }`).fields[0];
+    assert.equal(hints.hasIo, false);
+    assert.deepEqual(hints.editFlags, []);
+    const adapted = parseClassFile(compact).methods.find(method => method.name === "apply");
+    assert.deepEqual(adapted.carbonOriginalNames, ["Apply"]);
+    assert.equal(adapted.hasReason, true);
+    assert.equal(parseClassFile(compact.replace("@meta.adapted", "")).methods.find(method => method.name === "apply").hasImpl, false);
+    assert.equal(parseClassFile(compact.replace('@meta.blue.renamed("Apply")', "")).methods.find(method => method.name === "apply").hasCarbon, false);
+    assert.deepEqual(parseClassFile(compact).methods.find(method => method.name === "helper").implStatusNames, ["custom"]);
 });
