@@ -387,7 +387,11 @@ export class CjsToolSofCatalog
         return this.#sof.InspectDna(RequireDna(dna));
     }
 
-    /** Loads one DNA's indexed named-catalog closure before inspecting it. */
+    /**
+     * Loads essential root records and the optional layout closure. Runtime
+     * reports failed layout resources at their own paths and retains siblings;
+     * only essential failures reject inspection and become whole-DNA errors.
+     */
     async InspectDnaAsync(dna)
     {
         const value = RequireDna(dna);
@@ -447,7 +451,7 @@ export class CjsToolSofCatalog
 
     /**
      * Builds the recommended SOF boundary: one plain model-values graph that is
-     * directly valid `CjsModel` input.
+     * directly valid `CjsSchema.from` input.
      *
      * The document form this sits beside is not. It addresses shared nodes with
      * `{ $ref: id }` into a flat node table, and nothing in the model or values
@@ -459,7 +463,7 @@ export class CjsToolSofCatalog
      * No class registry is supplied or needed. The runtime SOF layer emits JSON, so this
      * route resolves no class names and imports no graph library; a consumer
      * that wants objects builds them from the answer with
-     * `RootClass.from(values)` against its own classes.
+     * `CjsSchema.from(values._type, values)` against its own classes.
      */
     async BuildValuesAsync(dna, options = {})
     {

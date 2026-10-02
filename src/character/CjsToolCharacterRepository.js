@@ -1,3 +1,4 @@
+import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import fs from "node:fs/promises";
 
 import { CjsCharacterLibraryManager } from "@carbonenginejs/runtime/character";
@@ -187,7 +188,7 @@ export class CjsToolCharacterRepository
             sourceBuild: build,
             generatedAt: new Date().toISOString()
         }, { targets: this.#targets });
-        const values = library.GetValues({ refs: true });
+        const values = CjsSchema.getValues(library, {}, { refs: true });
 
         await this.#cache.WriteCustomLibrary({
             target: target.id,

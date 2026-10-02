@@ -1,3 +1,4 @@
+import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -83,10 +84,10 @@ test("target-aware character builds delegate to the runtime-owned schema", () =>
         library.Get("characterPartSources", "female/hair/sample")
     );
     assert.deepEqual(
-        CjsCharacterLibrary.from(JSON.parse(JSON.stringify(
-            library.GetValues({ refs: true })
-        ))).GetValues({ refs: true }),
-        library.GetValues({ refs: true })
+        CjsSchema.getValues(CjsCharacterLibrary.from(JSON.parse(JSON.stringify(
+            CjsSchema.getValues(library, {}, { refs: true })
+        ))), {}, { refs: true }),
+        CjsSchema.getValues(library, {}, { refs: true })
     );
 });
 

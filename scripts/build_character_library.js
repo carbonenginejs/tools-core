@@ -1,3 +1,4 @@
+import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -148,7 +149,7 @@ async function Main(argv)
             sourceBuild,
             generatedAt: options.generatedAt,
         });
-    const data = CjsCharacterLibrary.from(builtValues).GetValues({ refs: true });
+    const data = CjsSchema.getValues(CjsCharacterLibrary.from(builtValues), {}, { refs: true });
     const artifact = options.out
         ? await CjsToolLibraryArtifact.write(path.resolve(options.out), data, {
             compact: options.compact,
@@ -304,7 +305,7 @@ function AddPreparedCatalogAdditions(library, gathered, { target, sourceBuild })
     }
 
     return {
-        data: library.GetValues({ refs: true }),
+        data: CjsSchema.getValues(library, {}, { refs: true }),
         additions,
     };
 }

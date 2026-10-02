@@ -1,3 +1,4 @@
+import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import fs from "node:fs/promises";
 import http from "node:http";
 
@@ -3042,7 +3043,7 @@ export class CjsToolHttpProxy
         if (!segments.length
             || (segments.length === 1 && segments[0].toLowerCase() === "library.json"))
         {
-            WriteJson(response, 200, library.GetValues({ refs: true }), headers);
+            WriteJson(response, 200, CjsSchema.getValues(library, {}, { refs: true }), headers);
 
             return;
         }

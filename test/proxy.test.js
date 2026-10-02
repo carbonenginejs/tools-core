@@ -661,29 +661,15 @@ test("serves the combined schema-v11 character document", async context =>
         sourceTarget: "eve",
         sourceBuild: "3450001",
     });
-    const installed = CjsCharacterLibrary.from(values);
-    let exportCount = 0;
-    const library = new Proxy(installed, {
-        get(target, property)
-        {
-            if (property === "GetValues")
-            {
-                return (...args) =>
-                {
-                    exportCount++;
-                    return target.GetValues(...args);
-                };
-            }
-
-            return Reflect.get(target, property, target);
-        },
-    });
+    const library = CjsCharacterLibrary.from(values);
+    let openCount = 0;
     const proxy = new CjsToolHttpProxy({
         characters: {
             async OpenTarget(target, build)
             {
                 assert.equal(target, "eve");
                 assert.equal(build, "3450001");
+                openCount++;
 
                 return library;
             },
@@ -737,7 +723,7 @@ test("serves the combined schema-v11 character document", async context =>
     assert.equal(wholeLibrary.sourceTarget, "eve");
     assert.equal(wholeLibrary.documents.characterResources[0].typeID, "9001");
     assert.deepEqual(await alias.json(), wholeLibrary);
-    assert.equal(exportCount, 2);
+    assert.equal(openCount, 2);
     const hydrated = CjsCharacterLibrary.from(wholeLibrary);
 
     hydrated.Reindex();
