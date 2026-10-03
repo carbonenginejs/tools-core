@@ -117,6 +117,13 @@ database it has. See the SDE section of the local HTTP route reference.
 
 ## Bound resident build memory
 
+Bulk SDE views used by DNA lookup and generated libraries retain only English
+`name`, `description`, `displayName`, `quote`, and `quoteAuthor` translations.
+Rows are parsed one at a time, so loading does not also retain an entire table
+of JSON strings. Missing English translations remain absent; another language
+is not presented as English. The SQLite SDE stays complete, and direct table
+queries still supply the original languages for localisation matching.
+
 The launcher uses one shared expiry timer for resource sources, SOF and derived
 answer catalogs, SDE handles, topic composers, and audio/character libraries.
 Disk cache files remain available for transparent reopening. Independent

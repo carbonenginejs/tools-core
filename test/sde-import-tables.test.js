@@ -4,7 +4,53 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
-import { CjsToolSde, CjsToolSdeDatabase } from "../src/sde/index.js";
+import { CjsToolSde, CjsToolSdeDatabase, CjsToolSdeSource } from "../src/sde/index.js";
+
+test("service bulk views retain only English while stored SDE translations remain available", async context =>
+{
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cjs-sde-english-"));
+    const file = path.join(directory, "sde.sqlite");
+    const database = await CjsToolSdeDatabase.create(file);
+    context.after(async () =>
+    {
+        await database.Close();
+        fs.rmSync(directory, { recursive: true, force: true });
+    });
+    const record = {
+        name: { en: "Rifter", zh: "Chinese name", de: "German name" },
+        description: { en: "English description", zh: "Chinese description" },
+        displayName: { en: "English display", fr: "French display" },
+        quote: { en: "English quote", ja: "Japanese quote" },
+        quoteAuthor: { en: "English author", ko: "Korean author" },
+        graphicID: 1,
+        groupID: 25,
+        published: true,
+        attributes: { zh: 12, en: 34 },
+        nested: [ { name: { en: "Nested English", ru: "Nested Russian" } } ],
+    };
+    await database.ImportTables({ types: {
+        1: record,
+        2: { name: { zh: "No English" }, description: null },
+        3: { name: "Plain name", description: [ "Unlocalized array" ] },
+    }, graphics: { 1: { sofHullName: "rifter", sofFactionName: "minmatarbase", sofRaceName: "minmatar" } } }, { build: 1 });
+    const source = new CjsToolSdeSource(database, { target: "eve", build: "1" });
+    const loaded = await source.LoadTables([ "types", "missing" ]);
+    assert.deepEqual(loaded.types[1], {
+        ...record,
+        name: { en: "Rifter" },
+        description: { en: "English description" },
+        displayName: { en: "English display" },
+        quote: { en: "English quote" },
+        quoteAuthor: { en: "English author" },
+        nested: [ { name: { en: "Nested English" } } ],
+    });
+    assert.deepEqual(loaded.types[2], { name: {}, description: null });
+    assert.deepEqual(loaded.types[3], { name: "Plain name", description: [ "Unlocalized array" ] });
+    assert.deepEqual(loaded.missing, {});
+    assert.equal((await source.Resolve({ typeID: 1 })).dna, "rifter:minmatarbase:minmatar");
+    assert.deepEqual((await source.Table("types").Get("1")).payload, record);
+    assert.deepEqual((await database.LoadTables([ "types" ])).types[1], record);
+});
 
 function CreateDatabasePath()
 {
