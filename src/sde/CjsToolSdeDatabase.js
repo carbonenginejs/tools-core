@@ -17,6 +17,7 @@ const TableNamePattern = /^[A-Za-z0-9_]+$/u;
 const FieldNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/u;
 const RECORD_ORDER = "CASE WHEN record_id NOT GLOB '*[^0-9]*' "
     + "THEN 0 ELSE 1 END, CAST(record_id AS INTEGER), record_id";
+const LOCALIZED_FIELDS = new Set([ "name", "description", "displayName", "quote", "quoteAuthor" ]);
 
 /** Exact-build SQLite store for every table in an official EVE SDE archive. */
 export class CjsToolSdeDatabase
@@ -435,8 +436,18 @@ export class CjsToolSdeDatabase
         return new CjsToolSdeTable(this.#database, NormalizeTableName(name));
     }
 
-    /** Loads selected tables into the existing in-memory CjsToolSde input shape. */
-    async LoadTables(names)
+    /**
+     * Loads selected tables into the existing in-memory CjsToolSde input shape.
+     *
+     * English-only views discard other translations while each row is parsed.
+     * Iteration avoids retaining a second full table of serialized payloads.
+     * Stored rows and direct table queries preserve the original languages.
+     *
+     * @param {Array<String>} names Table names.
+     * @param {Object} [options] Bulk-view options.
+     * @param {Boolean} [options.englishOnly=false] Keep only English localized fields.
+     */
+    async LoadTables(names, { englishOnly = false } = {})
     {
         if (!Array.isArray(names) || !names.length)
         {
@@ -448,17 +459,23 @@ export class CjsToolSdeDatabase
 
         for (const name of names.map(NormalizeTableName))
         {
-            const rows = await All(
-                this.#database,
+            const statement = this.#database.prepare(
                 "SELECT record_id AS id, payload FROM sde_rows "
                     + `WHERE table_name = ? ORDER BY ${RECORD_ORDER}`,
-                [ name ],
             );
+            const records = {};
 
-            output[name] = Object.fromEntries(rows.map(row => [
-                row.id,
-                ParseStoredJson(row.payload, `${name} ${row.id}`),
-            ]));
+            for (const row of statement.iterate(name))
+            {
+                Object.defineProperty(records, row.id, {
+                    value: ParseStoredJson(row.payload, `${name} ${row.id}`, englishOnly ? EnglishField : undefined),
+                    enumerable: true,
+                    configurable: true,
+                    writable: true,
+                });
+            }
+
+            output[name] = records;
         }
 
         return output;
@@ -966,11 +983,22 @@ function SerializeRow(table, row)
     });
 }
 
-function ParseStoredJson(value, label)
+/** Narrows localized SDE fields for English-only bulk consumers without a language fallback. */
+function EnglishField(key, value)
+{
+    if (!LOCALIZED_FIELDS.has(key) || value === null || typeof value !== "object" || Array.isArray(value))
+    {
+        return value;
+    }
+
+    return Object.hasOwn(value, "en") ? { en: value.en } : {};
+}
+
+function ParseStoredJson(value, label, reviver = undefined)
 {
     try
     {
-        return JSON.parse(value);
+        return JSON.parse(value, reviver);
     }
     catch (error)
     {

@@ -524,10 +524,15 @@ export class CjsToolSdeSource
         return this.#database.Table(name);
     }
 
-    /** Loads selected tables for specialized in-memory helpers. */
+    /**
+     * Loads English-only tables for specialized in-memory helpers.
+     *
+     * DNA and generated website libraries do not need other translations.
+     * Direct Table queries retain them for localisation matching and inspection.
+     */
     async LoadTables(names)
     {
-        return this.#database.LoadTables(names);
+        return this.#database.LoadTables(names, { englishOnly: true });
     }
 
     /**
