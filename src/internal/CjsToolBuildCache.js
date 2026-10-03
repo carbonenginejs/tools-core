@@ -122,7 +122,10 @@ export class CjsToolBuildCache
     /** Protects the complete handler, including asynchronous source adoption. */
     async Run(operation)
     {
-        while (this.#maintenance) await this.#maintenance;
+        // A queued sweep must not put unrelated requests behind a slow fetch.
+        // Once active handlers drain, the barrier excludes new owners until
+        // retirement completes. While they are still active, handles stay open.
+        while (this.#maintenance && this.#active === 0) await this.#maintenance;
         if (this.#closed) throw new Error("Build cache is closed");
         this.#active++;
         try

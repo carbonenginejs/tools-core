@@ -147,7 +147,8 @@ window applies until a total budget is exceeded.
 
 Expiry runs first, then the total budgets retire the least recently accessed
 units. Budget retirement removes a current resource/SDE pair together. Maintenance
-waits for active HTTP handlers to finish and holds new handlers until retirement
+waits for active HTTP handlers to finish without blocking other requests behind
+a slow fetch. Once handlers drain, it holds new handlers until retirement
 completes. It removes dependent topic references before closing database handles,
 including localisation references to another target. The next request reopens
 what it needs. Timer intervals and active requests may delay expiry; limits
