@@ -50,7 +50,6 @@
  * which is a different question with a different answer — the observation log
  * holds the facts, and this decides when to add to it.
  *
- * @see /docs/internal/decisions/build-authority.md
  */
 
 /** The publish window, in UTC hours. EVE time is UTC. */

@@ -45,7 +45,6 @@
  * `since` and `note` are not optional in spirit. A pin outliving its reason is
  * the likely rot here, and a pin with no date cannot be reported as stale.
  *
- * @see /docs/internal/decisions/build-authority.md
  */
 import fs from "node:fs/promises";
 import path from "node:path";

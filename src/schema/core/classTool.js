@@ -4218,7 +4218,7 @@ export function renderClassFile(expected, options = {})
     // KNOWN DEFECT: this inlines a SECOND frozen object for a vocabulary the
     // class does not own - the same one renderEnums() writes into the family's
     // enums.js. That is what minted the 85 duplicate enum identities collapsed
-    // out of the Trinity layer on 2026-08-10 (docs/standards/enum-placement.md),
+    // out of the Trinity layer on 2026-08-10
     // and a regen over that tree will mint them again.
     //
     // The fix is the import route below, which already emits the correct

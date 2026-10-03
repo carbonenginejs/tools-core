@@ -13,9 +13,8 @@ import { CjsToolBuildPolicy, REASONS } from "./CjsToolBuildPolicy.js";
  * rediscovered the same facts — which is how `latest` came to mean a different
  * build per facet, silently, and for a while a different *world*.
  *
- * See `/docs/internal/decisions/build-authority.md`. This is the service that
- * page proposes; the measurements and the argument are there rather than
- * repeated here.
+ * This service owns that sequence once, so every caller resolves `latest` to
+ * the same build.
  *
  * ## It does not know how to reach a remote
  *

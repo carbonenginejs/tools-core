@@ -48,8 +48,6 @@
  * `at` and `released` are different facts and both are kept. A build observed
  * late still says when it was published, which is what makes the publish window
  * measurable from history rather than from a live watch.
- *
- * @see /docs/internal/decisions/build-authority.md
  */
 import fs from "node:fs/promises";
 import path from "node:path";
