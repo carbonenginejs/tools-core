@@ -53,7 +53,7 @@ test("idle expiry closes SDE handles and the next HTTP request reopens them", as
     assert.notEqual(reopened, source);
 });
 
-test("expiry waits for in-flight requests and blocks new ones until handles close", async () =>
+test("queued expiry admits requests while active handlers still own their handles", async () =>
 {
     let now = 0;
     let release;
@@ -77,14 +77,39 @@ test("expiry waits for in-flight requests and blocks new ones until handles clos
     const next = memory.Run(() =>
     {
         nextEntered = true;
-        assert.equal(closed, 1);
+        assert.equal(closed, 0);
     });
     await Promise.resolve();
-    assert.equal(nextEntered, false);
+    assert.equal(nextEntered, true, "a slow request must not hold unrelated requests behind expiry");
     assert.equal(closed, 0);
     release();
     await Promise.all([active, sweeping, next]);
     assert.equal(owners.size, 0);
+    await memory.Close();
+});
+
+test("actual handle retirement blocks new requests until asynchronous close finishes", async () =>
+{
+    let release;
+    let closing;
+    let now = 0;
+    const began = new Promise(resolve => { closing = resolve; });
+    const gate = new Promise(resolve => { release = resolve; });
+    const memory = new CjsToolBuildCache({ idleMs: 1, now: () => now });
+    const owners = memory.CreateMap("sources", key => ["eve", key], {
+        close: async () => { closing(); await gate; },
+    });
+    owners.set("1", {});
+    now = 2;
+    const sweeping = memory.Sweep();
+    await began;
+    let entered = false;
+    const next = memory.Run(() => { entered = true; });
+    await Promise.resolve();
+    assert.equal(entered, false, "closed handles cannot be adopted during retirement");
+    release();
+    await Promise.all([sweeping, next]);
+    assert.equal(entered, true);
     await memory.Close();
 });
 
