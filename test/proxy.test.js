@@ -404,6 +404,7 @@ test("answers browser CORS preflight without an authentication contract", async 
             "Accept-Language",
             "Content-Type",
             "If-None-Match",
+            "If-Range",
             "Range",
         ].join(", "),
     );
@@ -1305,7 +1306,7 @@ test("redirects a build-shaped resource to its immutable content address", async
     // (7b6ab7b); ?gzip=false is the escape hatch back to the raw one.
     assert.equal(redirected.status, 302);
     assert.equal(redirected.headers.get("location"), `/resfiles/${address}.gz`);
-    assert.equal(redirected.headers.get("vary"), "accept-encoding");
+    assert.equal(redirected.headers.get("vary"), "accept-encoding, range");
     assert.equal(redirected.headers.get("x-carbon-resfile"), address);
     const raw = await fetch(`${origin}/eve/88/res/${shaderPath}?gzip=false`, { redirect: "manual" });
     assert.equal(raw.headers.get("location"), `/resfiles/${address}`);

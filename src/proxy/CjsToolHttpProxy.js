@@ -70,6 +70,7 @@ const CORS_HEADERS = ALLOW_ORIGIN === "none" ? Object.freeze({}) : Object.freeze
         "Accept-Language",
         "Content-Type",
         "If-None-Match",
+        "If-Range",
         "Range",
     ].join(", "),
     "access-control-allow-private-network": "true",
@@ -955,7 +956,10 @@ export class CjsToolHttpProxy
                         "x-carbon-storage-kind": file.resolution.storageKind,
                     } : {}),
                     ...(format === null
-                        ? CreateResourceCacheHeaders(targetRoute.build, file.resolution, refresh)
+                        ? {
+                            "accept-ranges": "bytes",
+                            ...CreateResourceCacheHeaders(targetRoute.build, file.resolution, refresh),
+                        }
                         : {}),
                 };
 
@@ -1002,7 +1006,11 @@ export class CjsToolHttpProxy
                     // `?gzip=false` is the escape hatch for the awkward middle:
                     // something that advertises gzip because a library set the
                     // header for it, but wants the payload raw.
-                    const declined = url.searchParams.get("gzip") === "false";
+                    // Ranges requested through a logical path address the raw
+                    // payload, not offsets into a gzip stream. Keep that
+                    // representation across the redirect even for browsers.
+                    const declined = url.searchParams.get("gzip") === "false"
+                        || request.headers.range !== undefined;
                     const reads = /(^|,)\s*(gzip|\*)\s*(;|,|$)/iu
                         .test(String(request.headers["accept-encoding"] ?? ""));
 
@@ -1016,7 +1024,7 @@ export class CjsToolHttpProxy
                         // browser served the raw address loses compression
                         // silently, and a script served the `.gz` address gets
                         // bytes it cannot read.
-                        vary: "accept-encoding",
+                        vary: "accept-encoding, range",
                         location: `/resfiles/${address}${reads && !declined ? ".gz" : ""}`,
                     });
 
@@ -1044,7 +1052,7 @@ export class CjsToolHttpProxy
                     return;
                 }
 
-                WriteBytes(response, 200, file.bytes, headers);
+                WriteResourceBytes(request, response, file.bytes, headers);
 
                 return;
             }
@@ -1526,6 +1534,7 @@ export class CjsToolHttpProxy
             etag: encode ? `"${route.checksum}-gz"` : `"${route.checksum}"`,
             "x-carbon-artifact-kind": "hash-safe",
             "x-carbon-payload-store": payload.store,
+            "accept-ranges": "bytes",
             ...(encode ? { "content-encoding": "gzip" } : {}),
         };
 
@@ -1546,7 +1555,7 @@ export class CjsToolHttpProxy
             return;
         }
 
-        WriteBytes(response, 200, body, headers);
+        WriteResourceBytes(request, response, body, headers);
     }
 
     /** Serves the requested resource-index catalog as JSON. */
@@ -4153,7 +4162,7 @@ function ParseByteRange(value, totalByteLength)
 
 function CreateRangeError(totalByteLength)
 {
-    const error = new Error("Requested audio byte range is not satisfiable");
+    const error = new Error("Requested byte range is not satisfiable");
 
     error.statusCode = 416;
     error.headers = Number.isSafeInteger(totalByteLength) && totalByteLength >= 0
@@ -4744,6 +4753,45 @@ function WriteJson(response, statusCode, value, headers = {})
         ...headers,
     });
     response.end(body);
+}
+
+/**
+ * Serves a whole validated resource or one byte range without copying the
+ * entire payload to extract a short header. Acquisition still validates the
+ * whole indexed payload; this only bounds the outgoing HTTP body.
+ *
+ * Call after conditional GET handling. Only GET reaches this helper; HEAD
+ * retains the full representation's length. These routes have no reliable
+ * Last-Modified timestamp, so If-Range requires an exact strong ETag.
+ */
+function WriteResourceBytes(request, response, value, headers)
+{
+    const requested = String(request.headers.range ?? "").trim();
+    const validator = request.headers["if-range"];
+    const matches = validator === undefined
+        || (headers.etag?.startsWith('"') && validator.trim() === headers.etag);
+    // Unknown range units are ignored (RFC 9110 section 14.2). Reuse the
+    // media routes' single-byte-range parser, including its rejection of
+    // malformed, multiple and unsatisfiable byte ranges.
+    const range = matches && /^bytes=/iu.test(requested)
+        ? ParseByteRange(`bytes=${requested.slice(6)}`, value.byteLength)
+        : null;
+
+    if (!range)
+    {
+        WriteBytes(response, 200, value, headers);
+
+        return;
+    }
+
+    const body = ArrayBuffer.isView(value)
+        ? Buffer.from(value.buffer, value.byteOffset + range.offset, range.byteLength)
+        : Buffer.from(value, range.offset, range.byteLength);
+
+    WriteBytes(response, 206, body, {
+        ...headers,
+        "content-range": `bytes ${range.offset}-${range.end}/${value.byteLength}`,
+    });
 }
 
 function WriteBytes(response, statusCode, value, headers = {})

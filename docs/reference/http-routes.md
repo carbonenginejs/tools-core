@@ -133,6 +133,53 @@ to its own 404 — or worse, to its `index.html`. The address is advertised as
 `x-carbon-resfile` on every resource response regardless, so a caller can adopt
 it without the redirect being on.
 
+### Resource byte ranges
+
+Raw file GETs under `res`, `app` and `resources`, and stored
+`/resfiles/` and `/appfiles/` payloads, accept one byte range. Successful file
+responses advertise `Accept-Ranges: bytes`. For a 1024-byte resource:
+
+| Request header | Status | Content-Range | Content-Length |
+| --- | --- | --- | --- |
+| `Range: bytes=0-147` | `206` | `bytes 0-147/1024` | `148` |
+| `Range: bytes=1000-` | `206` | `bytes 1000-1023/1024` | `24` |
+| `Range: bytes=-24` | `206` | `bytes 1000-1023/1024` | `24` |
+
+An end beyond the payload is clamped to its final byte; an oversized suffix
+selects the entire payload with `206`. Malformed, multiple or unsatisfiable
+byte ranges return the usual JSON error with `416` and
+`Content-Range: bytes */<full-length>`. Empty payloads have no satisfiable byte
+range. Unknown range units are ignored. An ordinary GET returns the complete
+payload with `200`, its full `Content-Length`, and no `Content-Range`.
+
+ETags, cache policy, content type and resource provenance headers remain those
+of the complete representation. A matching `If-None-Match` returns `304`
+before range evaluation. `If-Range` permits a partial response only for an
+exact strong ETag match; a weak, stale or date validator falls back to the
+whole `200` response. These routes do not publish a reliable `Last-Modified`
+timestamp. Browser preflight permits `If-Range` and `Range`; ETag and range
+response headers are exposed through CORS.
+
+With addressed redirects enabled, a request carrying `Range` redirects to the
+raw address even when it accepts gzip. Redirects vary on `Accept-Encoding` and
+`Range`. Explicit `.gz` addresses still select the gzip representation: byte
+offsets and total length refer to the **compressed** bytes, with its distinct
+ETag and `Content-Encoding: gzip`. Use the raw address to inspect DDS headers;
+a fragment of gzip is generally not independently decodable. This follows
+[HTTP byte-range semantics](https://www.rfc-editor.org/rfc/rfc9110.html#section-14.1.2).
+
+Stored-address HEAD requests ignore Range and return the full length without
+a body. Build-shaped resource routes remain GET-only. Directory/catalog JSON,
+singular `/resource/` metadata and `?format=json` responses do not apply ranges.
+Existing route failures and conditional responses take precedence over range
+processing.
+
+Ranges bound the HTTP response, not acquisition or cache I/O. The current
+index/cache sources expose whole payloads, so a cold-cache acquisition still
+downloads the complete file for size and checksum validation; cache hits still
+read/decompress the complete stored payload. Partial bytes are never installed
+as a validated cache entry.
+
 ### Describing a target
 
 `/<target>/metadata` answers what a target is, and which build each of its
