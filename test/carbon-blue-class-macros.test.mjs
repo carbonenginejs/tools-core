@@ -102,7 +102,7 @@ test("Black definitions resolve unqualified class-scope structs and CcpMath::Sph
         reviewNotes: []
     });
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-09-20T00:00:00.000Z",
         enums: [],
         families: [ {

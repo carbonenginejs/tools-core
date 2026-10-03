@@ -89,7 +89,7 @@
     "schema:build": "node scripts/build_carbon_schema.js scripts/carbon-blue/reports/latest.json scripts/carbon-blue/reports/trinity-root-latest.json --clean",
     "schema:generate": "npm run scan && npm run scan:trinity && npm run schema:build && npm run schema:pack && npm run schema:black",
     "schema:black": "node bin/cjs-carbon-schema.js .scratch/schema-build --black-out definitions --black-module src/schema/core/blackDefinitions.js --quiet",
-    "lint": "node lint_package.js",
+    "lint": "node lint_package.js && node scripts/lint-private-references.js",
     "test": "node --test",
     "check": "npm run lint && npm test",
     "schema:pack": "node scripts/pack_carbon_schema.js",

@@ -14,7 +14,7 @@ const moduleFile = fileURLToPath(new URL("../src/schema/core/blackDefinitions.js
 function writeReport(file, cppType, generatedAt = "2026-09-20T00:00:00.000Z")
 {
     fs.writeFileSync(file, JSON.stringify({
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt,
         enums: [],
         families: [ {

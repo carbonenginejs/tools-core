@@ -58,7 +58,7 @@ function nameForRole(field, role)
 }
 
 const sampleReport = {
-    carbonRoot: "E:/carbonengine",
+    carbonRoot: "/carbonengine",
     generatedAt: "2026-07-02T06:41:19.041Z",
     enums: [
         {
@@ -202,7 +202,7 @@ const sampleReport = {
 function fieldResolutionReport(classInfo, family = "example")
 {
     return {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-15T00:00:00.000Z",
         enums: [],
         families: [{
@@ -865,7 +865,7 @@ test("field resolutions define nested FidelityFX CACAO float settings", () =>
 test("read records the C++ declaration owner for inherited Blue methods", () =>
 {
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-13T00:00:00.000Z",
         families: [
             {
@@ -1128,7 +1128,7 @@ test("read preserves source-backed defaults for indexed SOF applicable areas", (
         ["Glass", "TYPE_GLASS"]
     ];
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-13T00:00:00.000Z",
         families: [
             {
@@ -1224,7 +1224,7 @@ test("read expands EveChildInheritProperties colors from the Carbon source contr
         [ "PrimaryDockedFx", "PRIMARY_DOCKED_FX" ]
     ];
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-14T00:00:00.000Z",
         families: [
             {
@@ -1348,7 +1348,7 @@ test("inspect summarizes emitted schemas", () =>
         schemaVersion: 1,
         kind: "bundle",
         generatedAt: "2026-07-02T06:41:19.041Z",
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         families: 1,
         classes: 1,
         enums: 1
@@ -1449,7 +1449,7 @@ test("Black definitions flatten Carbon bases and retain empty concrete classes",
         line
     });
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-12T00:00:00.000Z",
         enums: [],
         families: [ {
@@ -1524,7 +1524,7 @@ test("Black definitions type a class-scope struct leaf by the leaf, not as an en
     // Scan reports name the struct `Outer.Inner`; the member's C++ type says
     // `Outer::Inner`. Tr2GpuUniqueEmitter.sizes decoded as a 4-byte enum.
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-09-19T00:00:00.000Z",
         enums: [],
         families: [ {
@@ -1618,7 +1618,7 @@ test("Black definitions follow Carbon's declared wire types over C++ guesses", (
         ...extra
     });
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-09-19T00:00:00.000Z",
         enums: [],
         families: [ {
@@ -1662,7 +1662,7 @@ test("Black definitions follow Carbon's declared wire types over C++ guesses", (
 test("read resolves nested members, enum catalog values, and bannerShader overrides from scan reports", () =>
 {
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-11T00:00:00.000Z",
         enums: [
             {
@@ -1981,7 +1981,7 @@ test("read resolves embedded-struct members across families from scan reports", 
         reviewNotes: []
     };
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-23T00:00:00.000Z",
         enums: [],
         families: [
@@ -2018,7 +2018,7 @@ test("read resolves embedded-struct members across families from scan reports", 
 test("read resolves flattened inline struct leaf fields from scan reports", () =>
 {
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-12T00:00:00.000Z",
         enums: [
             {
@@ -2460,7 +2460,7 @@ test("Black definitions inherit persisted fields only through the EXPOSURE_CHAIN
         line
     });
     const report = {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-24T00:00:00.000Z",
         enums: [],
         families: [ {

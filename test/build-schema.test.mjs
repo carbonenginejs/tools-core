@@ -53,7 +53,7 @@ function createFixture(root)
     const pass1Path = path.join(root, "reports", "pass1.json");
     const pass2Path = path.join(root, "reports", "pass2.json");
     writeJson(pass1Path, {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-19T00:00:00.000Z",
         summary: { families: 2 },
         enums: [
@@ -90,7 +90,7 @@ function createFixture(root)
         ]
     });
     writeJson(pass2Path, {
-        carbonRoot: "E:/carbonengine",
+        carbonRoot: "/carbonengine",
         generatedAt: "2026-07-19T00:00:01.000Z",
         summary: { families: 1 },
         enums: [
