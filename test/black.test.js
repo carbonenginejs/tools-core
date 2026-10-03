@@ -69,3 +69,11 @@ test("FetchJson rejects a source without Fetch", async () =>
         TypeError,
     );
 });
+
+test("CjsToolBlack registers runtime classes so struct lists resolve their layouts", async () =>
+{
+    const { CjsSchema } = await import("@carbonenginejs/runtime/schema");
+    // Tr2Effect.constParameters is a struct list whose layout lives on the class.
+    assert.ok(CjsSchema.GetConstructor("Tr2Effect"), "Tr2Effect must be registered before any Black read");
+    assert.ok(CjsSchema.GetConstructor("Tr2ConstantEffectParameter"));
+});
