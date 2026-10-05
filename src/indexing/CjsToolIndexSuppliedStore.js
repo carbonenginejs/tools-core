@@ -77,6 +77,32 @@ export class CjsToolIndexSuppliedStore
         );
     }
 
+    /**
+     * Where a supplied app file lives, for an `app:/` path.
+     *
+     * Most of an installed client is code, but a few app files are data a
+     * resource tree does not carry - EVE Frontier ships its celestials as
+     * `app:/bin64/staticdata/mapObjects.db` from build 3573151, after removing
+     * the map from `res:/staticdata`. Those are supplied with the indexes, under
+     * `<build>/app/` at their app path, so the path names the file it holds.
+     *
+     * @param {string} target Target identifier.
+     * @param {string|number} build Exact build.
+     * @param {string} appPath An `app:/` path.
+     * @returns {string} Absolute path; the file may not exist.
+     */
+    GetAppFilePath(target, build, appPath)
+    {
+        const relative = String(appPath).replace(/^app:\/+/iu, "");
+
+        if (relative === String(appPath) || relative.split(/[\\/]/u).includes(".."))
+        {
+            throw new TypeError(`Supplied app files are addressed by app:/ path: ${appPath}`);
+        }
+
+        return path.join(this.GetDirectory(target, build), "app", ...relative.split("/"));
+    }
+
     /** Every exact build supplied for one target, newest first. */
     async ListBuilds(target)
     {

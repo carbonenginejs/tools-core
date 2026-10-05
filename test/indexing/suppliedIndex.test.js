@@ -156,6 +156,16 @@ test("a supplied target with no store configured says so", async context =>
     );
 });
 
+test("a supplied app file lives under the build at its app path, and nothing else addresses one", () =>
+{
+    const store = new CjsToolIndexSuppliedStore(path.join(os.tmpdir(), "supplied-root"));
+    const file = store.GetAppFilePath("frontier", "3573151", "app:/bin64/staticdata/mapObjects.db");
+
+    assert.equal(file, path.join(store.GetDirectory("frontier", "3573151"), "app", "bin64", "staticdata", "mapObjects.db"));
+    assert.throws(() => store.GetAppFilePath("frontier", "3573151", "res:/staticdata/types.fsdbinary"), /app:\/ path/u);
+    assert.throws(() => store.GetAppFilePath("frontier", "3573151", "app:/../../escape.db"), /app:\/ path/u);
+});
+
 test("frontier is the target this exists for", () =>
 {
     const profiles = new CjsToolIndexTargetProfileRegistry(DefaultIndexProfileData);

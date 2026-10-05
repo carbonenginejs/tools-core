@@ -26,6 +26,9 @@ import {
     CjsToolIndexSuppliedStore,
 } from "../src/indexing/index.js";
 import { resolveDataRoot } from "../src/cache/resolveDataRoot.js";
+import { ProjectMapObjects } from "../src/sde/build/projectMapObjects.js";
+import Database from "better-sqlite3";
+import fs from "node:fs";
 import {
     CJS_DEFAULT_LANGUAGES,
     CJS_LOCALIZATION_FILES,
@@ -103,9 +106,10 @@ const cacheDirectory = options.cache ?? process.env.CJS_TOOL_CACHE ?? null;
 // A target whose resource index is supplied rather than discovered - Frontier
 // is the one today - cannot open at all without this store, because there is no
 // app index to read the file list out of.
+const supplied = new CjsToolIndexSuppliedStore(resolveDataRoot(options.data));
 const index = new CjsToolIndex({
     requestTimeoutMs: Number(options.timeout),
-    supplied: new CjsToolIndexSuppliedStore(resolveDataRoot(options.data)),
+    supplied,
     ...(cacheDirectory ? { cache: new CjsToolIndexCache({ directory: cacheDirectory }) } : {})
 });
 const source = await index.OpenTarget(options.target, options.build);
@@ -355,6 +359,37 @@ if (celestialFile)
     for (const table of [ "mapPlanets", "mapMoons", "mapAsteroidBelts", "mapStars", "mapStargates", "mapSecondarySuns" ])
     {
         projected[table] = celestials[table];
+    }
+}
+
+// EVE Frontier's celestials from build 3573151: SQLite shipped as an app file,
+// supplied with the indexes because the binaries host serves no app files.
+const mapObjectSources = new Map(profile.SourcesByContainer("mapobjects").map(entry => [ entry.path, entry ]));
+
+for (const descriptor of mapObjectSources.values())
+{
+    const file = supplied.GetAppFilePath(resolved.target, resolved.build, descriptor.path);
+
+    if (!fs.existsSync(file))
+    {
+        if (descriptor.required) throw new Error(`${descriptor.path} was not supplied for build ${resolved.build}: ${file}`);
+
+        process.stdout.write(`  ${descriptor.table.padEnd(20)} SKIPPED - ${descriptor.path} was not supplied\n`);
+        continue;
+    }
+
+    const database = new Database(file, { readonly: true, fileMustExist: true });
+
+    try
+    {
+        Object.assign(projected, ProjectMapObjects({
+            celestials: database.prepare("SELECT * FROM celestials").all(),
+            npcStations: database.prepare("SELECT * FROM npcStations").all(),
+        }));
+    }
+    finally
+    {
+        database.close();
     }
 }
 

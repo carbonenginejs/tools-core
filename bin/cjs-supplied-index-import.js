@@ -129,8 +129,32 @@ async function Main(argv)
         );
     }
 
+    for (const appPath of SUPPLIED_APP_FILES)
+    {
+        const from = path.join(directory, ...appPath.replace(/^app:\/+/u, "").split("/"));
+
+        if (!await Exists(from)) continue;
+
+        const to = store.GetAppFilePath(profile.target, build, appPath);
+
+        await fs.mkdir(path.dirname(to), { recursive: true });
+        await fs.copyFile(from, to);
+        Say(`   ${appPath}`);
+    }
+
     Say(`written ${destination}`);
 }
+
+/**
+ * App files that are data, copied with the indexes when the client has them.
+ *
+ * Data only: an installed client is mostly code, and nothing here may copy it.
+ * `mapObjects.db` is SQLite holding EVE Frontier's celestials from build
+ * 3573151, which removed the map from `res:/staticdata`.
+ */
+const SUPPLIED_APP_FILES = Object.freeze([
+    "app:/bin64/staticdata/mapObjects.db",
+]);
 
 /** The folder this target's client installs into, under a shared cache. */
 function ResolveClientFolder(profile, requested)

@@ -188,6 +188,23 @@ const CJS_TOOL_SDE_FRONTIER_SOURCES = Object.freeze([
         container: "fsdbinary",
         required: false,
     }),
+    // From build 3573151 the map above is gone from res:/staticdata and the
+    // celestials ship as SQLite in the app tree instead, supplied with the
+    // indexes. The one file fills every table `ProjectMapObjects` lists; the
+    // entries here declare the two only it provides, since the rest are declared
+    // above. The builds before it have no such file and skip it.
+    Object.freeze({
+        table: "mapLagrangePoints",
+        path: "app:/bin64/staticdata/mapObjects.db",
+        container: "mapobjects",
+        required: false,
+    }),
+    Object.freeze({
+        table: "npcStations",
+        path: "app:/bin64/staticdata/mapObjects.db",
+        container: "mapobjects",
+        required: false,
+    }),
 ]);
 
 /**
