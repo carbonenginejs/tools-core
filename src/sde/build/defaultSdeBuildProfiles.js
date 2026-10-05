@@ -26,8 +26,10 @@ import {
     CjsFsd64SchemaIcons,
     CjsFsd64SchemaMarketGroups,
     CjsFsd64SchemaMetaGroups,
+    CjsFsd64SchemaNeoTypeProperty,
     CjsFsd64SchemaNpcCorporationDivisions,
     CjsFsd64SchemaNpcCorporations,
+    CjsFsd64SchemaProperty,
     CjsFsd64SchemaRaces,
     CjsFsd64SchemaSchoolMap,
     CjsFsd64SchemaSchools,
@@ -188,6 +190,20 @@ const CJS_TOOL_SDE_FRONTIER_SOURCES = Object.freeze([
         container: "fsdbinary",
         required: false,
     }),
+    // Crafting, from build 3573151: material properties and each type's range
+    // for them. Optional because the builds before it do not ship them.
+    Object.freeze({
+        table: "property",
+        path: "res:/staticdata/property.fsdbinary",
+        container: "fsdbinary",
+        required: false,
+    }),
+    Object.freeze({
+        table: "neoTypeProperty",
+        path: "res:/staticdata/neotypeproperty.fsdbinary",
+        container: "fsdbinary",
+        required: false,
+    }),
     // From build 3573151 the map above is gone from res:/staticdata and the
     // celestials ship as SQLite in the app tree instead, supplied with the
     // indexes. The one file fills every table `ProjectMapObjects` lists; the
@@ -238,6 +254,8 @@ function CreateFrontierProfile()
             // map sources beside them carry their own schema and do not.
             stationServices: new CjsFsd64SchemaStationServices(),
             stationOperations: new CjsFsd64SchemaStationOperations(),
+            property: new CjsFsd64SchemaProperty(),
+            neoTypeProperty: new CjsFsd64SchemaNeoTypeProperty(),
         }),
         projections: Object.freeze({ ...CJS_TOOL_SDE_TABLE_PROJECTIONS }),
         projectors: Object.freeze({

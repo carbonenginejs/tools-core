@@ -77,6 +77,27 @@ test("a widened single is rounded to the six places the export publishes", () =>
     assert.equal(rows["5432"].defaultValue, 149599993856);
 });
 
+test("Frontier's crafting tables publish rounded singles and numeric ids", () =>
+{
+    // Decoded the way the readers return them at build 3573151: identifiers as
+    // strings, float32 values widened to doubles, absent values absent.
+    const properties = ProjectRecords(
+        { 4: { mergeMethod: "weighted_average", name: "density", naturalMax: 19590.400390625, naturalMin: 729 } },
+        CJS_TABLE_PROJECTIONS.property,
+        { localization: LOCALIZATION, language: "en" },
+    );
+    const ranges = ProjectRecords(
+        { 96052: { properties: [ { minValue: 0.5, propertyID: "3" } ] },
+          96030: { properties: [ { maxValue: 0.15000000596046448, minValue: 0.10000000149011612, propertyID: "2" } ] } },
+        CJS_TABLE_PROJECTIONS.neoTypeProperty,
+        { localization: LOCALIZATION, language: "en" },
+    );
+
+    assert.deepEqual(properties["4"], { _key: 4, mergeMethod: "weighted_average", name: "density", naturalMax: 19590.400391, naturalMin: 729 });
+    assert.deepEqual(ranges["96052"].properties, [ { minValue: 0.5, propertyID: 3 } ], "a missing maximum stays missing");
+    assert.deepEqual(ranges["96030"].properties, [ { maxValue: 0.15, minValue: 0.1, propertyID: 2 } ]);
+});
+
 test("an empty list is the same statement as an absent one", () =>
 {
     const rows = ProjectRecords(

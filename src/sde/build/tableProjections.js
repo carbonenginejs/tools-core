@@ -67,6 +67,33 @@ export const TYPE_DOGMA_PROJECTION = Object.freeze({
     }),
 });
 
+/**
+ * EVE Frontier's material properties, from build 3573151.
+ *
+ * There is no official export of these to match, so the row is the record as
+ * stored: the two naturals are singles and are rounded as every other single
+ * is, and `bridgedAttributeID` - never set at 3573151 - would name a dogma
+ * attribute.
+ */
+export const PROPERTY_PROJECTION = Object.freeze({
+    table: "property",
+    copy: Object.freeze([ "bridgedAttributeID", "mergeMethod", "name", "naturalMax", "naturalMin" ]),
+    identifiers: Object.freeze([ "bridgedAttributeID" ]),
+    singles: Object.freeze([ "naturalMax", "naturalMin" ]),
+});
+
+/** EVE Frontier's per-type property ranges, keyed by typeID, from build 3573151. */
+export const NEO_TYPE_PROPERTY_PROJECTION = Object.freeze({
+    table: "neoTypeProperty",
+    lists: Object.freeze({
+        properties: Object.freeze({
+            fields: Object.freeze([ "maxValue", "minValue", "propertyID" ]),
+            identifiers: Object.freeze([ "propertyID" ]),
+            singles: Object.freeze([ "maxValue", "minValue" ]),
+        }),
+    }),
+});
+
 /** Attribute definitions. */
 export const DOGMA_ATTRIBUTES_PROJECTION = Object.freeze({
     table: "dogmaAttributes",
@@ -864,6 +891,8 @@ export const CJS_TOOL_SDE_TABLE_PROJECTIONS = Object.freeze({
     groups: GROUPS_PROJECTION,
     marketGroups: MARKET_GROUPS_PROJECTION,
     metaGroups: META_GROUPS_PROJECTION,
+    neoTypeProperty: NEO_TYPE_PROPERTY_PROJECTION,
+    property: PROPERTY_PROJECTION,
     typeDogma: TYPE_DOGMA_PROJECTION,
     typeMaterials: TYPE_MATERIALS_PROJECTION,
     blueprints: BLUEPRINTS_PROJECTION,
