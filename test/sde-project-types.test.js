@@ -101,6 +101,16 @@ test("isDynamicType is emitted only when true", () =>
     assert.equal(rows[2].isDynamicType, true);
 });
 
+test("Frontier's quantityKind is carried where the record has it and absent elsewhere", () =>
+{
+    // 22 of 32,895 Frontier types at build 3573151 carry it, all of them keys of
+    // the crafting tables.
+    const rows = ProjectTypes({ 1: record(), 96030: record({ quantityKind: "continuous" }) }, localization);
+
+    assert.equal(rows[1].quantityKind, undefined);
+    assert.equal(rows[96030].quantityKind, "continuous");
+});
+
 test("fields the record does not store are never invented", () =>
 {
     // The export publishes packagedVolume and isRepackable; the record stores

@@ -19,11 +19,15 @@ export const CJS_DEFAULT_LANGUAGE = "en";
  * publishes both, the record stores neither, and they appear to be derived by
  * the exporter. Emitting a guess would be worse than omitting a field, because
  * a consumer cannot tell a guess from a measurement.
+ *
+ * `quantityKind` is EVE Frontier's, from build 3573151: a presence-guarded
+ * string (`continuous` or `discrete`) on the types its crafting tables key, and
+ * absent everywhere else, so copying it adds nothing to other records.
  */
 const COPIED_FIELDS = Object.freeze([
     "basePrice", "capacity", "factionID", "graphicID", "groupID", "iconID",
     "marketGroupID", "mass", "metaGroupID", "metaLevel", "portionSize", "published",
-    "raceID", "radius", "shipTreeGroupID", "soundID", "techLevel", "volume",
+    "quantityKind", "raceID", "radius", "shipTreeGroupID", "soundID", "techLevel", "volume",
     "variationParentTypeID", "isDynamicType"
 ]);
 
