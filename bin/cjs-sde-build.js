@@ -150,6 +150,34 @@ const localization = new CjsToolSdeLocalization(loaded);
 const primaryLanguage = languages[0];
 
 
+/**
+ * Fetches a source's file, or null when the build does not ship it and the
+ * profile marks the source `required: false`. A required source still throws.
+ *
+ * Publishers drop files between builds: EVE Frontier build 3573151 removed the
+ * whole map (`regions.static`, `systems.static`, `solarsystemcontent.static`
+ * and the rest), and a table the profile already calls optional should then be
+ * absent from the export rather than stop it.
+ *
+ * @param {{ table: string, required?: boolean }} descriptor Source descriptor.
+ * @param {string} resPath The file to fetch.
+ * @returns {Promise<object|null>} The fetched file, or null when skipped.
+ */
+async function FetchSource(descriptor, resPath)
+{
+    try
+    {
+        return await source.Fetch(resPath);
+    }
+    catch (error)
+    {
+        if (descriptor.required !== false || error.code !== "CJS_RESOURCE_NOT_FOUND") throw error;
+
+        process.stdout.write(`  ${descriptor.table.padEnd(20)} SKIPPED - ${resPath} is not in this build\n`);
+        return null;
+    }
+}
+
 const groupedSources = profile.ListSources().filter(descriptor => descriptor.dataset);
 const groupedStaticPaths = new Set(groupedSources.map(descriptor => descriptor.path));
 
@@ -208,7 +236,11 @@ for (const descriptor of profile.SourcesByContainer("fsdbinary"))
 
     try
     {
-        decoded[table] = reader.ReadJSON((await source.Fetch(resPath)).bytes);
+        const fetched = await FetchSource(descriptor, resPath);
+
+        if (!fetched) continue;
+
+        decoded[table] = reader.ReadJSON(fetched.bytes);
     }
     catch (error)
     {
@@ -259,7 +291,10 @@ const universe = {};
 for (const descriptor of profile.SourcesByContainer("schemabound"))
 {
     const { table, path: resPath } = descriptor;
-    const container = await source.Fetch(resPath);
+    const container = await FetchSource(descriptor, resPath);
+
+    if (!container) continue;
+
     const schema = await source.Fetch(resPath.replace(/\.static$/u, ".schema"));
 
     universe[table] = await ReadSchemaBoundContainer(container.bytes, schema.bytes, resPath);
@@ -279,28 +314,24 @@ for (const descriptor of profile.SourcesByContainer("schemabound"))
 // by container family, so absence has to be checked here rather than falling out
 // of an empty loop.
 const landmarksSource = profile.GetSource("landmarks");
+const landmarksFile = landmarksSource ? await FetchSource(landmarksSource, landmarksSource.path) : null;
 
-if (landmarksSource)
+if (landmarksFile)
 {
     projected.landmarks = profile.Project(
         "landmarks",
-        await ReadEmbeddedSchemaContainer(
-            (await source.Fetch(landmarksSource.path)).bytes,
-            landmarksSource.path,
-        ),
+        await ReadEmbeddedSchemaContainer(landmarksFile.bytes, landmarksSource.path),
         { localization, language: primaryLanguage }
     );
 }
 
 const celestialSource = profile.GetSource("mapPlanets");
+const celestialFile = celestialSource ? await FetchSource(celestialSource, celestialSource.path) : null;
 
-if (celestialSource)
+if (celestialFile)
 {
     const celestials = ProjectUniverse(
-        ReadEmbeddedSchemaContainer(
-            (await source.Fetch(celestialSource.path)).bytes,
-            celestialSource.path,
-        ),
+        ReadEmbeddedSchemaContainer(celestialFile.bytes, celestialSource.path),
         { localization, language: primaryLanguage }
     );
 
