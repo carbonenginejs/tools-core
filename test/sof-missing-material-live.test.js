@@ -8,8 +8,9 @@ import { CjsToolSofRepository } from "../src/sof/CjsToolSofRepository.js";
 //
 // CCP never published some materials that factions name: the Victorious
 // Venom factions (tournament-xx-bs, tournament-xx) name
-// grey_blue_graffiti_colorshift_matt, and lavatiger names rock_lightgray_sand.
-// In game these skins render with the stock grey. Carbon's GetMaterialData
+// grey_blue_graffiti_colorshift_matt, lavatiger names rock_lightgray_sand, and
+// the Sponsored Security faction (crisis_upwell) names
+// cosm_silver_brushed_011_004_096. In game these skins render with the stock grey. Carbon's GetMaterialData
 // returns nullptr for such a name (EveSOFDataMgr.cpp:273-281) and the build
 // carries on; the lazy catalog must too.
 const resourceBase = process.env.CJS_SOF_LAYOUT_RESOURCE_BASE;
@@ -18,6 +19,7 @@ const DNAS = [
     [ "Python Victorious Venom", "conb1_xx:tournament-xx-bs:concord:mesh?none;none;none;none:pattern?xx_prize;purple_graffiti_colorshift_polished;green_neon_graffiti_polished", "grey_blue_graffiti_colorshift_matt" ],
     [ "Enforcer Victorious Venom", "conc1_t1:tournament-xx:concord:mesh?none;none;none;none:pattern?xx_prize;purple_graffiti_colorshift_polished;green_neon_graffiti_polished", "grey_blue_graffiti_colorshift_matt" ],
     [ "Apocalypse Lavacore", "ab1_t1:lavatiger:amarr:mesh?orange_fire_polished;black_gunmetal_metallic;black_deadstar_matt;none:pattern?lavatiger_amarr;orange_burnt_mirror;black_gunmetal_metallic:respathinsert?base", "rock_lightgray_sand" ],
+    [ "Skybreaker Sponsored Security", "uwf01_t1:crisis_upwell:concord:pattern?crisis_upwell;grey_graphite_polished;orange_bumble_bright_polished", "cosm_silver_brushed_011_004_096" ],
 ];
 
 /** A composed source over tools HTTP: the build's resfile list, and decoded records. */
@@ -64,3 +66,4 @@ async function BuildsWithMaterialAbsent([ , dna, missing ])
 test(`real ${DNAS[0][0]} DNA builds through the lazy catalog with its unpublished material absent`, { skip: !resourceBase }, () => BuildsWithMaterialAbsent(DNAS[0]));
 test(`real ${DNAS[1][0]} DNA builds through the lazy catalog with its unpublished material absent`, { skip: !resourceBase }, () => BuildsWithMaterialAbsent(DNAS[1]));
 test(`real ${DNAS[2][0]} DNA builds through the lazy catalog with its unpublished material absent`, { skip: !resourceBase }, () => BuildsWithMaterialAbsent(DNAS[2]));
+test(`real ${DNAS[3][0]} DNA builds through the lazy catalog with its unpublished material absent`, { skip: !resourceBase }, () => BuildsWithMaterialAbsent(DNAS[3]));
