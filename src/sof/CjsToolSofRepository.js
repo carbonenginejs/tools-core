@@ -131,6 +131,7 @@ export class CjsToolSofRepository
         }
         else
         {
+            const indexed = new Set(resFileIndex);
             sof = await this.#createSof({
                 lazyData: {
                     source: async (logicalPath, context = {}) =>
@@ -141,6 +142,11 @@ export class CjsToolSofRepository
                         );
                         return file.bytes;
                     },
+                    // The index stands in for the monolithic catalog: a material it
+                    // lacks resolves to absent, as Carbon's GetMaterialData returns
+                    // nullptr for a name the catalog lacks (EveSOFDataMgr.cpp:273-281),
+                    // and the build carries on with the effect's own defaults.
+                    exists: logicalPath => indexed.has(String(logicalPath).toLowerCase()),
                 },
                 resFileIndex,
             });

@@ -263,6 +263,40 @@ test("default lazy loading runs through the installed combined runtime", async (
     assert.deepEqual(fetched, [genericPath, hullPath]);
 });
 
+test("lazy loading probes the resfile index for materials, so an unpublished one is absent", async () =>
+{
+    const basePath = "res:/dx9/model/spaceobjectfactory";
+    const indexed = `${basePath}/materials/grey_graphite_polished.black`;
+    let exists = null;
+    const source = {
+        target: "eve",
+        build: "3579973",
+        Match()
+        {
+            return [`${basePath}/generic.black`, indexed.toUpperCase()].map(logicalPath => ({ logicalPath }));
+        },
+        async Fetch()
+        {
+            return { bytes: { materialPrefixes: [], variants: [] } };
+        },
+    };
+    const repository = new CjsToolSofRepository({
+        async createSof(options)
+        {
+            exists = options.lazyData.exists;
+            const sof = (await EveSOF.Create({ black: CreateData() }));
+            sof.InitializeAsync = async () => {};
+            sof.GetSofLibraryBuilder = () => ({});
+            return sof;
+        },
+    });
+    await repository.OpenSource(source);
+
+    assert.equal(exists(indexed), true);
+    assert.equal(exists(indexed.toUpperCase()), true, "case-insensitive, as the index is");
+    assert.equal(exists(`${basePath}/materials/grey_blue_graffiti_colorshift_matt.black`), false);
+});
+
 test("default expansion applies registered combined-runtime class defaults", async () =>
 {
     const sparse = { _type: "EveShip2" };
