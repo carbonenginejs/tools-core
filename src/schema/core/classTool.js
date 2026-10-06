@@ -23,7 +23,7 @@ export const DEFAULT_SCHEMA_ROOT = path.resolve(HERE, "..", "schema");
 export const KNOWN_TYPE_KINDS = new Set([
     "array", "boolean", "color", "expression", "float32", "float64",
     "int8", "int16", "int32", "int64", "list", "mat3", "mat4", "map",
-    "model", "objectRef", "path", "quat", "rawStruct", "set", "string", "struct",
+    "model", "objectRef", "path", "quat", "rawStruct", "root", "set", "string",
     "typedArray", "uint8", "uint16", "uint32", "uint64", "unknown",
     "vec2", "vec3", "vec4", "weakRef", "wstring"
 ]);
@@ -1009,7 +1009,7 @@ const SOURCE_FIELD_OVERRIDES = Object.freeze({
     // Tr2CurveColor.h and its PARENTLOCK constructor initializers own four
     // embedded curves. IROOT hydration requires these destinations to exist.
     Tr2CurveColor: Object.freeze(Object.fromEntries(["r", "g", "b", "a"].map(name => [name,
-        Object.freeze({ kind: "struct", typeArg: "Tr2CurveScalar", factory: "Tr2CurveScalar" })
+        Object.freeze({ kind: "root", typeArg: "Tr2CurveScalar", factory: "Tr2CurveScalar" })
     ]))),
     CompressionOptions: Object.freeze({
         // nvtt::Quality_Production; Blue exposes the chooser key PRODUCTION.
@@ -1099,7 +1099,7 @@ const SOURCE_FIELD_OVERRIDES = Object.freeze({
             default: 0
         }),
         bannerShader: Object.freeze({
-            kind: "struct",
+            kind: "root",
             typeArg: "EveSOFDataGenericShader",
             factory: "EveSOFDataGenericShader"
         })
@@ -1428,7 +1428,7 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
 
 const MATH_KINDS = new Set(["vec2", "vec3", "vec4", "color", "quat", "mat3", "mat4"]);
 const INLINE_CPP_KINDS = new Set(
-    [...KNOWN_TYPE_KINDS].filter(kind => !["unknown", "rawStruct", "struct"].includes(kind))
+    [...KNOWN_TYPE_KINDS].filter(kind => !["unknown", "rawStruct", "root"].includes(kind))
 );
 
 // Resolve a usable enum name. Carbon inner enums are declared as `enum Type` (or Mode/…)
@@ -1510,7 +1510,7 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
             const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
             if (INLINE_CPP_KINDS.has(resolved.kind)
                 && !["model", "objectRef", "weakRef"].includes(resolved.kind)) return resolved;
-            return { kind: "struct", arg: cleanNamedType(effectiveCppType) };
+            return { kind: "root", arg: cleanNamedType(effectiveCppType) };
         }
         default:
             return inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
@@ -2983,7 +2983,7 @@ function normalizeFieldName(rawName)
 }
 
 // A @type decorator argument is either a quoted/bare name or an options object
-// (e.g. @meta.type.array({ kind: "struct", className: "Tr2CurveScalarKey" })).
+// (e.g. @meta.type.array({ kind: "root", className: "Tr2CurveScalarKey" })).
 function parseTypeArg(value)
 {
     const trimmed = String(value).trim();
@@ -4588,7 +4588,7 @@ function renderTypeDecorator(field)
     {
         return `resource(${JSON.stringify(field.type.className || "unknown")})`;
     }
-    if (field.kind === "model" || field.kind === "objectRef" || field.kind === "weakRef" || field.kind === "struct" || field.kind === "rawStruct")
+    if (field.kind === "model" || field.kind === "objectRef" || field.kind === "weakRef" || field.kind === "root" || field.kind === "rawStruct")
     {
         return `${field.kind}("${field.typeArg || field.cppType || "unknown"}")`;
     }

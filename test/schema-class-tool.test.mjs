@@ -221,7 +221,7 @@ test("embedded color curves retain their allocated destinations in both schema f
         assert.equal(expected.fields.length, 4);
         for (const field of expected.fields)
         {
-            assert.equal(field.kind, "struct");
+            assert.equal(field.kind, "root");
             assert.equal(field.typeArg, "Tr2CurveScalar");
             assert.deepEqual(field.default.value, { __factory: "Tr2CurveScalar" });
         }
@@ -258,7 +258,7 @@ test("source-proven parameter dictionary and effect resource alias retain refere
             const parsed = parseClassFile(source);
             assert.deepEqual(parsed.fields[0].typeArg, descriptor);
             assert.equal(compareClass(expected, parsed, { strict: true }).summary.drift, false);
-            const wrongKind = source.replace('"kind":"objectRef"', '"kind":"struct"');
+            const wrongKind = source.replace('"kind":"objectRef"', '"kind":"root"');
             assert.equal(compareClass(expected, parseClassFile(wrongKind)).summary.typeMismatch, 1);
             const shorthand = source.replace(JSON.stringify(descriptor), JSON.stringify(itemClass));
             assert.equal(compareClass(expected, parseClassFile(shorthand), { strict: true }).summary.drift, false);
@@ -333,7 +333,7 @@ test("inline wire declarations defeat pointer spelling without changing referenc
         { blueName: "reference", cppType: "ChildPtr", black: { beType: "IROOTPTR", wireType: "objectRef" } },
         { blueName: "rotation", cppType: "Quaternion", black: { wireType: "inlineObject" } }
     ] });
-    assert.deepEqual(expected.fields.map(field => field.kind), ["struct", "model", "quat"]);
+    assert.deepEqual(expected.fields.map(field => field.kind), ["root", "model", "quat"]);
     // Unknown embedded classes do not acquire an invented allocation policy.
     assert.equal(expected.fields[0].default.value, null);
 });

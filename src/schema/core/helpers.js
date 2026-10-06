@@ -1205,7 +1205,7 @@ function wireTypeForResolution(type)
             return { beType: "FLOATARRAY", wireType: "floatArray", length: 4 };
         case "mat3": return { beType: "FLOATARRAY", wireType: "floatArray", length: 9 };
         case "mat4": return { beType: "FLOATARRAY", wireType: "floatArray", length: 16 };
-        case "struct": return { beType: "IROOT", wireType: "inlineObject" };
+        case "root": return { beType: "IROOT", wireType: "inlineObject" };
         default: return null;
     }
 }
