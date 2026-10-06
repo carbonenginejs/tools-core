@@ -16,15 +16,15 @@ import { DEFAULT_FIELD_RESOLUTIONS } from "../src/schema/core/schemaFieldResolut
 
 test("resource syntax normalizes to an object reference descriptor through type aliases and accessors", () =>
 {
-    const descriptor = { kind: "objectRef", className: "TriGeometryRes", runtimeOnly: true };
+    const descriptor = { kind: "rootRef", className: "TriGeometryRes", runtimeOnly: true };
     assert.equal(KNOWN_TYPE_KINDS.has("resource"), false);
     for (const spelling of ["@meta.type.resource(TriGeometryRes)", "@meta.type.resource('TriGeometryRes')",
         '@CjsSchema.type.resource("TriGeometryRes")'])
     {
         const parsed = parseClassFile(`export class Fixture {\n${spelling}\n_geometryRes = null;\n}`);
         const field = parsed.fields[0];
-        assert.equal(field.kind, "objectRef");
-        assert.deepEqual(field.kinds, ["objectRef"]);
+        assert.equal(field.kind, "rootRef");
+        assert.deepEqual(field.kinds, ["rootRef"]);
         assert.equal(field.typeArg, "TriGeometryRes");
         assert.deepEqual(field.type, descriptor);
         assert.deepEqual(field.default, { determinate: true, value: null });
@@ -48,11 +48,11 @@ test("explicit resource descriptors survive emission and reports without native 
     const native = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture", attributes: [
         { blueName: "geometry", member: "m_geometry", cppType: "TriGeometryResPtr", flags: ["READWRITE", "PERSIST"] }
     ] });
-    assert.equal(native.fields[0].kind, "objectRef");
+    assert.equal(native.fields[0].kind, "rootRef");
     assert.equal(native.fields[0].type, undefined);
     assert.doesNotMatch(renderClassFile(native, { js: true }), /@meta\.type\.resource/);
 
-    const descriptor = { kind: "objectRef", className: "TriGeometryRes", runtimeOnly: true };
+    const descriptor = { kind: "rootRef", className: "TriGeometryRes", runtimeOnly: true };
     const expected = { ...native, fields: [{ ...native.fields[0], type: descriptor }] };
     const snapshot = structuredClone(expected);
     const source = renderClassFile(expected, { js: true });
@@ -68,7 +68,7 @@ test("explicit resource descriptors survive emission and reports without native 
 
     const ordinary = { ...native, fields: [{ ...native.fields[0], type: { ...descriptor, runtimeOnly: false } }] };
     const ordinarySource = renderClassFile(ordinary, { js: true });
-    assert.match(ordinarySource, /@meta\.type\.objectRef\("TriGeometryRes"\)/);
+    assert.match(ordinarySource, /@meta\.type\.rootRef\("TriGeometryRes"\)/);
     assert.equal(compareClass(ordinary, parseClassFile(ordinarySource), { strict: true }).summary.drift, false);
 });
 
@@ -78,11 +78,11 @@ test("resource comparisons reject marker loss, accidental runtime-only reference
         { blueName: "geometry", cppType: "TriGeometryResPtr", flags: ["HIDDEN", "PERSIST"] }
     ] });
     const expected = { ...native, fields: [{ ...native.fields[0],
-        type: { kind: "objectRef", className: "TriGeometryRes", runtimeOnly: true } }] };
+        type: { kind: "rootRef", className: "TriGeometryRes", runtimeOnly: true } }] };
     const source = renderClassFile(expected, { js: true });
     for (const strict of [false, true])
     {
-        const lost = compareClass(expected, parseClassFile(source.replace("@meta.type.resource", "@meta.type.objectRef")), { strict });
+        const lost = compareClass(expected, parseClassFile(source.replace("@meta.type.resource", "@meta.type.rootRef")), { strict });
         assert.equal(lost.summary.typeMismatch, 1);
         assert.equal(lost.summary.drift, true);
         assert.match(lost.fields[0].notes.join(" "), /runtime-only reference differs/);
@@ -248,14 +248,14 @@ test("source-proven parameter dictionary and effect resource alias retain refere
                 ...(attributes ? { attributes: [{ blueName: name, member: `m_${name}`, cppType, black }] }
                     : { black: { fields: [black] } }) };
             const expected = deriveExpectedFields(doc);
-            const descriptor = { kind: "objectRef", className: itemClass };
+            const descriptor = { kind: "rootRef", className: itemClass };
             assert.equal(expected.fields[0].kind, kind);
             assert.deepEqual(expected.fields[0].typeArg, descriptor);
             const source = renderClassFile(expected, { doc, js: true });
             const parsed = parseClassFile(source);
             assert.deepEqual(parsed.fields[0].typeArg, descriptor);
             assert.equal(compareClass(expected, parsed, { strict: true }).summary.drift, false);
-            const wrongKind = source.replace('"kind":"objectRef"', '"kind":"root"');
+            const wrongKind = source.replace('"kind":"rootRef"', '"kind":"root"');
             assert.equal(compareClass(expected, parseClassFile(wrongKind)).summary.typeMismatch, 1);
             const shorthand = source.replace(JSON.stringify(descriptor), JSON.stringify(itemClass));
             assert.equal(compareClass(expected, parseClassFile(shorthand), { strict: true }).summary.drift, false);
@@ -263,7 +263,7 @@ test("source-proven parameter dictionary and effect resource alias retain refere
     }
     const unrelated = deriveExpectedFields({ blueClass: "Other", cppClass: "Other",
         attributes: [{ blueName: "resources", cppType: "EffectResourceList" }] });
-    assert.notDeepEqual(unrelated.fields[0].typeArg, { kind: "objectRef", className: "ITriEffectResourceParameter" });
+    assert.notDeepEqual(unrelated.fields[0].typeArg, { kind: "rootRef", className: "ITriEffectResourceParameter" });
     const unresolved = deriveExpectedFields({ blueClass: "Other", cppClass: "Other",
         attributes: [{ blueName: "entries", cppType: "PUnreviewedDict",
             black: { wireType: "container", container: "dict" } }] });
@@ -275,21 +275,21 @@ test("descriptor parsing and comparison preserve nested data and ignore key orde
 {
     const expected = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture",
         attributes: [{ blueName: "items", cppType: "std::vector<ThingPtr>" }] });
-    expected.fields[0].typeArg = { kind: "list", itemType: { kind: "weakRef", className: "Thing" } };
+    expected.fields[0].typeArg = { kind: "list", itemType: { kind: "rootWeak", className: "Thing" } };
     const source = renderClassFile(expected, { js: true });
     const literal = JSON.stringify(expected.fields[0].typeArg);
-    const reordered = source.replace(literal, "{ itemType: { className: Thing, kind: 'weakRef' }, kind: 'list' }");
+    const reordered = source.replace(literal, "{ itemType: { className: Thing, kind: 'rootWeak' }, kind: 'list' }");
     assert.deepEqual(parseClassFile(reordered).fields[0].typeArg, expected.fields[0].typeArg);
     assert.equal(compareClass(expected, parseClassFile(reordered), { strict: true }).summary.drift, false);
-    assert.equal(compareClass(expected, parseClassFile(reordered.replace("'weakRef'", "'objectRef'"))).summary.typeMismatch, 1);
+    assert.equal(compareClass(expected, parseClassFile(reordered.replace("'rootWeak'", "'rootRef'"))).summary.typeMismatch, 1);
     assert.equal(compareClass(expected, parseClassFile(reordered.replace("className: Thing", "className: Other"))).summary.typeMismatch, 1);
-    const metadata = { kind: "objectRef", className: "Thing", metadata: { label: "a,b{c}", enabled: true, ranks: [1, 2] } };
+    const metadata = { kind: "rootRef", className: "Thing", metadata: { label: "a,b{c}", enabled: true, ranks: [1, 2] } };
     expected.fields[0].typeArg = metadata;
     assert.deepEqual(parseClassFile(renderClassFile(expected, { js: true })).fields[0].typeArg, metadata);
     expected.fields[0].typeArg = { kind: "string" };
     const scalar = renderClassFile(expected, { js: true });
     assert.equal(compareClass(expected, parseClassFile(scalar.replace('{"kind":"string"}', '"string"'))).summary.typeMismatch, 0);
-    assert.equal(compareClass(expected, parseClassFile(scalar.replace('{"kind":"string"}', '{"kind":"objectRef","className":"string"}'))).summary.typeMismatch, 1);
+    assert.equal(compareClass(expected, parseClassFile(scalar.replace('{"kind":"string"}', '{"kind":"rootRef","className":"string"}'))).summary.typeMismatch, 1);
 });
 
 test("collection value shorthand matches value descriptors without becoming class references", () =>
@@ -307,7 +307,7 @@ test("collection value shorthand matches value descriptors without becoming clas
     {
         const correct = source.replace(`array("${shorthand}")`, `array({ kind: "${kind}" })`);
         assert.equal(compareClass(expected, parseClassFile(correct), { strict: true }).summary.drift, false);
-        const wrong = source.replace(`array("${shorthand}")`, `array({ kind: "objectRef", className: "${shorthand}" })`);
+        const wrong = source.replace(`array("${shorthand}")`, `array({ kind: "rootRef", className: "${shorthand}" })`);
         assert.equal(compareClass(expected, parseClassFile(wrong), { strict: true }).summary.typeMismatch, 1);
     }
     const fixture = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture",
@@ -318,7 +318,7 @@ test("collection value shorthand matches value descriptors without becoming clas
         const text = renderClassFile(fixture, { js: true });
         const correct = text.replace(`list("${shorthand}")`, `list({ kind: "${shorthand}" })`);
         assert.equal(compareClass(fixture, parseClassFile(correct), { strict: true }).summary.drift, false);
-        const wrong = text.replace(`list("${shorthand}")`, `list({ kind: "objectRef", className: "${shorthand}" })`);
+        const wrong = text.replace(`list("${shorthand}")`, `list({ kind: "rootRef", className: "${shorthand}" })`);
         assert.equal(compareClass(fixture, parseClassFile(wrong), { strict: true }).summary.typeMismatch, 1);
     }
 });
@@ -330,7 +330,7 @@ test("inline wire declarations defeat pointer spelling without changing referenc
         { blueName: "reference", cppType: "ChildPtr", black: { beType: "IROOTPTR", wireType: "objectRef" } },
         { blueName: "rotation", cppType: "Quaternion", black: { wireType: "inlineObject" } }
     ] });
-    assert.deepEqual(expected.fields.map(field => field.kind), ["root", "model", "quat"]);
+    assert.deepEqual(expected.fields.map(field => field.kind), ["root", "rootRef", "quat"]);
     // Unknown embedded classes do not acquire an invented allocation policy.
     assert.equal(expected.fields[0].default.value, null);
 });
@@ -1128,7 +1128,7 @@ test("stored and live ship declarations survive emission, parsing and comparison
         {
             @meta.blue.readwrite
             @meta.blue.persistOnly
-            @meta.type.model("EveBoosterSet2")
+            @meta.type.rootRef("EveBoosterSet2")
             boosters = null;
         }
     `);
@@ -1147,12 +1147,12 @@ test("new namespace aliases retain stored member names, indices and live accesso
         {
             @meta.member("boosters", { index: 3 })
             @meta.edit.persistOnly
-            @meta.type.model(EveBoosterSet2)
+            @meta.type.rootRef(EveBoosterSet2)
             _boosters = null;
 
             @meta.property("boosters")
             @meta.edit.readwrite
-            @meta.type.objectRef("EveBoosterSet2")
+            @meta.type.rootRef("EveBoosterSet2")
             get boosters() { return this._boosters; }
 
             @meta.property("boosters")
@@ -1218,12 +1218,12 @@ test("weak references retain their distinct type rather than becoming strong ref
         }]
     };
     const expected = deriveExpectedFields(doc);
-    assert.equal(expected.fields[0].kind, "weakRef");
+    assert.equal(expected.fields[0].kind, "rootWeak");
     assert.equal(expected.fields[0].typeArg, "FixtureShip");
     const source = renderClassFile(expected, { doc, js: true });
-    assert.match(source, /@meta\.type\.weakRef\("FixtureShip"\)/);
+    assert.match(source, /@meta\.type\.rootWeak\("FixtureShip"\)/);
     assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
-    assert.equal(compareClass(expected, parseClassFile(source.replace("@meta.type.weakRef", "@meta.type.objectRef"))).summary.typeMismatch, 1);
+    assert.equal(compareClass(expected, parseClassFile(source.replace("@meta.type.rootWeak", "@meta.type.rootRef"))).summary.typeMismatch, 1);
 });
 
 test("known method signatures survive derivation, comparison reports and emitted comments", () =>
@@ -1257,7 +1257,7 @@ test("property metadata on a setter names the whole getter/setter declaration", 
             get current() { return this._current; }
 
             @meta.property("boosters", { index: 2 })
-            @meta.type.objectRef("FixtureChild")
+            @meta.type.rootRef("FixtureChild")
             @meta.edit.readwrite
             set current(value) { this._current = value; }
         }

@@ -23,9 +23,9 @@ export const DEFAULT_SCHEMA_ROOT = path.resolve(HERE, "..", "schema");
 export const KNOWN_TYPE_KINDS = new Set([
     "array", "boolean", "color", "expression", "float32", "float64",
     "int8", "int16", "int32", "int64", "list", "mat3", "mat4", "map",
-    "model", "objectRef", "path", "quat", "rawStruct", "root", "set", "string", "structList",
+    "path", "quat", "rawStruct", "root", "rootRef", "set", "string", "structList",
     "typedArray", "uint8", "uint16", "uint32", "uint64", "unknown",
-    "vec2", "vec3", "vec4", "weakRef", "wstring"
+    "vec2", "vec3", "vec4", "rootWeak", "wstring"
 ]);
 
 export const KNOWN_IO_KINDS = new Set([
@@ -45,7 +45,7 @@ const TYPE_DEFAULT = {
     vec2: [0, 0], vec3: [0, 0, 0], vec4: [0, 0, 0, 0], color: [0, 0, 0, 0],
     quat: [0, 0, 0, 1], mat3: IDENTITY_MAT3, mat4: IDENTITY_MAT4,
     list: [], array: [], structList: [], map: { __container: "map" }, set: { __container: "set" },
-    model: null, objectRef: null, weakRef: null, struct: null, rawStruct: null, typedArray: null, unknown: null
+    rootRef: null, rootWeak: null, struct: null, rawStruct: null, typedArray: null, unknown: null
 };
 
 // Source-backed named constants used in constructor defaults. Keep this list
@@ -844,7 +844,7 @@ function resolveEnumDefault(expression, enumType, className, schemaRoot = DEFAUL
 // other owners are identified beside their entries.
 const COLLECTION_TYPE_ALIASES = Object.freeze({
     // Tr2MaterialParameterStore.h stores the Blue interface dictionary.
-    PITriEffectParameterDict: { kind: "map", arg: { kind: "objectRef", className: "ITriEffectParameter" } },
+    PITriEffectParameterDict: { kind: "map", arg: { kind: "rootRef", className: "ITriEffectParameter" } },
     Tr2EffectResourceMap: { kind: "map", arg: "Tr2EffectResource" },
     Tr2SamplerSetupMap: { kind: "map", arg: "Tr2SamplerSetup" },
     Tr2EffectParameterAnnotationMap: { kind: "list", arg: "Tr2EffectParameterAnnotation" },
@@ -1358,12 +1358,12 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
     if (isTimeScalarCpp(original)) return { kind: "float64" };
     // BlueTypeTraits.h maps BlueWeakRef<T> to IROOTWEAKREF, not IROOTPTR.
     const weakRef = type.match(/^(?:BlueWeakRef|std::weak_ptr)\s*<\s*(.+)\s*>$/);
-    if (weakRef) return { kind: "weakRef", arg: cleanNamedType(weakRef[1]) };
+    if (weakRef) return { kind: "rootWeak", arg: cleanNamedType(weakRef[1]) };
     // Tr2Effect.h declares this alias locally; do not guess a global
     // EffectResource class from the alias spelling.
     if (className === "Tr2Effect" && named === "EffectResourceList")
     {
-        return { kind: "list", arg: { kind: "objectRef", className: "ITriEffectResourceParameter" } };
+        return { kind: "list", arg: { kind: "rootRef", className: "ITriEffectResourceParameter" } };
     }
     if (COLLECTION_TYPE_ALIASES[named]) return { ...COLLECTION_TYPE_ALIASES[named] };
     if (type.includes("std::vector") || /(?:Vector|List)$/.test(named)) return { kind: "list", arg: collectionItemType(original) };
@@ -1373,11 +1373,11 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
     // `const Vector4*` to hand over an array of them, e.g. the packed
     // spherical-harmonic coefficients). There is no Vector4 class to reference -
     // JavaScript uses the runtime global math containers - so these must resolve
-    // to their math kind rather than to a dangling objectRef.
+    // to their math kind rather than to a dangling rootRef.
     if (!MATH_VALUE_CPP_TYPES.has(named)
         && (/\*$/.test(type) || /^P(?:I)?[A-Z]\w+$/.test(named) || /(?:Ptr|Ref)$/.test(named)))
     {
-        return { kind: "objectRef", arg: cleanNamedType(original) };
+        return { kind: "rootRef", arg: cleanNamedType(original) };
     }
 
     switch (named)
@@ -1446,7 +1446,7 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
     if (black.beType === "IROOTWEAKREF")
     {
         const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
-        return { kind: "weakRef", arg: resolved.arg || cleanNamedType(effectiveCppType) };
+        return { kind: "rootWeak", arg: resolved.arg || cleanNamedType(effectiveCppType) };
     }
 
     if (black.wireType === "enum" || black.enumType)
@@ -1484,7 +1484,7 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
             return { kind: "vec4" };
         }
         case "objectRef":
-            return { kind: "model", arg: cleanNamedType(effectiveCppType) };
+            return { kind: "rootRef", arg: cleanNamedType(effectiveCppType) };
         case "container":
         {
             const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
@@ -1511,7 +1511,7 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
             // inline objects in some docs but map to their @meta.type.* math kinds, not struct.
             const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
             if (INLINE_CPP_KINDS.has(resolved.kind)
-                && !["model", "objectRef", "weakRef"].includes(resolved.kind)) return resolved;
+                && !["rootRef", "rootWeak"].includes(resolved.kind)) return resolved;
             return { kind: "root", arg: cleanNamedType(effectiveCppType) };
         }
         default:
@@ -2881,7 +2881,7 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
     // resource is authoring syntax for one canonical object reference fact,
     // not a distinct runtime kind or an edit/persistence flag.
     const resource = typeDecorator?.name === "resource";
-    const kind = resource ? "objectRef" : typeDecorator?.name || null;
+    const kind = resource ? "rootRef" : typeDecorator?.name || null;
     const typeArg = typeArgs.length ? parseTypeArg(typeArgs[0]) : null;
     return {
         name,
@@ -2890,11 +2890,11 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
         ...(index ? { index: Number(index[1]) } : {}),
         annotation,
         line,
-        kinds: typeDecorators.map(d => d.name === "resource" ? "objectRef" : d.name),
+        kinds: typeDecorators.map(d => d.name === "resource" ? "rootRef" : d.name),
         kind,
         typeArg,
         ...(binary ? { binary: true } : {}),
-        ...(resource ? { type: { kind: "objectRef", className: typeArg, runtimeOnly: true } } : {}),
+        ...(resource ? { type: { kind: "rootRef", className: typeArg, runtimeOnly: true } } : {}),
         ...(typeOptions && Object.hasOwn(typeOptions, "structure") ? { structure: typeOptions.structure } : {}),
         ioNames: ioDecorators.filter(d => d.name !== "notify").map(d => d.name),
         notify: ioDecorators.some(d => d.name === "notify"),
@@ -3040,7 +3040,7 @@ function normalizedTypeArg(value, collection = false)
     {
         const kind = TYPE_ARG_KIND_ALIASES[value] || value;
         const known = KNOWN_TYPE_KINDS.has(value) || Object.values(TYPE_ARG_KIND_ALIASES).includes(kind) || kind === "enum";
-        value = known ? { kind } : { kind: "objectRef", className: value };
+        value = known ? { kind } : { kind: "rootRef", className: value };
     }
     if (typeof value === "string") return stripStructureSuffix(value);
     if (Array.isArray(value)) return value.map(item => item && typeof item === "object" ? normalizedTypeArg(item) : item);
@@ -3197,8 +3197,8 @@ const LIST_ALIASES = new Set(["list", "array"]);
 // native schema derivation never infers the runtime-only fact.
 function explicitReferenceField(field)
 {
-    return field.type?.kind === "objectRef"
-        ? { ...field, kind: "objectRef", typeArg: field.type.className ?? null }
+    return field.type?.kind === "rootRef"
+        ? { ...field, kind: "rootRef", typeArg: field.type.className ?? null }
         : field;
 }
 
@@ -3209,7 +3209,6 @@ function kindsCompatible(expected, actualKind)
     if (expKind === actualKind) return { match: true };
     if (STRING_ALIASES.has(expKind) && STRING_ALIASES.has(actualKind)) return { match: true };
     if (LIST_ALIASES.has(expKind) && LIST_ALIASES.has(actualKind)) return { match: true };
-    if (expKind === "model" && actualKind === "objectRef") return { match: true };
     // vec4 <-> quat only when schema field is rotation-like (i.e. expected kind is quat).
     if (expKind === "quat" && actualKind === "vec4") return { match: true };
     if (expKind === "vec4" && actualKind === "quat") return { match: false };
@@ -3393,7 +3392,7 @@ export function compareClass(expected, parsed, options = {})
             continue;
         }
 
-        // typeArg comparison (objectRef/struct/rawStruct/list item). Carbon's generated
+        // typeArg comparison (rootRef/struct/rawStruct/list item). Carbon's generated
         // "<Item>Structure" wrappers are the same runtime item type.
         if (exp.typeArg && act.typeArg
             && JSON.stringify(normalizedTypeArg(exp.typeArg, ["list", "array", "map", "set"].includes(exp.kind)))
@@ -4605,11 +4604,11 @@ function renderRoleDecorator(field)
 
 function renderTypeDecorator(field)
 {
-    if (field.type?.kind === "objectRef" && field.type.runtimeOnly === true)
+    if (field.type?.kind === "rootRef" && field.type.runtimeOnly === true)
     {
         return `resource(${JSON.stringify(field.type.className || "unknown")})`;
     }
-    if (field.kind === "model" || field.kind === "objectRef" || field.kind === "weakRef" || field.kind === "root" || field.kind === "rawStruct" || field.kind === "structList")
+    if (field.kind === "rootRef" || field.kind === "rootWeak" || field.kind === "root" || field.kind === "rawStruct" || field.kind === "structList")
     {
         return `${field.kind}("${field.typeArg || field.cppType || "unknown"}")`;
     }
