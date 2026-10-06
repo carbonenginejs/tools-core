@@ -23,7 +23,7 @@ export const DEFAULT_SCHEMA_ROOT = path.resolve(HERE, "..", "schema");
 export const KNOWN_TYPE_KINDS = new Set([
     "array", "boolean", "color", "expression", "float32", "float64",
     "int8", "int16", "int32", "int64", "list", "mat3", "mat4", "map",
-    "model", "objectRef", "path", "quat", "rawStruct", "root", "set", "string",
+    "model", "objectRef", "path", "quat", "rawStruct", "root", "set", "string", "structList",
     "typedArray", "uint8", "uint16", "uint32", "uint64", "unknown",
     "vec2", "vec3", "vec4", "weakRef", "wstring"
 ]);
@@ -44,7 +44,7 @@ const TYPE_DEFAULT = {
     uint8: 0, uint16: 0, uint32: 0, uint64: 0,
     vec2: [0, 0], vec3: [0, 0, 0], vec4: [0, 0, 0, 0], color: [0, 0, 0, 0],
     quat: [0, 0, 0, 1], mat3: IDENTITY_MAT3, mat4: IDENTITY_MAT4,
-    list: [], array: [], map: { __container: "map" }, set: { __container: "set" },
+    list: [], array: [], structList: [], map: { __container: "map" }, set: { __container: "set" },
     model: null, objectRef: null, weakRef: null, struct: null, rawStruct: null, typedArray: null, unknown: null
 };
 
@@ -1428,7 +1428,7 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
 
 const MATH_KINDS = new Set(["vec2", "vec3", "vec4", "color", "quat", "mat3", "mat4"]);
 const INLINE_CPP_KINDS = new Set(
-    [...KNOWN_TYPE_KINDS].filter(kind => !["unknown", "rawStruct", "root"].includes(kind))
+    [...KNOWN_TYPE_KINDS].filter(kind => !["unknown", "rawStruct", "root", "structList"].includes(kind))
 );
 
 // Resolve a usable enum name. Carbon inner enums are declared as `enum Type` (or Mode/…)
@@ -1492,11 +1492,12 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
             const kind = black.container === "dict" ? "map"
                 : black.container === "array" ? "array"
                 : resolvedCollection ? resolved.kind : "list";
-            // A reviewed native layout supplies both item identity and ABI.
-            // Never infer stride or offsets from the exposed member types.
+            // A reviewed native layout makes this a BlueStructureList of its record
+            // class. The layout is kept for review; the runtime reads it from the
+            // record class's meta.struct, never from the list declaration.
             if (black.structure && ["list", "array"].includes(kind))
             {
-                return { kind, arg: { kind: "rawStruct", className: black.structure.name }, structure: black.structure };
+                return { kind: "structList", arg: black.structure.name, structure: black.structure };
             }
             return { kind, arg: (resolvedCollection ? resolved.arg : null) || collectionItemType(effectiveCppType) };
         }
@@ -3407,7 +3408,9 @@ export function compareClass(expected, parsed, options = {})
             notes.push(`item/ref type "${exp.typeArg}" unspecified in file`);
         }
 
-        if (JSON.stringify(normalizedStructure(exp.structure || null)) !== JSON.stringify(normalizedStructure(act.structure || null)))
+        // A structList's layout lives on its record class (meta.struct), not on the declaration.
+        if (exp.kind !== "structList"
+            && JSON.stringify(normalizedStructure(exp.structure || null)) !== JSON.stringify(normalizedStructure(act.structure || null)))
         {
             results.push({
                 name, verdict: "type-mismatch", severity: "error", symbol: "cross",
@@ -4588,7 +4591,7 @@ function renderTypeDecorator(field)
     {
         return `resource(${JSON.stringify(field.type.className || "unknown")})`;
     }
-    if (field.kind === "model" || field.kind === "objectRef" || field.kind === "weakRef" || field.kind === "root" || field.kind === "rawStruct")
+    if (field.kind === "model" || field.kind === "objectRef" || field.kind === "weakRef" || field.kind === "root" || field.kind === "rawStruct" || field.kind === "structList")
     {
         return `${field.kind}("${field.typeArg || field.cppType || "unknown"}")`;
     }
