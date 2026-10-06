@@ -2513,7 +2513,7 @@ test("Black definitions inherit persisted fields only through the EXPOSURE_CHAIN
 
     const classes = CjsFormatCarbon.readBlackDefinitions(report).classes;
 
-    assert.deepEqual(classes.ChainNarrowed, { lightColor: "int", radius: "float", texturePath: "wstring" });
+    assert.deepEqual(classes.ChainNarrowed, { lightColor: "int", radius: "float", texturePath: "wpath" });
     assert.deepEqual(classes.EndsChain, { own: "float" });
     assert.deepEqual(classes.ChainUnresolved, { extra: "float", own: "float" });
     assert.deepEqual(classes.LegacyDoc, { lightColor: "int", radius: "float", extra: "float", own: "float" });

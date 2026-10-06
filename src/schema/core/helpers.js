@@ -3043,6 +3043,7 @@ function compactBlackFieldType(field, sourceField, fieldName)
         cppType = sourceField?.cppType || (isUsefulCppType(field.cppType) ? field.cppType : field.cppType || null);
 
     if (kind === "path") return { type: "path" };
+    if (kind === "wpath") return { type: "wpath" };
     if (kind === "expression") return { type: "expression" };
 
     switch (field.beType)
@@ -3058,7 +3059,7 @@ function compactBlackFieldType(field, sourceField, fieldName)
         case "STDWSTRING":
         case "SHAREDSTRINGW":
         case "WREFERENCE":
-            return { type: "wstring" };
+            return { type: isPathLikeField(fieldName, cppType) ? "wpath" : "wstring" };
         case "FLOAT":
             return { type: "float" };
         case "DOUBLE":

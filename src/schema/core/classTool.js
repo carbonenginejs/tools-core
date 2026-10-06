@@ -25,7 +25,7 @@ export const KNOWN_TYPE_KINDS = new Set([
     "int8", "int16", "int32", "int64", "list", "mat3", "mat4", "map",
     "path", "quat", "rawStruct", "root", "rootRef", "set", "string", "structList",
     "typedArray", "uint8", "uint16", "uint32", "uint64", "unknown",
-    "vec2", "vec3", "vec4", "rootWeak", "wstring"
+    "vec2", "vec3", "vec4", "rootWeak", "wpath", "wstring"
 ]);
 
 export const KNOWN_IO_KINDS = new Set([
@@ -38,7 +38,7 @@ const IDENTITY_MAT4 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
 const TYPE_DEFAULT = {
     boolean: false,
-    string: "", wstring: "", path: "", expression: "",
+    string: "", wstring: "", path: "", wpath: "", expression: "",
     float32: 0, float64: 0,
     int8: 0, int16: 0, int32: 0, int64: 0,
     uint8: 0, uint16: 0, uint32: 0, uint64: 0,
@@ -1396,7 +1396,7 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
         case "std::string": case "BlueSharedString":
             return { kind: isResourcePathMember(className, name) ? "path" : isExpressionLike(name) ? "expression" : "string" };
         case "std::wstring": case "BlueSharedStringW":
-            return { kind: isResourcePathMember(className, name) ? "path" : "wstring" };
+            return { kind: isResourcePathMember(className, name) ? "wpath" : "wstring" };
         case "Vector2": return { kind: "vec2" };
         case "Vector3": return { kind: "vec3" };
         case "Vector4": return { kind: isRotationLike(name) ? "quat" : isColorLike(name) ? "color" : "vec4" };
@@ -1462,7 +1462,7 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
         case "stringRef":
             return { kind: isResourcePathMember(className, name) ? "path" : isExpressionLike(name) ? "expression" : "string" };
         case "wstringRef":
-            return { kind: isResourcePathMember(className, name) ? "path" : "wstring" };
+            return { kind: isResourcePathMember(className, name) ? "wpath" : "wstring" };
         case "bool": return { kind: "boolean" };
         case "float32": return { kind: "float32" };
         case "int32": return { kind: "int32" };
@@ -3190,6 +3190,8 @@ function sliceBalanced(src, openIndex)
 // ---------------------------------------------------------------------------
 
 const STRING_ALIASES = new Set(["string", "path", "expression"]);
+// The wide pair: std::wstring reads Black's wide string table, so it never matches a narrow kind.
+const WIDE_STRING_ALIASES = new Set(["wstring", "wpath"]);
 const LIST_ALIASES = new Set(["list", "array"]);
 
 // Explicit expected records may carry the canonical reference descriptor.
@@ -3208,6 +3210,7 @@ function kindsCompatible(expected, actualKind)
     const expKind = expected.kind;
     if (expKind === actualKind) return { match: true };
     if (STRING_ALIASES.has(expKind) && STRING_ALIASES.has(actualKind)) return { match: true };
+    if (WIDE_STRING_ALIASES.has(expKind) && WIDE_STRING_ALIASES.has(actualKind)) return { match: true };
     if (LIST_ALIASES.has(expKind) && LIST_ALIASES.has(actualKind)) return { match: true };
     // vec4 <-> quat only when schema field is rotation-like (i.e. expected kind is quat).
     if (expKind === "quat" && actualKind === "vec4") return { match: true };

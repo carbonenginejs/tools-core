@@ -4,7 +4,8 @@ import { deriveExpectedFields, parseClassFile, renderClassFile } from "../src/sc
 
 test("resource semantics survive C++ and Black string storage without changing authored defaults", () =>
 {
-    for (const [cppType, wireType] of [["std::string", null], ["BlueSharedString", "stringRef"], ["std::wstring", "wstringRef"]])
+    // A std::wstring path is wpath: the wide string table, with path's meaning.
+    for (const [cppType, wireType, kind] of [["std::string", null, "path"], ["BlueSharedString", "stringRef", "path"], ["std::wstring", "wstringRef", "wpath"]])
     {
         const doc = { blueClass: "Tr2Mesh", cppClass: "Tr2Mesh", attributes: [{
             blueName: "geometryResPath", member: "m_geometryResPath", cppType,
@@ -15,14 +16,14 @@ test("resource semantics survive C++ and Black string storage without changing a
         const before = structuredClone(doc);
         const expected = deriveExpectedFields(doc);
         const field = expected.fields[0];
-        assert.equal(field.kind, "path");
+        assert.equal(field.kind, kind);
         assert.equal(field.cppType, cppType);
         assert.equal(field.default.value, "Res:/Authored/Mixed.GR2");
         const emitted = renderClassFile(expected, { js: true, doc });
-        assert.match(emitted, /@meta\.type\.path/);
+        assert.match(emitted, new RegExp(`@meta\\.type\\.${kind}\\b`));
         assert.match(emitted, /@meta\.blue\.notify/);
         assert.match(emitted, /@meta\.blue\.persist/);
-        assert.equal(parseClassFile(emitted).fields[0].kind, "path");
+        assert.equal(parseClassFile(emitted).fields[0].kind, kind);
         assert.deepEqual(doc, before, "projection cannot rewrite source wire/default evidence");
     }
 });
