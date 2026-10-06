@@ -155,6 +155,28 @@ test("verified raw layouts become structList declarations naming their record cl
     }
 });
 
+test("a custom binary block generates @meta.type.binary beside its value type", () =>
+{
+    // MAP_ATTRIBUTE_AS_CUSTOM_BINARY_BLOCK: BINARYBLOCK, always PERSISTONLY.
+    for (const [className, name, value] of [["EveSOFDataDecalIndexBuffer", "indexBuffer", "Uint32Array"], ["Tr2ActionPython", "state", "Uint8Array"]])
+    {
+        const black = { names: { [name]: ["name"] }, wireType: "binaryBlock", beType: "BINARYBLOCK", flags: ["PERSISTONLY"] };
+        const expected = deriveExpectedFields({ blueClass: className, cppClass: className, black: { fields: [black] } });
+        assert.equal(expected.fields[0].kind, "typedArray");
+        assert.equal(expected.fields[0].typeArg, value);
+        assert.equal(expected.fields[0].binary, true);
+        const source = renderClassFile(expected, { js: true });
+        assert.ok(source.includes(`  @meta.blue.persistOnly\n  @meta.type.binary\n  @meta.type.typedArray("${value}")\n`), source);
+        const parsed = parseClassFile(source);
+        assert.equal(parsed.fields[0].kind, "typedArray");
+        assert.equal(parsed.fields[0].binary, true);
+        assert.equal(compareClass(expected, parsed, { strict: true }).summary.drift, false);
+        const missing = compareClass(expected, parseClassFile(source.replace("@meta.type.binary", "")));
+        assert.equal(missing.summary.typeMismatch, 1);
+        assert.match(missing.fields[0].notes.join(" "), /binary block differs/);
+    }
+});
+
 test("ordinary reference collections retain one argument without an inferred native layout", () =>
 {
     const expected = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture",

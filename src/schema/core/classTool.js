@@ -1501,8 +1501,9 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
             }
             return { kind, arg: (resolvedCollection ? resolved.arg : null) || collectionItemType(effectiveCppType) };
         }
+        // Carbon's BINARYBLOCK: @meta.type.binary, beside the value type it holds.
         case "binaryBlock":
-            return { kind: "typedArray", arg: "Uint8Array" };
+            return { kind: "typedArray", arg: "Uint8Array", binary: true };
         case "inlineObject":
         case "struct":
         {
@@ -2480,6 +2481,7 @@ function buildExpectedField({ name, key = name, role = "member", member, getter 
         flags: flags || [],
         kind: kindInfo.kind,
         typeArg: kindInfo.arg || null,
+        ...(kindInfo.binary ? { binary: true } : {}),
         ...(kindInfo.structure ? { structure: kindInfo.structure } : {}),
         enumType: kindInfo.enumType || null,
         enumQualifiedName: kindInfo.enumQualifiedName || null,
@@ -2861,9 +2863,10 @@ function handleStatement(stmt, pending, line, fields, methods, helpers, jsdoc)
 
 function buildParsedField(key, annotation, initializer, pending, line, defaultRole)
 {
-    // enum/hideInherited describe a type declaration, but are not type kinds.
+    // enum/hideInherited describe a type declaration, and binary its storage, but none is a type kind.
     const typeDecorators = pending.filter(d => d.ns === "type"
-        && d.name !== "define" && d.name !== "enum" && d.name !== "hideInherited");
+        && d.name !== "define" && d.name !== "enum" && d.name !== "hideInherited" && d.name !== "binary");
+    const binary = pending.some(d => d.ns === "type" && d.name === "binary");
     const ioDecorators = pending.filter(d => d.ns === "edit");
     const enumDecorators = pending.filter(d => (d.ns === "type" || d.ns === "schema") && d.name === "enum");
     const declaration = pending.find(d => d.ns === "meta" && (d.name === "member" || d.name === "property"));
@@ -2890,6 +2893,7 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
         kinds: typeDecorators.map(d => d.name === "resource" ? "objectRef" : d.name),
         kind,
         typeArg,
+        ...(binary ? { binary: true } : {}),
         ...(resource ? { type: { kind: "objectRef", className: typeArg, runtimeOnly: true } } : {}),
         ...(typeOptions && Object.hasOwn(typeOptions, "structure") ? { structure: typeOptions.structure } : {}),
         ioNames: ioDecorators.filter(d => d.name !== "notify").map(d => d.name),
@@ -3365,6 +3369,17 @@ export function compareClass(expected, parsed, options = {})
         }
         if (compat.info) notes.push(compat.info);
 
+        if ((exp.binary === true) !== (act.binary === true))
+        {
+            results.push({
+                name, verdict: "type-mismatch", severity: "error", symbol: "cross",
+                notes: [`binary block differs: schema ${exp.binary === true} vs file ${act.binary === true}`],
+                expected: exportExpected(exp),
+                actual: exportActual(act)
+            });
+            continue;
+        }
+
         const expectedRuntimeOnly = exp.type?.runtimeOnly === true;
         const actualRuntimeOnly = act.type?.runtimeOnly === true;
         if (expectedRuntimeOnly !== actualRuntimeOnly)
@@ -3672,6 +3687,7 @@ function exportExpected(exp)
         setterParameterType: exp.setterParameterType || null,
         type: exp.type || exp.kind,
         typeArg: exp.typeArg,
+        ...(exp.binary ? { binary: true } : {}),
         ...(exp.structure ? { structure: exp.structure } : {}),
         enumType: exp.enumType,
         io: exp.io,
@@ -3693,6 +3709,7 @@ function exportActual(field)
         ...(field.index === undefined ? {} : { index: field.index }),
         type: field.type || field.kind,
         typeArg: field.typeArg,
+        ...(field.binary ? { binary: true } : {}),
         ...(field.structure ? { structure: field.structure } : {}),
         enumArg: field.enumArg,
         io: field.ioNames.length ? field.ioNames.join("+") : null,
@@ -4154,6 +4171,7 @@ export function renderClassFile(expected, options = {})
         }
         if (field.notify) lines.push("  @meta.blue.notify");
         for (const decorator of field.ioDecorators || []) lines.push(`  @meta.blue.${decorator}`);
+        if (field.binary) lines.push("  @meta.type.binary");
         lines.push(`  @meta.type.${renderTypeDecorator(field)}`);
         if (field.enumType) lines.push(`  @meta.type.enum("${field.enumType}")`);
         if (field.role !== "property")
