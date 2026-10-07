@@ -384,7 +384,7 @@ Minimal optional HTTP adapter over exact-build tool services.
 <!-- class:CjsToolSofBundle -->
 ## `CjsToolSofBundle`
 
-Writes one self-contained SOF bundle: the GPU-free carbon.document plus its geometry and decoded textures, laid out for consumers that cannot run Carbon shaders or decode BC7/BC5 payloads themselves (the Blender add-ons).
+Writes one self-contained SOF bundle: the SOF model values plus their geometry and decoded textures, laid out for consumers that cannot run Carbon shaders or decode BC7/BC5 payloads themselves (the Blender add-ons).
 
 - Export: `@carbonenginejs/tools-core/sof`
 - Source: `src/sof/CjsToolSofBundle.js`

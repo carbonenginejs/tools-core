@@ -366,9 +366,7 @@ is never hydrated or initialized. Authored properties win, collections replace
 their defaults, structs merge, and `_id`/`_ref` are preserved. The unsuffixed
 route remains the canonical sparse SOF answer.
 
-The former `/document` suffix is intentionally not exposed. Document-building
-APIs remain internal compatibility/diagnostic surfaces while their non-HTTP
-consumers migrate; HTTP consumers receive only model values.
+There is no document form: the runtime SOF emits model values only.
 
 The selector is a path segment rather than a `?format=` query for a concrete
 reason: a DNA command separator may be sent either as a literal `?` or as `%3F`,

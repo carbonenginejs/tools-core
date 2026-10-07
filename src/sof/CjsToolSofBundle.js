@@ -2,7 +2,7 @@ import { deflateSync } from "node:zlib";
 import { CjsDdsFormat } from "@carbonenginejs/runtime/resource/formats/dds";
 
 export const SOF_BUNDLE_SCHEMA = "carbon.sof-bundle";
-export const SOF_BUNDLE_VERSION = 1;
+export const SOF_BUNDLE_VERSION = 2;
 
 const MESH_KINDS = new Set([ "Tr2Mesh", "Tr2InstancedMesh" ]);
 const TEXTURE_KIND = "TriTextureParameter";
@@ -13,7 +13,7 @@ const TWO_CHANNEL_FOURCC = new Set([ "ATI2", "BC5U", "BC5S" ]);
 const TWO_CHANNEL_DXGI = new Set([ 83, 84 ]);
 
 /**
- * Writes one self-contained SOF bundle: the GPU-free carbon.document plus its
+ * Writes one self-contained SOF bundle: the SOF model values plus their
  * geometry and decoded textures, laid out for consumers that cannot run
  * Carbon shaders or decode BC7/BC5 payloads themselves (the Blender add-ons).
  */
@@ -49,18 +49,18 @@ export class CjsToolSofBundle
      */
     async Write({ catalog, source, dna, convertTextures = true, buildOptions = {} })
     {
-        const document = await catalog.BuildDocumentAsync(dna, buildOptions);
+        const values = await catalog.BuildValuesAsync(dna, buildOptions);
 
-        if (document === null)
+        if (values === null)
         {
             throw new Error(`SOF DNA "${dna}" is not buildable for build ${catalog.build}`);
         }
 
-        const geometry = CollectPaths(document, node => MESH_KINDS.has(node.kind)
-            ? node.fields?.geometryResPath
+        const geometry = CollectPaths(values, model => MESH_KINDS.has(model._type)
+            ? model.geometryResPath
             : null);
-        const textures = CollectPaths(document, node => node.kind === TEXTURE_KIND
-            ? node.fields?.resourcePath
+        const textures = CollectPaths(values, model => model._type === TEXTURE_KIND
+            ? model.resourcePath
             : null);
 
         const resources = {};
@@ -80,7 +80,7 @@ export class CjsToolSofBundle
             if (written) resources[logicalPath] = written;
         }
 
-        await this.#writeFile("document.json", Buffer.from(JSON.stringify(document, null, 1), "utf8"));
+        await this.#writeFile("values.json", Buffer.from(JSON.stringify(values, null, 1), "utf8"));
 
         const manifest = {
             schema: SOF_BUNDLE_SCHEMA,
@@ -89,7 +89,7 @@ export class CjsToolSofBundle
             provider: catalog.provider,
             build: catalog.build,
             dna,
-            document: "document.json",
+            values: "values.json",
             texturesConverted: Boolean(convertTextures),
             resources,
             missing,
@@ -168,21 +168,36 @@ export class CjsToolSofBundle
 
 }
 
-function CollectPaths(document, select)
+/** The distinct paths `select` names across every model (object with `_type`), in graph order. */
+function CollectPaths(values, select)
 {
     const paths = [];
     const seen = new Set();
-
-    for (const node of document.nodes ?? [])
+    const visit = value =>
     {
-        const value = String(select(node) ?? "").trim();
-
-        if (value && !seen.has(value))
+        if (Array.isArray(value))
         {
-            seen.add(value);
-            paths.push(value);
+            for (const item of value) visit(item);
+            return;
         }
-    }
+
+        if (!value || typeof value !== "object") return;
+
+        if (typeof value._type === "string")
+        {
+            const path = String(select(value) ?? "").trim();
+
+            if (path && !seen.has(path))
+            {
+                seen.add(path);
+                paths.push(path);
+            }
+        }
+
+        for (const item of Object.values(value)) visit(item);
+    };
+
+    visit(values);
 
     return paths;
 }

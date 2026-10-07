@@ -9,15 +9,16 @@ import {
     SOF_BUNDLE_SCHEMA,
 } from "../src/sof/index.js";
 
-const DOCUMENT = {
-    schema: "carbon.document",
-    version: 1,
-    roots: [ { name: "default", ref: { $ref: 3 } } ],
-    nodes: [
-        { id: 1, kind: "TriTextureParameter", fields: { name: "AlbedoMap", resourcePath: "res:/a/albedo.dds" } },
-        { id: 2, kind: "Tr2Mesh", fields: { geometryResPath: "res:/a/hull.gr2" } },
-        { id: 3, kind: "EveShip2", fields: { dna: "hull:faction:race", mesh: { $ref: 2 } } },
-    ],
+const VALUES = {
+    _type: "EveShip2",
+    dna: "hull:faction:race",
+    mesh: {
+        _type: "Tr2Mesh",
+        geometryResPath: "res:/a/hull.gr2",
+        opaqueAreas: [ { _type: "Tr2MeshArea", effect: { _type: "Tr2Effect", resources: [
+            { _type: "TriTextureParameter", name: "AlbedoMap", resourcePath: "res:/a/albedo.dds" },
+        ] } } ],
+    },
 };
 
 function CreateFixture({ fetchFailures = new Set() } = {})
@@ -27,7 +28,7 @@ function CreateFixture({ fetchFailures = new Set() } = {})
         target: "eve",
         provider: "ccp",
         build: "123456",
-        BuildDocumentAsync: async () => DOCUMENT,
+        BuildValuesAsync: async () => VALUES,
     };
     const source = {
         Fetch: async logicalPath =>
@@ -44,7 +45,7 @@ function CreateFixture({ fetchFailures = new Set() } = {})
     return { bundle, catalog, source, written };
 }
 
-test("writes the document, geometry, and raw textures with a manifest", async () =>
+test("writes the values, geometry, and raw textures with a manifest", async () =>
 {
     const { bundle, catalog, source, written } = CreateFixture();
     const manifest = await bundle.Write({
@@ -60,9 +61,10 @@ test("writes the document, geometry, and raw textures with a manifest", async ()
     assert.deepEqual(manifest.missing, []);
     assert.equal(manifest.resources["res:/a/hull.gr2"], "geometry/a/hull.gr2");
     assert.equal(manifest.resources["res:/a/albedo.dds"], "textures/a/albedo.dds");
-    assert.ok(written.has("document.json"));
+    assert.ok(written.has("values.json"));
     assert.ok(written.has("bundle.json"));
-    assert.equal(JSON.parse(written.get("document.json").toString("utf8")).schema, "carbon.document");
+    assert.equal(manifest.values, "values.json");
+    assert.equal(JSON.parse(written.get("values.json").toString("utf8"))._type, "EveShip2");
 });
 
 test("records resources the exact build cannot provide", async () =>

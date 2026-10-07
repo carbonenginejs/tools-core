@@ -3,7 +3,7 @@
 Status: Stable  
 Scope: `@carbonenginejs/tools-core/sof` and the `cjs-sof-bundle` command  
 Audience: Tool authors and Blender add-on users  
-Summary: Writes one DNA's GPU-free document, geometry, and decoded textures as a self-contained directory.
+Summary: Writes one DNA's SOF model values, geometry, and decoded textures as a self-contained directory.
 
 ## Purpose
 
@@ -15,8 +15,8 @@ needs as ordinary files, without duplicating SOF semantics outside Node.
 A bundle contains:
 
 ```text
-bundle.json      manifest: schema, target, provider, build, dna, resource map
-document.json    runtime SOF's GPU-free carbon.document
+bundle.json      manifest: schema, version 2, target, provider, build, dna, resource map
+values.json      the runtime SOF's model values
 geometry/...     every referenced geometry resource, unchanged
 textures/...     every referenced texture, decoded to PNG by default
 ```

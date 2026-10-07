@@ -105,11 +105,6 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
         error: null,
     });
 
-    const document = await first.BuildDocumentAsync(
-        "ab1_t1:amarrbase:amarr:pattern?stripes;none;none",
-    );
-
-    assert.equal(document.schema, "carbon.document");
     assert.equal(valuesCount, 0);
 
     const expanded = await first.BuildExpandedValuesAsync("ab1_t1:amarrbase:amarr");

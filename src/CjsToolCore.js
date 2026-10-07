@@ -10,9 +10,8 @@ import { PrepareSofDefaults } from "./sof/ExpandSofDefaults.js";
  * gives the build, `PrepareDatabase({ ...exact, databasePath })` the SQLite
  * store, and its `LoadTables(names)` the `CjsToolSde` input. Output shapes: `BuildSofValues*` returns the plain runtime model values
  * (recommended); `BuildSofExpandedValuesAsync` returns the same graph with
- * registered class defaults filled in for offline consumers;
- * `BuildSofDocument*` returns the `carbon.document` node table for graph and
- * diagnostic tooling. The `BuildType*` forms resolve a selection first.
+ * registered class defaults filled in for offline consumers. The `BuildType*`
+ * forms resolve a selection first.
  */
 export class CjsToolCore
 {
@@ -108,39 +107,6 @@ export class CjsToolCore
         );
     }
 
-    /**
-     * Returns the runtime SOF layer's device-free carbon.document JSON graph.
-     *
-     * Compatibility/diagnostic API: the node-table document remains available
-     * for explicit graph tooling (fragment import, lossless unknown fields,
-     * detached-node diagnostics). New consumers should use BuildSofValues.
-     */
-    async BuildSofDocument(dna, options = {})
-    {
-        return ValidateDocument(await this.sof.BuildFromDNA(RequireDna(dna), options));
-    }
-
-    /** Async compatibility/diagnostic carbon.document build. */
-    async BuildSofDocumentAsync(dna, options = {})
-    {
-        return ValidateDocument(await this.sof.BuildFromDNAAsync(
-            RequireDna(dna),
-            options,
-        ));
-    }
-
-    /** Resolves a prepared identity selection and builds its SOF document. */
-    async BuildTypeSofDocument(selection, options = {})
-    {
-        return this.BuildSofDocument(this.ResolveDna(selection), options);
-    }
-
-    /** Asynchronously resolves an identity selection and builds its document. */
-    async BuildTypeSofDocumentAsync(selection, options = {})
-    {
-        return this.BuildSofDocumentAsync(await this.ResolveDnaAsync(selection), options);
-    }
-
 }
 
 function RequireDna(value)
@@ -155,26 +121,6 @@ function RequireDna(value)
     return dna;
 }
 
-function ValidateDocument(value)
-{
-    if (value === null)
-    {
-        return null;
-    }
-
-    if (!value || typeof value !== "object" || Array.isArray(value))
-    {
-        throw new TypeError("The runtime SOF layer must return a carbon.document object or null");
-    }
-
-    if (value.schema !== "carbon.document")
-    {
-        throw new TypeError(`The runtime SOF layer returned unsupported document schema "${value.schema}"`);
-    }
-
-    return value;
-}
-
 function ValidateValues(value)
 {
     if (value === null)
@@ -185,11 +131,6 @@ function ValidateValues(value)
     if (!value || typeof value !== "object" || Array.isArray(value))
     {
         throw new TypeError("The runtime SOF layer must return a model-values object or null");
-    }
-
-    if (value.schema === "carbon.document" || value.nodes !== undefined || value.roots !== undefined)
-    {
-        throw new TypeError("The runtime SOF layer returned a carbon.document where plain model values were required");
     }
 
     if (typeof value._type !== "string" || !value._type)

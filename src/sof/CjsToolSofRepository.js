@@ -439,38 +439,9 @@ export class CjsToolSofCatalog
             : null;
     }
 
-    /** Builds the runtime SOF layer's GPU-free carbon.document without hydration. */
-    async BuildDocumentAsync(dna, options = {})
-    {
-        const value = RequireDna(dna);
-        const document = await this.#sof.BuildFromDNAAsync(value, options);
-
-        if (document === null)
-        {
-            return null;
-        }
-
-        if (!document || typeof document !== "object" || Array.isArray(document)
-            || document.schema !== "carbon.document")
-        {
-            throw new TypeError(
-                "The runtime SOF layer must return a carbon.document object or null",
-            );
-        }
-
-        return document;
-    }
-
     /**
      * Builds the recommended SOF boundary: one plain model-values graph that is
      * directly valid `CjsSchema.from` input.
-     *
-     * The document form this sits beside is not. It addresses shared nodes with
-     * `{ $ref: id }` into a flat node table, and nothing in the model or values
-     * path reads `$ref` at all — the values contract spells a back-reference
-     * `{ _ref }` alongside `_id` and `_type`. A consumer handed the document
-     * therefore cannot rebuild from it without a hydrator, which is the round
-     * trip this method exists to remove.
      *
      * No class registry is supplied or needed. The runtime SOF layer emits JSON, so this
      * route resolves no class names and imports no graph library; a consumer
@@ -487,8 +458,7 @@ export class CjsToolSofCatalog
             return null;
         }
 
-        if (!values || typeof values !== "object" || Array.isArray(values)
-            || values.schema === "carbon.document")
+        if (!values || typeof values !== "object" || Array.isArray(values))
         {
             throw new TypeError(
                 "The runtime SOF layer must return a plain model-values graph or null",
