@@ -15,6 +15,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isResourcePathMember } from "./schemaResourcePaths.js";
 import { normalizeSchemaClassPurpose } from "./schemaClassPurposes.js";
+import { compareLineage, compareOverloads, createSchemaDocResolver, deriveCarbonLineage, deriveOverloadSets, parseClassLineage, resolveJsChain } from "./lineage.js";
+
+export { compareLineage, compareOverloads, createSchemaDocResolver, deriveCarbonLineage, deriveOverloadSets, parseClassLineage, resolveJsChain };
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_SCHEMA_ROOT = path.resolve(HERE, "..", "schema");
@@ -2652,6 +2655,7 @@ export function parseClassFile(rawText, options = {})
     }
     const classNameFromDecl = classMatch[1];
     const base = classMatch[2] || null;
+    const lineage = parseClassLineage(src, classNameFromDecl, classMatch.index);
 
     const define = parseDefine(src);
     const className = define.className || classNameFromDecl;
@@ -2736,7 +2740,7 @@ export function parseClassFile(rawText, options = {})
         void lineNo;
     }
 
-    return { className, base, define, fields, methods, helpers, generated };
+    return { className, jsClassName: classNameFromDecl, base, lineage, define, fields, methods, helpers, generated };
 }
 
 // Two spellings, because the runtime has two. `@meta.define({ ... })` is the
@@ -2852,7 +2856,7 @@ function handleStatement(stmt, pending, line, fields, methods, helpers, jsdoc)
     {
         const name = normalizeFieldName(methodMatch[1]);
         helpers.push(name);
-        methods.push(buildParsedMethod(name, pending, line, jsdoc));
+        methods.push(buildParsedMethod(name, pending, line, jsdoc, jsParameterNames(trimmed)));
         return false;
     }
 
@@ -2945,7 +2949,38 @@ function hasJsdocReason(doc, statuses)
     });
 }
 
-function buildParsedMethod(name, pending, line, jsdoc)
+/**
+ * Parameter names of a method statement, for overload matching by arity.
+ * @param {string} statement The method's first statement text.
+ * @returns {string[]} Parameter names; a rest parameter keeps its `...`.
+ */
+function jsParameterNames(statement)
+{
+    const open = statement.indexOf("(");
+    if (open < 0) return [];
+    let depth = 0, end = -1;
+    for (let i = open; i < statement.length; i++)
+    {
+        if ("([{".includes(statement[i])) depth++;
+        else if (")]}".includes(statement[i]) && --depth === 0) { end = i; break; }
+    }
+    const list = statement.slice(open + 1, end < 0 ? undefined : end).trim();
+    if (!list) return [];
+    const parts = [];
+    let current = "";
+    depth = 0;
+    for (const char of list)
+    {
+        if ("([{".includes(char)) depth++;
+        else if (")]}".includes(char)) depth--;
+        if (char === "," && depth === 0) { parts.push(current); current = ""; continue; }
+        current += char;
+    }
+    parts.push(current);
+    return parts.map(part => part.split("=")[0].trim()).filter(Boolean);
+}
+
+function buildParsedMethod(name, pending, line, jsdoc, parameters = [])
 {
     const carbonDecorators = pending.filter(d => d.ns === "carbon");
     const implDecorators = pending.filter(d => d.ns === "impl");
@@ -2955,6 +2990,7 @@ function buildParsedMethod(name, pending, line, jsdoc)
     return {
         name,
         line,
+        parameters,
         carbonNames: carbonDecorators.map(d => d.name),
         carbonOriginalNames: carbonDecorators
             .filter(d => d.name === "renamed" && d.arg !== undefined)
@@ -3271,7 +3307,7 @@ export function compareClass(expected, parsed, options = {})
         {
             results.push(makeExtraResult(field, allowExtra, strict));
         }
-        const methodResults = compareMethods(expected.methods || [], parsed.methods || []);
+        const methodResults = compareStructure(results, expected, parsed, options);
         const summary = summarize([...results, ...methodResults]);
         return {
             class: meta.className || parsed.className || null,
@@ -3527,7 +3563,7 @@ export function compareClass(expected, parsed, options = {})
         });
     }
 
-    const methodResults = compareMethods(expected.methods || [], parsed.methods || []);
+    const methodResults = compareStructure(results, expected, parsed, options);
     const summary = summarize([...results, ...methodResults]);
     return {
         class: meta.className || parsed.className || null,
@@ -3540,7 +3576,30 @@ export function compareClass(expected, parsed, options = {})
     };
 }
 
-function compareMethods(expectedMethods, parsedMethods)
+/**
+ * Method comparison plus the Carbon structure checks a caller supplies:
+ * `options.lineage` (deriveCarbonLineage) adds class-level "lineage" results
+ * to `results`; `options.overloadSets` (deriveOverloadSets) adds "overload"
+ * results and credits `Name__Discriminator` methods to their Carbon name.
+ * Maintained files report these as warnings unless `options.reportOnly` is false.
+ * @returns {object[]} Method results.
+ */
+function compareStructure(results, expected, parsed, options)
+{
+    const reportOnly = options.reportOnly ?? !parsed.generated;
+    if (options.lineage)
+    {
+        results.push(...compareLineage(options.lineage, parsed, {
+            reportOnly, jsChain: options.jsChain, resolveDoc: options.resolveDoc, aliases: options.aliases
+        }));
+    }
+    const overloads = options.overloadSets
+        ? compareOverloads(options.overloadSets, parsed.methods || [], { reportOnly, nativeNames: options.nativeNames })
+        : { results: [], credited: new Set() };
+    return [ ...compareMethods(expected.methods || [], parsed.methods || [], overloads.credited), ...overloads.results ];
+}
+
+function compareMethods(expectedMethods, parsedMethods, credited = new Set())
 {
     const results = [];
     const used = new Set();
@@ -3557,12 +3616,14 @@ function compareMethods(expectedMethods, parsedMethods)
 
         if (!actual)
         {
+            const variants = parsedMethods.filter(method => method.name.replace(/^_/, "").startsWith(`${expected.name}__`)).map(method => method.name);
             results.push({
                 name: expected.name,
                 verdict: "missing-method",
                 severity: "error",
                 symbol: "cross",
-                notes: [`schema exposes ${expected.name}${expected.target && expected.target !== expected.name ? ` -> ${expected.target}` : ""}`],
+                notes: [`schema exposes ${expected.name}${expected.target && expected.target !== expected.name ? ` -> ${expected.target}` : ""}`,
+                    ...(variants.length ? [ `overload variants ${variants.join(", ")} exist; the exposed bare name is still required, as the router of agent-rules 9` ] : [])],
                 expected: exportExpectedMethod(expected),
                 actual: null
             });
@@ -3614,7 +3675,7 @@ function compareMethods(expectedMethods, parsedMethods)
 
     for (const method of parsedMethods)
     {
-        if (used.has(method) || !method.hasCarbon) continue;
+        if (used.has(method) || !method.hasCarbon || credited.has(method.name)) continue;
         results.push({
             name: method.name,
             verdict: "additional-carbon-method",
@@ -3648,19 +3709,8 @@ function addClassPolicyResults(results, meta, parsed, options = {})
     const requiredFamily = options.runtimeFamily || meta.runtimeFamily || meta.family || null;
     const allowSourceProven = options.sourceProven === undefined ? !parsed.generated : Boolean(options.sourceProven);
 
-    const expectedBase = options.runtimeBaseClass || options.extendsClass || null;
-    if (meta.className && (parsed.base || null) !== expectedBase && !allowSourceProven)
-    {
-        results.push({
-            name: "<class>",
-            verdict: "class-policy",
-            severity: "error",
-            symbol: "cross",
-            notes: [`${expectedBase ? `schema-backed class must extend ${expectedBase}` : "schema-backed class must have no base class"}; found ${parsed.base || "no base class"}`],
-            expected: { base: expectedBase, family: requiredFamily },
-            actual: { base: parsed.base || null, family: parsed.define?.family || null }
-        });
-    }
+    // The base class is compared with Carbon's base list in compareLineage.
+    void allowSourceProven;
 
     if (requiredFamily && parsed.define?.family !== requiredFamily)
     {
@@ -3670,8 +3720,8 @@ function addClassPolicyResults(results, meta, parsed, options = {})
             severity: "error",
             symbol: "cross",
             notes: [`@meta.define family must be "${requiredFamily}"; found ${parsed.define?.family || "no family"}`],
-            expected: { base: expectedBase, family: requiredFamily },
-            actual: { base: parsed.base || null, family: parsed.define?.family || null }
+            expected: { family: requiredFamily },
+            actual: { family: parsed.define?.family || null }
         });
     }
 }
@@ -3765,6 +3815,8 @@ function summarize(results)
         existingUnexposedMethod: 0,
         methodMetadata: 0,
         additionalCarbonMethod: 0,
+        lineage: 0,
+        overload: 0,
         info: 0,
         drift: false
     };
@@ -3778,6 +3830,8 @@ function summarize(results)
         else if (result.verdict === "missing-method") summary.missingMethod++;
         else if (result.verdict === "existing-unexposed-method") summary.existingUnexposedMethod++;
         else if (result.verdict === "method-metadata") summary.methodMetadata++;
+        else if (result.verdict === "lineage") summary.lineage++;
+        else if (result.verdict === "overload") summary.overload++;
         else if (result.verdict === "additional-carbon-method")
         {
             summary.additionalCarbonMethod++;
@@ -3843,6 +3897,8 @@ export function buildJsonReport(result)
         fields: result.fields.map(field => ({
             name: field.name,
             verdict: field.verdict,
+            // Lineage and overload results say which check found them.
+            ...(field.kind ? { kind: field.kind } : {}),
             severity: field.severity,
             expected: field.expected,
             actual: field.actual,
@@ -3851,6 +3907,8 @@ export function buildJsonReport(result)
         methods: (result.methods || []).map(method => ({
             name: method.name,
             verdict: method.verdict,
+            // Lineage and overload results say which check found them.
+            ...(method.kind ? { kind: method.kind } : {}),
             severity: method.severity,
             expected: method.expected,
             actual: method.actual,
@@ -3933,7 +3991,7 @@ function renderMethodLine(method, sym)
         const status = method.actual?.implementation?.[0] || "unknown";
         return `  ${symbol} ${namePad} carbon method  impl:${status}`;
     }
-    return `  ${symbol} ${namePad} ${method.verdict}: ${(method.notes || []).join("; ")}`;
+    return `  ${symbol} ${namePad} ${method.verdict}${method.kind ? `/${method.kind}` : ""}: ${(method.notes || []).join("; ")}`;
 }
 
 function renderFieldDetail(field)
@@ -3946,7 +4004,7 @@ function renderFieldDetail(field)
         const base = parts.join("  ");
         return field.notes && field.notes.length ? `${base}  - ${field.notes.join("; ")}` : base;
     }
-    return `${field.verdict}: ${(field.notes || []).join("; ")}`;
+    return `${field.verdict}${field.kind ? `/${field.kind}` : ""}: ${(field.notes || []).join("; ")}`;
 }
 
 function summaryLine(summary)
@@ -4016,45 +4074,58 @@ function defaultBaseImportFor(baseClass, isJs)
     return `./${baseClass}${isJs ? ".js" : ""}`;
 }
 
-function resolveRuntimeBase(options, isJs)
+// Carbon blue/blueexposure classes the runtime publishes from its Blue layer
+// (runtime src/global/blue/index.js). Everything else defaults to a sibling file.
+const RUNTIME_BLUE_EXPORTS = new Set([
+    "IRoot", "IInitialize", "INotify", "IList", "IListNotify", "ICustomPersist", "ICopier", "ICopierCustomAssignment",
+    "IBlueClasses", "IBlueDynamicResourceConstructor", "IBlueEventListener", "IBlueEvents", "IBlueMultiPlacementObserver",
+    "IBlueOS", "IBlueObjectBuilder", "IBlueObjectMetadata", "IBlueObjectProxy", "IBluePaths", "IBluePlacementObserver",
+    "IBlueResFileSystem", "IBlueResMan", "IBlueResManNotifications", "ICatchupTicks", "ICurveSetDriver", "IRootReader",
+    "IRootReaderBase", "IRootWriter", "ISimTimeRebaseNotify", "ITriColorFunction", "ITriCurveLength", "ITriFunction",
+    "ITriObserverLocal", "ITriQuaternionFunction", "ITriScalarFunction", "ITriVectorFunction", "IUnloadable", "IVariableTicker"
+]);
+
+/**
+ * The module a referenced Carbon class is imported from. `options.importFor(name)`
+ * decides when given (null: not importable); otherwise Blue-layer classes come
+ * from `@carbonenginejs/runtime/blue` and the rest from a sibling file.
+ */
+function importPathFor(name, options, isJs)
 {
-    const baseClass = options.extendsClass || options.runtimeBaseClass || null;
-    if (!baseClass || baseClass === "CjsModel")
-    {
-        return {
-            className: baseClass,
-            importPath: null
-        };
-    }
+    if (typeof options.importFor === "function") return options.importFor(name);
+    if (RUNTIME_BLUE_EXPORTS.has(name)) return "@carbonenginejs/runtime/blue";
+    return defaultBaseImportFor(name, isJs);
+}
 
-    if (options.extendsImport)
+/**
+ * Carbon's base list and exposure table as decorator lines and imports.
+ * `extends` is the base that carries state; the rest are `@meta.blue.inherit`;
+ * every exposed class gets its own `@meta.blue.interface(...)`; the chain is
+ * EXPOSURE_CHAINTO. A class Carbon cannot place (unimportable name) is named in a
+ * review comment instead of being dropped silently.
+ */
+function renderCarbonLineage(lineage, className, options, isJs)
+{
+    const imports = new Map();
+    const review = [ ...lineage.notes ];
+    const take = name =>
     {
-        return {
-            className: baseClass,
-            importPath: options.extendsImport
-        };
-    }
-
-    if (typeof options.extendsImportFor === "function")
-    {
-        const importPath = options.extendsImportFor(baseClass);
-        if (!importPath)
-        {
-            return {
-                className: null,
-                importPath: null
-            };
-        }
-        return {
-            className: baseClass,
-            importPath
-        };
-    }
-
-    return {
-        className: baseClass,
-        importPath: defaultBaseImportFor(baseClass, isJs)
+        if (!name || name === className) return null;
+        if (imports.has(name)) return imports.get(name) ? name : null;
+        const from = importPathFor(name, options, isJs);
+        imports.set(name, from);
+        if (!from) review.push(`${name} has no module to import from; add it by hand.`);
+        return from ? name : null;
     };
+    const baseClass = take(lineage.extends);
+    const inherit = lineage.inherit.map(take).filter(Boolean);
+    const interfaces = lineage.exposed ? lineage.interfaces.map(take).filter(Boolean) : [];
+    const chainTo = lineage.exposed ? take(lineage.chainTo) : null;
+    const decorators = [];
+    if (inherit.length) decorators.push(`@meta.blue.inherit(${inherit.join(", ")})`);
+    if (lineage.exposed) decorators.push(`@meta.blue.interface(${interfaces.join(", ")})`);
+    if (chainTo) decorators.push(`@meta.blue.chainTo(${chainTo})`);
+    return { baseClass, imports: [ ...imports ].filter(([ , from ]) => from), decorators, review };
 }
 
 /**
@@ -4069,9 +4140,9 @@ export function renderClassFile(expected, options = {})
     const className = meta.className;
     const family = meta.family || doc.family || "unknown";
     const purpose = normalizeSchemaClassPurpose(doc.purpose);
-    const runtimeBase = resolveRuntimeBase(options, isJs);
-    const baseClass = runtimeBase.className;
-    const baseImport = runtimeBase.importPath;
+    const lineage = options.lineage || deriveCarbonLineage(doc, { resolveDoc: options.resolveDoc });
+    const carbonLineage = renderCarbonLineage(lineage, className, options, isJs);
+    const baseClass = carbonLineage.baseClass;
     const fields = (expected.fields || []).map(explicitReferenceField);
     const methods = expected.methods || [];
 
@@ -4116,17 +4187,18 @@ export function renderClassFile(expected, options = {})
     }
     lines.push(`// Generated by format-carbon carbon-class --emit. Verify against ${family}/${className}.json.`);
     lines.push(`import { ${importNames.join(", ")} } from "@carbonenginejs/runtime/schema";`);
-    if (baseImport)
+    // Carbon's bases and mapped interfaces, one import line per module.
+    const lineageModules = new Map();
+    for (const [ name, from ] of carbonLineage.imports)
     {
-        lines.push(`import { ${baseClass} } from "${baseImport}";`);
+        if (!lineageModules.has(from)) lineageModules.set(from, []);
+        lineageModules.get(from).push(name);
     }
-    else if (baseClass)
-    {
-        lines.push(`import { ${baseClass} } from "@carbonenginejs/runtime/model";`);
-    }
+    for (const [ from, names ] of lineageModules) lines.push(`import { ${names.join(", ")} } from "${from}";`);
+    const lineageImported = new Set(carbonLineage.imports.map(([ name ]) => name));
     for (const factoryType of [...factoryTypes].sort())
     {
-        if (factoryType === baseClass && baseImport) continue;
+        if (lineageImported.has(factoryType)) continue;
         lines.push(`import { ${factoryType} } from "./${factoryType}${isJs ? ".js" : ""}";`);
     }
     for (const ns of [...mathNs].sort())
@@ -4155,10 +4227,12 @@ export function renderClassFile(expected, options = {})
     const jsClassName = toJsClassIdentity(className);
 
     lines.push("");
+    for (const note of carbonLineage.review) lines.push(`// Review: ${note}`);
     lines.push(purpose
         ? `/** ${purpose} */`
         : `/** ${jsClassName} (${family}) - generated${meta.shapeHash ? ` from schema shapeHash ${shortHash(meta.shapeHash)}` : ""}. */`);
     lines.push(`@meta.define({ className: "${jsClassName}", family: "${family}"${purpose ? `, purpose: ${JSON.stringify(purpose)}` : ""} })`);
+    for (const decorator of carbonLineage.decorators) lines.push(decorator);
     lines.push(`export class ${jsClassName}${baseClass ? ` extends ${baseClass}` : ""}`);
     lines.push("{");
     lines.push("");

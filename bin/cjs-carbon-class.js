@@ -12,8 +12,33 @@ import {
     renderClassFile,
     renderEnums,
     renderReport,
-    buildJsonReport
+    buildJsonReport,
+    createSchemaDocResolver,
+    deriveCarbonLineage,
+    deriveOverloadSets,
+    resolveJsChain
 } from "../src/schema/core/classTool.js";
+
+// One resolver per schema tree: it reads every family index once.
+const resolvers = new Map();
+function resolverFor(schemaRoot)
+{
+    if (!resolvers.has(schemaRoot)) resolvers.set(schemaRoot, createSchemaDocResolver(schemaRoot));
+    return resolvers.get(schemaRoot);
+}
+
+/** Carbon's base list, exposure table and overload sets for one schema document. */
+function carbonStructure(doc, schemaRoot, filePath, parsed)
+{
+    const resolveDoc = resolverFor(schemaRoot);
+    return {
+        resolveDoc,
+        lineage: deriveCarbonLineage(doc, { resolveDoc }),
+        overloadSets: deriveOverloadSets(doc),
+        nativeNames: (doc.nativeMethods || []).map(method => method.cppName || method.target).filter(Boolean),
+        jsChain: filePath && parsed ? resolveJsChain(filePath, parsed.base) : []
+    };
+}
 
 const HELP = `Usage:
   carbon-class --check <classFile...> [--schema <doc.json> | --family <f> --class <C>]
@@ -208,14 +233,17 @@ function runCheck(options)
             const expected = deriveExpectedFields(doc, {
                 schemaRoot,
                 family,
-                includeInherited: options.includeInherited ?? (parsed.base === "CjsModel")
+                includeInherited: options.includeInherited ?? false
             });
 
+            // Lineage and overload findings are drift for generated files and
+            // report-only (warnings) for maintained ones.
             const result = compareClass(expected, parsed, {
                 allowExtra: options.allowExtra,
                 strict: options.strict,
                 strictIo: options.strictIo,
-                strictDefaults: options.strictDefaults
+                strictDefaults: options.strictDefaults,
+                ...carbonStructure(doc, schemaRoot, absolute, parsed)
             });
             result.schemaPath = schemaPath;
             result.filePath = absolute;
@@ -290,7 +318,7 @@ function runEmit(options)
         return;
     }
 
-    const text = renderClassFile(expected, { js: options.js, doc });
+    const text = renderClassFile(expected, { js: options.js, doc, resolveDoc: resolverFor(schemaRoot) });
 
     if (options.out)
     {

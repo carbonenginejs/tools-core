@@ -50,6 +50,25 @@ test("existing debt passes; update banks a corrected default without banking new
     assert.throws(() => updateBaseline(report, baseline), /bank fixes only/);
 });
 
+test("report-only Carbon structure findings are banked; a new one fails the gate", () =>
+{
+    const report = sampleReport();
+    const row = report.reports[0];
+    row.fields.push({ name: "<chainTo>", verdict: "lineage", kind: "chain-extra", severity: "warning", expected: { chainTo: null }, actual: { chainTo: "IStretchAudio" }, notes: ["chains to IStretchAudio; Carbon ends the table with EXPOSURE_END (StretchAudio_Blue.cpp:65)"] });
+    const baseline = baselineFromReport(report);
+    assert.equal(baseline.findings.length, 3);
+    assert.equal(evaluate(report, baseline).status, "PASS");
+    row.methods.push({ name: "SetParameter__Quaternion", verdict: "overload", kind: "overload-unmatched", severity: "warning", expected: { overloads: [] }, actual: { method: "SetParameter__Quaternion" }, notes: ["names no Carbon overload"] });
+    const result = evaluate(report, baseline);
+    assert.equal(result.status, "FAIL");
+    assert.deepEqual(result.newFindings.map(item => item.verdict), [ "overload" ]);
+    // Fixing a structure finding is not lost coverage: it passes and can be banked.
+    row.methods.pop();
+    row.fields = row.fields.filter(item => item.verdict !== "lineage");
+    assert.equal(evaluate(report, baseline).status, "PASS");
+    assert.equal(updateBaseline(report, baseline).findings.length, 2);
+});
+
 test("line movement does not change finding identity; changed defaults do", () =>
 {
     const { row } = withBaseline();
@@ -74,7 +93,7 @@ test("strict errors still fail when the field verdict says match", () =>
 test("family routing and additional native methods stay advisory and print growth", () =>
 {
     const { report, baseline, row } = withBaseline();
-    row.fields.push({ name: "<class>", verdict: "class-policy", severity: "error", expected: { family: "example" }, actual: { family: "example/subdomain" }, notes: ['@type.define family must be "example"; found example/subdomain'] });
+    row.fields.push({ name: "<class>", verdict: "class-policy", severity: "error", expected: { family: "example" }, actual: { family: "example/subdomain" }, notes: ['@meta.define family must be "example"; found example/subdomain'] });
     row.methods.push({ ...row.methods[1], name: "AnotherNative" });
     const result = evaluate(report, baseline);
     assert.equal(result.status, "PASS");

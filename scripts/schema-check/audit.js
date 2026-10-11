@@ -224,7 +224,8 @@ export async function collectReport(options = {})
             for (const decorator of node.decorators || [])
             {
                 const expression = decorator.expression;
-                if (expression.callee?.object?.name !== "type" || expression.callee?.property?.name !== "define") continue;
+                // `@meta.define` today; `@type.define` before the 2026-10-02 namespace compaction.
+                if (![ "type", "meta" ].includes(expression.callee?.object?.name) || expression.callee?.property?.name !== "define") continue;
                 const arg = expression.arguments[0];
                 if (arg?.type === "StringLiteral") identity = arg.value;
                 if (arg?.type === "ObjectExpression")
@@ -276,7 +277,8 @@ export async function collectReport(options = {})
                     for (const group of ["fields", "methods"])
                     {
                         if (!Array.isArray(row[group])) throw new Error(`Missing ${group} report for ${row.filePath}`);
-                        const observed = new Set(row[group].filter(item => item.expected).map(item => item.name));
+                        // Lineage and overload results describe the class's Carbon structure, not schema members.
+                        const observed = new Set(row[group].filter(item => item.expected && item.verdict !== "lineage" && item.verdict !== "overload").map(item => item.name));
                         for (const member of expected[group])
                         {
                             if (!observed.has(member.name)) throw new Error(`Checker omitted expected ${group} member ${row.class}.${member.name}`);

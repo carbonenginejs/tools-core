@@ -1,8 +1,12 @@
 // This ratchets comparison evidence, never declares scanner output authoritative.
 import { createHash } from "node:crypto";
 
-export const policyVersion = 2;
-const knownVerdicts = new Set(["match", "type-mismatch", "missing-in-file", "extra-in-file", "class-policy", "method-match", "missing-method", "existing-unexposed-method", "method-metadata", "additional-carbon-method"]);
+export const policyVersion = 3;
+const knownVerdicts = new Set(["match", "type-mismatch", "missing-in-file", "extra-in-file", "class-policy", "method-match", "missing-method", "existing-unexposed-method", "method-metadata", "additional-carbon-method", "lineage", "overload"]);
+// Carbon structure: base list, exposure table, chain (lineage) and overload sets.
+// The checker reports them as warnings for maintained classes (report-only), but
+// this gate ratchets them like any finding: today's are banked, new ones fail.
+const structureVerdicts = new Set(["lineage", "overload"]);
 
 function stable(value)
 {
@@ -100,10 +104,12 @@ export function classify(report)
             for (const item of row[group])
             {
                 if (!knownVerdicts.has(item.verdict) || !["ok", "info", "warning", "error"].includes(item.severity) || typeof item.name !== "string" || !Array.isArray(item.notes)) throw new Error(`Unknown finding contract: ${item.verdict}:${item.severity}`);
-                for (const key of memberEvidence(item, group)) members.add(key);
+                // Structure findings are debt, not coverage: fixing one must not read as lost coverage.
+                if (!structureVerdicts.has(item.verdict)) for (const key of memberEvidence(item, group)) members.add(key);
                 const finding = { filePath: row.filePath, class: row.class, ...item };
-                const familyOnly = item.verdict === "class-policy" && item.notes.length > 0 && item.notes.every(note => note.startsWith("@type.define family must be"));
-                if (item.severity === "error" && !familyOnly) result.findings.push(finding);
+                // "@meta.define" since the 2026-10-02 namespace compaction; "@type.define" before it.
+                const familyOnly = item.verdict === "class-policy" && item.notes.length > 0 && item.notes.every(note => /^@(meta|type)\.define family must be/.test(note));
+                if ((item.severity === "error" || (structureVerdicts.has(item.verdict) && item.severity === "warning")) && !familyOnly) result.findings.push(finding);
                 else if (item.severity !== "ok" || item.notes.length) result.advisories.push(finding);
             }
         }

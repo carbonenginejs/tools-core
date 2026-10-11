@@ -7,6 +7,7 @@ import test from "node:test";
 import {
     buildJsonReport,
     compareClass,
+    deriveCarbonLineage,
     deriveExpectedFields,
     KNOWN_TYPE_KINDS,
     parseClassFile,
@@ -1271,25 +1272,27 @@ test("property metadata on a setter names the whole getter/setter declaration", 
     assert.deepEqual(parsed.fields[0].editFlags, ["READ", "WRITE"]);
 });
 
-test("generated classes default to no base and retain explicit base overrides", () =>
+test("generated classes take their base from Carbon, never from an option", () =>
 {
-    const expected = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture", family: "eve", attributes: [] });
-    const source = renderClassFile(expected, { js: true });
+    const doc = { blueClass: "Fixture", cppClass: "Fixture", family: "eve", attributes: [] };
+    const expected = deriveExpectedFields(doc);
+    const lineage = deriveCarbonLineage(doc);
+    const source = renderClassFile(expected, { js: true, doc });
     assert.match(source, /export class Fixture\s*\{/);
     assert.doesNotMatch(source, /CjsModel|runtime\/model/);
-    assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
+    assert.equal(compareClass(expected, parseClassFile(source), { strict: true, lineage }).summary.drift, false);
     const legacy = source.replace("export class Fixture", "export class Fixture extends CjsModel");
-    assert.equal(compareClass(expected, parseClassFile(legacy), { strict: true }).summary.drift, true);
-    for (const base of ["CjsModel", "NativeBase"])
-    {
-        const options = { js: true, extendsClass: base };
-        const explicit = renderClassFile(expected, options);
-        assert.ok(explicit.includes("export class Fixture extends " + base));
-        assert.equal(compareClass(expected, parseClassFile(explicit), { ...options, strict: true }).summary.drift, false);
-    }
-    const unresolved = renderClassFile(expected, { js: true, extendsClass: "NativeBase", extendsImportFor: () => null });
+    const result = compareClass(expected, parseClassFile(legacy), { strict: true, lineage });
+    assert.equal(result.summary.drift, true);
+    assert.equal(result.fields.find(item => item.verdict === "lineage").kind, "extends-no-carbon-base");
+
+    const based = { ...doc, bases: [ "NativeBase" ] };
+    const explicit = renderClassFile(deriveExpectedFields(based), { js: true, doc: based });
+    assert.ok(explicit.includes("export class Fixture extends NativeBase"));
+    assert.match(explicit, /import \{ NativeBase \} from "\.\/NativeBase\.js";/);
+    const unresolved = renderClassFile(deriveExpectedFields(based), { js: true, doc: based, importFor: () => null });
     assert.match(unresolved, /export class Fixture\s*\{/);
-    assert.doesNotMatch(unresolved, /CjsModel|runtime\/model/);
+    assert.match(unresolved, /\/\/ Review: NativeBase has no module to import from/);
 });
 
 

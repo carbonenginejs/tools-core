@@ -807,7 +807,11 @@ function renderClassSchema(classInfo, classMap, version, enumNames, carbonRoot =
         ...(purpose ? { purpose } : {}),
         declarationKind: classInfo.declarationKind || null,
         sourceRefs: sourceRefs.toJSON(),
+        // Carbon's declaration order; the first base that carries state is the
+        // JavaScript `extends` (classTool deriveCarbonLineage).
         bases: classInfo.bases || [],
+        // Where the class is declared (`BLUE_CLASS( X ) : ...`), for citing.
+        declarations: classInfo.declarations || [],
         parents: toParentSchemas(classInfo, classMap),
         source,
         hashes: classInfo.hashes || {},
@@ -976,16 +980,21 @@ function toBlueExposureSchema(item)
     return compactObject({
         macro: item.macro || "EXPOSURE_BEGIN",
         name: item.name,
-        description: item.description || null
+        description: item.description || null,
+        // The _Blue.cpp site, so a checker can cite Carbon's table.
+        source: item.source || null,
+        line: item.line ?? null
     });
 }
 
 function toBlueInterfaceSchema(item)
 {
-    return {
+    return compactObject({
         macro: item.macro || "MAP_INTERFACE",
-        name: item.name
-    };
+        name: item.name,
+        source: item.source || null,
+        line: item.line ?? null
+    });
 }
 
 function toFieldSchema(classInfo, field)

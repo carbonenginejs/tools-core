@@ -410,6 +410,7 @@ function scanFamily(config, carbonRoot, family, familyRoot, globalEnums)
                     record.declarationKind = item.declarationKind;
                 }
                 record.bases.push(...item.bases);
+                if (item.line) record.declarations.push({ source: rel, line: item.line });
                 record.fields.push(...item.fields);
                 record.methods.push(...item.methods);
             }
@@ -566,6 +567,7 @@ function getClassRecord(byName, name, family, classSuffix)
             blueFiles: new Set(),
             declarationKind: null,
             bases: [],
+            declarations: [],
             fields: [],
             methods: [],
             defaults: {},
@@ -664,9 +666,14 @@ function finalizeClassRecord(record, carbonRoot)
     const shape = {
         name: record.name,
         declarationKind: record.declarationKind,
-        bases: unique(record.bases.map(x => x.trim()).filter(Boolean)).sort(),
+        // Carbon's ORDER, not sorted: it decides which base carries state and the
+        // order additional bases install in (first declaring base supplies a member).
+        bases: unique(record.bases.map(x => x.trim()).filter(Boolean)),
+        declarations: dedupeObjects(record.declarations, x => `${x.source}:${x.line}`),
         fields: dedupeObjects(record.fields, x => `${x.name}:${x.type || ""}`),
-        methods: dedupeObjects(record.methods, x => `${x.name}:${x.kind || ""}`),
+        // Keyed by signature: Carbon overloads (Tr2Effect's SetParameter set) are
+        // separate declarations, and a name-only key kept the first of each set.
+        methods: dedupeObjects(record.methods, x => `${x.name}:${x.kind || ""}:${x.args ?? ""}:${x.isConst ? "const" : ""}`),
         defaults: Object.fromEntries(Object.entries(record.defaults).map(([key, value]) => [key, value.value]))
     };
     const blueShape = {
@@ -683,6 +690,7 @@ function finalizeClassRecord(record, carbonRoot)
         name: record.name,
         family: record.family,
         declarationKind: record.declarationKind,
+        declarations: shape.declarations,
         generatedName: record.generatedName,
         generatedFile: `${record.family}/${record.generatedName}.js`,
         headerFiles,
@@ -822,7 +830,7 @@ function parseHeaderFile(text, source)
             });
         }
 
-        classes.push({ name: className, declarationKind, bases, fields: qualifySiblingTypes(fields), methods });
+        classes.push({ name: className, declarationKind, bases, fields: qualifySiblingTypes(fields), methods, line: lineOf(clean, match.index) });
         classRanges.push({
             name: className,
             start: bodyStart,
@@ -947,7 +955,7 @@ function normalizeHeaderClassMacros(text)
 {
     return text
         .replace(/\bBLUE(?:_BLUEIMPORT)?_CLASS(?:_ALLOW_DELAYED_DELETE)?\s*\(\s*([A-Za-z_]\w*)\s*\)/g, "class $1")
-        .replace(/\bBLUE_INTERFACE\s*\(\s*([A-Za-z_]\w*)\s*\)/g, "interface $1");
+        .replace(/\bBLUE_INTERFACE(?:_EXPORT)?\s*\(\s*([A-Za-z_]\w*)\s*\)/g, "interface $1");
 }
 
 function parseCppFile(text, source)
@@ -1526,11 +1534,33 @@ function normalizeChooserToken(value)
     return identifiers ? identifiers[identifiers.length - 1] : cleaned;
 }
 
+/**
+ * Splits a C++ base list into base names, in declaration order.
+ *
+ * Splits only at top-level commas, so a template base keeps its arguments
+ * together (`Tr2Curve<Tr2MatrixKey, PTr2MatrixKeyVector, Matrix>` is one base,
+ * Tr2BoneMatrixCurve.h:38), and drops preprocessor lines inside the list, so
+ * both branches of `#if BLUE_WITH_PYTHON` stay as bases (TriMatrix.h:16). The
+ * result is the class name: access, `virtual`, template arguments and a
+ * leading `::` are removed.
+ * @param {string} tail Text between the class name's `:` and its body.
+ * @returns {string[]} Base names in Carbon's order.
+ */
 function parseBases(tail)
 {
-    return String(tail || "")
-        .split(",")
-        .map(x => x.replace(/\b(public|private|protected|virtual)\b/g, "").trim())
+    const text = String(tail || "").replace(/^[ \t]*#.*$/gm, "");
+    const parts = [];
+    let depth = 0, current = "";
+    for (const char of text)
+    {
+        if (char === "<" || char === "(") depth++;
+        else if (char === ">" || char === ")") depth--;
+        if (char === "," && depth === 0) { parts.push(current); current = ""; continue; }
+        current += char;
+    }
+    parts.push(current);
+    return parts
+        .map(x => x.replace(/\b(public|private|protected|virtual)\b/g, "").replace(/<[\s\S]*$/, "").replace(/\s+/g, " ").trim().replace(/^::/, ""))
         .filter(Boolean);
 }
 
@@ -2009,8 +2039,10 @@ function cleanArg(arg)
 
 function stripComments(text)
 {
+    // A block comment keeps its newlines, so every line reported afterwards
+    // (declarations, fields, methods) is the line in the source file.
     return text
-        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\*[\s\S]*?\*\//g, comment => comment.replace(/[^\n]/g, ""))
         .replace(/\/\/.*$/gm, "");
 }
 
