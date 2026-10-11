@@ -1,55 +1,22 @@
-import {
-    CjsFsd64SchemaAgentTypes,
-    CjsFsd64SchemaAgentsInSpace,
-    CjsFsd64SchemaAncestries,
-    CjsFsd64SchemaBloodlines,
-    CjsFsd64SchemaCategories,
-    CjsFsd64SchemaCompressibleTypes,
-    CjsFsd64SchemaContrabandTypes,
-    CjsFsd64SchemaControlTowerResources,
-    CjsFsd64SchemaCorporationActivities,
-    CjsFsd64SchemaCorporationRoleGroups,
-    CjsFsd64SchemaCorporationRoles,
-    CjsFsd64SchemaDogmaAttributeCategories,
-    CjsFsd64SchemaDogmaAttributes,
-    CjsFsd64SchemaDogmaEffects,
-    CjsFsd64SchemaDogmaUnits,
-    CjsFsd64SchemaDynamicItemAttributes,
-    CjsFsd64SchemaEpicArcs,
-    CjsFsd64SchemaExpertSystems,
-    CjsFsd64SchemaFactions,
-    CjsFsd64SchemaFrontierGraphicIds,
-    CjsFsd64SchemaFrontierTypes,
-    CjsFsd64SchemaGraphicIds,
-    CjsFsd64SchemaGraphicMaterialSets,
-    CjsFsd64SchemaGroups,
-    CjsFsd64SchemaIcons,
-    CjsFsd64SchemaMarketGroups,
-    CjsFsd64SchemaMetaGroups,
-    CjsFsd64SchemaNeoTypeProperty,
-    CjsFsd64SchemaNpcCorporationDivisions,
-    CjsFsd64SchemaNpcCorporations,
-    CjsFsd64SchemaProperty,
-    CjsFsd64SchemaRaces,
-    CjsFsd64SchemaSchoolMap,
-    CjsFsd64SchemaSchools,
-    CjsFsd64SchemaSkillPlans,
-    CjsFsd64SchemaSkinrComponentCategories,
-    CjsFsd64SchemaSkinrComponentPointValues,
-    CjsFsd64SchemaSkinrComponentRarities,
-    CjsFsd64SchemaSkinrComponents,
-    CjsFsd64SchemaSkinrSlotCategories,
-    CjsFsd64SchemaSkinrSlotConfigurations,
-    CjsFsd64SchemaSkinrSlotNames,
-    CjsFsd64SchemaSkinrSlots,
-    CjsFsd64SchemaSkinrTierThresholds,
-    CjsFsd64SchemaStationOperations,
-    CjsFsd64SchemaStationServices,
-    CjsFsd64SchemaTypeDogma,
-    CjsFsd64SchemaTypeLists,
-    CjsFsd64SchemaTypeMaterials,
-    CjsFsd64SchemaTypes,
-} from "@carbonenginejs/runtime/resource/formats/fsd/64/readers";
+// The per-table FSD schemas are optional. A runtime without them (they are
+// quarantined pending provenance) leaves the client profiles registered but
+// readerless, so only a Serenity, Infinity or Frontier build fails; the module
+// and every other SDE path still load. Only a missing module is tolerated.
+let FsdReaders = null;
+let fsdReadersUnavailable = null;
+
+try
+{
+    FsdReaders = await import("@carbonenginejs/runtime/resource/formats/fsd/64/readers");
+}
+catch (error)
+{
+    if (error?.code !== "ERR_PACKAGE_PATH_NOT_EXPORTED" && error?.code !== "ERR_MODULE_NOT_FOUND") throw error;
+    fsdReadersUnavailable = `FSD schemas unavailable in this runtime (${error.code})`;
+}
+
+/** Why the client profiles carry no FSD readers, or null when they do. */
+export const CJS_TOOL_SDE_FSD_READERS_UNAVAILABLE = fsdReadersUnavailable;
 
 import { CJS_TOOL_SDE_CLIENT_SOURCES } from "./defaultClientSdeSources.js";
 import { CJS_TOOL_SDE_TABLE_PROJECTIONS } from "./tableProjections.js";
@@ -234,28 +201,28 @@ const CJS_TOOL_SDE_FRONTIER_SOURCES = Object.freeze([
  * `typeExtras` is deliberately absent. It is a derivation over the NetEase
  * export's full type set, and nothing downstream asks Frontier for it yet.
  */
-function CreateFrontierProfile()
+function CreateFrontierProfile(R)
 {
     return Object.freeze({
         target: "frontier",
         game: "Frontier",
         provider: "ccp",
         sources: Object.freeze(CJS_TOOL_SDE_FRONTIER_SOURCES.map(source => Object.freeze({ ...source }))),
-        readers: Object.freeze({
-            icons: new CjsFsd64SchemaIcons(),
-            types: new CjsFsd64SchemaFrontierTypes(),
-            graphics: new CjsFsd64SchemaFrontierGraphicIds(),
-            categories: new CjsFsd64SchemaCategories(),
-            groups: new CjsFsd64SchemaGroups(),
+        readers: R === null ? Object.freeze({}) : Object.freeze({
+            icons: new R.CjsFsd64SchemaIcons(),
+            types: new R.CjsFsd64SchemaFrontierTypes(),
+            graphics: new R.CjsFsd64SchemaFrontierGraphicIds(),
+            categories: new R.CjsFsd64SchemaCategories(),
+            groups: new R.CjsFsd64SchemaGroups(),
             // Build 3512930 carries the same schema identities as these readers.
-            marketGroups: new CjsFsd64SchemaMarketGroups(),
-            typeDogma: new CjsFsd64SchemaTypeDogma(),
+            marketGroups: new R.CjsFsd64SchemaMarketGroups(),
+            typeDogma: new R.CjsFsd64SchemaTypeDogma(),
             // The station tables are fsdbinary and so still need a reader; the
             // map sources beside them carry their own schema and do not.
-            stationServices: new CjsFsd64SchemaStationServices(),
-            stationOperations: new CjsFsd64SchemaStationOperations(),
-            property: new CjsFsd64SchemaProperty(),
-            neoTypeProperty: new CjsFsd64SchemaNeoTypeProperty(),
+            stationServices: new R.CjsFsd64SchemaStationServices(),
+            stationOperations: new R.CjsFsd64SchemaStationOperations(),
+            property: new R.CjsFsd64SchemaProperty(),
+            neoTypeProperty: new R.CjsFsd64SchemaNeoTypeProperty(),
         }),
         projections: Object.freeze({ ...CJS_TOOL_SDE_TABLE_PROJECTIONS }),
         projectors: Object.freeze({
@@ -276,20 +243,32 @@ function CreateFrontierProfile()
  * match. A target can change one reader or projection without changing the
  * other, and sharing provider metadata never merges their output identities.
  */
-export const DefaultSdeBuildProfileData = Object.freeze([
-    CreateClientProfile("serenity"),
-    CreateClientProfile("infinity"),
-    CreateFrontierProfile(),
-]);
+export const DefaultSdeBuildProfileData = CreateDefaultSdeBuildProfileData(FsdReaders);
 
-function CreateClientProfile(target)
+/**
+ * Builds the client-generated profiles from a runtime FSD schema module.
+ *
+ * @param {object|null} R The runtime's `fsd/64/readers` module, or null when
+ *   it is unavailable: the profiles then register without readers.
+ * @returns {ReadonlyArray<object>} Serenity, Infinity and Frontier profile data.
+ */
+export function CreateDefaultSdeBuildProfileData(R)
+{
+    return Object.freeze([
+        CreateClientProfile("serenity", R),
+        CreateClientProfile("infinity", R),
+        CreateFrontierProfile(R),
+    ]);
+}
+
+function CreateClientProfile(target, R)
 {
     return Object.freeze({
         target,
         game: "Eve",
         provider: "netease",
         sources: Object.freeze(CJS_TOOL_SDE_CLIENT_SOURCES.map(source => Object.freeze({ ...source }))),
-        readers: CreateFsdReaders(),
+        readers: R === null ? Object.freeze({}) : CreateFsdReaders(R),
         projections: Object.freeze({ ...CJS_TOOL_SDE_TABLE_PROJECTIONS }),
         projectors: Object.freeze({
             types: (records, context) => ProjectTypes(
@@ -315,54 +294,54 @@ function CreateClientProfile(target)
     });
 }
 
-function CreateFsdReaders()
+function CreateFsdReaders(R)
 {
     return Object.freeze({
-        types: new CjsFsd64SchemaTypes(),
-        graphics: new CjsFsd64SchemaGraphicIds(),
-        graphicMaterialSets: new CjsFsd64SchemaGraphicMaterialSets(),
-        categories: new CjsFsd64SchemaCategories(),
-        groups: new CjsFsd64SchemaGroups(),
-        marketGroups: new CjsFsd64SchemaMarketGroups(),
-        metaGroups: new CjsFsd64SchemaMetaGroups(),
-        typeDogma: new CjsFsd64SchemaTypeDogma(),
-        dogmaAttributes: new CjsFsd64SchemaDogmaAttributes(),
-        dogmaEffects: new CjsFsd64SchemaDogmaEffects(),
-        typeMaterials: new CjsFsd64SchemaTypeMaterials(),
-        typeLists: new CjsFsd64SchemaTypeLists(),
-        icons: new CjsFsd64SchemaIcons(),
-        compressibleTypes: new CjsFsd64SchemaCompressibleTypes(),
-        controlTowerResources: new CjsFsd64SchemaControlTowerResources(),
-        skinrComponents: new CjsFsd64SchemaSkinrComponents(),
-        skinrComponentCategories: new CjsFsd64SchemaSkinrComponentCategories(),
-        skinrComponentPointValues: new CjsFsd64SchemaSkinrComponentPointValues(),
-        skinrComponentRarities: new CjsFsd64SchemaSkinrComponentRarities(),
-        skinrSlotCategories: new CjsFsd64SchemaSkinrSlotCategories(),
-        skinrSlotConfigurations: new CjsFsd64SchemaSkinrSlotConfigurations(),
-        skinrSlotNames: new CjsFsd64SchemaSkinrSlotNames(),
-        skinrSlots: new CjsFsd64SchemaSkinrSlots(),
-        skinrTierThresholds: new CjsFsd64SchemaSkinrTierThresholds(),
-        ancestries: new CjsFsd64SchemaAncestries(),
-        bloodlines: new CjsFsd64SchemaBloodlines(),
-        races: new CjsFsd64SchemaRaces(),
-        factions: new CjsFsd64SchemaFactions(),
-        stationServices: new CjsFsd64SchemaStationServices(),
-        stationOperations: new CjsFsd64SchemaStationOperations(),
-        corporationActivities: new CjsFsd64SchemaCorporationActivities(),
-        corporationRoles: new CjsFsd64SchemaCorporationRoles(),
-        corporationRoleGroups: new CjsFsd64SchemaCorporationRoleGroups(),
-        npcCorporationDivisions: new CjsFsd64SchemaNpcCorporationDivisions(),
-        npcCorporations: new CjsFsd64SchemaNpcCorporations(),
-        dogmaUnits: new CjsFsd64SchemaDogmaUnits(),
-        dogmaAttributeCategories: new CjsFsd64SchemaDogmaAttributeCategories(),
-        dynamicItemAttributes: new CjsFsd64SchemaDynamicItemAttributes(),
-        contrabandTypes: new CjsFsd64SchemaContrabandTypes(),
-        expertSystems: new CjsFsd64SchemaExpertSystems(),
-        skillPlans: new CjsFsd64SchemaSkillPlans(),
-        agentTypes: new CjsFsd64SchemaAgentTypes(),
-        agentsInSpace: new CjsFsd64SchemaAgentsInSpace(),
-        schools: new CjsFsd64SchemaSchools(),
-        schoolMap: new CjsFsd64SchemaSchoolMap(),
-        epicArcs: new CjsFsd64SchemaEpicArcs(),
+        types: new R.CjsFsd64SchemaTypes(),
+        graphics: new R.CjsFsd64SchemaGraphicIds(),
+        graphicMaterialSets: new R.CjsFsd64SchemaGraphicMaterialSets(),
+        categories: new R.CjsFsd64SchemaCategories(),
+        groups: new R.CjsFsd64SchemaGroups(),
+        marketGroups: new R.CjsFsd64SchemaMarketGroups(),
+        metaGroups: new R.CjsFsd64SchemaMetaGroups(),
+        typeDogma: new R.CjsFsd64SchemaTypeDogma(),
+        dogmaAttributes: new R.CjsFsd64SchemaDogmaAttributes(),
+        dogmaEffects: new R.CjsFsd64SchemaDogmaEffects(),
+        typeMaterials: new R.CjsFsd64SchemaTypeMaterials(),
+        typeLists: new R.CjsFsd64SchemaTypeLists(),
+        icons: new R.CjsFsd64SchemaIcons(),
+        compressibleTypes: new R.CjsFsd64SchemaCompressibleTypes(),
+        controlTowerResources: new R.CjsFsd64SchemaControlTowerResources(),
+        skinrComponents: new R.CjsFsd64SchemaSkinrComponents(),
+        skinrComponentCategories: new R.CjsFsd64SchemaSkinrComponentCategories(),
+        skinrComponentPointValues: new R.CjsFsd64SchemaSkinrComponentPointValues(),
+        skinrComponentRarities: new R.CjsFsd64SchemaSkinrComponentRarities(),
+        skinrSlotCategories: new R.CjsFsd64SchemaSkinrSlotCategories(),
+        skinrSlotConfigurations: new R.CjsFsd64SchemaSkinrSlotConfigurations(),
+        skinrSlotNames: new R.CjsFsd64SchemaSkinrSlotNames(),
+        skinrSlots: new R.CjsFsd64SchemaSkinrSlots(),
+        skinrTierThresholds: new R.CjsFsd64SchemaSkinrTierThresholds(),
+        ancestries: new R.CjsFsd64SchemaAncestries(),
+        bloodlines: new R.CjsFsd64SchemaBloodlines(),
+        races: new R.CjsFsd64SchemaRaces(),
+        factions: new R.CjsFsd64SchemaFactions(),
+        stationServices: new R.CjsFsd64SchemaStationServices(),
+        stationOperations: new R.CjsFsd64SchemaStationOperations(),
+        corporationActivities: new R.CjsFsd64SchemaCorporationActivities(),
+        corporationRoles: new R.CjsFsd64SchemaCorporationRoles(),
+        corporationRoleGroups: new R.CjsFsd64SchemaCorporationRoleGroups(),
+        npcCorporationDivisions: new R.CjsFsd64SchemaNpcCorporationDivisions(),
+        npcCorporations: new R.CjsFsd64SchemaNpcCorporations(),
+        dogmaUnits: new R.CjsFsd64SchemaDogmaUnits(),
+        dogmaAttributeCategories: new R.CjsFsd64SchemaDogmaAttributeCategories(),
+        dynamicItemAttributes: new R.CjsFsd64SchemaDynamicItemAttributes(),
+        contrabandTypes: new R.CjsFsd64SchemaContrabandTypes(),
+        expertSystems: new R.CjsFsd64SchemaExpertSystems(),
+        skillPlans: new R.CjsFsd64SchemaSkillPlans(),
+        agentTypes: new R.CjsFsd64SchemaAgentTypes(),
+        agentsInSpace: new R.CjsFsd64SchemaAgentsInSpace(),
+        schools: new R.CjsFsd64SchemaSchools(),
+        schoolMap: new R.CjsFsd64SchemaSchoolMap(),
+        epicArcs: new R.CjsFsd64SchemaEpicArcs(),
     });
 }

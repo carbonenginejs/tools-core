@@ -13,7 +13,11 @@ export {
     clientSdeSourcesByContainer,
     findClientSdeSource,
 } from "./defaultClientSdeSources.js";
-export { DefaultSdeBuildProfileData } from "./defaultSdeBuildProfiles.js";
+export {
+    CJS_TOOL_SDE_FSD_READERS_UNAVAILABLE,
+    CreateDefaultSdeBuildProfileData,
+    DefaultSdeBuildProfileData,
+} from "./defaultSdeBuildProfiles.js";
 export { ProjectRecords } from "./projectRecords.js";
 export { ProjectTypes, NormalizeLabelText, CJS_DEFAULT_LANGUAGE } from "./projectTypes.js";
 export { ProjectGraphics } from "./projectGraphics.js";

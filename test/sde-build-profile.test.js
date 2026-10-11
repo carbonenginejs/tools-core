@@ -10,6 +10,7 @@ import {
     CjsToolSdeBuildProfile,
     CjsToolSdeBuildProfileRegistry,
     CjsToolSdeTables,
+    CreateDefaultSdeBuildProfileData,
 } from "../src/sde/index.js";
 
 function CreateProfile(target, value)
@@ -35,6 +36,20 @@ test("built-in Serenity and Infinity profiles share metadata but not identity", 
     assert.notEqual(serenity, infinity);
     assert.notEqual(serenity.GetSource("types"), infinity.GetSource("types"));
     assert.notEqual(serenity.GetReader("types"), infinity.GetReader("types"));
+});
+
+test("without the runtime FSD schemas the client profiles register readerless", () =>
+{
+    // A runtime that has quarantined the per-table schemas must not take the
+    // SDE module down: the profiles still register, only their builds fail.
+    const profiles = new CjsToolSdeBuildProfileRegistry(CreateDefaultSdeBuildProfileData(null));
+
+    for (const target of [ "serenity", "infinity", "frontier" ])
+    {
+        const profile = profiles.Get(target);
+        assert.ok(profile.GetSource("types"), `${target} keeps its sources`);
+        assert.equal(profile.GetReader("types"), null, `${target} has no reader`);
+    }
 });
 
 test("target profiles can select different sources, readers, and projections", () =>

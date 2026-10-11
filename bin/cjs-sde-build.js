@@ -34,6 +34,7 @@ import {
     CJS_LOCALIZATION_FILES,
     CjsToolSdeBuild,
     CjsToolSdeBuildProfileRegistry,
+    CJS_TOOL_SDE_FSD_READERS_UNAVAILABLE,
     CjsToolSdeDatabase,
     CjsToolSdeLocalization,
     CjsToolSdeLocalizationTable,
@@ -236,7 +237,11 @@ for (const descriptor of profile.SourcesByContainer("fsdbinary"))
     const { table, path: resPath } = descriptor;
     const reader = profile.GetReader(table);
 
-    if (!reader) throw new Error(`SDE profile ${profile.target} has no reader for ${table}`);
+    if (!reader)
+    {
+        throw new Error(`SDE profile ${profile.target} has no reader for ${table}`
+            + (CJS_TOOL_SDE_FSD_READERS_UNAVAILABLE ? `: ${CJS_TOOL_SDE_FSD_READERS_UNAVAILABLE}` : ""));
+    }
 
     try
     {
