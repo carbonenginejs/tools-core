@@ -18,8 +18,9 @@ import {
 const require = createRequire(import.meta.url);
 const { __test: scanner } = require("../scripts/carbon-blue/convert.cjs");
 
-// Real Carbon headers when the checkout is present; the snippet tests below run everywhere.
-const CARBON = process.env.CARBONENGINE_ROOT || "E:/carbonengine";
+// Real Carbon headers when the checkout is present (CARBONENGINE_ROOT, else a `carbonengine` checkout beside the
+// organization folder); the snippet tests below run everywhere.
+const CARBON = process.env.CARBONENGINE_ROOT || path.resolve(import.meta.dirname, "..", "..", "..", "carbonengine");
 const hasCarbon = fs.existsSync(path.join(CARBON, "trinity"));
 const carbonFile = rel => path.join(CARBON, rel);
 
