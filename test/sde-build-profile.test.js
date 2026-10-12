@@ -27,7 +27,10 @@ function CreateProfile(target, value)
 
 test("built-in Serenity and Infinity profiles share metadata but not identity", () =>
 {
-    const profiles = new CjsToolSdeBuildProfileRegistry();
+    // The runtime no longer ships the per-table schemas, so supply a stand-in
+    // module: every schema name resolves to its own empty class.
+    const schemas = new Proxy({}, { get: () => class {} });
+    const profiles = new CjsToolSdeBuildProfileRegistry(CreateDefaultSdeBuildProfileData(schemas));
     const serenity = profiles.Get("serenity");
     const infinity = profiles.Get("infinity");
 
