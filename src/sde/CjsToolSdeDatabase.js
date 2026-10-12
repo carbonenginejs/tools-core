@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createInterface } from "node:readline";
+import { CjsJsonlFormat } from "@carbonenginejs/runtime/resource/formats/jsonl";
 import { Readable } from "node:stream";
 
 import Database from "better-sqlite3";
@@ -570,24 +570,17 @@ export class CjsToolSdeDatabase
             INSERT INTO sde_rows (table_name, record_id, search_name, payload)
             VALUES (?, ?, ?, ?)
         `);
-        const lines = createInterface({ input: entry, crlfDelay: Infinity });
-        let lineNumber = 0;
         let rowCount = 0;
 
         try
         {
-            for await (const rawLine of lines)
+            for await (const [ record, lineNumber ] of CjsJsonlFormat.iterate(entry, { source: tableName }))
             {
-                lineNumber += 1;
-
-                const line = rawLine.trim();
-
-                if (!line)
+                if (!record || typeof record !== "object" || Array.isArray(record))
                 {
-                    continue;
+                    throw new TypeError(`Invalid JSON Lines record in ${tableName} at line ${lineNumber}: record must be an object`);
                 }
 
-                const record = ParseRecord(line, tableName, lineNumber);
                 const recordID = RecordId(record, lineNumber);
 
                 StatementRun(statement, [
@@ -897,27 +890,6 @@ function NormalizeFilterValue(value)
     }
 
     return normalized;
-}
-
-function ParseRecord(value, tableName, lineNumber)
-{
-    try
-    {
-        const record = JSON.parse(value);
-
-        if (!record || typeof record !== "object" || Array.isArray(record))
-        {
-            throw new TypeError("record must be an object");
-        }
-
-        return record;
-    }
-    catch (error)
-    {
-        throw new Error(
-            `Invalid JSON Lines record in ${tableName} at line ${lineNumber}: ${error.message}`,
-        );
-    }
 }
 
 function RecordId(record, lineNumber)

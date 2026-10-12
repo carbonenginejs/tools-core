@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
 
 import unzipper from "unzipper";
@@ -385,33 +384,8 @@ async function FileExists(filePath)
 async function ReadTable(entry, tableName)
 {
     const rows = {};
-    const lines = createInterface({ input: entry, crlfDelay: Infinity });
-    let lineNumber = 0;
-
-    for await (const rawLine of lines)
+    for await (const [record] of CjsJsonlFormat.iterate(entry, { source: tableName }))
     {
-        lineNumber += 1;
-        const line = rawLine.trim();
-
-        if (!line)
-        {
-            continue;
-        }
-
-        let record;
-
-        try
-        {
-            record = JSON.parse(line);
-        }
-        catch (error)
-        {
-            throw new Error(
-                `Invalid JSON Lines record in ${tableName} at line ${lineNumber}: `
-                + error.message
-            );
-        }
-
         const id = RecordId(record, tableName);
 
         if (Object.hasOwn(rows, id))
