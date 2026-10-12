@@ -112,10 +112,15 @@ export const DOGMA_SECTIONS = Object.freeze({
         "capacitorCapacity",
         "rechargeRate"
     ]),
+    // A drone's movement too: entityCruiseSpeed (508) is the speed it orbits its
+    // target at, entityFlyRange (416) the distance it orbits at; maxVelocity is
+    // its top speed travelling to or from a target.
     navigation: Object.freeze([
         "maxVelocity",
         "agility",
-        "warpSpeedMultiplier"
+        "warpSpeedMultiplier",
+        "entityCruiseSpeed",
+        "entityFlyRange"
     ]),
     targeting: Object.freeze([
         "maxTargetRange",

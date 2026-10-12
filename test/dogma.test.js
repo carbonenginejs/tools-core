@@ -30,6 +30,8 @@ const TABLES = Object.freeze({
         1000: { _key: 1000, name: { en: "Test Hull" }, groupID: 25, published: true },
         3426: { _key: 3426, name: { en: "CPU Management" }, groupID: 273, published: true },
         3413: { _key: 3413, name: { en: "Power Grid Management" }, groupID: 273, published: true },
+        2486: { _key: 2486, name: { en: "Warrior I" }, groupID: 100, published: true },
+        10246: { _key: 10246, name: { en: "Mining Drone I" }, groupID: 101, published: true },
         3300: { _key: 3300, name: { zh: "只有中文" }, groupID: 273, published: true }
     },
     dogmaAttributes: {
@@ -37,6 +39,11 @@ const TABLES = Object.freeze({
         12: { _key: 12, name: "lowSlots", defaultValue: 0, highIsGood: true },
         13: { _key: 13, name: "medSlots", defaultValue: 0, highIsGood: true },
         14: { _key: 14, name: "hiSlots", defaultValue: 0, highIsGood: true },
+        37: { _key: 37, name: "maxVelocity", defaultValue: 0, highIsGood: true },
+        70: { _key: 70, name: "agility", defaultValue: 0, highIsGood: false },
+        416: { _key: 416, name: "entityFlyRange", defaultValue: 500, highIsGood: true },
+        508: { _key: 508, name: "entityCruiseSpeed", defaultValue: 0, highIsGood: true },
+        600: { _key: 600, name: "warpSpeedMultiplier", defaultValue: 3, highIsGood: true },
         48: { _key: 48, name: "cpuOutput", defaultValue: 0, highIsGood: true, unitID: 101 },
         101: { _key: 101, name: "launcherSlotsLeft", defaultValue: 0, highIsGood: true },
         102: { _key: 102, name: "turretSlotsLeft", defaultValue: 0, highIsGood: true },
@@ -117,6 +124,21 @@ const TABLES = Object.freeze({
             ],
             dogmaEffects: []
         },
+        2486: {
+            _key: 2486,
+            dogmaAttributes: [
+                { attributeID: 37, value: 4200 },
+                { attributeID: 70, value: 100 },
+                { attributeID: 416, value: 700 },
+                { attributeID: 508, value: 900 }
+            ],
+            dogmaEffects: []
+        },
+        10246: {
+            _key: 10246,
+            dogmaAttributes: [ { attributeID: 37, value: 400 } ],
+            dogmaEffects: []
+        },
         3426: {
             _key: 3426,
             dogmaAttributes: [ { attributeID: 280, value: 0 }, { attributeID: 424, value: 5 } ],
@@ -173,6 +195,27 @@ test("no skills returns the published values unchanged", async () =>
     assert.equal(result.applied.length, 0);
     assert.equal(result.profile.mode, "none");
     assert.equal(result.profile.skillHash, "none");
+
+    await database.Close();
+});
+
+test("navigation gives a drone's top speed, orbit speed and orbit range", async () =>
+{
+    const { database, source } = await OpenFixture();
+    const dogma = new CjsToolDogma(source);
+
+    // Warrior I: maxVelocity 37 = 4200, entityCruiseSpeed 508 = 900, entityFlyRange 416 = 700.
+    const warrior = await dogma.Evaluate(2486, { mode: "none" }, { sections: [ "navigation" ] });
+    assert.equal(warrior.base.maxVelocity, 4200);
+    assert.equal(warrior.base.entityCruiseSpeed, 900);
+    assert.equal(warrior.base.entityFlyRange, 700);
+
+    // A mining drone publishes only maxVelocity; the others fall back to the
+    // attributes' published defaults (508: 0, 416: 500), as dogma does.
+    const miner = await dogma.Evaluate(10246, { mode: "none" }, { sections: [ "navigation" ] });
+    assert.equal(miner.base.maxVelocity, 400);
+    assert.equal(miner.base.entityCruiseSpeed, 0);
+    assert.equal(miner.base.entityFlyRange, 500);
 
     await database.Close();
 });
