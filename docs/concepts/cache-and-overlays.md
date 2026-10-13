@@ -202,7 +202,9 @@ than resources.
   and looks like it worked.
 - Shader profiles remain separate namespaces such as `effect.gles2`,
   `effect.webgl2`, and `effect.webgpu`.
-- Indexed payload size and MD5 are validated before a cache hit is returned.
+- Indexed payload size and MD5 are validated once, when a payload is downloaded.
+  Payloads already in the cache, and overlay or generated payloads this tool
+  produced, are trusted without re-hashing.
 
 ## Publication safety
 
