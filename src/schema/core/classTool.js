@@ -2704,6 +2704,8 @@ export function parseClassFile(rawText, options = {})
                 let name = dm[2];
                 // Public spelling changes do not change the comparison records.
                 if (namespace === "blue") namespace = ["method", "renamed", "contextual", "inherit", "mapInterface", "interfaceTable"].includes(name) ? "carbon" : "edit";
+                // The generic flags (`@meta.readwrite`, ...) set the same edit record without the Carbon stamp.
+                if (namespace === "meta" && Object.hasOwn(EDIT_DECORATOR_FLAGS, name)) namespace = "edit";
                 if (namespace === "meta" && (name === "ours" || name === "reason" || IMPLEMENTATION_STATUS_NAMES.has(name)))
                 {
                     namespace = "impl";
@@ -2759,34 +2761,40 @@ export function parseClassFile(rawText, options = {})
 // donor, and should not be compared against one.
 function parseDefine(src)
 {
-    const decorator = src.match(/@(?:[A-Za-z_$][\w$]*\.)*(?:type|types|meta)\.define\(\s*(\{[\s\S]*?\}|"[^"]*"|'[^']*'|[A-Za-z_$][\w$]*)\s*\)/);
-    const call = src.match(/\bCjsSchema\.define\(\s*[A-Za-z_$][\w$]*\s*,\s*(\{[\s\S]*?\})\s*\)/);
+    // Ruling 2026-10-15: `blue.define` stamps a Carbon class, `meta.define` declares ours; `donors`
+    // names the Carbon class a renamed port replicates (blue) or the classes ours is built from (meta).
+    const decorator = src.match(/@(?:[A-Za-z_$][\w$]*\.)*(type|types|meta|blue)\.define\(\s*(\{[\s\S]*?\}|"[^"]*"|'[^']*'|[A-Za-z_$][\w$]*)\s*\)/);
+    const call = src.match(/\bCjsSchema\.(?:(blue|meta)\.)?define\(\s*[A-Za-z_$][\w$]*\s*,\s*(\{[\s\S]*?\})\s*\)/);
     const match = decorator ?? call;
-    const empty = { className: null, family: null, carbon: null, modelledOn: null };
+    const empty = { className: null, family: null, carbon: null, modelledOn: null, blue: false };
     if (!match) return empty;
-    const arg = match[1].trim();
+    const blue = match[1] === "blue";
+    const arg = match[2].trim();
     if (arg.startsWith("{"))
     {
         const nameMatch = arg.match(/className\s*:\s*["']([^"']+)["']/);
         const familyMatch = arg.match(/family\s*:\s*["']([^"']+)["']/);
         const carbonMatch = arg.match(/\bcarbon\s*:\s*["']([^"']+)["']/);
         const modelledMatch = arg.match(/\bmodelledOn\s*:\s*["']([^"']+)["']/);
+        const donorMatch = arg.match(/\bdonors\s*:\s*\[\s*["']([^"']+)["']/);
+        // A qualified donor keeps only its class: `ImageIO::BitmapDimensions`
+        // is catalogued as `BitmapDimensions`.
+        const donor = donorMatch ? donorMatch[1].split("::").pop() : null;
         return {
             className: nameMatch ? nameMatch[1] : null,
             family: familyMatch ? familyMatch[1] : null,
-            // A qualified donor keeps only its class: `ImageIO::BitmapDimensions`
-            // is catalogued as `BitmapDimensions`.
-            carbon: carbonMatch ? carbonMatch[1].split("::").pop() : null,
-            modelledOn: modelledMatch ? modelledMatch[1].split("::").pop() : null
+            carbon: carbonMatch ? carbonMatch[1].split("::").pop() : blue ? donor : null,
+            modelledOn: modelledMatch ? modelledMatch[1].split("::").pop() : blue ? null : donor,
+            blue
         };
     }
     if (arg.startsWith('"') || arg.startsWith("'"))
     {
-        return { ...empty, className: arg.slice(1, -1) };
+        return { ...empty, className: arg.slice(1, -1), blue };
     }
     // Identifier -> resolve `const <ID> = "...";`
     const constMatch = src.match(new RegExp(`const\\s+${arg}\\s*=\\s*["']([^"']+)["']`));
-    return { ...empty, className: constMatch ? constMatch[1] : null };
+    return { ...empty, className: constMatch ? constMatch[1] : null, blue };
 }
 
 function handleStatement(stmt, pending, line, fields, methods, helpers, jsdoc)
@@ -3712,7 +3720,8 @@ function addClassPolicyResults(results, meta, parsed, options = {})
     // The base class is compared with Carbon's base list in compareLineage.
     void allowSourceProven;
 
-    if (requiredFamily && parsed.define?.family !== requiredFamily)
+    // Families are no longer declared on define (ruling 2026-10-15); the check stays off.
+    if (false && requiredFamily && parsed.define?.family !== requiredFamily)
     {
         results.push({
             name: "<class>",
