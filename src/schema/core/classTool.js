@@ -4609,7 +4609,7 @@ export function refreshEnumRegistrations(source, enums, registrations, options =
     refreshEnumProvenance(header[0] + legacy.join("\n"), enums);
 
     const registered = new Map(), registeredNames = new Set();
-    const metadataKeys = new Set(["members", "chooser", "source", "family", "line", "exposure", "exposedName", "chooserSource"]);
+    const metadataKeys = new Set(["members", "chooser", "exposure", "exposedName"]);
     for (const registration of registrations)
     {
         const { exportName, name, definition = {} } = registration ?? {};
@@ -4647,7 +4647,7 @@ export function refreshEnumRegistrations(source, enums, registrations, options =
                     return member;
                 });
             }
-            else if (key === "line" || key === "exposure")
+            else if (key === "exposure")
             {
                 if (!Number.isInteger(value) || value < 0) fail(`${key} must be a nonnegative integer`);
                 resolved[key] = value;

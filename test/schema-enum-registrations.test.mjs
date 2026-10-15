@@ -21,8 +21,7 @@ const records = [
         values: [{name: "A", value: 8}, {name: "B", value: 16}]}
 ];
 const registrations = [{exportName: "Mode", name: "trinity.Owner.Mode", definition: {
-    source: "core/Owner.h", family: "domain", line: 19, exposedName: "Modes", exposure: 2,
-    chooserSource: "core/Owner_Blue.cpp:10",
+    exposedName: "Modes", exposure: 2,
     chooser: [{name: "On first", member: "Alias", description: "Alias spelling"}, {name: "Off next", member: "Off"}]
 }}];
 const mismatch = {code: "enum-registration-mismatch"};
@@ -34,7 +33,7 @@ test("registration refresh preserves legacy exports, aliases and distinct metada
     assert.match(result, /export const Mode = \{/);
     assert.match(result, /export const Other = Object\.freeze\(\{/);
     assert.match(result, /blueEnums\.Create\("trinity.Owner.Mode", Mode,/);
-    assert.match(result, /"line": 19/);
+    assert.match(result, /"exposure": 2/);
     assert.match(result, /"name": "On first",\n\s+"value": 1/);
     assert.match(result, /"name": "Off next",\n\s+"value": 0/);
     assert.equal(refreshEnumRegistrations(result, records, registrations), result);
@@ -99,9 +98,9 @@ test("refresh rejects missing, ambiguous or invalid registration and schema reco
         [{...registrations[0], definition: {chooser: [{name: "copied number", value: 1}]}}],
         [{...registrations[0], definition: {members: [{name: "Off", member: "On"}]}}],
         [{...registrations[0], definition: {members: [{name: "On", member: "On"}, {name: "On", member: "Alias"}]}}],
-        [{...registrations[0], definition: {line: "19"}}],
+        [{...registrations[0], definition: {line: 19}}],
         [{...registrations[0], definition: {exposure: -1}}],
-        [{...registrations[0], definition: {source: null}}],
+        [{...registrations[0], definition: {exposedName: null}}],
         [{...registrations[0], definition: {chooser: [{name: "On", member: "On", description: false}]}}]
     ]) assert.throws(() => refreshEnumRegistrations(source, records, changed), mismatch);
     assert.throws(() => refreshEnumRegistrations(source, [...records].reverse(), registrations), mismatch);
