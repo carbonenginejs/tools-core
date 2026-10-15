@@ -20,9 +20,9 @@ test("resource semantics survive C++ and Black string storage without changing a
         assert.equal(field.cppType, cppType);
         assert.equal(field.default.value, "Res:/Authored/Mixed.GR2");
         const emitted = renderClassFile(expected, { js: true, doc });
-        assert.match(emitted, new RegExp(`@meta\\.type\\.${kind}\\b`));
-        assert.match(emitted, /@meta\.blue\.notify/);
-        assert.match(emitted, /@meta\.blue\.persist/);
+        assert.match(emitted, new RegExp(`@type\\.${kind}\\b`));
+        assert.match(emitted, /@blue\.notify/);
+        assert.match(emitted, /@blue\.persist/);
         assert.equal(parseClassFile(emitted).fields[0].kind, kind);
         assert.deepEqual(doc, before, "projection cannot rewrite source wire/default evidence");
     }

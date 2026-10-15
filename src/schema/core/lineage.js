@@ -6,7 +6,7 @@
 // - extends / inherit: operator ruling 2026-10-11 - `extends` is the base that
 //   CARRIES STATE (Carbon's concrete base, even when Carbon lists interfaces
 //   first, `AudEmitter : IBlueEventListener, ..., AudGameObjResource`,
-//   AudEmitter.h:23), every other base comes through `@meta.blue.inherit`, and
+//   AudEmitter.h:23), every other base comes through `@blue.inherit`, and
 //   only what is an IRoot in Carbon becomes one.
 // - interface / chainTo: Carbon's `_Blue.cpp` table - `MAP_INTERFACE` lines
 //   and `EXPOSURE_END()` / `EXPOSURE_CHAINTO( P )` (BlueExposureMacros.h:129-175).
@@ -85,7 +85,7 @@ function carriesState(doc, resolveDoc, seen)
  * Classifies one Carbon base.
  * - `IRoot`: Blue's root interface.
  * - `interface`: `BLUE_INTERFACE`, or a plain class with no state (pure or
- *   behaviour-only; `@meta.blue.inherit` carries its methods completely).
+ *   behaviour-only; `@blue.inherit` carries its methods completely).
  * - `state`: a class with fields of its own or through its bases.
  * An unscanned base is judged by name (`I` + capital = interface) and marked
  * `known: false`.
@@ -191,10 +191,10 @@ export function deriveCarbonLineage(doc, options = {})
 const identifierList = text => String(text || "").split(",").map(item => item.trim()).filter(item => /^[A-Za-z_$][\w$]*$/.test(item));
 
 /**
- * Reads `@meta.blue.inherit`, `@meta.blue.interface` and `@meta.blue.chainTo`
- * for the exported class, in decorator form above it and in the imperative
- * form `meta.blue.interface(...)(Class)` used by files that must stay plain
- * JavaScript.
+ * Reads `@blue.inherit`, `@blue.interface` and `@blue.chainTo` (or the
+ * transitional `@meta.blue.*`) for the exported class, in decorator form above
+ * it and in the imperative form `blue.interface(...)(Class)` used by files
+ * that must stay plain JavaScript.
  * @param {string} src Comment-stripped source.
  * @param {string} jsClassName The class identifier.
  * @param {number} classIndex Offset of the `export class` declaration.
@@ -214,9 +214,9 @@ export function parseClassLineage(src, jsClassName, classIndex)
         else if (kind === "interface") (result.interfaces ??= []).push(...identifierList(args));
         else if (kind === "chainTo") result.chainTo = identifierList(args)[0] ?? null;
     };
-    for (const match of decorators.matchAll(/@meta\.blue\.(inherit|interface|chainTo)\s*\(([^)]*)\)/g)) take(match[1], match[2]);
+    for (const match of decorators.matchAll(/@(?:meta\.)?blue\.(inherit|interface|chainTo)\s*\(([^)]*)\)/g)) take(match[1], match[2]);
     const name = jsClassName.replace(/[$]/g, "\\$");
-    const imperative = new RegExp(`\\bmeta\\.blue\\.(inherit|interface|chainTo)\\s*\\(([^)]*)\\)\\s*\\(\\s*${name}\\s*\\)`, "g");
+    const imperative = new RegExp(`\\b(?:meta\\.)?blue\\.(inherit|interface|chainTo)\\s*\\(([^)]*)\\)\\s*\\(\\s*${name}\\s*\\)`, "g");
     for (const match of src.slice(classIndex).matchAll(imperative)) take(match[1], match[2]);
     return result;
 }
@@ -378,7 +378,7 @@ export function compareLineage(lineage, parsed, options = {})
     // interface table
     const site = lineage.exposure || decl;
     if (lineage.exposed && declared.interfaces === null)
-        push("no-own-table", "<interface>", `Carbon exposes the class; declare its own @meta.blue.interface(${lineage.interfaces.join(", ")})`, { interfaces: lineage.interfaces }, { interfaces: null }, site);
+        push("no-own-table", "<interface>", `Carbon exposes the class; declare its own @blue.interface(${lineage.interfaces.join(", ")})`, { interfaces: lineage.interfaces }, { interfaces: null }, site);
     else if (!lineage.exposed && declared.interfaces !== null)
         push("table-not-exposed", "<interface>", "the JS class declares an exposure table; Carbon does not expose it", { interfaces: null }, { interfaces: declared.interfaces }, site);
     else if (lineage.exposed)

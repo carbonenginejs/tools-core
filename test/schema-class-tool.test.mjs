@@ -57,7 +57,7 @@ test("explicit resource descriptors survive emission and reports without native 
     const expected = { ...native, fields: [{ ...native.fields[0], type: descriptor }] };
     const snapshot = structuredClone(expected);
     const source = renderClassFile(expected, { js: true });
-    assert.match(source, /@meta\.type\.resource\("TriGeometryRes"\)/);
+    assert.match(source, /@type\.resource\("TriGeometryRes"\)/);
     assert.deepEqual(expected, snapshot, "canonical projection does not mutate an explicit input record");
     const parsed = parseClassFile(source);
     const result = compareClass(expected, parsed, { strict: true });
@@ -69,7 +69,7 @@ test("explicit resource descriptors survive emission and reports without native 
 
     const ordinary = { ...native, fields: [{ ...native.fields[0], type: { ...descriptor, runtimeOnly: false } }] };
     const ordinarySource = renderClassFile(ordinary, { js: true });
-    assert.match(ordinarySource, /@meta\.type\.rootRef\("TriGeometryRes"\)/);
+    assert.match(ordinarySource, /@type\.rootRef\("TriGeometryRes"\)/);
     assert.equal(compareClass(ordinary, parseClassFile(ordinarySource), { strict: true }).summary.drift, false);
 });
 
@@ -83,7 +83,7 @@ test("resource comparisons reject marker loss, accidental runtime-only reference
     const source = renderClassFile(expected, { js: true });
     for (const strict of [false, true])
     {
-        const lost = compareClass(expected, parseClassFile(source.replace("@meta.type.resource", "@meta.type.rootRef")), { strict });
+        const lost = compareClass(expected, parseClassFile(source.replace("@type.resource", "@type.rootRef")), { strict });
         assert.equal(lost.summary.typeMismatch, 1);
         assert.equal(lost.summary.drift, true);
         assert.match(lost.fields[0].notes.join(" "), /runtime-only reference differs/);
@@ -145,7 +145,7 @@ test("verified raw layouts become structList declarations naming their record cl
             // The reviewed layout is kept for review; the declaration does not carry it.
             assert.deepEqual(expected.fields[0].structure, structure);
             const source = renderClassFile(expected, { js: true });
-            assert.ok(source.includes(`@meta.type.structList("${structure.name}")`), source);
+            assert.ok(source.includes(`@type.structList("${structure.name}")`), source);
             assert.doesNotMatch(source, /rawStruct|"structure"/);
             const parsed = parseClassFile(source);
             assert.equal(parsed.fields[0].kind, "structList");
@@ -167,12 +167,12 @@ test("a custom binary block generates @meta.type.binary beside its value type", 
         assert.equal(expected.fields[0].typeArg, value);
         assert.equal(expected.fields[0].binary, true);
         const source = renderClassFile(expected, { js: true });
-        assert.ok(source.includes(`  @meta.blue.persistOnly\n  @meta.type.binary\n  @meta.type.typedArray("${value}")\n`), source);
+        assert.ok(source.includes(`  @blue.persistOnly\n  @type.binary\n  @type.typedArray("${value}")\n`), source);
         const parsed = parseClassFile(source);
         assert.equal(parsed.fields[0].kind, "typedArray");
         assert.equal(parsed.fields[0].binary, true);
         assert.equal(compareClass(expected, parsed, { strict: true }).summary.drift, false);
-        const missing = compareClass(expected, parseClassFile(source.replace("@meta.type.binary", "")));
+        const missing = compareClass(expected, parseClassFile(source.replace("@type.binary", "")));
         assert.equal(missing.summary.typeMismatch, 1);
         assert.match(missing.fields[0].notes.join(" "), /binary block differs/);
     }
@@ -184,7 +184,7 @@ test("ordinary reference collections retain one argument without an inferred nat
         attributes: [{ blueName: "children", cppType: "std::vector<ChildPtr>", black: { wireType: "container", container: "list" } }] });
     assert.equal(expected.fields[0].structure, undefined);
     const source = renderClassFile(expected, { js: true });
-    assert.match(source, /@meta\.type\.list\("Child"\)/);
+    assert.match(source, /@type\.list\("Child"\)/);
     assert.doesNotMatch(source, /rawStruct|structure/);
     assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
     const layout = DEFAULT_FIELD_RESOLUTIONS.Tr2Effect.options.wire.structure;
@@ -605,7 +605,7 @@ test("emitted classes use schema purposes and retain the deterministic fallback"
     });
 
     assert.ok(source.includes(`/** ${purpose} */`));
-    assert.ok(source.includes(`family: "trinityCore", purpose: ${JSON.stringify(purpose)}`));
+    assert.ok(source.includes(`purpose: ${JSON.stringify(purpose)}`) && !source.includes("family:"));
 
     const fallback = renderClassFile(expected, { doc: { family: "trinityCore" }, js: true });
     assert.ok(fallback.includes("generated from schema shapeHash 12345678"));
@@ -995,9 +995,9 @@ test("emitted classes carry the decorators for the exact flag set", () =>
     const doc = MakeEditFlagDoc();
     const source = renderClassFile(deriveExpectedFields(doc), { doc, js: true });
 
-    assert.match(source, /@meta\.blue\.persist\n  @meta\.type\.float32\n  persisted/u);
-    assert.match(source, /@meta\.blue\.notify\n  @meta\.blue\.readwrite\n  @meta\.blue\.persist\n  @meta\.type\.float32\n  edited/u);
-    assert.match(source, /@meta\.blue\.persistOnly\n  @meta\.type\.float32\n  stored/u);
+    assert.match(source, /@blue\.persist\n  @type\.float32\n  persisted/u);
+    assert.match(source, /@blue\.notify\n  @blue\.readwrite\n  @blue\.persist\n  @type\.float32\n  edited/u);
+    assert.match(source, /@blue\.persistOnly\n  @type\.float32\n  stored/u);
 });
 
 test("method reasons accept attached JSDoc and retain legacy decorators", () =>
@@ -1203,9 +1203,9 @@ test("narrow and wide strings remain distinct through the generator pipeline", (
     const expected = deriveExpectedFields(doc);
     assert.deepEqual(expected.fields.map(field => field.kind), ["string", "wstring", "wstring", "wstring"]);
     const source = renderClassFile(expected, { doc, js: true });
-    assert.match(source, /@meta\.type\.wstring\s+prefix = "";/);
+    assert.match(source, /@type\.wstring\s+prefix = "";/);
     assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
-    const oldSource = source.replaceAll("@meta.type.wstring", "@meta.type.string");
+    const oldSource = source.replaceAll("@type.wstring", "@type.string");
     assert.equal(compareClass(expected, parseClassFile(oldSource), { strict: true }).summary.typeMismatch, 3);
 });
 
@@ -1222,9 +1222,9 @@ test("weak references retain their distinct type rather than becoming strong ref
     assert.equal(expected.fields[0].kind, "rootWeak");
     assert.equal(expected.fields[0].typeArg, "FixtureShip");
     const source = renderClassFile(expected, { doc, js: true });
-    assert.match(source, /@meta\.type\.rootWeak\("FixtureShip"\)/);
+    assert.match(source, /@type\.rootWeak\("FixtureShip"\)/);
     assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
-    assert.equal(compareClass(expected, parseClassFile(source.replace("@meta.type.rootWeak", "@meta.type.rootRef"))).summary.typeMismatch, 1);
+    assert.equal(compareClass(expected, parseClassFile(source.replace("@type.rootWeak", "@type.rootRef"))).summary.typeMismatch, 1);
 });
 
 test("known method signatures survive derivation, comparison reports and emitted comments", () =>

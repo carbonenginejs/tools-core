@@ -133,18 +133,18 @@ test("a plain AL class stays plain: its AL base, no IRoot, no exposure table", (
     assert.equal(lineage.exposed, false);
     const source = renderClassFile(deriveExpectedFields(doc), { js: true, doc, resolveDoc: resolverOf(audioDocs) });
     assert.match(source, /export class Tr2TextureAL extends Tr2DeviceResourceAL/);
-    assert.doesNotMatch(source, /@meta\.blue\.(interface|inherit|chainTo)|IRoot/);
+    assert.doesNotMatch(source, /@blue\.(interface|inherit|chainTo)|IRoot/);
 });
 
 test("the emitter writes extends, inherit, an own interface table and the chain from Carbon", () =>
 {
     const resolveDoc = resolverOf(audioDocs);
     const source = renderClassFile(deriveExpectedFields(audEmitterDoc), { js: true, doc: audEmitterDoc, resolveDoc });
-    assert.match(source, /@meta\.blue\.inherit\(IBlueEventListener, IBluePlacementObserver, ITr2DebugRenderable, ITr2AudEmitter\)\n@meta\.blue\.interface\(IBlueEventListener, IBluePlacementObserver, ITr2AudEmitter, ITr2DebugRenderable\)\n@meta\.blue\.chainTo\(AudGameObjResource\)\nexport class AudEmitter extends AudGameObjResource/);
+    assert.match(source, /@blue\.inherit\(IBlueEventListener, IBluePlacementObserver, ITr2DebugRenderable, ITr2AudEmitter\)\n@blue\.interface\(IBlueEventListener, IBluePlacementObserver, ITr2AudEmitter, ITr2DebugRenderable\)\n@blue\.chainTo\(AudGameObjResource\)\nexport class AudEmitter extends AudGameObjResource/);
     assert.match(source, /import \{ IBlueEventListener, IBluePlacementObserver \} from "@carbonenginejs\/runtime\/blue";/);
     // An exposed class that maps only itself still gets its own (empty) table.
     const self = { ...audEmitterDoc, cppClass: "Lone", blueClass: "Lone", bases: [ "IRoot" ], blue: { exposures: [ { name: "Lone" } ], interfaces: [ { name: "Lone" } ] } };
-    assert.match(renderClassFile(deriveExpectedFields(self), { js: true, doc: self }), /@meta\.blue\.interface\(\)\nexport class Lone extends IRoot/);
+    assert.match(renderClassFile(deriveExpectedFields(self), { js: true, doc: self }), /@blue\.interface\(\)\nexport class Lone extends IRoot/);
     // The emitted file passes its own check.
     const lineage = deriveCarbonLineage(audEmitterDoc, { resolveDoc });
     assert.deepEqual(compareClass(deriveExpectedFields(audEmitterDoc), parseClassFile(source), { lineage, resolveDoc }).fields.filter(item => item.verdict === "lineage"), []);

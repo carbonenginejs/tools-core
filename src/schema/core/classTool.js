@@ -22,7 +22,7 @@ export { compareLineage, compareOverloads, createSchemaDocResolver, deriveCarbon
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_SCHEMA_ROOT = path.resolve(HERE, "..", "schema");
 
-// Full @meta.type.* kind list from runtime/src/global/schema/CjsSchema.js (excluding class-level `define`).
+// Full @type.* kind list from runtime/src/global/schema/CjsSchema.js (excluding class-level `define`).
 export const KNOWN_TYPE_KINDS = new Set([
     "array", "boolean", "color", "expression", "float32", "float64",
     "int8", "int16", "int32", "int64", "list", "mat3", "mat4", "map",
@@ -552,7 +552,7 @@ function parseSchemaDefault(def, kind, context = {})
 }
 
 // ---------------------------------------------------------------------------
-// C++ type -> @meta.type.* kind mapping (ported from carbonTypes.js:131-209)
+// C++ type -> @type.* kind mapping (ported from carbonTypes.js:131-209)
 // ---------------------------------------------------------------------------
 
 function normalizeCppType(cppType)
@@ -1504,14 +1504,14 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
             }
             return { kind, arg: (resolvedCollection ? resolved.arg : null) || collectionItemType(effectiveCppType) };
         }
-        // Carbon's BINARYBLOCK: @meta.type.binary, beside the value type it holds.
+        // Carbon's BINARYBLOCK: @type.binary, beside the value type it holds.
         case "binaryBlock":
             return { kind: "typedArray", arg: "Uint8Array", binary: true };
         case "inlineObject":
         case "struct":
         {
             // Math value types (Quaternion, Color, Vector2/3/4, matrices) are wired as
-            // inline objects in some docs but map to their @meta.type.* math kinds, not struct.
+            // inline objects in some docs but map to their @type.* math kinds, not struct.
             const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
             if (INLINE_CPP_KINDS.has(resolved.kind)
                 && !["rootRef", "rootWeak"].includes(resolved.kind)) return resolved;
@@ -1725,7 +1725,7 @@ export function schemaBaseClassForDoc(doc, options = {})
 const EDIT_FLAG_ORDER = [ "READ", "WRITE", "NOTIFY", "HIDDEN", "PERSIST", "RPERSIST" ];
 const EDIT_FLAG_ALIASES = { READWRITE: [ "READ", "WRITE" ], PERSISTONLY: [ "HIDDEN", "PERSIST" ] };
 
-// The flags each runtime `@meta.blue.<name>` decorator sets (CjsSchema.edit).
+// The flags each runtime `@blue.<name>` decorator sets (CjsSchema.edit).
 const EDIT_DECORATOR_FLAGS = {
     none: [],
     read: [ "READ" ],
@@ -2394,7 +2394,7 @@ export function deriveExpectedFields(doc, options = {})
     return { fields, methods, fallback: null, meta };
 }
 
-// Enums a class's fields reference through @meta.type.enum without owning them.
+// Enums a class's fields reference through @type.enum without owning them.
 // Prefer an exact/class-scoped source declaration, then an unambiguous scanner
 // catalog entry, then a bounded shared source vocabulary. No short-name choice
 // is made between distinct scanner declarations.
@@ -2684,7 +2684,7 @@ export function parseClassFile(rawText, options = {})
         if (!line) continue;
         const statementOffset = bodyOpen + 1 + bodyOffsets[idx] + rawLines[idx].indexOf(line);
 
-        // A decorator whose argument spans lines (e.g. @meta.type.array({\n ... })) must be
+        // A decorator whose argument spans lines (e.g. @type.array({\n ... })) must be
         // joined before stripping, otherwise the tail swallows the following field.
         while (line.startsWith("@") && !bracketsBalanced(line) && idx + 1 < rawLines.length)
         {
@@ -2704,6 +2704,8 @@ export function parseClassFile(rawText, options = {})
                 let name = dm[2];
                 // Public spelling changes do not change the comparison records.
                 if (namespace === "blue") namespace = ["method", "renamed", "contextual", "inherit", "mapInterface", "interfaceTable"].includes(name) ? "carbon" : "edit";
+                // `@meta.renamed("X")` marks a Carbon method ported under another name.
+                if (namespace === "meta" && name === "renamed") namespace = "carbon";
                 // The generic flags (`@meta.readwrite`, ...) set the same edit record without the Carbon stamp.
                 if (namespace === "meta" && Object.hasOwn(EDIT_DECORATOR_FLAGS, name)) namespace = "edit";
                 if (namespace === "meta" && (name === "ours" || name === "reason" || IMPLEMENTATION_STATUS_NAMES.has(name)))
@@ -3032,7 +3034,7 @@ function normalizeFieldName(rawName)
 }
 
 // A @type decorator argument is either a quoted/bare name or an options object
-// (e.g. @meta.type.array({ kind: "root", className: "Tr2CurveScalarKey" })).
+// (e.g. @type.array({ kind: "root", className: "Tr2CurveScalarKey" })).
 function parseTypeArg(value)
 {
     const trimmed = String(value).trim();
@@ -3352,7 +3354,7 @@ export function compareClass(expected, parsed, options = {})
             }
             results.push({
                 name, verdict: "missing-in-file", severity: "error", symbol: "cross",
-                notes: [`schema expects @meta.type.${exp.kind}${exp.typeArg ? `("${exp.typeArg}")` : ""} ${name}${exp.member ? ` (${exp.member})` : ""} [${exp.flags.join(", ")}]`],
+                notes: [`schema expects @type.${exp.kind}${exp.typeArg ? `("${exp.typeArg}")` : ""} ${name}${exp.member ? ` (${exp.member})` : ""} [${exp.flags.join(", ")}]`],
                 expected: exportExpected(exp),
                 actual: null
             });
@@ -3374,7 +3376,7 @@ export function compareClass(expected, parsed, options = {})
         {
             results.push({
                 name, verdict: "type-mismatch", severity: "error", symbol: "cross",
-                notes: [`multiple-type-decorators: [${act.kinds.map(k => `@meta.type.${k}`).join(", ")}]`],
+                notes: [`multiple-type-decorators: [${act.kinds.map(k => `@type.${k}`).join(", ")}]`],
                 expected: exportExpected(exp),
                 actual: exportActual(act)
             });
@@ -3384,7 +3386,7 @@ export function compareClass(expected, parsed, options = {})
         {
             results.push({
                 name, verdict: "type-mismatch", severity: "error", symbol: "cross",
-                notes: [`unknown-type-kind: @meta.type.${act.kind}`],
+                notes: [`unknown-type-kind: @type.${act.kind}`],
                 expected: exportExpected(exp),
                 actual: exportActual(act)
             });
@@ -3392,7 +3394,7 @@ export function compareClass(expected, parsed, options = {})
         }
         if (!act.kind)
         {
-            // Decorated with @io only, no @meta.type.
+            // Decorated with @io only, no @type.
             results.push({
                 name, verdict: "type-mismatch", severity: "error", symbol: "cross",
                 notes: ["missing-type-decorator: field has @io but no @type"],
@@ -3407,7 +3409,7 @@ export function compareClass(expected, parsed, options = {})
         {
             results.push({
                 name, verdict: "type-mismatch", severity: "error", symbol: "cross",
-                notes: [`schema expects @meta.type.${exp.kind}, file has @meta.type.${act.kind}`],
+                notes: [`schema expects @type.${exp.kind}, file has @type.${act.kind}`],
                 expected: exportExpected(exp),
                 actual: exportActual(act)
             });
@@ -3487,7 +3489,7 @@ export function compareClass(expected, parsed, options = {})
         // enum meta.
         if (exp.enumType && !act.enumArg)
         {
-            notes.push(`expected @meta.type.enum("${exp.enumType}")`);
+            notes.push(`expected @type.enum("${exp.enumType}")`);
         }
         else if (exp.enumType && act.enumArg && exp.enumType !== act.enumArg)
         {
@@ -3510,8 +3512,8 @@ export function compareClass(expected, parsed, options = {})
         else if (missingFlags.length || extraFlags.length)
         {
             missingIo = true;
-            const wanted = [ ...(exp.notify ? [ "notify" ] : []), ...exp.ioDecorators ].map(n => `@meta.blue.${n}`).join(", ") || "none";
-            const had = [ ...(act.notify ? [ "notify" ] : []), ...act.ioNames ].map(n => `@meta.blue.${n}`).join(", ") || "none";
+            const wanted = [ ...(exp.notify ? [ "notify" ] : []), ...exp.ioDecorators ].map(n => `@blue.${n}`).join(", ") || "none";
+            const had = [ ...(act.notify ? [ "notify" ] : []), ...act.ioNames ].map(n => `@blue.${n}`).join(", ") || "none";
             const parts = [];
             if (missingFlags.length) parts.push(`missing ${missingFlags.join(", ")}`);
             if (extraFlags.length) parts.push(`extra ${extraFlags.join(", ")}`);
@@ -3648,8 +3650,8 @@ function compareMethods(expectedMethods, parsedMethods, credited = new Set())
         if (!actual.hasCarbon || !hasExpectedCarbon)
         {
             notes.push(expectsRename
-                ? `expected @meta.blue.renamed("${expected.name}")`
-                : "expected @meta.blue.method");
+                ? `expected @meta.renamed("${expected.name}")`
+                : "expected @blue.method");
         }
         if (actual.implStatusNames.length === 0)
         {
@@ -4108,8 +4110,8 @@ function importPathFor(name, options, isJs)
 
 /**
  * Carbon's base list and exposure table as decorator lines and imports.
- * `extends` is the base that carries state; the rest are `@meta.blue.inherit`;
- * every exposed class gets its own `@meta.blue.interface(...)`; the chain is
+ * `extends` is the base that carries state; the rest are `@blue.inherit`;
+ * every exposed class gets its own `@blue.interface(...)`; the chain is
  * EXPOSURE_CHAINTO. A class Carbon cannot place (unimportable name) is named in a
  * review comment instead of being dropped silently.
  */
@@ -4131,9 +4133,9 @@ function renderCarbonLineage(lineage, className, options, isJs)
     const interfaces = lineage.exposed ? lineage.interfaces.map(take).filter(Boolean) : [];
     const chainTo = lineage.exposed ? take(lineage.chainTo) : null;
     const decorators = [];
-    if (inherit.length) decorators.push(`@meta.blue.inherit(${inherit.join(", ")})`);
-    if (lineage.exposed) decorators.push(`@meta.blue.interface(${interfaces.join(", ")})`);
-    if (chainTo) decorators.push(`@meta.blue.chainTo(${chainTo})`);
+    if (inherit.length) decorators.push(`@blue.inherit(${inherit.join(", ")})`);
+    if (lineage.exposed) decorators.push(`@blue.interface(${interfaces.join(", ")})`);
+    if (chainTo) decorators.push(`@blue.chainTo(${chainTo})`);
     return { baseClass, imports: [ ...imports ].filter(([ , from ]) => from), decorators, review };
 }
 
@@ -4174,7 +4176,6 @@ export function renderClassFile(expected, options = {})
         }
     }
 
-    const importNames = ["meta"];
 
     // Math fields use runtime factories and built-in Float32Array types.
     const mathNs = new Set();
@@ -4195,7 +4196,8 @@ export function renderClassFile(expected, options = {})
         lines.push(`//   ${headerRef}`);
     }
     lines.push(`// Generated by format-carbon carbon-class --emit. Verify against ${family}/${className}.json.`);
-    lines.push(`import { ${importNames.join(", ")} } from "@carbonenginejs/runtime/schema";`);
+    // The schema import names only the namespaces the class uses; filled in once the body is written.
+    const schemaImport = lines.push("") - 1;
     // Carbon's bases and mapped interfaces, one import line per module.
     const lineageModules = new Map();
     for (const [ name, from ] of carbonLineage.imports)
@@ -4240,7 +4242,11 @@ export function renderClassFile(expected, options = {})
     lines.push(purpose
         ? `/** ${purpose} */`
         : `/** ${jsClassName} (${family}) - generated${meta.shapeHash ? ` from schema shapeHash ${shortHash(meta.shapeHash)}` : ""}. */`);
-    lines.push(`@meta.define({ className: "${jsClassName}", family: "${family}"${purpose ? `, purpose: ${JSON.stringify(purpose)}` : ""} })`);
+    // A Carbon class registers by its name; a struct whose Carbon name is no JS identifier
+    // (Owner.Inner) names it as the donor it replicates.
+    lines.push(jsClassName === className && !purpose
+        ? `@blue.define("${className}")`
+        : `@blue.define({ className: "${jsClassName}"${jsClassName === className ? "" : `, donors: [ "${className}" ]`}${purpose ? `, purpose: ${JSON.stringify(purpose)}` : ""} })`);
     for (const decorator of carbonLineage.decorators) lines.push(decorator);
     lines.push(`export class ${jsClassName}${baseClass ? ` extends ${baseClass}` : ""}`);
     lines.push("{");
@@ -4254,11 +4260,11 @@ export function renderClassFile(expected, options = {})
         {
             lines.push(`  ${renderRoleDecorator(field)}`);
         }
-        if (field.notify) lines.push("  @meta.blue.notify");
-        for (const decorator of field.ioDecorators || []) lines.push(`  @meta.blue.${decorator}`);
-        if (field.binary) lines.push("  @meta.type.binary");
-        lines.push(`  @meta.type.${renderTypeDecorator(field)}`);
-        if (field.enumType) lines.push(`  @meta.type.enum("${field.enumType}")`);
+        if (field.notify) lines.push("  @blue.notify");
+        for (const decorator of field.ioDecorators || []) lines.push(`  @blue.${decorator}`);
+        if (field.binary) lines.push("  @type.binary");
+        lines.push(`  @type.${renderTypeDecorator(field)}`);
+        if (field.enumType) lines.push(`  @type.enum("${field.enumType}")`);
         if (field.role !== "property")
         {
             lines.push(`  ${renderFieldDecl(field, isJs)}`);
@@ -4296,8 +4302,8 @@ export function renderClassFile(expected, options = {})
         if (index > 0) lines.push("");
         lines.push(`  ${renderMethodComment(method)}`);
         lines.push(method.target && method.target !== method.name
-            ? `  @meta.blue.renamed("${method.name}")`
-            : "  @meta.blue.method");
+            ? `  @meta.renamed("${method.name}")`
+            : "  @blue.method");
         lines.push("  @meta.notImplemented");
         lines.push(`  ${renderMethodDecl(method, isJs)}`);
         lines.push("  {");
@@ -4318,7 +4324,7 @@ export function renderClassFile(expected, options = {})
     });
 
     // Shared enums the fields reference without owning: stamped as class
-    // statics so @meta.type.enum("X") always resolves via `Constructor[X]`.
+    // statics so @type.enum("X") always resolves via `Constructor[X]`.
     // Import-routed enums are excluded here and aliased from the import below.
     //
     // KNOWN DEFECT: this inlines a SECOND frozen object for a vocabulary the
@@ -4349,7 +4355,7 @@ export function renderClassFile(expected, options = {})
         lines.push("  });");
     });
 
-    // Import-routed enum statics: alias the class-static name (the @meta.type.enum
+    // Import-routed enum statics: alias the class-static name (the @type.enum
     // key) to the imported vocabulary object.
     importedEnumNames.forEach((enumName, index) =>
     {
@@ -4360,6 +4366,8 @@ export function renderClassFile(expected, options = {})
     lines.push("");
     lines.push("}");
     lines.push("");
+    const used = [ "meta", "type", "blue" ].filter(name => lines.some(line => line.trimStart().startsWith(`@${name}.`)));
+    lines[schemaImport] = `import { ${used.join(", ")} } from "@carbonenginejs/runtime/schema";`;
     return lines.join("\n");
 }
 
