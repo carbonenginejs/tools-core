@@ -1104,7 +1104,7 @@ test("stored and live ship declarations survive emission, parsing and comparison
     const parsed = parseClassFile(source);
     const result = compareClass(expected, parsed, { strict: true });
 
-    assert.match(source, /@meta\.member\("boosters"\)/);
+    assert.match(source, /@blue\.attribute\("boosters"\)/);
     assert.match(source, /_boosters = null;/);
     assert.match(source, /@meta\.property\("boosters"\)/);
     assert.match(source, /get boosters\(\)/);
@@ -1146,7 +1146,7 @@ test("new namespace aliases retain stored member names, indices and live accesso
         @meta.define({ className: "FixtureShip", family: "eve" })
         export class FixtureShip extends CjsModel
         {
-            @meta.member("boosters", { index: 3 })
+            @blue.attribute("boosters", { index: 3 })
             @meta.edit.persistOnly
             @meta.type.rootRef(EveBoosterSet2)
             _boosters = null;
@@ -1168,7 +1168,7 @@ test("new namespace aliases retain stored member names, indices and live accesso
 
     const expected = deriveExpectedFields(MakeShipPropertyDoc());
     expected.fields[0].index = 3;
-    assert.match(renderClassFile(expected, { js: true }), /@meta\.member\("boosters", \{ index: 3 \}\)/);
+    assert.match(renderClassFile(expected, { js: true }), /@blue\.attribute\("boosters", \{ index: 3 \}\)/);
     assert.equal(parseClassFile(`@meta.define("Fixture") export class Fixture {}`).define.className, "Fixture");
 });
 
@@ -1301,7 +1301,7 @@ test("compact namespaces preserve legacy parsed records and separate UI hints", 
     const legacy = `
 @type.define({ className: "CompactFixture", family: "trinity" })
 export class CompactFixture {
-  @meta.member("exposed") @type.float32 @edit.readwrite @edit.persist @edit.notify
+  @meta.attribute("exposed") @type.float32 @edit.readwrite @edit.persist @edit.notify
   _value = 1;
   @meta.property("exposed") @type.float32 @edit.read @impl.implemented
   get value() { return this._value; }

@@ -2709,6 +2709,9 @@ export function parseClassFile(rawText, options = {})
                     pending.push({ ns: "carbon", name: "method", arg: undefined });
                     namespace = "impl";
                 }
+                // `@blue.attribute` is `@meta.attribute` (Carbon's MAP_ATTRIBUTE exposed
+                // name) stamped as Carbon's; both declare the same stored-member record.
+                else if (namespace === "blue" && name === "attribute") namespace = "meta";
                 // Public spelling changes do not change the comparison records.
                 else if (namespace === "blue") namespace = ["method", "renamed", "contextual", "inherit", "mapInterface", "interfaceTable"].includes(name) ? "carbon" : "edit";
                 // `@meta.renamed("X")` marks a Carbon method ported under another name.
@@ -2890,7 +2893,7 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
     const binary = pending.some(d => d.ns === "type" && d.name === "binary");
     const ioDecorators = pending.filter(d => d.ns === "edit");
     const enumDecorators = pending.filter(d => (d.ns === "type" || d.ns === "schema") && d.name === "enum");
-    const declaration = pending.find(d => d.ns === "meta" && (d.name === "member" || d.name === "property"));
+    const declaration = pending.find(d => d.ns === "meta" && (d.name === "attribute" || d.name === "property"));
     const args = declaration?.arg === undefined ? [] : splitTopLevelArgs(declaration.arg);
     const name = args.length ? stripQuotes(args[0]) : key;
     const index = args[1]?.match(/\bindex\s*:\s*(\d+)/);
@@ -2907,7 +2910,7 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
     return {
         name,
         key,
-        role: declaration?.name || defaultRole,
+        role: declaration ? (declaration.name === "attribute" ? "member" : declaration.name) : defaultRole,
         ...(index ? { index: Number(index[1]) } : {}),
         annotation,
         line,
@@ -4700,7 +4703,10 @@ export function refreshEnumRegistrations(source, enums, registrations, options =
 function renderRoleDecorator(field)
 {
     const index = field.index === undefined ? "" : `, { index: ${field.index} }`;
-    return `@meta.${field.role || "member"}(${JSON.stringify(field.name)}${index})`;
+    // A generated class is Carbon's, so a stored member's exposed name is `blue.attribute`;
+    // `property` (MAP_PROPERTY) has no blue spelling yet.
+    const decorator = field.role === "property" ? "meta.property" : "blue.attribute";
+    return `@${decorator}(${JSON.stringify(field.name)}${index})`;
 }
 
 function renderTypeDecorator(field)
