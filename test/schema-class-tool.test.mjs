@@ -1336,3 +1336,25 @@ export class CompactFixture {
     assert.equal(parseClassFile(compact.replace('@meta.blue.renamed("Apply")', "")).methods.find(method => method.name === "apply").hasCarbon, false);
     assert.deepEqual(parseClassFile(compact).methods.find(method => method.name === "helper").implStatusNames, ["custom"]);
 });
+
+test("blue.abstract reads as Carbon's method stamp plus implementation status abstract", () =>
+{
+    const parsed = parseClassFile(`
+        @blue.define("IProbe")
+        export class IProbe
+        {
+            @blue.abstract
+            Run(_count) {}
+
+            @meta.abstract
+            Ours() {}
+        }
+    `);
+    const run = parsed.methods.find(method => method.name === "Run");
+    assert.equal(run.hasCarbon, true);
+    assert.deepEqual(run.carbonNames, [ "method" ]);
+    assert.deepEqual(run.implStatusNames, [ "abstract" ]);
+    const ours = parsed.methods.find(method => method.name === "Ours");
+    assert.equal(ours.hasCarbon, false);
+    assert.deepEqual(ours.implStatusNames, [ "abstract" ]);
+});

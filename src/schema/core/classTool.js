@@ -2702,8 +2702,15 @@ export function parseClassFile(rawText, options = {})
                 if (!pending.length) pendingDoc = attachedJsdoc(text, jsdocs, statementOffset);
                 let namespace = dm[1] === "types" ? "type" : dm[1];
                 let name = dm[2];
+                // `@blue.abstract` is a Carbon pure virtual: Carbon's method stamp
+                // plus implementation status `abstract` (ruling 2026-10-17).
+                if (namespace === "blue" && name === "abstract")
+                {
+                    pending.push({ ns: "carbon", name: "method", arg: undefined });
+                    namespace = "impl";
+                }
                 // Public spelling changes do not change the comparison records.
-                if (namespace === "blue") namespace = ["method", "renamed", "contextual", "inherit", "mapInterface", "interfaceTable"].includes(name) ? "carbon" : "edit";
+                else if (namespace === "blue") namespace = ["method", "renamed", "contextual", "inherit", "mapInterface", "interfaceTable"].includes(name) ? "carbon" : "edit";
                 // `@meta.renamed("X")` marks a Carbon method ported under another name.
                 if (namespace === "meta" && name === "renamed") namespace = "carbon";
                 // The generic flags (`@meta.readwrite`, ...) set the same edit record without the Carbon stamp.
