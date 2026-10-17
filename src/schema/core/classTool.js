@@ -2711,7 +2711,8 @@ export function parseClassFile(rawText, options = {})
                 }
                 // `@blue.attribute` is `@meta.attribute` (Carbon's MAP_ATTRIBUTE exposed
                 // name) stamped as Carbon's; both declare the same stored-member record.
-                else if (namespace === "blue" && name === "attribute") namespace = "meta";
+                // `@blue.property` is `@meta.property` (MAP_PROPERTY*) the same way.
+                else if (namespace === "blue" && (name === "attribute" || name === "property")) namespace = "meta";
                 // Public spelling changes do not change the comparison records.
                 else if (namespace === "blue") namespace = ["method", "renamed", "contextual", "inherit", "mapInterface", "interfaceTable"].includes(name) ? "carbon" : "edit";
                 // `@meta.renamed("X")` marks a Carbon method ported under another name.
@@ -2847,11 +2848,15 @@ function handleStatement(stmt, pending, line, fields, methods, helpers, jsdoc)
             previous.hasType ||= field.hasType;
             previous.hasIo ||= field.hasIo;
             previous.notify ||= field.notify;
+            previous.propertyDeclared ||= field.propertyDeclared;
+            previous.persisted ||= field.persisted;
             previous[accessorMatch[1]] = true;
+            derivePropertyFlags(previous);
         }
         else
         {
             field[accessorMatch[1]] = true;
+            derivePropertyFlags(field);
             fields.push(field);
         }
         return true;
@@ -2895,8 +2900,11 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
     const enumDecorators = pending.filter(d => (d.ns === "type" || d.ns === "schema") && d.name === "enum");
     const declaration = pending.find(d => d.ns === "meta" && (d.name === "attribute" || d.name === "property"));
     const args = declaration?.arg === undefined ? [] : splitTopLevelArgs(declaration.arg);
-    const name = args.length ? stripQuotes(args[0]) : key;
+    // `property(undefined, { persisted: true })` keeps the accessor key as its name.
+    const name = args.length && args[0] !== "undefined" ? stripQuotes(args[0]) : key;
     const index = args[1]?.match(/\bindex\s*:\s*(\d+)/);
+    const propertyDeclared = declaration?.name === "property";
+    const persisted = propertyDeclared && /\bpersisted\s*:\s*true\b/.test(args[1] || "");
     const typeDecorator = typeDecorators[0];
     const collection = ["list", "array"].includes(typeDecorator?.name);
     const typeArgs = typeDecorator?.arg === undefined ? []
@@ -2929,8 +2937,24 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
         })(),
         hasType: typeDecorators.length > 0,
         hasIo: ioDecorators.length > 0,
+        ...(propertyDeclared ? { propertyDeclared: true, persisted } : {}),
         default: parseJsDefault(initializer, kind)
     };
+}
+
+/**
+ * A declared property's flags are derived, never written (runtime
+ * CjsSchema propertyDecorator; BlueExposureMacrosPython.h:182-230):
+ * READ, WRITE when it has a setter, PERSIST when persisted.
+ */
+function derivePropertyFlags(field)
+{
+    if (!field.propertyDeclared) return;
+    field.editFlags = EDIT_FLAG_ORDER.filter(flag => flag === "READ"
+        || (flag === "WRITE" && field.set === true)
+        || (flag === "PERSIST" && field.persisted));
+    field.ioNames = editDecoratorsFor(field.editFlags);
+    field.hasIo = true;
 }
 
 /** Returns only the real JSDoc immediately preceding this decorator run. */
@@ -3522,8 +3546,13 @@ export function compareClass(expected, parsed, options = {})
         else if (missingFlags.length || extraFlags.length)
         {
             missingIo = true;
-            const wanted = [ ...(exp.notify ? [ "notify" ] : []), ...exp.ioDecorators ].map(n => `@blue.${n}`).join(", ") || "none";
-            const had = [ ...(act.notify ? [ "notify" ] : []), ...act.ioNames ].map(n => `@blue.${n}`).join(", ") || "none";
+            // A property's flags come from its accessors and `persisted`, not flag decorators.
+            const wanted = exp.role === "property"
+                ? renderRoleDecorator(exp)
+                : [ ...(exp.notify ? [ "notify" ] : []), ...exp.ioDecorators ].map(n => `@blue.${n}`).join(", ") || "none";
+            const had = act.propertyDeclared
+                ? `@meta.property${act.persisted ? "(undefined, { persisted: true })" : "()"} with ${act.set ? "getter and setter" : "getter only"}`
+                : [ ...(act.notify ? [ "notify" ] : []), ...act.ioNames ].map(n => `@blue.${n}`).join(", ") || "none";
             const parts = [];
             if (missingFlags.length) parts.push(`missing ${missingFlags.join(", ")}`);
             if (extraFlags.length) parts.push(`extra ${extraFlags.join(", ")}`);
@@ -4270,8 +4299,9 @@ export function renderClassFile(expected, options = {})
         {
             lines.push(`  ${renderRoleDecorator(field)}`);
         }
-        if (field.notify) lines.push("  @blue.notify");
-        for (const decorator of field.ioDecorators || []) lines.push(`  @blue.${decorator}`);
+        // A property's flags are derived from its accessors (blue.property).
+        if (field.notify && field.role !== "property") lines.push("  @blue.notify");
+        if (field.role !== "property") for (const decorator of field.ioDecorators || []) lines.push(`  @blue.${decorator}`);
         if (field.binary) lines.push("  @type.binary");
         lines.push(`  @type.${renderTypeDecorator(field)}`);
         if (field.enumType) lines.push(`  @type.enum("${field.enumType}")`);
@@ -4291,9 +4321,9 @@ export function renderClassFile(expected, options = {})
         {
             if (accessorIndex)
             {
+                // The declaration is on the getter; the setter carries only its status.
                 lines.push("");
                 lines.push(`  /** Carbon property setter ${accessor.target}. */`);
-                lines.push(`  ${renderRoleDecorator(field)}`);
             }
             lines.push("  @meta.notImplemented");
             const parameter = accessor.kind === "set" ? (isJs ? "value" : "value: unknown") : "";
@@ -4702,11 +4732,19 @@ export function refreshEnumRegistrations(source, enums, registrations, options =
 
 function renderRoleDecorator(field)
 {
+    // A generated class is Carbon's: a MAP_PROPERTY* row is `blue.property`, its
+    // name given only where it differs from the accessor key, and
+    // MAP_PROPERTY_PERSISTED adds `{ persisted: true }` (decision 2026-10-18).
+    if (field.role === "property")
+    {
+        const key = field.key || field.name;
+        const name = field.name !== key ? JSON.stringify(field.name) : "";
+        const persisted = (field.editFlags || expectedEditFlags(field.flags || [])).includes("PERSIST");
+        return `@blue.property(${persisted ? `${name || "undefined"}, { persisted: true }` : name})`;
+    }
     const index = field.index === undefined ? "" : `, { index: ${field.index} }`;
-    // A generated class is Carbon's, so a stored member's exposed name is `blue.attribute`;
-    // `property` (MAP_PROPERTY) has no blue spelling yet.
-    const decorator = field.role === "property" ? "meta.property" : "blue.attribute";
-    return `@${decorator}(${JSON.stringify(field.name)}${index})`;
+    // A stored member's exposed name is `blue.attribute`.
+    return `@blue.attribute(${JSON.stringify(field.name)}${index})`;
 }
 
 function renderTypeDecorator(field)

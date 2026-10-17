@@ -1106,7 +1106,9 @@ test("stored and live ship declarations survive emission, parsing and comparison
 
     assert.match(source, /@blue\.attribute\("boosters"\)/);
     assert.match(source, /_boosters = null;/);
-    assert.match(source, /@meta\.property\("boosters"\)/);
+    // MAP_PROPERTY is blue.property on the getter; the name repeats the key, so it is left out.
+    assert.match(source, /@blue\.property\(\)\s+@type\.rootRef\("EveBoosterSet2"\)\s+@meta\.notImplemented\s+get boosters/);
+    assert.doesNotMatch(source, /@blue\.property\([^)]*\)\s+(?:@\S+\s+)*set boosters/);
     assert.match(source, /get boosters\(\)/);
     assert.match(source, /set boosters\(value\)/);
     assert.match(source, /@meta\.notImplemented\s+get boosters/);
@@ -1138,6 +1140,36 @@ test("stored and live ship declarations survive emission, parsing and comparison
     assert.equal(rejected.summary.missingIoFlag, 1);
     assert.equal(rejected.summary.drift, true);
     assert.equal(rejected.fields.find(field => field.verdict === "missing-in-file").expected.role, "property");
+});
+
+// BlueExposureMacrosPython.h:182-230: MAP_PROPERTY_PERSISTED is READWRITE | PERSIST and
+// MAP_PROPERTY_READONLY is READ. Ours derives them from the accessors and persisted.
+test("blue.property flags are derived from the accessors and persisted", () =>
+{
+    const doc = MakeShipPropertyDoc();
+    doc.attributes = [];
+    doc.properties = [
+        { ...doc.properties[0], macro: "MAP_PROPERTY_PERSISTED" },
+        { blueName: "boosterCount", macro: "MAP_PROPERTY_READONLY", getter: "GetBoosterCount", readOnly: true,
+            cppType: "uint32_t", getterReturnType: "uint32_t" }
+    ];
+    const expected = deriveExpectedFields(doc);
+    const source = renderClassFile(expected, { doc, js: true });
+    assert.match(source, /@blue\.property\(undefined, \{ persisted: true \}\)\s+@type\.rootRef\("EveBoosterSet2"\)/);
+    assert.match(source, /@blue\.property\(\)\s+@type\.uint32\s+@meta\.notImplemented\s+get boosterCount/);
+    assert.doesNotMatch(source, /@blue\.(?:read|readwrite|persist)\b/);
+    const parsed = parseClassFile(source);
+    const byName = Object.fromEntries(parsed.fields.map(field => [ field.name, field ]));
+    assert.deepEqual(byName.boosters.editFlags, [ "READ", "WRITE", "PERSIST" ]);
+    assert.deepEqual(byName.boosterCount.editFlags, [ "READ" ]);
+    const result = compareClass(expected, parsed, { strict: true });
+    assert.equal(result.summary.drift, false);
+
+    const unpersisted = parseClassFile(source.replace("@blue.property(undefined, { persisted: true })", "@blue.property()"));
+    const drift = compareClass(expected, unpersisted, { strict: true });
+    assert.equal(drift.summary.missingIoFlag, 1);
+    assert.match(drift.fields.find(field => field.expected?.name === "boosters").notes.join(" "),
+        /expect @blue\.property\(undefined, \{ persisted: true \}\)/);
 });
 
 test("new namespace aliases retain stored member names, indices and live accessor types", () =>
