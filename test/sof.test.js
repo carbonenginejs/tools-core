@@ -89,7 +89,7 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
     assert.deepEqual(first.ListHulls(), [ "ab1_t1", "zz1_t1" ]);
     assert.deepEqual(first.ListFactions(), [ "amarrbase" ]);
     assert.deepEqual(first.ListRaces(), [ "amarr" ]);
-    assert.deepEqual(first.ListMaterials(), [ "gold" ]);
+    assert.deepEqual(first.ListMaterials(), [ "gold", "silver" ]);
     assert.deepEqual(first.ListLayouts(), [ "antennae" ]);
     assert.deepEqual(first.ListPatterns(), [ "alpha", "stripes" ]);
     assert.deepEqual((await first.ListHullPatterns("AB1_T1")), [ "alpha", "stripes" ]);
@@ -97,6 +97,8 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
     assert.equal((await first.ListHullPatterns("missing")), null);
     assert.equal((await first.GetHull("AB1_T1")).name, "ab1_t1");
     assert.deepEqual((await first.GetMaterial("GOLD")).parameters.PaintColor, [1, 2, 3, 4]);
+    // SOF accepts plain data and real objects by design: a plain {name, value} record flattens too.
+    assert.deepEqual((await first.GetMaterial("SILVER")).parameters.PaintColor, [5, 6, 7, 8]);
     assert.equal((await first.GetPatternHull("STRIPES", "AB1_T1")).layerAndProjection.length, 2);
     assert.equal((await first.GetPatternHull("stripes", "missing")), null);
     assert.deepEqual((await first.InspectDna("ab1_t1:amarrbase:amarr")), {
@@ -343,10 +345,16 @@ function CreateData()
             },
         }],
         race: [{ name: "amarr" }],
-        material: [{
-            name: "gold",
-            parameters: [ Parameter("PaintColor", [1, 2, 3, 4]) ],
-        }],
+        material: [
+            {
+                name: "gold",
+                parameters: [ Parameter("PaintColor", [1, 2, 3, 4]) ],
+            },
+            {
+                name: "silver",
+                parameters: [{ name: "PaintColor", value: [5, 6, 7, 8] }],
+            },
+        ],
         layout: [{ name: "antennae" }],
         pattern: [
             {
