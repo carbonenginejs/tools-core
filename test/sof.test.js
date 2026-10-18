@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { EveSOF } from "@carbonenginejs/runtime/sof";
+import { EveSOF, EveSOFDataParameter } from "@carbonenginejs/runtime/sof";
 import { CjsToolSofRepository, ExpandSofDefaults } from "../src/sof/index.js";
 
 test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
@@ -305,6 +305,15 @@ test("default expansion applies registered combined-runtime class defaults", asy
 
 const SOF_DATA_PATH_FOR_TEST = "res:/dx9/model/spaceobjectfactory/data.black";
 
+/** A real SOF parameter, as the black reader produces: the catalog answers through GetValue. */
+function Parameter(name, value)
+{
+    const parameter = new EveSOFDataParameter();
+    parameter.name = name;
+    parameter.value.set(value);
+    return parameter;
+}
+
 function CreateData()
 {
     return {
@@ -336,7 +345,7 @@ function CreateData()
         race: [{ name: "amarr" }],
         material: [{
             name: "gold",
-            parameters: [{ name: "PaintColor", value: [1, 2, 3, 4] }],
+            parameters: [ Parameter("PaintColor", [1, 2, 3, 4]) ],
         }],
         layout: [{ name: "antennae" }],
         pattern: [
