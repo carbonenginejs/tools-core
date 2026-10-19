@@ -52,7 +52,7 @@ export class CjsToolAudioSource
     {
         const installed = CjsAudioLibrary.from(library);
 
-        this.constructor.validateLibrary(installed);
+        this.constructor.validateLibrary(installed.GetValues());
 
         if (!source
             || (typeof source.Fetch !== "function"
@@ -85,7 +85,7 @@ export class CjsToolAudioSource
         this.#media = CreateMediaIndex(installed.media, source, this.#paths);
         this.#banks = CreateBankIndex(installed.banks, source, this.#paths);
         this.#embeddedMedia = CreateEmbeddedIndex(
-            installed.embeddedMedia,
+            installed.embeddedMedia ?? {},
             this.#banks,
         );
 

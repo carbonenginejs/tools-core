@@ -328,7 +328,7 @@ export class CjsToolAudioRepository
                 game: target.game,
                 provider: target.provider,
                 build: sourceIdentity.build,
-                library,
+                library: library.GetValues(),
                 bankBytes: loadedBanks,
             })).library;
             library = CjsAudioLibrary.from(library);
@@ -345,7 +345,7 @@ export class CjsToolAudioRepository
             version: "v2",
         }, values);
 
-        return library;
+        return values;
     }
 
     /** Materializes an already prepared library without rebuilding its graph. */
