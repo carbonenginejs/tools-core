@@ -41,7 +41,7 @@ const RESOURCE_PATH_MEMBERS = new Map([
     // Source: runtime/src/trinity/eve/lights/Tr2Light.js:325
     ["EveBannerLight", new Set(["lightProfilePath"])],
     // Source: trinity/trinity/Eve/SpaceObject/Children/EveChildInstancedMeshes.cpp:560
-    ["EveChildInstancedMeshes::Mesh", new Set(["geometryPath"])],
+    ["EveChildInstancedMesh", new Set(["geometryPath"])],
     // Source: trinity/trinity/Eve/SpaceObject/Children/EveChildRef.cpp:349
     ["EveChildRef", new Set(["resPath"])],
     // Source: trinity/trinity/Eve/SpaceObject/Children/EveChildSocket.cpp:486
