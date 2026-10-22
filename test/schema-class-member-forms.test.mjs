@@ -160,12 +160,14 @@ test("@type.enum carries the registered enum name, and the comparison accepts it
 test("a method that only exists for the Python host is notSupported and answers not handled", () =>
 {
     const source = render([], [
-        { name: "__init__", blueName: "__init__", target: "py__init__", macro: "MAP_METHOD_AND_WRAP_OPTIONAL_ARGS", parameters: [] },
+        { name: "__init__", blueName: "__init__", target: "py__init__", macro: "MAP_METHOD_AND_WRAP_OPTIONAL_ARGS", returnType: "PyObject*", parameters: [ { type: "PyObject*", name: "args" } ] },
         { name: "GetNative", target: "GetNative", macro: "MAP_METHOD_AND_WRAP", returnType: "PyObject*", parameters: [] },
         { name: "IsReady", target: "IsReady", macro: "MAP_METHOD_AND_WRAP", returnType: "bool", parameters: [ { type: "PyObject*", name: "arg" } ] },
         { name: "Reset", target: "Reset", macro: "MAP_METHOD_AND_WRAP", returnType: "void", parameters: [] }
     ]);
-    assert.match(source, /@meta\.notSupported\n  __init__\(\.\.\.args\)\n  \{\n  \}/);
+    assert.match(source, /@meta\.notSupported\n  __init__\(\.\.\.args\)\n  \{\n    return null;\n  \}/);
+    const typed = render([], [ { name: "__init__", blueName: "__init__", target: "py__init__", macro: "MAP_METHOD_AND_WRAP_OPTIONAL_ARGS", returnType: "void", parameters: [ { type: "TriView*", name: "view" } ] } ]);
+    assert.match(typed, /@meta\.notImplemented\n  __init__\(\.\.\.args\)/, "a typed Blue initializer is an ordinary method");
     assert.match(source, /@meta\.notSupported\n  GetNative\(\.\.\.args\)\n  \{\n    return null;\n  \}/);
     assert.match(source, /@meta\.notSupported\n  IsReady\(\.\.\.args\)\n  \{\n    return false;\n  \}/);
     assert.match(source, /@meta\.notImplemented\n  Reset\(\.\.\.args\)\n  \{\n    throw new Error/);

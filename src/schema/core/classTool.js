@@ -4488,15 +4488,14 @@ export function renderClassFile(expected, options = {})
 }
 
 /**
- * A method that only exists for the Python host: Blue's `__init__` constructor hook, or a signature that takes or returns a
- * `PyObject`.
+ * A method that only exists for the Python host: a signature that takes or returns a `PyObject`. A typed `py__init__` is a Blue
+ * initializer and is emitted like any other method.
  *
  * @param {object} method An expected method record.
  * @returns {boolean} True when the method is Python-only.
  */
 function isPythonOnlyMethod(method)
 {
-    if (method.blueName === "__init__" || method.name === "__init__") return true;
     const signature = `${method.returnType || ""} ${(method.parameters || []).map(parameter => parameter.type || parameter.cppType || "").join(" ")}`;
     return /\bPy(?:Type)?Object\b/.test(signature);
 }
