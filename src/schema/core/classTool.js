@@ -3601,9 +3601,9 @@ export function compareClass(expected, parsed, options = {})
         // enum meta.
         if (exp.enumType && !act.enumArg)
         {
-            notes.push(`expected @type.enum("${exp.enumType}")`);
+            notes.push(`expected @type.enum("${exp.enumRegisteredName || exp.enumType}")`);
         }
-        else if (exp.enumType && act.enumArg && exp.enumType !== act.enumArg)
+        else if (exp.enumType && act.enumArg && exp.enumType !== act.enumArg && exp.enumRegisteredName !== act.enumArg)
         {
             notes.push(`enum type differs: schema "${exp.enumType}" vs file "${act.enumArg}"`);
         }
@@ -4368,7 +4368,7 @@ export function renderClassFile(expected, options = {})
         if (exposureRow) lines.push(`  ${exposureRow}`);
         if (field.binary) lines.push("  @type.binary");
         lines.push(`  @type.${renderTypeDecorator(field)}`);
-        if (field.enumType) lines.push(`  @type.enum("${field.enumType}")`);
+        if (field.enumType) lines.push(`  @type.enum("${field.enumRegisteredName || field.enumType}")`);
         if (field.role !== "property")
         {
             lines.push(`  ${renderFieldDecl(field, isJs)}`);

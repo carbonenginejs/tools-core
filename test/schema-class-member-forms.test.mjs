@@ -144,3 +144,15 @@ test("a class Carbon derives from IRoot directly inherits it, and a chooser name
     const source = render([ field({ name: "font", key: "font", macro: "MAP_ATTRIBUTE_WITH_CHOOSER", flags: [ "READWRITE", "ENUM" ], enumType: "TriDebugFont", enumRegisteredName: "trinity.TriDebugFont" }) ]);
     assert.match(source, /@be\.mapAttributeWithChooser\(be\.READWRITE \| be\.ENUM, "trinity\.TriDebugFont"\)/);
 });
+
+test("@type.enum carries the registered enum name, and the comparison accepts it", () =>
+{
+    const expected = { fields: [ field({ name: "font", key: "font", kind: "int32", enumType: "TriDebugFont", enumRegisteredName: "trinity.TriDebugFont",
+        macro: "MAP_ATTRIBUTE_WITH_CHOOSER", flags: [ "READWRITE", "ENUM" ] }) ], methods: [], meta: { className: "Probe", family: "probe" } };
+    const source = renderClassFile(expected, { js: true });
+    assert.match(source, /@type\.enum\("trinity\.TriDebugFont"\)/);
+    const parsed = parseClassFile(source);
+    assert.equal(parsed.fields[0].enumArg, "trinity.TriDebugFont");
+    const notes = compareClass(expected, parsed, {}).fields.flatMap(item => item.notes || []).join(" ");
+    assert.doesNotMatch(notes, /enum type differs/);
+});
