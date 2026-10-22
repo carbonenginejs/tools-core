@@ -218,6 +218,17 @@ export function parseClassLineage(src, jsClassName, classIndex)
     const name = jsClassName.replace(/[$]/g, "\\$");
     const imperative = new RegExp(`\\b(?:meta\\.)?blue\\.(inherit|interface|chainTo)\\s*\\(([^)]*)\\)\\s*\\(\\s*${name}\\s*\\)`, "g");
     for (const match of src.slice(classIndex).matchAll(imperative)) take(match[1], match[2]);
+    // § 00 forms: `be.define` / `be.interface` give the class its own table (Carbon's EXPOSURE_BEGIN adds IRoot and
+    // the class), each `be.mapInterface(X)` is one MAP_INTERFACE row and `be.exposureChainTo(P)` is EXPOSURE_CHAINTO.
+    if (/@(?:[A-Za-z_$][\w$]*\.)*be\.(?:define|interface)\s*\(/.test(decorators)) result.interfaces ??= [];
+    for (const match of decorators.matchAll(/@(?:[A-Za-z_$][\w$]*\.)*be\.(mapInterface|exposureChainTo)\s*\(([^)]*)\)/g))
+        take(match[1] === "mapInterface" ? "interface" : "chainTo", match[2]);
+    const beCall = new RegExp(`\\b(?:CjsSchema\\.exposure\\.|be\\.)(define|interface|mapInterface|exposureChainTo)\\s*\\(([^)]*)\\)\\s*\\(\\s*${name}\\s*\\)`, "g");
+    for (const match of src.slice(classIndex).matchAll(beCall))
+    {
+        if (match[1] === "define" || match[1] === "interface") result.interfaces ??= [];
+        else take(match[1] === "mapInterface" ? "interface" : "chainTo", match[2]);
+    }
     return result;
 }
 

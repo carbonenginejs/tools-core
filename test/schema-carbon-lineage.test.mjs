@@ -140,11 +140,11 @@ test("the emitter writes extends, inherit, an own interface table and the chain 
 {
     const resolveDoc = resolverOf(audioDocs);
     const source = renderClassFile(deriveExpectedFields(audEmitterDoc), { js: true, doc: audEmitterDoc, resolveDoc });
-    assert.match(source, /@blue\.inherit\(IBlueEventListener, IBluePlacementObserver, ITr2DebugRenderable, ITr2AudEmitter\)\n@blue\.interface\(IBlueEventListener, IBluePlacementObserver, ITr2AudEmitter, ITr2DebugRenderable\)\n@blue\.chainTo\(AudGameObjResource\)\nexport class AudEmitter extends AudGameObjResource/);
+    assert.match(source, /@blue\.inherit\(IBlueEventListener, IBluePlacementObserver, ITr2DebugRenderable, ITr2AudEmitter\)\n@be\.mapInterface\(IBlueEventListener\)\n@be\.mapInterface\(IBluePlacementObserver\)\n@be\.mapInterface\(ITr2AudEmitter\)\n@be\.mapInterface\(ITr2DebugRenderable\)\n@be\.exposureChainTo\(AudGameObjResource\)\nexport class AudEmitter extends AudGameObjResource/);
     assert.match(source, /import \{ IBlueEventListener, IBluePlacementObserver \} from "@carbonenginejs\/runtime\/blue";/);
     // An exposed class that maps only itself still gets its own (empty) table.
     const self = { ...audEmitterDoc, cppClass: "Lone", blueClass: "Lone", bases: [ "IRoot" ], blue: { exposures: [ { name: "Lone" } ], interfaces: [ { name: "Lone" } ] } };
-    assert.match(renderClassFile(deriveExpectedFields(self), { js: true, doc: self }), /@blue\.interface\(\)\nexport class Lone extends IRoot/);
+    assert.match(renderClassFile(deriveExpectedFields(self), { js: true, doc: self }), /@be\.define\("Lone"\)\nexport class Lone extends IRoot/);
     // The emitted file passes its own check.
     const lineage = deriveCarbonLineage(audEmitterDoc, { resolveDoc });
     assert.deepEqual(compareClass(deriveExpectedFields(audEmitterDoc), parseClassFile(source), { lineage, resolveDoc }).fields.filter(item => item.verdict === "lineage"), []);
@@ -316,4 +316,32 @@ test("real Carbon: Tr2Effect.h overloads match the runtime's SetParameter split"
     const effect = scannedDoc("Tr2Effect", "trinity/trinity/Shader/Tr2Effect.h");
     const sets = deriveOverloadSets(effect);
     assert.deepEqual(compareOverloads(new Map([ [ "SetParameter", sets.get("SetParameter") ] ]), effectMethods()).results, []);
+});
+
+test("the § 00 class forms are read: be.define gives the own table, mapInterface and exposureChainTo add rows", () =>
+{
+    const decorated = parseClassFile([
+        "@be.define(\"Tr2RotationTool\")",
+        "@be.mapInterface(Tr2ManipulationTool)",
+        "@be.exposureChainTo(Tr2ManipulationTool)",
+        "export class Tr2RotationTool extends Tr2ManipulationTool",
+        "{",
+        "}"
+    ].join("\n"));
+    assert.equal(decorated.define.className, "Tr2RotationTool");
+    assert.equal(decorated.define.blue, true);
+    assert.deepEqual(decorated.lineage.interfaces, [ "Tr2ManipulationTool" ]);
+    assert.equal(decorated.lineage.chainTo, "Tr2ManipulationTool");
+
+    const bare = parseClassFile("@be.define(\"Lone\")\nexport class Lone extends IRoot\n{\n}");
+    assert.deepEqual(bare.lineage.interfaces, []);
+
+    const unexposed = parseClassFile("@meta.carbon(\"Owner::Inner\")\nexport class OwnerInner\n{\n}");
+    assert.equal(unexposed.define.className, "Owner::Inner");
+    assert.equal(unexposed.define.carbon, "Inner");
+    assert.equal(unexposed.lineage.interfaces, null);
+
+    const called = parseClassFile("export class IRootWriter extends IRoot\n{\n}\nbe.define(\"IRootWriter\")(IRootWriter);");
+    assert.equal(called.define.className, "IRootWriter");
+    assert.deepEqual(called.lineage.interfaces, []);
 });

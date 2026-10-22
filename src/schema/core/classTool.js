@@ -2776,13 +2776,17 @@ function parseDefine(src)
 {
     // Ruling 2026-10-15: `blue.define` stamps a Carbon class, `meta.define` declares ours; `donors`
     // names the Carbon class a renamed port replicates (blue) or the classes ours is built from (meta).
-    const decorator = src.match(/@(?:[A-Za-z_$][\w$]*\.)*(type|types|meta|blue)\.define\(\s*(\{[\s\S]*?\}|"[^"]*"|'[^']*'|[A-Za-z_$][\w$]*)\s*\)/);
+    // § 00 forms: `be.define`, `be.interface` and `meta.carbon` take the registered name, as a decorator or as the call `be.define("X")(Class)`;
+    // `blue.define` and `meta.define` stay readable.
+    const decorator = src.match(/@(?:[A-Za-z_$][\w$]*\.)*(type|types|meta|blue|be)\.(define|carbon|interface)\(\s*(\{[\s\S]*?\}|"[^"]*"|'[^']*'|[A-Za-z_$][\w$]*)\s*\)/)
+        ?? src.match(/^(?:CjsSchema\.)?(meta|be|exposure)\.(define|carbon|interface)\(\s*("[^"]*"|'[^']*')\s*\)\(\s*[A-Za-z_$][\w$]*\s*\)/m);
     const call = src.match(/\bCjsSchema\.(?:(blue|meta)\.)?define\(\s*[A-Za-z_$][\w$]*\s*,\s*(\{[\s\S]*?\})\s*\)/);
     const match = decorator ?? call;
     const empty = { className: null, carbon: null, modelledOn: null, blue: false };
     if (!match) return empty;
-    const blue = match[1] === "blue";
-    const arg = match[2].trim();
+    const verb = decorator ? decorator[2] : "define";
+    const blue = match[1] === "blue" || match[1] === "be" || match[1] === "exposure";
+    const arg = (decorator ? decorator[3] : match[2]).trim();
     if (arg.startsWith("{"))
     {
         const nameMatch = arg.match(/className\s*:\s*["']([^"']+)["']/);
@@ -2801,7 +2805,8 @@ function parseDefine(src)
     }
     if (arg.startsWith('"') || arg.startsWith("'"))
     {
-        return { ...empty, className: arg.slice(1, -1), blue };
+        const name = arg.slice(1, -1);
+        return { ...empty, className: name, carbon: verb === "carbon" ? name.split("::").pop() : null, blue };
     }
     // Identifier -> resolve `const <ID> = "...";`
     const constMatch = src.match(new RegExp(`const\\s+${arg}\\s*=\\s*["']([^"']+)["']`));
@@ -4133,8 +4138,8 @@ function importPathFor(name, options, isJs)
 /**
  * Carbon's base list and exposure table as decorator lines and imports.
  * `extends` is the base that carries state; the rest are `@blue.inherit`;
- * every exposed class gets its own `@blue.interface(...)`; the chain is
- * EXPOSURE_CHAINTO. A class Carbon cannot place (unimportable name) is named in a
+ * every exposed class gets `@be.define` and one `@be.mapInterface(...)` per
+ * MAP_INTERFACE row; the chain is `@be.exposureChainTo`. A class Carbon cannot place (unimportable name) is named in a
  * review comment instead of being dropped silently.
  */
 function renderCarbonLineage(lineage, className, options, isJs)
@@ -4156,9 +4161,10 @@ function renderCarbonLineage(lineage, className, options, isJs)
     const chainTo = lineage.exposed ? take(lineage.chainTo) : null;
     const decorators = [];
     if (inherit.length) decorators.push(`@blue.inherit(${inherit.join(", ")})`);
-    if (lineage.exposed) decorators.push(`@blue.interface(${interfaces.join(", ")})`);
-    if (chainTo) decorators.push(`@blue.chainTo(${chainTo})`);
-    return { baseClass, imports: [ ...imports ].filter(([ , from ]) => from), decorators, review };
+    // Carbon's EXPOSURE_BEGIN (`be.define`) adds IRoot and the class itself; every other MAP_INTERFACE row is written.
+    for (const name of interfaces) decorators.push(`@be.mapInterface(${name})`);
+    if (chainTo) decorators.push(`@be.exposureChainTo(${chainTo})`);
+    return { baseClass, exposed: Boolean(lineage.exposed), imports: [ ...imports ].filter(([ , from ]) => from), decorators, review };
 }
 
 /**
@@ -4266,9 +4272,11 @@ export function renderClassFile(expected, options = {})
         : `/** ${jsClassName} (${family}) - generated${meta.shapeHash ? ` from schema shapeHash ${shortHash(meta.shapeHash)}` : ""}. */`);
     // A Carbon class registers by its name; a struct whose Carbon name is no JS identifier
     // (Owner.Inner) names it as the donor it replicates.
-    lines.push(jsClassName === className
-        ? `@blue.define("${className}")`
-        : `@blue.define({ className: "${jsClassName}", donors: [ "${className}" ] })`);
+    // Exposed classes register as `@be.define`, unexposed Carbon classes as `@meta.carbon`; a nested type registers
+    // under Carbon's qualified name (`Owner::Inner`) while its JS class is the joined identifier.
+    lines.push(carbonLineage.exposed
+        ? `@be.define("${className}")`
+        : `@meta.carbon("${className.split(".").join("::")}")`);
     for (const decorator of carbonLineage.decorators) lines.push(decorator);
     lines.push(`export class ${jsClassName}${baseClass ? ` extends ${baseClass}` : ""}`);
     lines.push("{");
@@ -4391,6 +4399,8 @@ export function renderClassFile(expected, options = {})
     lines.push("");
     const used = [ "meta", "type", "blue" ].filter(name => lines.some(line => line.trimStart().startsWith(`@${name}.`)));
     lines[schemaImport] = `import { ${used.join(", ")} } from "@carbonenginejs/runtime/schema";`;
+    // The exposure decorators are `be`, a second import from the runtime's #be alias.
+    if (lines.some(line => line.trimStart().startsWith("@be."))) lines[schemaImport] = [ 'import { exposure as be } from "#be";', lines[schemaImport] ].join("\n");
     return lines.join("\n");
 }
 
