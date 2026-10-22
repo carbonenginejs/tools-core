@@ -167,7 +167,7 @@ test("a custom binary block generates @meta.type.binary beside its value type", 
         assert.equal(expected.fields[0].typeArg, value);
         assert.equal(expected.fields[0].binary, true);
         const source = renderClassFile(expected, { js: true });
-        assert.ok(source.includes(`  @blue.persistOnly\n  @type.binary\n  @type.typedArray("${value}")\n`), source);
+        assert.ok(source.includes(`  @be.mapAttribute(be.PERSISTONLY)\n  @type.binary\n  @type.typedArray("${value}")\n`), source);
         const parsed = parseClassFile(source);
         assert.equal(parsed.fields[0].kind, "typedArray");
         assert.equal(parsed.fields[0].binary, true);
@@ -993,9 +993,9 @@ test("emitted classes carry the decorators for the exact flag set", () =>
     const doc = MakeEditFlagDoc();
     const source = renderClassFile(deriveExpectedFields(doc), { doc, js: true });
 
-    assert.match(source, /@blue\.persist\n  @type\.float32\n  persisted/u);
-    assert.match(source, /@blue\.notify\n  @blue\.readwrite\n  @blue\.persist\n  @type\.float32\n  edited/u);
-    assert.match(source, /@blue\.persistOnly\n  @type\.float32\n  stored/u);
+    assert.match(source, /@be\.mapAttribute\(be\.PERSIST\)\n  @type\.float32\n  persisted/u);
+    assert.match(source, /@be\.mapAttribute\(be\.READWRITE \| be\.PERSIST \| be\.NOTIFY\)\n  @type\.float32\n  edited/u);
+    assert.match(source, /@be\.mapAttribute\(be\.PERSISTONLY\)\n  @type\.float32\n  stored/u);
 });
 
 test("method reasons accept attached JSDoc and retain legacy decorators", () =>
@@ -1102,11 +1102,11 @@ test("stored and live ship declarations survive emission, parsing and comparison
     const parsed = parseClassFile(source);
     const result = compareClass(expected, parsed, { strict: true });
 
-    assert.match(source, /@blue\.attribute\("boosters"\)/);
+    assert.match(source, /@be\.mapAttribute\(be\.PERSISTONLY, "boosters"\)/);
     assert.match(source, /_boosters = null;/);
-    // MAP_PROPERTY is blue.property on the getter; the name repeats the key, so it is left out.
-    assert.match(source, /@blue\.property\(\)\s+@type\.rootRef\("EveBoosterSet2"\)\s+@meta\.notImplemented\s+get boosters/);
-    assert.doesNotMatch(source, /@blue\.property\([^)]*\)\s+(?:@\S+\s+)*set boosters/);
+    // MAP_PROPERTY is be.mapProperty on the getter; the name repeats the key, so it is left out.
+    assert.match(source, /@be\.mapProperty\(\)\s+@type\.rootRef\("EveBoosterSet2"\)\s+@meta\.notImplemented\s+get boosters/);
+    assert.doesNotMatch(source, /@be\.mapProperty\w*\([^)]*\)\s+(?:@\S+\s+)*set boosters/);
     assert.match(source, /get boosters\(\)/);
     assert.match(source, /set boosters\(value\)/);
     assert.match(source, /@meta\.notImplemented\s+get boosters/);
@@ -1153,9 +1153,9 @@ test("blue.property flags are derived from the accessors and persisted", () =>
     ];
     const expected = deriveExpectedFields(doc);
     const source = renderClassFile(expected, { doc, js: true });
-    assert.match(source, /@blue\.property\(undefined, \{ persisted: true \}\)\s+@type\.rootRef\("EveBoosterSet2"\)/);
-    assert.match(source, /@blue\.property\(\)\s+@type\.uint32\s+@meta\.notImplemented\s+get boosterCount/);
-    assert.doesNotMatch(source, /@blue\.(?:read|readwrite|persist)\b/);
+    assert.match(source, /@be\.mapPropertyPersisted\(\)\s+@type\.rootRef\("EveBoosterSet2"\)/);
+    assert.match(source, /@be\.mapPropertyReadOnly\(\)\s+@type\.uint32\s+@meta\.notImplemented\s+get boosterCount/);
+    assert.doesNotMatch(source, /@(?:blue|be)\.(?:read|readwrite|persist)\b|@be\.mapAttribute/);
     const parsed = parseClassFile(source);
     const byName = Object.fromEntries(parsed.fields.map(field => [ field.name, field ]));
     assert.deepEqual(byName.boosters.editFlags, [ "READ", "WRITE", "PERSIST" ]);
@@ -1163,11 +1163,11 @@ test("blue.property flags are derived from the accessors and persisted", () =>
     const result = compareClass(expected, parsed, { strict: true });
     assert.equal(result.summary.drift, false);
 
-    const unpersisted = parseClassFile(source.replace("@blue.property(undefined, { persisted: true })", "@blue.property()"));
+    const unpersisted = parseClassFile(source.replace("@be.mapPropertyPersisted()", "@be.mapProperty()"));
     const drift = compareClass(expected, unpersisted, { strict: true });
     assert.equal(drift.summary.missingIoFlag, 1);
     assert.match(drift.fields.find(field => field.expected?.name === "boosters").notes.join(" "),
-        /expect @blue\.property\(undefined, \{ persisted: true \}\)/);
+        /expect @be\.mapPropertyPersisted\(\)/);
 });
 
 test("new namespace aliases retain stored member names, indices and live accessor types", () =>
@@ -1198,7 +1198,7 @@ test("new namespace aliases retain stored member names, indices and live accesso
 
     const expected = deriveExpectedFields(MakeShipPropertyDoc());
     expected.fields[0].index = 3;
-    assert.match(renderClassFile(expected, { js: true }), /@blue\.attribute\("boosters", \{ index: 3 \}\)/);
+    assert.match(renderClassFile(expected, { js: true }), /@be\.mapAttribute__Index\(be\.\w+(?: \| be\.\w+)*, "boosters", 3\)/);
     assert.equal(parseClassFile(`@meta.define("Fixture") export class Fixture {}`).define.className, "Fixture");
 });
 

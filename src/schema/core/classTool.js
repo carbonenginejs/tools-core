@@ -2127,6 +2127,8 @@ export function deriveExpectedFields(doc, options = {})
     const fields = [];
     const seen = new Set();
     let inheritedSkipped = 0;
+    // Rows this class's Carbon block maps for a member a base already exposes: written above the class (decorator-upgrade.md § 00).
+    const inheritedRows = [];
 
     const pushExpected = (raw) =>
     {
@@ -2154,6 +2156,7 @@ export function deriveExpectedFields(doc, options = {})
             )
             {
                 inheritedSkipped++;
+                inheritedRows.push({ kind: "attribute", macro: attr.macro || "MAP_ATTRIBUTE", name, flags: unionFlags(attr.flags, black?.flags), chooser: attr.chooser || null });
                 continue;
             }
 
@@ -2196,7 +2199,7 @@ export function deriveExpectedFields(doc, options = {})
             });
 
             pushExpected(buildExpectedField({
-                name, member, cppType, flags, kindInfo, parsedDefault, notes
+                name, member, cppType, flags, kindInfo, parsedDefault, notes, macro: attr.macro || null, chooser: attr.chooser || null
             }));
         }
     }
@@ -2326,6 +2329,7 @@ export function deriveExpectedFields(doc, options = {})
         )
         {
             inheritedSkipped++;
+            inheritedRows.push({ kind: "property", macro: property.readOnly ? "MAP_PROPERTY_READONLY" : property.macro || "MAP_PROPERTY", name });
             continue;
         }
 
@@ -2351,7 +2355,8 @@ export function deriveExpectedFields(doc, options = {})
             flags,
             kindInfo,
             parsedDefault: { determinate: false, source: "property" },
-            notes: ["Blue property"]
+            notes: ["Blue property"],
+            macro: property.readOnly ? "MAP_PROPERTY_READONLY" : property.macro || "MAP_PROPERTY"
         }));
     }
 
@@ -2384,6 +2389,7 @@ export function deriveExpectedFields(doc, options = {})
         className
     );
     meta.inheritedSkipped = inheritedSkipped;
+    meta.inheritedRows = [ ...inheritedRows, ...(methods.inheritedRows || []) ];
     if (reviewedNativeFields.length)
     {
         meta.reviewedNativeFields = {
@@ -2468,7 +2474,7 @@ function fieldIdentity(field)
     return `${field.role || "member"}:${field.name}`;
 }
 
-function buildExpectedField({ name, key = name, role = "member", member, getter = null, setter = null, getterReturnType = null, setterParameterType = null, cppType, flags, kindInfo, parsedDefault, notes })
+function buildExpectedField({ name, key = name, role = "member", member, getter = null, setter = null, getterReturnType = null, setterParameterType = null, cppType, flags, kindInfo, parsedDefault, notes, macro = null, chooser = null })
 {
     const io = expectedIo(flags);
     return {
@@ -2482,6 +2488,8 @@ function buildExpectedField({ name, key = name, role = "member", member, getter 
         setterParameterType,
         cppType: cppType || null,
         flags: flags || [],
+        macro,
+        chooser,
         kind: kindInfo.kind,
         typeArg: kindInfo.arg || null,
         ...(kindInfo.binary ? { binary: true } : {}),
@@ -2507,6 +2515,7 @@ function deriveExpectedMethods(doc, options = {})
     const family = options.family || doc.family || null;
     const includeInherited = Boolean(options.includeInherited);
     const className = options.className || doc.cppClass || doc.blueClass || null;
+    methods.inheritedRows = [];
 
     for (const method of Array.isArray(doc.methods) ? doc.methods : [])
     {
@@ -2524,6 +2533,7 @@ function deriveExpectedMethods(doc, options = {})
             ownerExposesBlueMethod(schemaRoot, family, method.declaredOn, name)
         )
         {
+            if (method.macro) methods.inheritedRows.push({ kind: "method", macro: method.macro, name });
             continue;
         }
         seen.add(name);
@@ -2702,6 +2712,12 @@ export function parseClassFile(rawText, options = {})
                 if (!pending.length) pendingDoc = attachedJsdoc(text, jsdocs, statementOffset);
                 let namespace = dm[1] === "types" ? "type" : dm[1];
                 let name = dm[2];
+                if (namespace === "be")
+                {
+                    pending.push(...beDecoratorRecords(name, dm[3] ? dm[3].slice(1, -1).trim() : ""));
+                    line = line.slice(dm[0].length).trim();
+                    continue;
+                }
                 // `@blue.abstract` is a Carbon pure virtual: Carbon's method stamp
                 // plus implementation status `abstract` (ruling 2026-10-17).
                 if (namespace === "blue" && name === "abstract")
@@ -2891,6 +2907,27 @@ function handleStatement(stmt, pending, line, fields, methods, helpers, jsdoc)
     const nameMatch = trimmed.match(/^([A-Za-z_$][\w$]*)/);
     if (nameMatch) helpers.push(nameMatch[1]);
     return false;
+}
+
+const BE_FLAG_DECORATORS = { READ: "read", WRITE: "write", READWRITE: "readwrite", NOTIFY: "notify", HIDDEN: "hidden", PERSIST: "persist", RPERSIST: "rpersist", PERSISTONLY: "persistOnly" };
+
+/**
+ * One `@be.*` decorator as the records its legacy spelling produced: the flag expression becomes the `edit` decorators,
+ * the exposed name and index become the member or property declaration, a method row becomes the Carbon method stamp.
+ */
+function beDecoratorRecords(name, argText)
+{
+    const args = splitTopLevelArgs(argText);
+    const flagRecords = expression => [ ...String(expression || "").matchAll(/\bbe\.([A-Z]+)\b/g) ]
+        .filter(match => BE_FLAG_DECORATORS[match[1]])
+        .map(match => ({ ns: "edit", name: BE_FLAG_DECORATORS[match[1]], arg: undefined }));
+    if (name === "mapAttribute") return [ ...flagRecords(args[0]), { ns: "meta", name: "attribute", arg: args[1] } ];
+    if (name === "mapAttributeWithChooser") return [ ...flagRecords(args[0]), { ns: "meta", name: "attribute", arg: args[2] } ];
+    if (name === "mapAttribute__Index") return [ ...flagRecords(args[0]), { ns: "meta", name: "attribute", arg: `${args[1]}, { index: ${args[2]} }` } ];
+    if (name === "mapProperty" || name === "mapPropertyReadOnly") return [ { ns: "meta", name: "property", arg: args[0] } ];
+    if (name === "mapPropertyPersisted") return [ { ns: "meta", name: "property", arg: `${args[0] ?? "undefined"}, { persisted: true }` } ];
+    if (name.startsWith("mapMethod")) return [ { ns: "carbon", name: "method", arg: undefined } ];
+    return [];
 }
 
 function buildParsedField(key, annotation, initializer, pending, line, defaultRole)
@@ -3550,12 +3587,10 @@ export function compareClass(expected, parsed, options = {})
         {
             missingIo = true;
             // A property's flags come from its accessors and `persisted`, not flag decorators.
-            const wanted = exp.role === "property"
-                ? renderRoleDecorator(exp)
-                : [ ...(exp.notify ? [ "notify" ] : []), ...exp.ioDecorators ].map(n => `@blue.${n}`).join(", ") || "none";
+            const wanted = renderExposureRow(exp) || "none";
             const had = act.propertyDeclared
-                ? `@meta.property${act.persisted ? "(undefined, { persisted: true })" : "()"} with ${act.set ? "getter and setter" : "getter only"}`
-                : [ ...(act.notify ? [ "notify" ] : []), ...act.ioNames ].map(n => `@blue.${n}`).join(", ") || "none";
+                ? `@be.${act.persisted ? "mapPropertyPersisted" : act.set ? "mapProperty" : "mapPropertyReadOnly"}() with ${act.set ? "getter and setter" : "getter only"}`
+                : act.editFlags.length ? `@be.mapAttribute(${renderFlagExpression(act.editFlags)})` : "none";
             const parts = [];
             if (missingFlags.length) parts.push(`missing ${missingFlags.join(", ")}`);
             if (extraFlags.length) parts.push(`extra ${extraFlags.join(", ")}`);
@@ -4278,6 +4313,7 @@ export function renderClassFile(expected, options = {})
         ? `@be.define("${className}")`
         : `@meta.carbon("${className.split(".").join("::")}")`);
     for (const decorator of carbonLineage.decorators) lines.push(decorator);
+    for (const row of renderInheritedRows(meta.inheritedRows)) lines.push(row);
     lines.push(`export class ${jsClassName}${baseClass ? ` extends ${baseClass}` : ""}`);
     lines.push("{");
     lines.push("");
@@ -4286,13 +4322,9 @@ export function renderClassFile(expected, options = {})
     {
         if (index > 0) lines.push("");
         lines.push(`  /** ${field.member || field.name} (${field.cppType || field.kind}${field.enumType ? ` - enum ${field.enumType}` : ""})${field.flags.length ? ` [${field.flags.join(", ")}]` : ""} */`);
-        if (field.role === "property" || (field.key && field.key !== field.name) || field.index !== undefined)
-        {
-            lines.push(`  ${renderRoleDecorator(field)}`);
-        }
-        // A property's flags are derived from its accessors (blue.property).
-        if (field.notify && field.role !== "property") lines.push("  @blue.notify");
-        if (field.role !== "property") for (const decorator of field.ioDecorators || []) lines.push(`  @blue.${decorator}`);
+        // Carbon's row, flags exactly as written; a property's flags come from its macro.
+        const exposureRow = renderExposureRow(field);
+        if (exposureRow) lines.push(`  ${exposureRow}`);
         if (field.binary) lines.push("  @type.binary");
         lines.push(`  @type.${renderTypeDecorator(field)}`);
         if (field.enumType) lines.push(`  @type.enum("${field.enumType}")`);
@@ -4332,9 +4364,8 @@ export function renderClassFile(expected, options = {})
     {
         if (index > 0) lines.push("");
         lines.push(`  ${renderMethodComment(method)}`);
-        lines.push(method.target && method.target !== method.name
-            ? `  @meta.renamed("${method.name}")`
-            : "  @blue.method");
+        if (METHOD_ROW[method.macro]) lines.push(`  @be.${METHOD_ROW[method.macro]}()`);
+        if (method.target && method.target !== method.name) lines.push(`  @meta.renamed("${method.name}")`);
         lines.push("  @meta.notImplemented");
         lines.push(`  ${renderMethodDecl(method, isJs)}`);
         lines.push("  {");
@@ -4723,21 +4754,66 @@ export function refreshEnumRegistrations(source, enums, registrations, options =
 }
 
 
-function renderRoleDecorator(field)
+const FLAG_NAMES = new Set([ "NONE", "READ", "WRITE", "READWRITE", "NOTIFY", "HIDDEN", "PERSIST", "RPERSIST", "PERSISTONLY", "FLAGS", "ENUM" ]);
+const METHOD_ROW = {
+    MAP_METHOD: "mapMethod",
+    MAP_METHOD_AND_WRAP: "mapMethodAndWrap",
+    MAP_METHOD_AND_WRAP_OPTIONAL_ARGS: "mapMethodAndWrapOptionalArgs",
+    MAP_METHOD_AS_METHOD: "mapMethodAsMethod"
+};
+const PROPERTY_ROW = { MAP_PROPERTY: "mapProperty", MAP_PROPERTY_READONLY: "mapPropertyReadOnly", MAP_PROPERTY_PERSISTED: "mapPropertyPersisted" };
+
+/** Carbon's flags as written, as the runtime's `be.` constants: `be.READWRITE | be.PERSIST`. */
+function renderFlagExpression(flags)
 {
-    // A generated class is Carbon's: a MAP_PROPERTY* row is `blue.property`, its
-    // name given only where it differs from the accessor key, and
-    // MAP_PROPERTY_PERSISTED adds `{ persisted: true }` (decision 2026-10-18).
+    const names = (flags || []).map(flag => String(flag).toUpperCase()).filter(flag => FLAG_NAMES.has(flag));
+    return names.length ? names.map(flag => `be.${flag}`).join(" | ") : "be.NONE";
+}
+
+/**
+ * The `be.map*` row for one stored or live member, or null when Carbon does not expose it.
+ * The exposed name is written only where it differs from the JS key.
+ */
+function renderExposureRow(field)
+{
+    const key = field.key || field.name;
+    const nameArg = field.name !== key ? JSON.stringify(field.name) : "";
     if (field.role === "property")
     {
-        const key = field.key || field.name;
-        const name = field.name !== key ? JSON.stringify(field.name) : "";
-        const persisted = (field.editFlags || expectedEditFlags(field.flags || [])).includes("PERSIST");
-        return `@blue.property(${persisted ? `${name || "undefined"}, { persisted: true }` : name})`;
+        const editFlags = field.editFlags || expectedEditFlags(field.flags || []);
+        const row = PROPERTY_ROW[field.macro]
+            || (editFlags.includes("PERSIST") ? "mapPropertyPersisted" : editFlags.includes("WRITE") ? "mapProperty" : "mapPropertyReadOnly");
+        return `@be.${row}(${nameArg})`;
     }
-    const index = field.index === undefined ? "" : `, { index: ${field.index} }`;
-    // A stored member's exposed name is `blue.attribute`.
-    return `@blue.attribute(${JSON.stringify(field.name)}${index})`;
+    if (!field.macro && !field.flags?.length) return null;
+    const flags = renderFlagExpression(field.flags);
+    if (field.index !== undefined) return `@be.mapAttribute__Index(${flags}, ${JSON.stringify(field.name)}, ${field.index})`;
+    if (field.macro === "MAP_ATTRIBUTE_WITH_CHOOSER")
+    {
+        const chooser = field.enumQualifiedName ? JSON.stringify(field.enumQualifiedName) : "null";
+        return `@be.mapAttributeWithChooser(${flags}, ${chooser}${nameArg ? `, ${nameArg}` : ""})`;
+    }
+    return `@be.mapAttribute(${flags}${nameArg ? `, ${nameArg}` : ""})`;
+}
+
+/** Rows this class's Carbon block maps for members a base exposes, as class-level decorators. */
+function renderInheritedRows(rows)
+{
+    const lines = [];
+    for (const row of rows || [])
+    {
+        const name = JSON.stringify(row.name);
+        if (row.kind === "method" && METHOD_ROW[row.macro]) lines.push(`@be.${METHOD_ROW[row.macro]}(${name})`);
+        else if (row.kind === "property" && PROPERTY_ROW[row.macro]) lines.push(`@be.${PROPERTY_ROW[row.macro]}(${name})`);
+        else if (row.kind === "attribute")
+        {
+            const flags = renderFlagExpression(row.flags);
+            lines.push(row.macro === "MAP_ATTRIBUTE_WITH_CHOOSER"
+                ? `@be.mapAttributeWithChooser(${flags}, ${row.chooser ? JSON.stringify(row.chooser) : "null"}, ${name})`
+                : `@be.mapAttribute(${flags}, ${name})`);
+        }
+    }
+    return lines;
 }
 
 function renderTypeDecorator(field)
