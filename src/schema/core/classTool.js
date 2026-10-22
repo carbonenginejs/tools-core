@@ -4411,7 +4411,7 @@ export function renderClassFile(expected, options = {})
         if (isPythonOnlyMethod(method))
         {
             lines.push("  @meta.notSupported");
-            lines.push(`  ${renderMethodDecl(method, isJs)}`);
+            lines.push(`  ${renderMethodDecl(method, isJs, "unknown")}`);
             lines.push("  {");
             const fallback = pythonFallbackValue(method);
             if (fallback !== null) lines.push(`    return ${fallback};`);
@@ -4522,10 +4522,10 @@ function renderMethodComment(method)
     return `/** Carbon method ${method.name}${target}${macro}${contract}.${signature} */`;
 }
 
-function renderMethodDecl(method, isJs)
+function renderMethodDecl(method, isJs, tsReturnType = "never")
 {
     const annotation = isJs ? "" : ": unknown[]";
-    const returnType = isJs ? "" : ": never";
+    const returnType = isJs ? "" : `: ${tsReturnType}`;
     return `${methodPropertyName(method.name)}(...args${annotation})${returnType}`;
 }
 
