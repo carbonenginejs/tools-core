@@ -1722,9 +1722,38 @@ function parseMethodDeclarations(body, source, baseLine = 1)
 
     for (let i = 0; i < lines.length; i++)
     {
-        const line = lines[i].trim();
+        let line = lines[i].trim();
         if (!line || !line.includes("(")) continue;
         if (/^(if|for|while|switch|return)\b/.test(line)) continue;
+
+        // A DECLARATION CAN SPAN LINES.
+        //
+        //     virtual void SetPivots(
+        //         float _11, float _12, ... ) = 0;
+        //
+        // Its first line ends in `(` or `,`, so the line-at-a-time reading below dropped it: ITriMatrix, IPythonMethods and every other interface
+        // that wraps its parameters were reported with fewer methods than they declare. Join the following lines until the parentheses balance.
+        // A joined declaration must read as one (a return type before the name), so a wrapped call inside an inline body is not taken for a method.
+        const start = i;
+        let last = i;
+        let joined = false;
+        if (parenBalance(line) > 0)
+        {
+            let merged = line;
+            let j = i;
+            while (parenBalance(merged) > 0 && j + 1 < lines.length && j - i < 64)
+            {
+                j++;
+                merged += ` ${lines[j].trim()}`;
+            }
+            if (parenBalance(merged) === 0)
+            {
+                line = merged;
+                last = j;
+                joined = true;
+                i = j;
+            }
+        }
         if (/^(using|typedef|friend|static_assert)\b/.test(line)) continue;
 
         // A METHOD WITH AN INLINE BODY IS STILL A DECLARATION. Requiring a
@@ -1742,7 +1771,7 @@ function parseMethodDeclarations(body, source, baseLine = 1)
         //
         // The empty body is not a detail. It is what tells a port that the
         // method exists and does nothing by default, rather than not existing.
-        const next = (lines[i + 1] ?? "").trim();
+        const next = (lines[last + 1] ?? "").trim();
         const inlineBody = line.endsWith("{") || next.startsWith("{");
 
         if (!line.endsWith(";") && !inlineBody) continue;
@@ -1753,7 +1782,7 @@ function parseMethodDeclarations(body, source, baseLine = 1)
         // exactly like calls.
         if (!line.endsWith(";"))
         {
-            const previous = (lines[i - 1] ?? "").trim();
+            const previous = (lines[start - 1] ?? "").trim();
             if (/[,:]$/.test(previous)) continue;
             if (!/\s/.test(line.slice(0, line.indexOf("(")).trim())) continue;
         }
@@ -1763,7 +1792,10 @@ function parseMethodDeclarations(body, source, baseLine = 1)
         const close = findMatchingParen(signature, open);
         if (open === -1 || close === -1) continue;
 
-        const beforeParen = signature.slice(0, open).trim();
+        // `operator=`, `operator==`, `operator[]` and the like end in a symbol, which no name pattern matches; they are recorded as "operator",
+        // as `operator()` always was.
+        const beforeParen = signature.slice(0, open).trim().replace(/\boperator\s*(?:\[\s*\]|[^\s\w()]+)$/, "operator");
+        if (joined && !/\s/.test(beforeParen) && !beforeParen.startsWith("~")) continue;
 
         // A FIELD WHOSE DEFAULT IS A CALL IS NOT A METHOD.
         //
@@ -1815,6 +1847,17 @@ function parseMethodDeclarations(body, source, baseLine = 1)
     }
 
     return methods;
+}
+
+function parenBalance(text)
+{
+    let balance = 0;
+    for (const ch of text)
+    {
+        if (ch === "(") balance++;
+        else if (ch === ")") balance--;
+    }
+    return balance;
 }
 
 // The `static` specifier, read before the parameter list.

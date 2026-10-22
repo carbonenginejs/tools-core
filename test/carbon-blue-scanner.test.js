@@ -121,6 +121,35 @@ test("named nested structs do not leak their members into the containing class",
     assert.deepEqual(classInfo.fields.map(field => field.name), ["m_position"]);
 });
 
+test("a declaration that wraps its parameters over several lines is one method, and operators are recorded", () =>
+{
+    const parsed = scanner.__test.parseHeaderFile(`
+        BLUE_INTERFACE( IWrapped ) :
+            public IRoot
+        {
+            virtual void SetPivots(
+                float _11, float _12,
+                float _13 ) = 0;
+
+            virtual Matrix* CopyMatrix(
+                Matrix * in ) const = 0;
+
+            Wrapped& operator=( Wrapped&& other );
+            bool operator==( const Wrapped& other ) const;
+
+            virtual void Single( int a ) = 0;
+        };
+    `, "include/IWrapped.h");
+    const classInfo = parsed.classes.find(item => item.name === "IWrapped");
+
+    assert.ok(classInfo);
+    assert.deepEqual(classInfo.methods.map(method => method.name), ["SetPivots", "CopyMatrix", "operator", "operator", "Single"]);
+    const wrapped = classInfo.methods.find(method => method.name === "SetPivots");
+    assert.equal(wrapped.pureVirtual, true);
+    assert.equal(wrapped.parameters.length, 3);
+    assert.equal(classInfo.methods.find(method => method.name === "CopyMatrix").isConst, true);
+});
+
 test("header methods retain declaration owner and virtual contract metadata", () =>
 {
     const parsed = scanner.__test.parseHeaderFile(`
