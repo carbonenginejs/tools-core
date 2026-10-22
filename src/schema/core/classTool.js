@@ -685,6 +685,34 @@ function enumCatalogIdentity(entry)
     return String(entry.name);
 }
 
+/**
+ * The name the runtime registers an enum under: the Carbon library the declaring file belongs to, then the C++ qualified name with
+ * dots ("trinity.TriDebugFont", "trinity.ImageIO.PixelFormat", "blue.TRIEXTRAPOLATION").
+ *
+ * @param {object} entry A catalog enum entry.
+ * @returns {string|null} The registered name, or null when the entry has no source file.
+ */
+function enumRegisteredName(entry)
+{
+    const identity = enumCatalogIdentity(entry);
+    const library = String(entry?.source || "").split("/")[0];
+    return identity && library ? `${library}.${identity.split("::").join(".")}` : null;
+}
+
+/**
+ * The registered name of the one library-level enum called `name`, for an enum the field's own type does not scope.
+ *
+ * @param {string} name The enum's short name.
+ * @param {string} schemaRoot The schema root holding enums.json.
+ * @returns {string|null} The registered name, or null when none or several enums match.
+ */
+function globalEnumRegisteredName(name, schemaRoot)
+{
+    if (!name) return null;
+    const matches = enumCatalog(schemaRoot).filter(entry => entry?.name === name && !entry.ownerClass && !String(enumCatalogIdentity(entry)).includes("::"));
+    return matches.length === 1 ? enumRegisteredName(matches[0]) : null;
+}
+
 function catalogEnumReference(enumType, cppType, className, schemaRoot = DEFAULT_SCHEMA_ROOT)
 {
     const entries = enumCatalog(schemaRoot);
@@ -741,6 +769,7 @@ function enumReferenceFrom(enumType, cppType, className = null, schemaRoot = DEF
         return {
             enumType: projectionName,
             enumQualifiedName: enumCatalogIdentity(entry),
+            enumRegisteredName: enumRegisteredName(entry),
             enumOwnerClass: entry.ownerClass || null
         };
     }
@@ -748,7 +777,7 @@ function enumReferenceFrom(enumType, cppType, className = null, schemaRoot = DEF
     const cleanEnumType = cleanNamedType(enumType || "");
     if (cleanEnumType && !generic.test(cleanEnumType))
     {
-        return { enumType: cleanEnumType, enumQualifiedName: null, enumOwnerClass: null };
+        return { enumType: cleanEnumType, enumQualifiedName: null, enumRegisteredName: globalEnumRegisteredName(cleanEnumType, schemaRoot), enumOwnerClass: null };
     }
     if (scoped)
     {
@@ -1380,7 +1409,8 @@ function inferKindFromCpp(cppType, name, schemaRoot = DEFAULT_SCHEMA_ROOT, class
     if (!MATH_VALUE_CPP_TYPES.has(named)
         && (/\*$/.test(type) || /^P(?:I)?[A-Z]\w+$/.test(named) || /(?:Ptr|Ref)$/.test(named)))
     {
-        return { kind: "rootRef", arg: cleanNamedType(original) };
+        // A raw `T*` member does not own what it points at; BluePtr, PT and XPtr typedefs do.
+        return { kind: /\*$/.test(type) ? "rootWeak" : "rootRef", arg: cleanNamedType(original) };
     }
 
     switch (named)
@@ -1487,7 +1517,7 @@ function inferKindFromBlack(black, cppType, name, schemaRoot = DEFAULT_SCHEMA_RO
             return { kind: "vec4" };
         }
         case "objectRef":
-            return { kind: "rootRef", arg: cleanNamedType(effectiveCppType) };
+            return { kind: /\*\s*$/.test(normalizeCppType(effectiveCppType)) ? "rootWeak" : "rootRef", arg: cleanNamedType(effectiveCppType) };
         case "container":
         {
             const resolved = inferKindFromCpp(effectiveCppType, name, schemaRoot, className);
@@ -2336,6 +2366,8 @@ export function deriveExpectedFields(doc, options = {})
         const cppType = property.cppType || property.getterReturnType || property.setterParameterType || property.setterValueType || null;
         if (!isUsefulCppType(cppType)) continue;
         const kindInfo = inferKindFromCpp(cppType, name, schemaRoot, declaredOn || className);
+        // The raw-pointer ruling is for stored members; a live accessor hands out the reference.
+        if (kindInfo.kind === "rootWeak" && /\*\s*$/.test(normalizeCppType(cppType))) kindInfo.kind = "rootRef";
         // blueexposure/include/BlueExposureMacrosPython.h: MAP_PROPERTY is
         // READWRITE, MAP_PROPERTY_READONLY is READ and MAP_PROPERTY_PERSISTED is
         // READWRITE | PERSIST.
@@ -2496,6 +2528,7 @@ function buildExpectedField({ name, key = name, role = "member", member, getter 
         ...(kindInfo.structure ? { structure: kindInfo.structure } : {}),
         enumType: kindInfo.enumType || null,
         enumQualifiedName: kindInfo.enumQualifiedName || null,
+        enumRegisteredName: kindInfo.enumRegisteredName || null,
         enumOwnerClass: kindInfo.enumOwnerClass || null,
         rotationLike: kindInfo.kind === "quat",
         io: io.ioName,
@@ -2712,6 +2745,11 @@ export function parseClassFile(rawText, options = {})
                 if (!pending.length) pendingDoc = attachedJsdoc(text, jsdocs, statementOffset);
                 let namespace = dm[1] === "types" ? "type" : dm[1];
                 let name = dm[2];
+                if (namespace === "object" && { ref: "rootRef", weak: "rootWeak", embed: "root" }[name])
+                {
+                    namespace = "type";
+                    name = { ref: "rootRef", weak: "rootWeak", embed: "root" }[name];
+                }
                 if (namespace === "be")
                 {
                     pending.push(...beDecoratorRecords(name, dm[3] ? dm[3].slice(1, -1).trim() : ""));
@@ -4192,6 +4230,8 @@ function renderCarbonLineage(lineage, className, options, isJs)
     };
     const baseClass = take(lineage.extends);
     const inherit = lineage.inherit.map(take).filter(Boolean);
+    // A class Carbon derives from IRoot directly inherits it too (BLUE_CLASS), though it also extends it.
+    if ((lineage.bases || []).some(base => base.name === "IRoot") && !inherit.includes("IRoot") && take("IRoot")) inherit.unshift("IRoot");
     // IRoot and the class itself come with `be.define`; every other row is written.
     const interfaces = lineage.exposed ? lineage.interfaces.filter(name => name !== "IRoot").map(take).filter(Boolean) : [];
     const chainTo = lineage.exposed ? take(lineage.chainTo) : null;
@@ -4430,7 +4470,7 @@ export function renderClassFile(expected, options = {})
     lines.push("}");
     lines.push("");
     const used = [ "meta", "type", "blue" ].filter(name => lines.some(line => line.trimStart().startsWith(`@${name}.`)));
-    lines[schemaImport] = `import { ${used.join(", ")} } from "@carbonenginejs/runtime/schema";`;
+    lines[schemaImport] = used.length ? `import { ${used.join(", ")} } from "@carbonenginejs/runtime/schema";` : "";
     // The exposure decorators are `be`, a second import from the runtime's #be alias.
     if (lines.some(line => line.trimStart().startsWith("@be."))) lines[schemaImport] = [ 'import { exposure as be } from "#be";', lines[schemaImport] ].join("\n");
     return lines.join("\n");
@@ -4791,7 +4831,8 @@ function renderExposureRow(field)
     if (field.index !== undefined) return `@be.mapAttribute__Index(${flags}, ${JSON.stringify(field.name)}, ${field.index})`;
     if (field.macro === "MAP_ATTRIBUTE_WITH_CHOOSER")
     {
-        const chooser = field.enumQualifiedName || field.enumType ? JSON.stringify(field.enumQualifiedName || field.enumType) : "null";
+        const registered = field.enumRegisteredName || field.enumQualifiedName || field.enumType;
+        const chooser = registered ? JSON.stringify(registered) : "null";
         return `@be.mapAttributeWithChooser(${flags}, ${chooser}${nameArg ? `, ${nameArg}` : ""})`;
     }
     return `@be.mapAttribute(${flags}${nameArg ? `, ${nameArg}` : ""})`;
@@ -4823,7 +4864,13 @@ function renderTypeDecorator(field)
     {
         return `resource(${JSON.stringify(field.type.className || "unknown")})`;
     }
-    if (field.kind === "rootRef" || field.kind === "rootWeak" || field.kind === "root" || field.kind === "rawStruct" || field.kind === "structList")
+    // Carbon's pointer kind: BluePtr/IROOTPTR is a counted reference, BlueWeakRef/IROOTWEAKREF and a raw pointer are weak, a member held by value is embedded.
+    const OBJECT_KIND = { rootRef: "object.ref", rootWeak: "object.weak", root: "object.embed" };
+    if (OBJECT_KIND[field.kind])
+    {
+        return `${OBJECT_KIND[field.kind]}("${field.typeArg || field.cppType || "unknown"}")`;
+    }
+    if (field.kind === "rawStruct" || field.kind === "structList")
     {
         return `${field.kind}("${field.typeArg || field.cppType || "unknown"}")`;
     }

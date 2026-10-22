@@ -144,7 +144,7 @@ test("the emitter writes extends, inherit, an own interface table and the chain 
     assert.match(source, /import \{ IBlueEventListener, IBluePlacementObserver \} from "@carbonenginejs\/runtime\/blue";/);
     // An exposed class that maps only itself still gets its own (empty) table.
     const self = { ...audEmitterDoc, cppClass: "Lone", blueClass: "Lone", bases: [ "IRoot" ], blue: { exposures: [ { name: "Lone" } ], interfaces: [ { name: "Lone" } ] } };
-    assert.match(renderClassFile(deriveExpectedFields(self), { js: true, doc: self }), /@be\.define\("Lone"\)\nexport class Lone extends IRoot/);
+    assert.match(renderClassFile(deriveExpectedFields(self), { js: true, doc: self }), /@be\.define\("Lone"\)\n@be\.inherit\(IRoot\)\nexport class Lone extends IRoot/);
     // The emitted file passes its own check.
     const lineage = deriveCarbonLineage(audEmitterDoc, { resolveDoc });
     assert.deepEqual(compareClass(deriveExpectedFields(audEmitterDoc), parseClassFile(source), { lineage, resolveDoc }).fields.filter(item => item.verdict === "lineage"), []);

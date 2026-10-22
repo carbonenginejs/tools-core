@@ -109,3 +109,38 @@ test("the parser reads the be rows as the records the legacy decorators made", (
     assert.equal(byKey.saved.role, "property");
     assert.equal(byKey.saved.persisted, true);
 });
+
+test("pointer kinds are type.object.ref, weak and embed, and the parser reads them back as the kinds they replace", () =>
+{
+    const source = render([
+        field({ name: "owner", key: "owner", kind: "rootRef", typeArg: "Owner", flags: [ "READ" ], cppType: "OwnerPtr" }),
+        field({ name: "parent", key: "parent", kind: "rootWeak", typeArg: "Parent", flags: [ "READ" ], cppType: "BlueWeakRef<Parent>" }),
+        field({ name: "held", key: "held", kind: "root", typeArg: "Held", flags: [ "READ" ], cppType: "Held" })
+    ]);
+    assert.match(source, /@type\.object\.ref\("Owner"\)/);
+    assert.match(source, /@type\.object\.weak\("Parent"\)/);
+    assert.match(source, /@type\.object\.embed\("Held"\)/);
+    assert.doesNotMatch(source, /@type\.root(?:Ref|Weak)?\(/);
+    const parsed = Object.fromEntries(parseClassFile(source).fields.map(item => [ item.key, item ]));
+    assert.equal(parsed.owner.kind, "rootRef");
+    assert.equal(parsed.parent.kind, "rootWeak");
+    assert.equal(parsed.held.kind, "root");
+});
+
+test("a raw pointer member is weak, a BluePtr or XPtr member is a counted reference", () =>
+{
+    const doc = { family: "probe", blueClass: "Pointers", cppClass: "Pointers", attributes: [
+        { blueName: "raw", member: "m_raw", cppType: "Target*", flags: [ "READ" ], black: { beType: "IROOTPTR", wireType: "objectRef", cppType: "Target*" } },
+        { blueName: "counted", member: "m_counted", cppType: "TargetPtr", flags: [ "READ" ], black: { beType: "IROOTPTR", wireType: "objectRef", cppType: "TargetPtr" } }
+    ] };
+    const kinds = Object.fromEntries(deriveExpectedFields(doc).fields.map(item => [ item.name, item.kind ]));
+    assert.deepEqual(kinds, { raw: "rootWeak", counted: "rootRef" });
+});
+
+test("a class Carbon derives from IRoot directly inherits it, and a chooser names the enum as the runtime registers it", () =>
+{
+    const doc = { family: "probe", blueClass: "Direct", cppClass: "Direct", bases: [ "IRoot" ], blue: { exposures: [ { name: "Direct" } ], interfaces: [ { name: "Direct" } ] } };
+    assert.match(renderClassFile(deriveExpectedFields(doc), { js: true, doc }), /@be\.define\("Direct"\)\n@be\.inherit\(IRoot\)\nexport class Direct extends IRoot/);
+    const source = render([ field({ name: "font", key: "font", macro: "MAP_ATTRIBUTE_WITH_CHOOSER", flags: [ "READWRITE", "ENUM" ], enumType: "TriDebugFont", enumRegisteredName: "trinity.TriDebugFont" }) ]);
+    assert.match(source, /@be\.mapAttributeWithChooser\(be\.READWRITE \| be\.ENUM, "trinity\.TriDebugFont"\)/);
+});

@@ -69,7 +69,7 @@ test("explicit resource descriptors survive emission and reports without native 
 
     const ordinary = { ...native, fields: [{ ...native.fields[0], type: { ...descriptor, runtimeOnly: false } }] };
     const ordinarySource = renderClassFile(ordinary, { js: true });
-    assert.match(ordinarySource, /@type\.rootRef\("TriGeometryRes"\)/);
+    assert.match(ordinarySource, /@type\.object\.ref\("TriGeometryRes"\)/);
     assert.equal(compareClass(ordinary, parseClassFile(ordinarySource), { strict: true }).summary.drift, false);
 });
 
@@ -1105,7 +1105,7 @@ test("stored and live ship declarations survive emission, parsing and comparison
     assert.match(source, /@be\.mapAttribute\(be\.PERSISTONLY, "boosters"\)/);
     assert.match(source, /_boosters = null;/);
     // MAP_PROPERTY is be.mapProperty on the getter; the name repeats the key, so it is left out.
-    assert.match(source, /@be\.mapProperty\(\)\s+@type\.rootRef\("EveBoosterSet2"\)\s+@meta\.notImplemented\s+get boosters/);
+    assert.match(source, /@be\.mapProperty\(\)\s+@type\.object\.ref\("EveBoosterSet2"\)\s+@meta\.notImplemented\s+get boosters/);
     assert.doesNotMatch(source, /@be\.mapProperty\w*\([^)]*\)\s+(?:@\S+\s+)*set boosters/);
     assert.match(source, /get boosters\(\)/);
     assert.match(source, /set boosters\(value\)/);
@@ -1153,7 +1153,7 @@ test("blue.property flags are derived from the accessors and persisted", () =>
     ];
     const expected = deriveExpectedFields(doc);
     const source = renderClassFile(expected, { doc, js: true });
-    assert.match(source, /@be\.mapPropertyPersisted\(\)\s+@type\.rootRef\("EveBoosterSet2"\)/);
+    assert.match(source, /@be\.mapPropertyPersisted\(\)\s+@type\.object\.ref\("EveBoosterSet2"\)/);
     assert.match(source, /@be\.mapPropertyReadOnly\(\)\s+@type\.uint32\s+@meta\.notImplemented\s+get boosterCount/);
     assert.doesNotMatch(source, /@(?:blue|be)\.(?:read|readwrite|persist)\b|@be\.mapAttribute/);
     const parsed = parseClassFile(source);
@@ -1252,9 +1252,9 @@ test("weak references retain their distinct type rather than becoming strong ref
     assert.equal(expected.fields[0].kind, "rootWeak");
     assert.equal(expected.fields[0].typeArg, "FixtureShip");
     const source = renderClassFile(expected, { doc, js: true });
-    assert.match(source, /@type\.rootWeak\("FixtureShip"\)/);
+    assert.match(source, /@type\.object\.weak\("FixtureShip"\)/);
     assert.equal(compareClass(expected, parseClassFile(source), { strict: true }).summary.drift, false);
-    assert.equal(compareClass(expected, parseClassFile(source.replace("@type.rootWeak", "@type.rootRef"))).summary.typeMismatch, 1);
+    assert.equal(compareClass(expected, parseClassFile(source.replace("@type.object.weak", "@type.object.ref"))).summary.typeMismatch, 1);
 });
 
 test("known method signatures survive derivation, comparison reports and emitted comments", () =>
