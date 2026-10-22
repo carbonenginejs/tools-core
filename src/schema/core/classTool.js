@@ -4407,6 +4407,17 @@ export function renderClassFile(expected, options = {})
         lines.push(`  ${renderMethodComment(method)}`);
         if (METHOD_ROW[method.macro]) lines.push(`  @be.${METHOD_ROW[method.macro]}()`);
         if (method.target && method.target !== method.name) lines.push(`  @meta.renamed("${method.name}")`);
+        // Python plumbing has no counterpart here (decorator-upgrade.md § 00): the method answers "not handled" instead of throwing.
+        if (isPythonOnlyMethod(method))
+        {
+            lines.push("  @meta.notSupported");
+            lines.push(`  ${renderMethodDecl(method, isJs)}`);
+            lines.push("  {");
+            const fallback = pythonFallbackValue(method);
+            if (fallback !== null) lines.push(`    return ${fallback};`);
+            lines.push("  }");
+            return;
+        }
         lines.push("  @meta.notImplemented");
         lines.push(`  ${renderMethodDecl(method, isJs)}`);
         lines.push("  {");
@@ -4474,6 +4485,28 @@ export function renderClassFile(expected, options = {})
     // The exposure decorators are `be`, a second import from the runtime's #be alias.
     if (lines.some(line => line.trimStart().startsWith("@be."))) lines[schemaImport] = [ 'import { exposure as be } from "#be";', lines[schemaImport] ].join("\n");
     return lines.join("\n");
+}
+
+/**
+ * A method that only exists for the Python host: Blue's `__init__` constructor hook, or a signature that takes or returns a
+ * `PyObject`.
+ *
+ * @param {object} method An expected method record.
+ * @returns {boolean} True when the method is Python-only.
+ */
+function isPythonOnlyMethod(method)
+{
+    if (method.blueName === "__init__" || method.name === "__init__") return true;
+    const signature = `${method.returnType || ""} ${(method.parameters || []).map(parameter => parameter.type || parameter.cppType || "").join(" ")}`;
+    return /\bPy(?:Type)?Object\b/.test(signature);
+}
+
+/** What a Python-only method answers: nothing for void, false for bool, null otherwise. */
+function pythonFallbackValue(method)
+{
+    const type = String(method.returnType || "void").replace(/\bconst\b/g, "").trim();
+    if (type === "void" || type === "") return null;
+    return type === "bool" ? "false" : "null";
 }
 
 function renderMethodComment(method)
