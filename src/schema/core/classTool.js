@@ -2779,14 +2779,13 @@ function parseDefine(src)
     const decorator = src.match(/@(?:[A-Za-z_$][\w$]*\.)*(type|types|meta|blue)\.define\(\s*(\{[\s\S]*?\}|"[^"]*"|'[^']*'|[A-Za-z_$][\w$]*)\s*\)/);
     const call = src.match(/\bCjsSchema\.(?:(blue|meta)\.)?define\(\s*[A-Za-z_$][\w$]*\s*,\s*(\{[\s\S]*?\})\s*\)/);
     const match = decorator ?? call;
-    const empty = { className: null, family: null, carbon: null, modelledOn: null, blue: false };
+    const empty = { className: null, carbon: null, modelledOn: null, blue: false };
     if (!match) return empty;
     const blue = match[1] === "blue";
     const arg = match[2].trim();
     if (arg.startsWith("{"))
     {
         const nameMatch = arg.match(/className\s*:\s*["']([^"']+)["']/);
-        const familyMatch = arg.match(/family\s*:\s*["']([^"']+)["']/);
         const carbonMatch = arg.match(/\bcarbon\s*:\s*["']([^"']+)["']/);
         const modelledMatch = arg.match(/\bmodelledOn\s*:\s*["']([^"']+)["']/);
         const donorMatch = arg.match(/\bdonors\s*:\s*\[\s*["']([^"']+)["']/);
@@ -2795,7 +2794,6 @@ function parseDefine(src)
         const donor = donorMatch ? donorMatch[1].split("::").pop() : null;
         return {
             className: nameMatch ? nameMatch[1] : null,
-            family: familyMatch ? familyMatch[1] : null,
             carbon: carbonMatch ? carbonMatch[1].split("::").pop() : blue ? donor : null,
             modelledOn: modelledMatch ? modelledMatch[1].split("::").pop() : blue ? null : donor,
             blue
@@ -3755,25 +3753,10 @@ function makeExtraResult(field, allowExtra, strict)
 
 function addClassPolicyResults(results, meta, parsed, options = {})
 {
-    const requiredFamily = options.runtimeFamily || meta.runtimeFamily || meta.family || null;
     const allowSourceProven = options.sourceProven === undefined ? !parsed.generated : Boolean(options.sourceProven);
 
     // The base class is compared with Carbon's base list in compareLineage.
     void allowSourceProven;
-
-    // Families are no longer declared on define (ruling 2026-10-15); the check stays off.
-    if (false && requiredFamily && parsed.define?.family !== requiredFamily)
-    {
-        results.push({
-            name: "<class>",
-            verdict: "class-policy",
-            severity: "error",
-            symbol: "cross",
-            notes: [`@meta.define family must be "${requiredFamily}"; found ${parsed.define?.family || "no family"}`],
-            expected: { family: requiredFamily },
-            actual: { family: parsed.define?.family || null }
-        });
-    }
 }
 
 function exportExpected(exp)
@@ -4283,9 +4266,9 @@ export function renderClassFile(expected, options = {})
         : `/** ${jsClassName} (${family}) - generated${meta.shapeHash ? ` from schema shapeHash ${shortHash(meta.shapeHash)}` : ""}. */`);
     // A Carbon class registers by its name; a struct whose Carbon name is no JS identifier
     // (Owner.Inner) names it as the donor it replicates.
-    lines.push(jsClassName === className && !purpose
+    lines.push(jsClassName === className
         ? `@blue.define("${className}")`
-        : `@blue.define({ className: "${jsClassName}"${jsClassName === className ? "" : `, donors: [ "${className}" ]`}${purpose ? `, purpose: ${JSON.stringify(purpose)}` : ""} })`);
+        : `@blue.define({ className: "${jsClassName}", donors: [ "${className}" ] })`);
     for (const decorator of carbonLineage.decorators) lines.push(decorator);
     lines.push(`export class ${jsClassName}${baseClass ? ` extends ${baseClass}` : ""}`);
     lines.push("{");

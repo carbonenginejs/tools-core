@@ -605,7 +605,7 @@ test("emitted classes use schema purposes and retain the deterministic fallback"
     });
 
     assert.ok(source.includes(`/** ${purpose} */`));
-    assert.ok(source.includes(`purpose: ${JSON.stringify(purpose)}`) && !source.includes("family:"));
+    assert.ok(!source.includes("purpose:") && !source.includes("family:"));
 
     const fallback = renderClassFile(expected, { doc: { family: "trinityCore" }, js: true });
     assert.ok(fallback.includes("generated from schema shapeHash 12345678"));
@@ -767,20 +767,18 @@ test("the define metadata is read from the decorator and from the call form alik
     // that reads only the decorator sees the whole layer as undeclared.
     const decorated = parseClassFile([
         "import { type } from \"#schema\";",
-        "@meta.define({ className: \"Tr2Thing\", family: \"trinity\" })",
+        "@meta.define({ className: \"Tr2Thing\" })",
         "export class Tr2Thing {}"
     ].join("\n"));
 
     assert.equal(decorated.define.className, "Tr2Thing");
-    assert.equal(decorated.define.family, "trinity");
 
     const called = parseClassFile([
         "export class Tr2TextureALStub {}",
-        "CjsSchema.define(Tr2TextureALStub, { className: \"Tr2TextureALStub\", family: \"trinityal\" });"
+        "CjsSchema.define(Tr2TextureALStub, { className: \"Tr2TextureALStub\" });"
     ].join("\n"));
 
     assert.equal(called.define.className, "Tr2TextureALStub");
-    assert.equal(called.define.family, "trinityal");
 });
 
 test("a declared donor is read, and a qualified one keeps only its class", () =>
