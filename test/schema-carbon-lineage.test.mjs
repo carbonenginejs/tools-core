@@ -140,7 +140,7 @@ test("the emitter writes extends, inherit, an own interface table and the chain 
 {
     const resolveDoc = resolverOf(audioDocs);
     const source = renderClassFile(deriveExpectedFields(audEmitterDoc), { js: true, doc: audEmitterDoc, resolveDoc });
-    assert.match(source, /@blue\.inherit\(IBlueEventListener, IBluePlacementObserver, ITr2DebugRenderable, ITr2AudEmitter\)\n@be\.mapInterface\(IBlueEventListener\)\n@be\.mapInterface\(IBluePlacementObserver\)\n@be\.mapInterface\(ITr2AudEmitter\)\n@be\.mapInterface\(ITr2DebugRenderable\)\n@be\.exposureChainTo\(AudGameObjResource\)\nexport class AudEmitter extends AudGameObjResource/);
+    assert.match(source, /@be\.inherit\(IBlueEventListener, IBluePlacementObserver, ITr2DebugRenderable, ITr2AudEmitter\)\n@be\.mapInterface\(IBlueEventListener\)\n@be\.mapInterface\(IBluePlacementObserver\)\n@be\.mapInterface\(ITr2AudEmitter\)\n@be\.mapInterface\(ITr2DebugRenderable\)\n@be\.exposureChainTo\(AudGameObjResource\)\nexport class AudEmitter extends AudGameObjResource/);
     assert.match(source, /import \{ IBlueEventListener, IBluePlacementObserver \} from "@carbonenginejs\/runtime\/blue";/);
     // An exposed class that maps only itself still gets its own (empty) table.
     const self = { ...audEmitterDoc, cppClass: "Lone", blueClass: "Lone", bases: [ "IRoot" ], blue: { exposures: [ { name: "Lone" } ], interfaces: [ { name: "Lone" } ] } };

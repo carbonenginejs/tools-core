@@ -4172,7 +4172,7 @@ function importPathFor(name, options, isJs)
 
 /**
  * Carbon's base list and exposure table as decorator lines and imports.
- * `extends` is the base that carries state; the rest are `@blue.inherit`;
+ * `extends` is the base that carries state; the rest are `@be.inherit`;
  * every exposed class gets `@be.define` and one `@be.mapInterface(...)` per
  * MAP_INTERFACE row; the chain is `@be.exposureChainTo`. A class Carbon cannot place (unimportable name) is named in a
  * review comment instead of being dropped silently.
@@ -4192,10 +4192,11 @@ function renderCarbonLineage(lineage, className, options, isJs)
     };
     const baseClass = take(lineage.extends);
     const inherit = lineage.inherit.map(take).filter(Boolean);
-    const interfaces = lineage.exposed ? lineage.interfaces.map(take).filter(Boolean) : [];
+    // IRoot and the class itself come with `be.define`; every other row is written.
+    const interfaces = lineage.exposed ? lineage.interfaces.filter(name => name !== "IRoot").map(take).filter(Boolean) : [];
     const chainTo = lineage.exposed ? take(lineage.chainTo) : null;
     const decorators = [];
-    if (inherit.length) decorators.push(`@blue.inherit(${inherit.join(", ")})`);
+    if (inherit.length) decorators.push(`@be.inherit(${inherit.join(", ")})`);
     // Carbon's EXPOSURE_BEGIN (`be.define`) adds IRoot and the class itself; every other MAP_INTERFACE row is written.
     for (const name of interfaces) decorators.push(`@be.mapInterface(${name})`);
     if (chainTo) decorators.push(`@be.exposureChainTo(${chainTo})`);
@@ -4790,7 +4791,7 @@ function renderExposureRow(field)
     if (field.index !== undefined) return `@be.mapAttribute__Index(${flags}, ${JSON.stringify(field.name)}, ${field.index})`;
     if (field.macro === "MAP_ATTRIBUTE_WITH_CHOOSER")
     {
-        const chooser = field.enumQualifiedName ? JSON.stringify(field.enumQualifiedName) : "null";
+        const chooser = field.enumQualifiedName || field.enumType ? JSON.stringify(field.enumQualifiedName || field.enumType) : "null";
         return `@be.mapAttributeWithChooser(${flags}, ${chooser}${nameArg ? `, ${nameArg}` : ""})`;
     }
     return `@be.mapAttribute(${flags}${nameArg ? `, ${nameArg}` : ""})`;

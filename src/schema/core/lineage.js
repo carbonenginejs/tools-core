@@ -215,6 +215,7 @@ export function parseClassLineage(src, jsClassName, classIndex)
         else if (kind === "chainTo") result.chainTo = identifierList(args)[0] ?? null;
     };
     for (const match of decorators.matchAll(/@(?:meta\.)?blue\.(inherit|interface|chainTo)\s*\(([^)]*)\)/g)) take(match[1], match[2]);
+    for (const match of decorators.matchAll(/@be\.(inherit)\s*\(([^)]*)\)/g)) take(match[1], match[2]);
     const name = jsClassName.replace(/[$]/g, "\\$");
     const imperative = new RegExp(`\\b(?:meta\\.)?blue\\.(inherit|interface|chainTo)\\s*\\(([^)]*)\\)\\s*\\(\\s*${name}\\s*\\)`, "g");
     for (const match of src.slice(classIndex).matchAll(imperative)) take(match[1], match[2]);
@@ -223,10 +224,11 @@ export function parseClassLineage(src, jsClassName, classIndex)
     if (/@(?:[A-Za-z_$][\w$]*\.)*be\.(?:define|interface)\s*\(/.test(decorators)) result.interfaces ??= [];
     for (const match of decorators.matchAll(/@(?:[A-Za-z_$][\w$]*\.)*be\.(mapInterface|exposureChainTo)\s*\(([^)]*)\)/g))
         take(match[1] === "mapInterface" ? "interface" : "chainTo", match[2]);
-    const beCall = new RegExp(`\\b(?:CjsSchema\\.exposure\\.|be\\.)(define|interface|mapInterface|exposureChainTo)\\s*\\(([^)]*)\\)\\s*\\(\\s*${name}\\s*\\)`, "g");
+    const beCall = new RegExp(`\\b(?:CjsSchema\\.exposure\\.|be\\.)(define|interface|mapInterface|exposureChainTo|inherit)\\s*\\(([^)]*)\\)\\s*\\(\\s*${name}\\s*\\)`, "g");
     for (const match of src.slice(classIndex).matchAll(beCall))
     {
         if (match[1] === "define" || match[1] === "interface") result.interfaces ??= [];
+        else if (match[1] === "inherit") take("inherit", match[2]);
         else take(match[1] === "mapInterface" ? "interface" : "chainTo", match[2]);
     }
     return result;
