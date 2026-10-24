@@ -1,4 +1,4 @@
-import { CjsBlackFormat } from "@carbonenginejs/runtime/resource/formats/black";
+import { CjsBlackFormat } from "@carbonenginejs/runtime/blue/formats/black";
 // Black struct lists take their layouts from the registered runtime classes
 // (Tr2Effect.constParameters and the like), so every class family must be
 // registered before a read; the formats alone register none of them.
