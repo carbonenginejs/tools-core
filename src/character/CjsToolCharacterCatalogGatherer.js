@@ -109,6 +109,9 @@ export class CjsToolCharacterCatalogGatherer
     async Gather(index, {
         sourceBuild = null,
         definitions = null,
+        sourceTexts = {},
+        schemaVersion = 11,
+        preparation = null,
         characterResources = {},
         characterModifierLocations = {},
         profiles = [],
@@ -133,16 +136,18 @@ export class CjsToolCharacterCatalogGatherer
         const sourceInputs = {};
         const textureMetadataPaths = new Set();
 
-        if (definitions !== null && definitions !== undefined)
+        if (definitions !== null && definitions !== undefined || Object.keys(sourceTexts).length)
         {
             const compiled = CjsToolCharacterDefinitionCompiler.compile(index, {
-                definitions,
+                definitions: definitions ?? {}, sourceTexts, schemaVersion,
                 characterResources,
                 characterModifierLocations,
                 sourceBuild,
             });
 
             report.definitionCompilation = compiled.report;
+            if (schemaVersion === 12 && compiled.report.projectionErrors.length)
+                throw Object.assign(new Error("Required character definition projection failed"), { report: compiled.report });
 
             for (const recordID of Object.keys(compiled.characterDefinitions).sort(Compare))
             {
@@ -228,7 +233,7 @@ export class CjsToolCharacterCatalogGatherer
                         sourceInputs[recordID],
                         `Character part source ${recordID}`
                     ),
-                    recordID
+                    recordID, schemaVersion, preparation
                 );
 
                 ValidatePartSourceCandidates(source, index, recordID, report);
@@ -275,7 +280,19 @@ export class CjsToolCharacterCatalogGatherer
         }
 
         report.catalogs = CountCatalogs(documents);
-        return { documents, report };
+        const evidence = schemaVersion === 12 ? {
+            ...preparation,
+            indexedPaths: [...new Set([
+                ...Object.values(documents.characterDefinitions).map(value => value.sourcePath),
+                ...Object.values(documents.characterPartSources).flatMap(source => source.versions.flatMap(version => version.textureCandidates)),
+                ...Object.values(preparation?.patternTextures ?? {}).flat()
+            ])]
+        } : null;
+        for (const path of evidence?.indexedPaths ?? [])
+        {
+            if (!index.Find(path)) throw new Error(`Character preparation path is not indexed: ${path}`);
+        }
+        return { documents, report, preparation: evidence };
     }
 
     /** Retains exact configuration-to-geometry relationships decoded from Black. */
@@ -687,7 +704,7 @@ function ValidatePartSourceCandidates(source, index, recordID, report)
     }
 }
 
-function MaterializePartSource(source, recordID)
+function MaterializePartSource(source, recordID, schemaVersion, preparation)
 {
     if (!Array.isArray(source.versions))
     {
@@ -722,6 +739,7 @@ function MaterializePartSource(source, recordID)
         versions: versions.map(({ version, resourceVersion, versionIndex }) => ({
             ...version,
             resourceVersion,
+            ...(schemaVersion === 12 ? { textureCandidateInput: CaptureTextureInput(version, recordID, versionIndex, preparation) } : {}),
             metadata: Object.hasOwn(version, "metadata")
                 ? version.metadata
                 : version !== baseline && baseline && Object.hasOwn(baseline, "metadata")
@@ -737,6 +755,22 @@ function MaterializePartSource(source, recordID)
                 )
             ])),
         })),
+    };
+}
+
+function CaptureTextureInput(version, recordID, versionIndex, preparation)
+{
+    if (Object.hasOwn(version, "textureCandidateInput")) return structuredClone(version.textureCandidateInput);
+    const present = Object.hasOwn(version, "textureCandidates");
+    const rules = (preparation?.channelOverrides ?? []).filter(value =>
+        value.partSource === recordID && value.resourceVersion === (version.resourceVersion ?? null));
+    if (rules.length > 1 || rules.length && (!present || !rules[0].rule))
+        throw new Error("Sparse texture override requires one qualified source rule");
+    return {
+        mode: !present ? "omitted" : rules.length ? "channel-overrides" : "complete",
+        paths: present ? [...version.textureCandidates] : [],
+        origin: { kind: "authored", document: "characterPartSources", recordID,
+            jsonPointer: `/versions/${versionIndex}/textureCandidates`, rule: rules[0]?.rule ?? "input-field-presence" }
     };
 }
 

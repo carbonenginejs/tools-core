@@ -3045,11 +3045,15 @@ export class CjsToolHttpProxy
             return;
         }
 
-        const library = await this.characters.OpenTarget(route.target, route.build);
         const segments = String(route.path ?? "").split("/").filter(Boolean);
+        const v12 = segments.length === 1 && segments[0].toLowerCase() === "library-v12.json";
+        const library = await this.characters.OpenTarget(route.target, route.build, {
+            schemaVersion: v12 ? 12 : 11,
+            refresh: _url.searchParams.get("refresh") === "1"
+        });
         const headers = CreateCharacterHeaders(library, route);
 
-        if (!segments.length
+        if (v12 || !segments.length
             || (segments.length === 1 && segments[0].toLowerCase() === "library.json"))
         {
             WriteJson(response, 200, CjsSchema.getValues(library, {}, { refs: true }), headers);

@@ -8,13 +8,14 @@ import * as utils from "../utils.js";
 import { CjsToolCharacterBuilder } from "./CjsToolCharacterBuilder.js";
 
 /**
- * Opens exact-build prepared character libraries from the shared tool cache.
+ * Opens exact-build, version-separated character libraries from the shared tool cache.
  *
- * The prepared library is the schema-v10 `character` document in the
+ * The default schema-11 library uses the legacy v10 `character` cache token in the
  * exact-build custom cache, where `build:character` also installs it (with its
  * gzip sibling) when `--out` is omitted. A missing library is auto-prepared
  * through the runtime character builder, which decodes the build's twelve
  * required cFSD documents; that base library carries no catalog inputs.
+ * Schema 12 reads only its v12 artifact and never auto-prepares or falls back.
  */
 export class CjsToolCharacterRepository
 {
@@ -65,15 +66,17 @@ export class CjsToolCharacterRepository
         Object.freeze(this);
     }
 
-    /** Opens and validates one prepared character library. */
-    async OpenTarget(target, build)
+    /** Opens one requested schema; refresh explicitly replaces its cached promise. */
+    async OpenTarget(target, build, { schemaVersion = 11, refresh = false } = {})
     {
+        if (![11, 12].includes(schemaVersion)) throw new TypeError("Character schema must be 11 or 12");
         const resolvedTarget = this.#targets.RequireLibrary(
             this.#targets.Resolve({ target }),
             "character"
         );
         const exactBuild = await this.#ResolveBuild(resolvedTarget.id, build);
-        const key = `${resolvedTarget.id}\0${exactBuild}`;
+        const key = `${resolvedTarget.id}\0${exactBuild}\0${schemaVersion}`;
+        if (refresh) this.#libraries.delete(key);
 
         if (this.#memory && build === "latest")
         {
@@ -81,9 +84,9 @@ export class CjsToolCharacterRepository
         }
         if (!this.#libraries.has(key))
         {
-            const loading = this.#Load(resolvedTarget, exactBuild).catch(error =>
+            const loading = this.#Load(resolvedTarget, exactBuild, schemaVersion).catch(error =>
             {
-                this.#libraries.delete(key);
+                if (this.#libraries.get(key) === loading) this.#libraries.delete(key);
                 throw error;
             });
 
@@ -112,15 +115,15 @@ export class CjsToolCharacterRepository
      * Loads and installs the newest direct document, with compatible migration fallback.
      *
      * The first of v10 to v7 found in the custom cache is reused as-is. The key
-     * is target, build and schema version only; nothing records the inputs a
-     * library was built from, so rebuilt inputs under the same build go unseen.
+     * is target, build and schema version; a caller publishing a replacement
+     * requests refresh to observe it. Schema 12 never searches these legacy keys.
      */
-    async #Load(target, build)
+    async #Load(target, build, schemaVersion)
     {
         let data;
         let filePath = null;
 
-        for (const version of [ "v10", "v9", "v8", "v7" ])
+        for (const version of schemaVersion === 12 ? ["v12"] : [ "v10", "v9", "v8", "v7" ])
         {
             const candidate = this.#cache.GetCustomPath({
                 target: target.id,
@@ -147,7 +150,7 @@ export class CjsToolCharacterRepository
 
         if (filePath === null)
         {
-            if (this.#autoPrepare && typeof this.#indexes?.OpenTarget === "function")
+            if (schemaVersion === 11 && this.#autoPrepare && typeof this.#indexes?.OpenTarget === "function")
             {
                 return this.#AutoPrepare(target, build);
             }
@@ -160,6 +163,8 @@ export class CjsToolCharacterRepository
         }
 
         const prepared = data;
+        if (schemaVersion === 12 ? prepared?.schemaVersion !== 12 : prepared?.schemaVersion > 11)
+            throw new TypeError("Prepared character schema does not match requested artifact");
 
         if (!prepared || typeof prepared !== "object" || Array.isArray(prepared))
         {

@@ -1,4 +1,6 @@
 import { CjsFileIndex } from "@carbonenginejs/runtime/tools/fileindex";
+import { CjsYamlFormat } from "@carbonenginejs/runtime/resource/formats/yaml";
+import { isDeepStrictEqual } from "node:util";
 
 const CONFIGURATION_EXTENSIONS = new Set([ ".black", ".red" ]);
 const GEOMETRY_EXTENSIONS = new Set([ ".gr2" ]);
@@ -69,6 +71,8 @@ export class CjsToolCharacterDefinitionCompiler
      */
     static compile(index, {
         definitions = {},
+        sourceTexts = {},
+        schemaVersion = 11,
         characterResources = {},
         characterModifierLocations = {},
         sourceBuild = null,
@@ -82,6 +86,16 @@ export class CjsToolCharacterDefinitionCompiler
         }
 
         RequireObject(definitions, "Character definitions");
+        RequireObject(sourceTexts, "Character definition source texts");
+        definitions = { ...definitions };
+        for (const [path, text] of Object.entries(sourceTexts))
+        {
+            if (typeof text !== "string") throw new TypeError("Definition source text must be a string");
+            const decoded = CjsYamlFormat.readRaw(text);
+            if (Object.hasOwn(definitions, path) && !isDeepStrictEqual(definitions[path], decoded))
+                throw new Error(`Definition text disagrees with supplied values: ${path}`);
+            definitions[path] = decoded;
+        }
         const resources = IndexCharacterResources(characterResources);
         const modifierLocations = IndexModifierLocations(characterModifierLocations);
         const partTypes = new Map();
@@ -111,6 +125,8 @@ export class CjsToolCharacterDefinitionCompiler
                     entry.logicalPath,
                     definitions[definitionPath]
                 );
+                if (schemaVersion === 12)
+                    characterDefinitions[entry.logicalPath].sourceText = sourceTexts[definitionPath] ?? null;
                 report.retainedDefinitions++;
             }
             catch (error)
@@ -568,6 +584,14 @@ function ParseMetadataLocation(logicalPath)
 
 function ParseMetadataDefinition(value, logicalPath)
 {
+    // The default YAML reader preserves this exact authored object tag. Only
+    // the typed projection unwraps it; retained values and source text do not.
+    if (value?.$yamlTag === "tag:yaml.org,2002:python/object:paperDoll.AvatarPartMetaData")
+    {
+        if (Object.keys(value).some(key => !["$yamlTag", "$yamlValue"].includes(key)))
+            throw new TypeError("Metadata tag wrapper has unsupported fields");
+        value = value.$yamlValue;
+    }
     const source = RequireObject(value, `Character metadata definition ${logicalPath}`);
     const unknown = Object.keys(source).filter(key => !METADATA_FIELDS.has(key)).sort(Compare);
 

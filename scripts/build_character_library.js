@@ -31,6 +31,7 @@ Options:
   --game <name>          Optional target game-metadata assertion.
   --provider <id>        Optional target provider-metadata assertion.
   --generated-at <time>  Optional reproducible generation timestamp.
+  --schema-version <n>   11 (default) or opt-in 12; separate v12 cache artifact.
   --compact              Emit compact library JSON.
   --help, -h             Show this help.
 
@@ -50,6 +51,12 @@ command never imports a private source reader. It uses tools-core's normal
 validated exact-build resource source to acquire missing indexed PNG
 representations, then folds their placement metadata into the prepared schema.
 DDS paths remain the render candidates; PNGs are inspection representations only.
+
+Schema 12 accepts sourceTexts and preparation evidence, preserves raw inputs,
+and replaces producer-owned projections on rebuild. A prepared input must retain
+rawDocuments; schema 11 cannot reconstruct original presence. Explicit output
+does not refresh a running repository: request library-v12.json?refresh=1 after
+publishing to its cache. The default HTTP routes remain schema 11.
 `;
 
 await Main(process.argv.slice(2)).catch(error =>
@@ -61,6 +68,8 @@ await Main(process.argv.slice(2)).catch(error =>
 async function Main(argv)
 {
     const options = ParseArgs(argv);
+    const schemaVersion = Number(options.schemaVersion ?? 11);
+    if (![11, 12].includes(schemaVersion)) throw new TypeError("--schema-version must be 11 or 12");
 
     if (options.help)
     {
@@ -104,13 +113,30 @@ async function Main(argv)
     const preparedLibrary = IsPreparedLibrary(documentValue)
         ? CjsCharacterLibrary.from(documentValue)
         : null;
-    const input = preparedLibrary
+    if (schemaVersion === 12 && preparedLibrary && !documentValue.rawDocuments)
+        throw new Error("Schema-12 preparation requires original input documents; materialized legacy records cannot recover input presence");
+    const input = schemaVersion === 12 && preparedLibrary
+        ? ReadDocumentInput(documentValue.rawDocuments)
+        : preparedLibrary
         ? ReadPreparedCompilerInput(documentValue.documents)
         : ReadDocumentInput(documentValue);
     const definitions = catalogInputs.definitions
         ?? (preparedLibrary
             ? ExtractPreparedDefinitions(input.characterDefinitions ?? {})
             : null);
+    const sourceTexts = {
+        ...(schemaVersion === 12 && preparedLibrary ? Object.fromEntries(
+            Object.values(input.characterDefinitions ?? {}).filter(value => typeof value.sourceText === "string")
+                .map(value => [value.sourcePath, value.sourceText])
+        ) : {}),
+        ...catalogInputs.sourceTexts
+    };
+    // Explicit new text replaces the earlier decoded projection on rebuild.
+    // The compiler still rejects conflicting values supplied together by a caller.
+    if (preparedLibrary && !catalogInputs.definitions && definitions)
+    {
+        for (const path of Object.keys(sourceTexts)) delete definitions[path];
+    }
     const partSourcesFromInput = catalogInputs.partSources === undefined
         && Object.keys(input.characterPartSources ?? {}).length > 0;
     const gathered = await new CjsToolCharacterCatalogGatherer({
@@ -121,15 +147,17 @@ async function Main(argv)
         {
             sourceBuild,
             ...catalogInputs,
+            schemaVersion,
             definitions,
+            sourceTexts,
             characterResources: input.characterResources ?? {},
             characterModifierLocations: input.characterModifierLocations ?? {},
             partSources: catalogInputs.partSources
-                ?? input.characterPartSources
-                ?? {},
+                ?? (schemaVersion === 12 && [...Object.keys(definitions ?? {}), ...Object.keys(sourceTexts)].some(path => /(?:\.type|metadata\.yaml)$/iu.test(path))
+                    ? {} : input.characterPartSources ?? {}),
         }
     );
-    const preparedResult = preparedLibrary
+    const preparedResult = preparedLibrary && schemaVersion === 11
         ? AddPreparedCatalogAdditions(preparedLibrary, gathered.documents, {
             target,
             sourceBuild,
@@ -137,7 +165,7 @@ async function Main(argv)
         : null;
     const builtValues = preparedResult
         ? preparedResult.data
-        : character.Build(MergeDocuments(
+        : character.Build((schemaVersion === 12 ? ReplacePreparedDocuments : MergeDocuments)(
             partSourcesFromInput
                 ? { ...input, characterPartSources: {} }
                 : input,
@@ -148,6 +176,8 @@ async function Main(argv)
             sourceProvider: target.provider,
             sourceBuild,
             generatedAt: options.generatedAt,
+            schemaVersion,
+            preparation: gathered.preparation,
         });
     const data = CjsSchema.getValues(CjsCharacterLibrary.from(builtValues), {}, { refs: true });
     const artifact = options.out
@@ -160,7 +190,7 @@ async function Main(argv)
             provider: target.provider,
             build: sourceBuild,
             name: "character",
-            version: "v10",
+            version: schemaVersion === 12 ? "v12" : "v10",
         }, data, { compact: options.compact });
     const reportPath = path.resolve(options.report || DefaultReportPath(artifact.jsonPath));
     const report = {
@@ -193,7 +223,7 @@ function ReadCatalogInputs(value)
     }
 
     const unknown = Object.keys(value).filter(key =>
-        ![ "definitions", "profiles", "partSources" ].includes(key));
+        ![ "definitions", "sourceTexts", "preparation", "profiles", "partSources" ].includes(key));
 
     if (unknown.length)
     {
@@ -425,6 +455,28 @@ function MergeDocuments(input, gathered)
     return result;
 }
 
+// Replace the full producer-owned catalog on a rebuild. Supplied profiles
+// belong to the caller; conflicting records are rejected rather than skipped.
+function ReplacePreparedDocuments(input, gathered)
+{
+    const result = { ...input };
+    for (const [name, records] of Object.entries(gathered))
+    {
+        if (["characterMaterialProfiles", "characterProjectionProfiles", "characterRecipeProfiles"].includes(name))
+        {
+            const existing = input[name] ?? {};
+            for (const [id, record] of Object.entries(records))
+            {
+                if (Object.hasOwn(existing, id) && JSON.stringify(existing[id]) !== JSON.stringify(record))
+                    throw new Error(`Conflicting supplied ${name} record ${id}`);
+            }
+            result[name] = { ...existing, ...records };
+        }
+        else result[name] = records;
+    }
+    return result;
+}
+
 async function WriteJson(filePath, value)
 {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -466,6 +518,7 @@ function ParseArgs(argv)
             "--game",
             "--provider",
             "--generated-at",
+            "--schema-version",
         ].includes(argument))
         {
             const value = argv[++index];

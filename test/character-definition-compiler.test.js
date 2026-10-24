@@ -17,6 +17,22 @@ const femaleV2Gr2 = "res:/graphics/character/female/paperdoll/hair/shared/v2/sha
 const maleBlack = "res:/graphics/character/male/paperdoll/hair/shared/shared.black";
 const maleGr2 = "res:/graphics/character/male/paperdoll/hair/shared/shared.gr2";
 
+test("default tagged YAML projects metadata while exact source text retains syntax and aliases", () =>
+{
+    const path = "res:/graphics/character/female/paperdoll/hair/shared/metadata.yaml";
+    const text = "!!python/object:paperDoll.AvatarPartMetaData\nforcesLooseTop: false\ndependantModifiers: &mods []\noccludesModifiers: *mods\n";
+    const result = CjsToolCharacterDefinitionCompiler.compile(CreateIndex([path]), {
+        schemaVersion: 12, sourceTexts: {[path]: text}
+    });
+    assert.equal(result.characterDefinitions[path].sourceText, text);
+    assert.equal(result.characterDefinitions[path].values.$yamlTag, "tag:yaml.org,2002:python/object:paperDoll.AvatarPartMetaData");
+    assert.equal(result.report.projectionErrors.length, 0);
+    assert.equal(Object.values(result.partMetadata)[0].forcesLooseTop, false);
+    assert.throws(() => CjsToolCharacterDefinitionCompiler.compile(CreateIndex([path]), {
+        sourceTexts: {[path]: text}, definitions: {[path]: {forcesLooseTop: true}}
+    }), /disagrees/);
+});
+
 test("compiles shared resource identities into exact sex-specific part sources", async () =>
 {
     const definitions = {

@@ -9,6 +9,24 @@ const baseGeometry = "res:/example/base.geometry";
 const versionGeometry = "res:/example/version.geometry";
 const clearedTexture = "res:/example/cleared.texture";
 
+test("schema12 captures omission and explicit empty before materialization", async () =>
+{
+    const result = await new CjsToolCharacterCatalogGatherer().Gather(CreateIndex([clearedTexture]), {
+        schemaVersion: 12,
+        partSources: {example: {versions: [
+            {resourceVersion: null, textureCandidates: [clearedTexture]},
+            {resourceVersion: "missing"}, {resourceVersion: "empty", textureCandidates: []},
+            {resourceVersion: "sparse", textureCandidates: [clearedTexture]}
+        ]}},
+        preparation: {channelOverrides: [{partSource: "example", resourceVersion: "sparse", rule: "qualified-test-override"}]}
+    });
+    const versions = result.documents.characterPartSources.example.versions;
+    assert.deepEqual(versions.map(value => value.textureCandidateInput.mode), ["complete", "omitted", "complete", "channel-overrides"]);
+    assert.deepEqual(versions[1].textureCandidateInput.paths, []);
+    assert.deepEqual(versions[1].textureCandidates, [clearedTexture]);
+    assert.deepEqual(versions[2].textureCandidates, []);
+});
+
 test("materializes sparse part-source overlays without mutating authoring input", async () =>
 {
     const partSources = {
