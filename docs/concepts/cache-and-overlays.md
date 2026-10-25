@@ -133,6 +133,12 @@ Resolution order is:
 2. the official exact-build index;
 3. hash-safe generated groups and fallback overlays.
 
+A target with overlays answers `app:/resfileindex.txt` with the composed index:
+one row per resolvable `res:/` path, in that order, so a client discovers
+overlay files through the same index it loads for official ones. It has no
+content address, so it is served with `cache-control: no-cache` and an etag of
+its own bytes. `?index=main` returns the official file unchanged.
+
 Targets may explicitly inherit named overlays from another target for shared,
 provider-independent browser assets. The built-in `netease` target inherits only
 EVE's `legacy-gles` fallback so `/netease/<build>/res/graphics/effect.gles2/...`

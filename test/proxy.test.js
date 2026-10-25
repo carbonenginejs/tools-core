@@ -1216,6 +1216,19 @@ test("serves the shared browser shader overlay through `netease` resource endpoi
     assert.equal(response.headers.get("x-carbon-build"), "88");
     assert.equal(response.headers.get("x-carbon-overlay"), "legacy-gles");
     assert.equal(response.headers.get("x-carbon-storage-kind"), "persistent-overlay");
+
+    // The build's resource index lists the overlay's file, so a client can
+    // discover it, and is revalidated rather than cached as immutable.
+    const indexUrl = `http://127.0.0.1:${server.address().port}/netease/88/app/resfileindex.txt`;
+    const index = await fetch(indexUrl);
+    const etag = index.headers.get("etag");
+
+    assert.equal(index.status, 200);
+    assert.match(await index.text(), /^res:\/graphics\/effect\.gles2\/test\.sm_hi,/mu);
+    assert.equal(index.headers.get("cache-control"), "no-cache");
+    assert.equal(index.headers.get("x-carbon-storage-kind"), "composed-index");
+    assert.equal(index.headers.get("x-carbon-resfile"), null);
+    assert.equal((await fetch(indexUrl, { headers: { "if-none-match": etag } })).status, 304);
 });
 
 test("redirects a build-shaped resource to its immutable content address", async context =>

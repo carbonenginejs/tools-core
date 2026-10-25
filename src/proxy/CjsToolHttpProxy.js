@@ -4509,6 +4509,13 @@ function CreateResourceCacheHeaders(build, resolution, refresh)
 
     const checksum = resolution?.record?.checksum ?? resolution?.record?.md5 ?? null;
 
+    // The composed resource index changes whenever an overlay is revised, under
+    // the same exact-build URL, so it is revalidated against its own checksum.
+    if (resolution?.storageKind === "composed-index")
+    {
+        return { "cache-control": "no-cache", etag: `"${checksum}"` };
+    }
+
     return {
         "cache-control": utils.isExactBuild(build)
             ? "public, max-age=31536000, immutable"

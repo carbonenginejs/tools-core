@@ -175,6 +175,67 @@ test("composes persistent overrides and fallbacks around the official res index"
     ]);
 });
 
+test("composes the build's resource index with overlay rows in resolution order", async context =>
+{
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "tools-core-overlays-"));
+    const sourceDirectory = path.join(directory, "source");
+    const store = new CjsToolIndexOverlayStore(path.join(directory, "data.local"));
+    const official = [
+        "res:/same.bin,official/same,11111111111111111111111111111111,13,7",
+        "res:/official.bin,official/file,22222222222222222222222222222222,13,7",
+    ].join("\n");
+
+    context.after(async () => fs.rm(directory, { recursive: true, force: true }));
+    await writePayload(sourceDirectory, "aa/override", "override");
+    await writePayload(sourceDirectory, "bb/fallback", "fallback");
+    await writePayload(sourceDirectory, "cc/fallback-shadowed", "fallback-shadowed");
+    await store.Import({
+        target: "eve", game: "Eve", provider: "test", name: "generated", mode: "override", builds: [ "77" ],
+        sourceDirectory, entries: [ { logicalPath: "res:/same.bin", location: "aa/override" } ],
+    });
+    await store.Import({
+        target: "eve", game: "Eve", provider: "test", name: "legacy", mode: "fallback", builds: [ "*" ],
+        sourceDirectory, entries: [
+            { logicalPath: "res:/legacy.bin", location: "bb/fallback" },
+            { logicalPath: "res:/official.bin", location: "cc/fallback-shadowed" },
+        ],
+    });
+
+    const tool = new CjsToolIndex({
+        profiles: new CjsToolIndexTargetProfileRegistry([ Profile ]),
+        targets: Targets,
+        overlays: store,
+        cache: null,
+        fetch: createFetch({
+            "https://indexes.test/eveonline_77.txt": row("app:/resfileindex.txt", "aa/main"),
+            "https://app.test/aa/main": official,
+        }),
+    });
+    const source = await tool.OpenTarget("eve", "77");
+    const composed = await source.Fetch("app:/resfileindex.txt");
+    const rows = Buffer.from(composed.bytes).toString().trimEnd().split("\n");
+    const byPath = new Map(rows.map(line => [ line.split(",")[0], line ]));
+    const override = source.Resolve("res:/same.bin").record;
+    const fallback = source.Resolve("res:/legacy.bin").record;
+
+    // The override replaces the official row, a fallback fills only a path the
+    // official index lacks, and an official row keeps its own five columns.
+    assert.deepEqual([ ...byPath.keys() ], [ "res:/legacy.bin", "res:/official.bin", "res:/same.bin" ]);
+    assert.equal(byPath.get("res:/official.bin"), "res:/official.bin,official/file,22222222222222222222222222222222,13,7");
+    assert.equal(byPath.get("res:/same.bin"), `res:/same.bin,${override.location},${override.checksum},`
+        + `${override.uncompressedSize},${override.compressedSize ?? ""}`);
+    assert.equal(byPath.get("res:/legacy.bin"), `res:/legacy.bin,${fallback.location},${fallback.checksum},`
+        + `${fallback.uncompressedSize},${fallback.compressedSize ?? ""}`);
+    assert.equal(composed.resolution.storageKind, "composed-index");
+    assert.equal(composed.resolution.overlay, "generated,legacy");
+    assert.equal(composed.resolution.record.location, undefined);
+    assert.equal(composed.resolution.record.checksum,
+        createHash("md5").update(Buffer.from(composed.bytes)).digest("hex"));
+
+    // Naming the index returns the official file unchanged.
+    assert.equal(Buffer.from((await source.Fetch("app:/resfileindex.txt", { indexName: "main" })).bytes).toString(), official);
+});
+
 test("disabled overlays are absent from local resolution and listings", async context =>
 {
     await checkEnabledOverlay(context, false);

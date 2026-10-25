@@ -5,6 +5,10 @@ import {
 import { normalizeLogicalPath } from "./CjsToolIndexEntry.js";
 import { CjsToolIndexOverlay } from "./CjsToolIndexOverlayStore.js";
 import * as utils from "../utils.js";
+import crypto from "node:crypto";
+
+/** The build's resource index, which a client loads to learn what exists. */
+const ResourceIndexPath = "app:/resfileindex.txt";
 
 /** Composes persistent target overlays around one official immutable index source. */
 export class CjsToolIndexOverlaySource
@@ -13,6 +17,9 @@ export class CjsToolIndexOverlaySource
     #overlaysByName;
 
     #source;
+
+    /** The composed resource index, built on first request; this view never changes. */
+    #composedIndex = null;
 
     /**
      * Creates a exact-build index index overlay source from caller-supplied
@@ -181,9 +188,22 @@ export class CjsToolIndexOverlaySource
             left.logicalPath.localeCompare(right.logicalPath)));
     }
 
-    /** Fetches one composed resource, reading overlays from persistent storage. */
+    /**
+     * Fetches one composed resource, reading overlays from persistent storage.
+     *
+     * `app:/resfileindex.txt` is answered with the COMPOSED index: every res:/
+     * path this view resolves, overlays included, in the build index's own row
+     * form. A client discovers what exists from that file (BePaths over a
+     * RemoteFileCache), so an overlay missing from it cannot be found at all.
+     * Naming an index (`indexName`) still returns the official file unchanged.
+     */
     async Fetch(logicalPath, options = {})
     {
+        if (!options.indexName && normalizeLogicalPath(logicalPath, options.root ?? "res") === ResourceIndexPath)
+        {
+            return this.#FetchComposedIndex();
+        }
+
         const resolution = this.Resolve(logicalPath, options);
 
         return this.#FetchResolution(resolution, options);
@@ -276,6 +296,43 @@ export class CjsToolIndexOverlaySource
         });
     }
 
+    /**
+     * The composed resource index: one row per path in `Match("res:/**")`,
+     * which already applies override overlays, the official groups and
+     * fallback overlays in resolution order. It has no content address and is
+     * not the official file, so its checksum is of its own bytes.
+     */
+    #FetchComposedIndex()
+    {
+        if (this.#composedIndex === null)
+        {
+            const rows = this.Match("res:/**").map(item => FormatIndexRow(item.record));
+            const bytes = Buffer.from(rows.length ? `${rows.join("\n")}\n` : "", "utf8");
+            const checksum = crypto.createHash("md5").update(bytes).digest("hex");
+
+            this.#composedIndex = Object.freeze({
+                resolution: Object.freeze({
+                    target: this.target,
+                    game: this.game,
+                    provider: this.provider,
+                    build: this.build,
+                    logicalPath: ResourceIndexPath,
+                    artifactKind: "composed-index",
+                    storageKind: "composed-index",
+                    overlay: this.overlays.map(overlay => overlay.name).join(",") || undefined,
+                    record: Object.freeze({ logicalPath: ResourceIndexPath, checksum }),
+                }),
+                bytes: utils.toArrayBuffer(bytes),
+                byteLength: bytes.byteLength,
+                cacheHit: true,
+                cachePath: null,
+                persistentPath: null,
+            });
+        }
+
+        return this.#composedIndex;
+    }
+
     /** Selects the overlay result from available exact-build index evidence. */
     #ResolveOverlay(logicalPath, mode)
     {
@@ -309,6 +366,26 @@ export class CjsToolIndexOverlaySource
         return [ ...resultsByPath.values() ];
     }
 
+}
+
+/**
+ * One index record as a build-index row: path, stored name, md5, size,
+ * compressed size, then the binary operation only when a record has one, so an
+ * official row keeps its five columns (RemoteFileCache.cpp:328-377 reads four).
+ */
+function FormatIndexRow(record)
+{
+    const columns = [
+        record.logicalPath,
+        record.location ?? "",
+        record.checksum ?? "",
+        record.uncompressedSize ?? "",
+        record.compressedSize ?? "",
+    ];
+
+    if (record.binaryOperation) columns.push(record.binaryOperation);
+
+    return columns.join(",");
 }
 
 function normalizeOptionalIndexName(value)
