@@ -36,8 +36,8 @@ const METADATA_FIELDS = new Set([
  *   `resourceVersion`, `colorVariant`, and the fourth value as `bloodlineIDs`
  *   with no availability meaning), joined to matching `characterResources`;
  * - an exact `metadata.yaml` with only known part-metadata fields becomes a
- *   `partMetadata` record, spelling the authored `dependantModifiers` as
- *   `dependentModifiers` (the retained definition keeps the authored spelling),
+ *   `partMetadata` record using the content spelling `dependantModifiers`;
+ *   either dependency spelling is accepted in input and retained verbatim,
  *   linked to the baseline or `v<number>` owner folder; a folder no `.type`
  *   names becomes a metadata-only part source.
  * A malformed, newly shaped or conflicting value stays only in
@@ -630,7 +630,7 @@ function ParseMetadataDefinition(value, logicalPath)
             ? "dependantModifiers"
             : "dependentModifiers";
 
-        result.dependentModifiers = NormalizeStringList(
+        result.dependantModifiers = NormalizeStringList(
             source[field],
             `${logicalPath}.${field}`
         );
@@ -644,7 +644,7 @@ function ParseMetadataDefinition(value, logicalPath)
         );
     }
 
-    result.dependencies = (result.dependentModifiers ?? []).map(authoredValue => ({
+    result.dependencies = (result.dependantModifiers ?? []).map(authoredValue => ({
         authoredValue,
     }));
     result.occlusions = (result.occludesModifiers ?? []).map(authoredValue => ({

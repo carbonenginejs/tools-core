@@ -54,7 +54,7 @@ test("logical paths, relative fragments, unknown members and non-string storage 
         ["AudSettings", "essentialPath", "std::string", "string"],
         ["Tr2ActionAnimateValue", "path", "std::string", "string"],
         ["Tr2DynamicBinding", "sourceObjectPath", "std::string", "string"],
-        ["CjsCharacterPartMetadata", "alternativeTextureSourcePath", "std::string", "string"],
+        ["CjsAvatarPartMetaData", "alternativeTextureSourcePath", "std::string", "string"],
         ["Tr2Mesh", "unknownPath", "std::string", "string"],
         ["Tr2Mesh", "geometryResPath", "uint32_t", "uint32"]
     ])

@@ -729,11 +729,11 @@ test("serves the combined schema-v11 character document", async context =>
 
     hydrated.Reindex();
     assert.strictEqual(
-        hydrated.Get("ancestries", 1).bloodlineID,
+        hydrated.Get("ancestries", 1).bloodline,
         hydrated.Get("bloodlines", 2)
     );
     assert.strictEqual(
-        hydrated.Get("bloodlines", 2).raceID,
+        hydrated.Get("bloodlines", 2).race,
         hydrated.Get("races", 3)
     );
     assert.equal((await fetch(`${root}/types/9001`)).status, 404);

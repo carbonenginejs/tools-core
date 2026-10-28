@@ -11,8 +11,8 @@ const RESOURCE_PATH_MEMBERS = new Map([
     ["CjsCharacterMaterialProfile", new Set(["sourcePath"])],
     // Source: runtime/src/character/model/planning/CjsCharacterOrigin.js
     ["CjsCharacterOrigin", new Set(["resourcePath"])],
-    // Source: runtime/src/character/model/catalog/CjsCharacterPartMetadata.js
-    ["CjsCharacterPartMetadata", new Set(["sourcePath"])],
+    // Source: runtime/src/character/model/catalog/CjsAvatarPartMetaData.js
+    ["CjsAvatarPartMetaData", new Set(["sourcePath"])],
     // Source: runtime/src/character/CjsCharacterAppearanceConstruction.js:125
     // Source: runtime/src/character/CjsCharacterAppearanceConstruction.js:128
     ["CjsCharacterPartModelBundle", new Set(["configurationPath","geometryPath"])],
@@ -22,8 +22,8 @@ const RESOURCE_PATH_MEMBERS = new Map([
     ["CjsCharacterPartType", new Set(["sourcePath"])],
     // Source: runtime/src/character/model/resources/CjsCharacterPortraitResource.js
     ["CjsCharacterPortraitResource", new Set(["resPath"])],
-    // Source: runtime/src/character/model/catalog/CjsCharacterProjectionProfile.js
-    ["CjsCharacterProjectionProfile", new Set(["sourcePath","texturePath","maskPath"])],
+    // Source: runtime/src/character/model/catalog/CjsProjectedDecal.js
+    ["CjsProjectedDecal", new Set(["sourcePath","texturePath","maskPath"])],
     // Source: runtime/src/character/model/catalog/CjsCharacterRecipeProfile.js
     ["CjsCharacterRecipeProfile", new Set(["sourcePath"])],
     // Source: runtime/src/character/model/planning/CjsCharacterResolvedPart.js

@@ -250,7 +250,7 @@ test("projects exact baseline and version metadata without changing retained YAM
     assert.deepEqual(compiled.partMetadata[metadataPath], {
         sourcePath: metadataPath,
         forcesLooseTop: false,
-        dependentModifiers: [
+        dependantModifiers: [
             "dependants/waisttucking/standard",
             "dependants/tuck/basic",
             "utilityshapes/pushhemshape###0.7",

@@ -296,7 +296,7 @@ test("character gathering keeps declared candidates and metadata-only sources", 
         value: {
             sourcePath: metadataPath,
             forcesLooseTop: true,
-            dependentModifiers: [ "accessories/support/base#1.0" ],
+            dependantModifiers: [ "accessories/support/base#1.0" ],
         },
     });
     AddProfile(rows, cache, {
@@ -304,7 +304,7 @@ test("character gathering keeps declared candidates and metadata-only sources", 
         location: "a3/support-metadata.json",
         value: {
             sourcePath: supportMetadataPath,
-            dependentModifiers: [ "accessories/support/base" ],
+            dependantModifiers: [ "accessories/support/base" ],
         },
     });
     AddProfile(rows, cache, {
@@ -412,6 +412,9 @@ test("character gathering keeps declared candidates and metadata-only sources", 
         hydratedSource.versions[1].metadata,
         library.Get("characterPartMetadata", metadataPath)
     );
+    assert.deepEqual(hydratedSource.versions[1].metadata.dependantModifiers, [
+        "accessories/support/base#1.0",
+    ]);
     assert.deepEqual(hydratedSource.versions[1].configurationCandidates, [
         sampleConfiguration,
         sampleFallbackConfiguration,
