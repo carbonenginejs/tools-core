@@ -921,6 +921,15 @@ export class CjsToolIndexOverlayStore
             const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
 
             manifest.name = name;
+            if (String(manifest.indexFile).toLowerCase().endsWith(".json"))
+            {
+                const indexPath = safeJoin(replacementDirectory, manifest.indexFile);
+                const index = JSON.parse(await fs.readFile(indexPath, "utf8"));
+
+                index.overlay = name;
+                await fs.writeFile(indexPath, `${JSON.stringify(index, null, 2)}\n`, "utf8");
+            }
+
             await fs.writeFile(
                 manifestPath,
                 `${JSON.stringify(manifest, null, 2)}\n`,

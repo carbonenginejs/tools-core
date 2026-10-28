@@ -507,6 +507,10 @@ test("transactionally replaces an overlay only when explicitly requested", async
     const payload = await overlays[0].Read(overlays[0].Resolve("res:/replace.bin").record);
 
     assert.equal(replacement.replaced, true);
+    const index = JSON.parse(await fs.readFile(
+        path.join(replacement.directory, "resfileindex.json"), "utf8",
+    ));
+    assert.equal(index.overlay, "replaceable", "the index keeps the public name after replacement");
     assert.equal(overlays.length, 1);
     assert.equal(Buffer.from(payload.bytes).toString(), "second");
     assert.equal(
