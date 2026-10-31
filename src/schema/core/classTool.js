@@ -2763,7 +2763,7 @@ export function parseClassFile(rawText, options = {})
                     pending.push({ ns: "carbon", name: "method", arg: undefined });
                     namespace = "impl";
                 }
-                // `@blue.attribute` is `@meta.attribute` (Carbon's MAP_ATTRIBUTE exposed
+                // `@blue.attribute` is `@meta.mapAttribute` (Carbon's MAP_ATTRIBUTE exposed
                 // name) stamped as Carbon's; both declare the same stored-member record.
                 // `@blue.property` is `@meta.property` (MAP_PROPERTY*) the same way.
                 else if (namespace === "blue" && (name === "attribute" || name === "property")) namespace = "meta";
