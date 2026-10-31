@@ -126,7 +126,7 @@ export class CjsToolCharacterDefinitionCompiler
                     definitions[definitionPath]
                 );
                 if (schemaVersion === 12)
-                    characterDefinitions[entry.logicalPath].sourceText = sourceTexts[definitionPath] ?? null;
+                    characterDefinitions[entry.logicalPath].sourceText = sourceTexts[definitionPath] ?? "";
                 report.retainedDefinitions++;
             }
             catch (error)

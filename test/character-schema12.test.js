@@ -44,7 +44,7 @@ test("v12 publication is isolated, missing stays unprepared, and refresh replace
     assert.equal(v12.schemaVersion, 12);
     modern.generatedAt = "replacement";
     await publish("v12", modern);
-    assert.equal((await repository.OpenTarget("eve", "3450001", {schemaVersion: 12})).generatedAt, null);
+    assert.equal((await repository.OpenTarget("eve", "3450001", {schemaVersion: 12})).generatedAt, "");
     assert.equal((await repository.OpenTarget("eve", "3450001", {schemaVersion: 12, refresh: true})).generatedAt, "replacement");
     assert.equal(await repository.OpenTarget("eve", "3450001"), v11);
 
