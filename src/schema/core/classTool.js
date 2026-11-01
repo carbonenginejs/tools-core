@@ -22,7 +22,7 @@ export { compareLineage, compareOverloads, createSchemaDocResolver, deriveCarbon
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_SCHEMA_ROOT = path.resolve(HERE, "..", "schema");
 
-// Full @type.* kind list from runtime/src/global/schema/CjsSchema.js (excluding class-level `define`).
+// Full @type.* kind list from runtime/src/blue/schema/CjsSchema.js (excluding class-level `define`).
 export const KNOWN_TYPE_KINDS = new Set([
     "array", "boolean", "color", "expression", "float32", "float64",
     "int8", "int16", "int32", "int64", "list", "mat3", "mat4", "map",
@@ -4186,7 +4186,7 @@ function defaultBaseImportFor(baseClass, isJs)
 }
 
 // Carbon blue/blueexposure classes the runtime publishes from its Blue layer
-// (runtime src/global/blue/index.js). Everything else defaults to a sibling file.
+// (runtime src/blue/blue/index.js). Everything else defaults to a sibling file.
 const RUNTIME_BLUE_EXPORTS = new Set([
     "IRoot", "IInitialize", "INotify", "IList", "IListNotify", "ICustomPersist", "ICopier", "ICopierCustomAssignment",
     "IBlueClasses", "IBlueDynamicResourceConstructor", "IBlueEventListener", "IBlueEvents", "IBlueMultiPlacementObserver",
