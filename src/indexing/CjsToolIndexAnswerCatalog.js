@@ -1,4 +1,4 @@
-import { BlueResFileSystemRemote, CjsBluePaths, RemoteFileCache } from "@carbonenginejs/runtime/blue";
+import { BlueResFileSystemRemote, BluePaths, RemoteFileCache } from "@carbonenginejs/runtime/blue";
 import { normalizeLogicalPath } from "./CjsToolIndexEntry.js";
 
 const MAX_RES_PATH_INSERT_PATHS = 4096;
@@ -387,7 +387,7 @@ function CreateBluePaths(entries)
 
     remoteFileCache.AddFileIndex(lines.join("\n"));
 
-    const bluePaths = new CjsBluePaths();
+    const bluePaths = new BluePaths();
 
     bluePaths.RegisterFileSystem(new BlueResFileSystemRemote(remoteFileCache));
 
