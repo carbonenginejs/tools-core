@@ -14,7 +14,7 @@ test("schema12 captures omission and explicit empty before materialization", asy
     const result = await new CjsToolCharacterCatalogGatherer().Gather(CreateIndex([clearedTexture]), {
         schemaVersion: 12,
         partSources: {example: {versions: [
-            {resourceVersion: null, textureCandidates: [clearedTexture]},
+            {resourceVersion: "", textureCandidates: [clearedTexture]},
             {resourceVersion: "missing"}, {resourceVersion: "empty", textureCandidates: []},
             {resourceVersion: "sparse", textureCandidates: [clearedTexture]}
         ]}},
@@ -36,7 +36,7 @@ test("materializes sparse part-source overlays without mutating authoring input"
             partPath: "example",
             metadata: "metadata/source",
             versions: [ {
-                resourceVersion: null,
+                resourceVersion: "",
                 metadata: "metadata/baseline",
                 configurationCandidates: [ baseConfiguration ],
                 geometryCandidates: [ baseGeometry ],
@@ -70,7 +70,7 @@ test("materializes sparse part-source overlays without mutating authoring input"
 
     assert.deepEqual(partSources, before);
     assert.deepEqual(versions, [ {
-        resourceVersion: null,
+        resourceVersion: "",
         configurationCandidates: [ baseConfiguration ],
         geometryCandidates: [ baseGeometry ],
         textureCandidates: [],

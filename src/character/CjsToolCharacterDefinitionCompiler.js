@@ -559,7 +559,7 @@ function ParseMetadataLocation(logicalPath)
 
     const sex = match[1] ?? match[2];
     const segments = match[3].split("/");
-    let resourceVersion = null;
+    let resourceVersion = "";
 
     if (/^v\d+$/u.test(segments.at(-1)))
     {
@@ -955,7 +955,7 @@ function PopulateModifierReference(
             modifierPath
         );
         partSource.sourcePaths.add(sourcePath);
-        partSource.resourceVersions.add(null);
+        partSource.resourceVersions.add("");
     }
 
     if (partSource)
@@ -1051,7 +1051,7 @@ function PopulateCandidates(index, partSources, report)
         {
             for (const owner of directOwners)
             {
-                AddCandidate(owner.source, null, candidateType, entry.logicalPath);
+                AddCandidate(owner.source, "", candidateType, entry.logicalPath);
             }
             report.candidateResources[candidateType] += directOwners.length;
             continue;
@@ -1067,7 +1067,7 @@ function PopulateCandidates(index, partSources, report)
         for (const owner of versionOwners)
         {
             let resourceVersion = [ ...owner.source.resourceVersions ]
-                .find(value => value !== null && value.toLowerCase() === folderName);
+                .find(value => value !== "" && value.toLowerCase() === folderName);
 
             if (resourceVersion === undefined)
             {
@@ -1133,11 +1133,11 @@ function FinalizePartSources(partSources)
         .map(([ recordID, source ]) =>
         {
             const sourcePaths = [ ...source.sourcePaths ].sort(Compare);
-            const baseline = CreateVersion(source, null, true);
+            const baseline = CreateVersion(source, "", true);
             const versions = [ baseline ];
 
             for (const resourceVersion of [ ...source.resourceVersions ]
-                .filter(value => value !== null)
+                .filter(value => value !== "")
                 .sort(Compare))
             {
                 versions.push(CreateVersion(source, resourceVersion, false));
@@ -1149,7 +1149,7 @@ function FinalizePartSources(partSources)
                 sex: source.sex,
                 partPath: source.partPath,
                 versions,
-                metadata: source.metadata.get(null) ?? null,
+                metadata: source.metadata.get("") ?? null,
             } ];
         }));
 }
@@ -1160,7 +1160,7 @@ function CreateVersion(source, resourceVersion, baseline)
     const result = { resourceVersion };
     const metadata = source.metadata.get(resourceVersion);
 
-    if (metadata !== undefined && resourceVersion !== null)
+    if (metadata !== undefined && resourceVersion !== "")
     {
         result.metadata = metadata;
     }
@@ -1241,7 +1241,7 @@ function NormalizeIdentifierList(value, label)
 
 function OptionalString(value, label)
 {
-    if (value === null || value === undefined || value === "") return null;
+    if (value === null || value === undefined) return "";
     if (typeof value !== "string") throw new TypeError(`${label} must be a string or null`);
     return value;
 }

@@ -75,7 +75,7 @@ test("character gathering retains decoded configuration geometry relationships",
                 sex: "female",
                 partPath: "hair/example",
                 versions: [ {
-                    resourceVersion: null,
+                    resourceVersion: "",
                     configurationCandidates: [ configurationPath ],
                     geometryCandidates: [ otherGeometryPath, geometryPath ],
                     textureCandidates: [],
@@ -133,7 +133,7 @@ test("character gathering does not label a model bundle when paired LOD identiti
                 sex: "female",
                 partPath: "hair/example",
                 versions: [ {
-                    resourceVersion: null,
+                    resourceVersion: "",
                     configurationCandidates: [ configurationPath ],
                     geometryCandidates: [ geometryPath ],
                     textureCandidates: [],
@@ -206,7 +206,7 @@ test("character gathering caches and stores normalized PNG placement metadata", 
                 sex: "female",
                 partPath: "example",
                 versions: [ {
-                    resourceVersion: null,
+                    resourceVersion: "",
                     configurationCandidates: [],
                     geometryCandidates: [],
                     textureCandidates: [
@@ -514,7 +514,7 @@ test("character gathering reports missing declared inputs and trusts cached payl
                     sex: "female",
                     partPath: "example",
                     versions: [ {
-                        resourceVersion: null,
+                        resourceVersion: "",
                         configurationCandidates: [
                             "res:/example/assets/missing.configuration",
                         ],
@@ -578,7 +578,7 @@ function CreateCatalogInputs()
                 partPath: "hair/sample",
                 versions: [
                     {
-                        resourceVersion: null,
+                        resourceVersion: "",
                         configurationCandidates: [
                             sampleConfiguration,
                             sampleFallbackConfiguration,
@@ -599,7 +599,7 @@ function CreateCatalogInputs()
                 sex: "female",
                 partPath: "accessories/support/base",
                 versions: [ {
-                    resourceVersion: null,
+                    resourceVersion: "",
                     configurationCandidates: [ supportConfiguration ],
                     geometryCandidates: [ supportGeometry ],
                     textureCandidates: [],

@@ -31,7 +31,7 @@ const PART_SOURCE_CANDIDATE_FIELDS = [
  * `CjsToolCharacterDefinitionCompiler.compile`, it also materializes each
  * sparse part source into complete version records. A version that omits a
  * candidate field (or `metadata`) inherits it from the single
- * `resourceVersion: null` record; an explicit empty array means no candidates.
+ * baseline `resourceVersion: ""` record; an explicit empty array means no candidates.
  * Duplicate resource versions reject.
  *
  * Model bundles: each `.black` configuration candidate is decoded, and a
@@ -732,7 +732,7 @@ function MaterializePartSource(source, recordID, schemaVersion, preparation)
         seen.add(resourceVersion);
         return { version, resourceVersion, versionIndex };
     });
-    const baseline = versions.find(item => item.resourceVersion === null)?.version ?? null;
+    const baseline = versions.find(item => item.resourceVersion === "")?.version ?? null;
 
     return {
         ...source,
@@ -763,7 +763,7 @@ function CaptureTextureInput(version, recordID, versionIndex, preparation)
     if (Object.hasOwn(version, "textureCandidateInput")) return structuredClone(version.textureCandidateInput);
     const present = Object.hasOwn(version, "textureCandidates");
     const rules = (preparation?.channelOverrides ?? []).filter(value =>
-        value.partSource === recordID && value.resourceVersion === (version.resourceVersion ?? null));
+        value.partSource === recordID && value.resourceVersion === version.resourceVersion);
     if (rules.length > 1 || rules.length && (!present || !rules[0].rule))
         throw new Error("Sparse texture override requires one qualified source rule");
     return {
@@ -792,14 +792,9 @@ function MaterializeCandidateList(version, baseline, field, label)
 
 function NormalizeResourceVersion(value, label)
 {
-    if (value === null || value === undefined)
+    if (typeof value !== "string")
     {
-        return null;
-    }
-
-    if (typeof value !== "string" || !value)
-    {
-        throw new TypeError(`${label} must be null or a non-empty string`);
+        throw new TypeError(`${label} must be a string; "" is the baseline version`);
     }
 
     return value;

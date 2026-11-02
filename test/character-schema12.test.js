@@ -28,7 +28,7 @@ test("v12 publication is isolated, missing stays unprepared, and refresh replace
     const documents = {
         characterDefinitions: {black: {sourcePath: `${root}/black.color`, extension: ".color", values: {colors: [[0, 0, 0, 1]]}}},
         characterPartTypes: {black: {partSource: "pants", colorVariant: "black"}},
-        characterPartSources: {pants: {sourcePath: root, versions: [{resourceVersion: null, textureCandidates: [texture],
+        characterPartSources: {pants: {sourcePath: root, versions: [{resourceVersion: "", textureCandidates: [texture],
             textureCandidateInput: {mode: "complete", paths: [texture], origin: {kind: "authored", resourcePath: root, rule: "input-field-presence"}}
         }]}}
     };
