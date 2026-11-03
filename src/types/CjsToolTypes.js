@@ -71,12 +71,12 @@ export class CjsToolTypes
     #extras = null;
 
     /** Whether #extras holds the loaded answer, which may be null for a build without the sidecar. */
-    #extrasLoaded = false;
+    _extrasLoaded = false;
 
     #corporations = null;
 
     /** Whether #corporations holds the loaded answer, which may be null for a build without the table. */
-    #corporationsLoaded = false;
+    _corporationsLoaded = false;
 
     /**
      * Initializes lazy type extras and corporation joins over one exact-build
@@ -86,8 +86,8 @@ export class CjsToolTypes
     {
         this.#source = source;
         this.#localisation = options.localisation ?? null;
-        this.#extrasLoaded = false;
-        this.#corporationsLoaded = false;
+        this._extrasLoaded = false;
+        this._corporationsLoaded = false;
     }
 
     /** What this answer is built from, for a caller checking provenance. */
@@ -568,12 +568,12 @@ export class CjsToolTypes
      */
     async #Extras()
     {
-        if (this.#extrasLoaded) return this.#extras;
+        if (this._extrasLoaded) return this.#extras;
 
         const file = this.#source.DatabaseFile?.();
 
         this.#extras = file ? await ReadDerivation(file, "typeExtras") : null;
-        this.#extrasLoaded = true;
+        this._extrasLoaded = true;
 
         return this.#extras;
     }
@@ -581,7 +581,7 @@ export class CjsToolTypes
     /** This build's corporation names, loaded once, or null when absent. */
     async #Corporations()
     {
-        if (this.#corporationsLoaded) return this.#corporations;
+        if (this._corporationsLoaded) return this.#corporations;
 
         try
         {
@@ -596,7 +596,7 @@ export class CjsToolTypes
             this.#corporations = null;
         }
 
-        this.#corporationsLoaded = true;
+        this._corporationsLoaded = true;
 
         return this.#corporations;
     }
