@@ -1273,7 +1273,8 @@ function substituteMacroBody(macro, args)
     const names = macro.params.map(name => name.replace(/[$^*+?.()|[\]{}\\]/g, "\\$&")).join("|");
     if (!names) return macro.body.trim();
     return macro.body
-        .replace(new RegExp(`#(?!#)\\s*\\b(${names})\\b`, "g"), (_, name) => JSON.stringify(value(name)))
+        // `#param` stringises; neither `#` of a `##` paste (`USAGE_##sc`) is a stringise.
+        .replace(new RegExp(`(?<!#)#(?!#)\\s*\\b(${names})\\b`, "g"), (_, name) => JSON.stringify(value(name)))
         .replace(new RegExp(`\\b(${names})\\b`, "g"), (_, name) => value(name))
         .replace(/[ \t]*##[ \t]*/g, "")
         .trim();
