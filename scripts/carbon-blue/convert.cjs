@@ -55,6 +55,20 @@ const BLUE_CALLS = [
     "MAP_METHOD_WITH_KEYWORD_ARGUMENTS"
 ];
 
+// The macros the legacy per-kind arrays (attributes, properties, methods) were
+// built from. The ordered `rows` take these and the rest below; the legacy
+// arrays keep their old content so schema docs and their hashes do not move.
+const LEGACY_BLUE_CALLS = new Set(BLUE_CALLS);
+
+// Exposure macros only `rows` record: MAP_FUNCTION* (BlueExposureMacrosPython.h),
+// MAP_METHOD_AS_METHOD, MAP_ICACHEABLE_METHODS (ICacheable.h:21-25, one line
+// for two MAP_METHOD_AND_WRAP rows) and BLUE_DEFINE_EXCEPTION.
+BLUE_CALLS.push("BLUE_DEFINE_EXCEPTION", "MAP_METHOD_AS_METHOD", "MAP_FUNCTION", "MAP_FUNCTION_AND_WRAP", "MAP_ICACHEABLE_METHODS");
+
+// Every exposure macro invocation, for the row-count check: whatever the parser
+// knows or not. EXPOSURE_END closes a block and is not a row.
+const ANY_EXPOSURE_CALL = /\b(MAP_[A-Z0-9_]+|MAPFLOATARRAYSIZE|EXPOSURE_(?!END\b)[A-Z_]+|BLUE_DEFINE[A-Z_]*)\s*\(/g;
+
 const DEFAULT_BLACK_TYPE_OVERRIDES = Object.freeze([
     {
         cppType: "Tr2Lod",
@@ -161,6 +175,15 @@ function main()
 
     if (report.stalls.length && options.failOnStall)
     {
+        process.exitCode = ExitCode.Stalls;
+    }
+    // An exposure row the scanner cannot read leaves a class's row list short,
+    // which the bag parity lint would read as Carbon's: always a failure.
+    const rowCountStalls = report.stalls.filter(stall => stall.type === "exposure-row-count");
+    if (rowCountStalls.length)
+    {
+        console.error(`exposure row count: ${rowCountStalls.length} file(s) hold exposure macros the scanner does not read:`);
+        for (const stall of rowCountStalls) console.error(`  ${stall.message}`);
         process.exitCode = ExitCode.Stalls;
     }
 }
@@ -308,8 +331,12 @@ function scanFamilies(config, carbonRoot, families)
             blueExposedClasses: 0,
             stalls: 0,
             warnings: 0,
-            enumTypes: 0
+            enumTypes: 0,
+            exposureMacroCalls: 0,
+            exposureRowsCaptured: 0,
+            exposureCallsDropped: 0
         },
+        exposureDrops: [],
         stalls: [],
         warnings: [],
         enums: [],
@@ -328,6 +355,20 @@ function scanFamilies(config, carbonRoot, families)
         report.classes.push(...familyReport.classes);
         report.stalls.push(...familyReport.stalls);
         report.warnings.push(...familyReport.warnings);
+        for (const count of familyReport.rowCounts)
+        {
+            report.summary.exposureMacroCalls += count.raw;
+            report.summary.exposureRowsCaptured += count.captured;
+            report.summary.exposureCallsDropped += count.dropped.length;
+            if (count.unknown) report.stalls.push({
+                severity: "fatal",
+                type: "exposure-row-count",
+                family: familyReport.name,
+                source: count.source,
+                message: `${count.source}: ${count.raw} exposure macro calls, ${count.captured} captured, ${count.dropped.length} dropped; unknown: ${count.unknown.map(call => `${call.macro}:${call.line}`).join(", ")}`
+            });
+            if (count.dropped.length) report.exposureDrops.push({ source: count.source, dropped: count.dropped });
+        }
 
         for (const classInfo of familyReport.classes)
         {
@@ -372,14 +413,17 @@ function scanFamilies(config, carbonRoot, families)
 
 function scanFamily(config, carbonRoot, family, familyRoot, globalEnums)
 {
+    // `exclude` lists folders under the family root that are not part of it (test fixtures).
+    const excluded = (family.exclude || []).map(folder => toPosix(path.join(familyRoot, folder)) + "/");
     const files = fs.existsSync(familyRoot)
-        ? walk(familyRoot, new Set([".h", ".hpp", ".cpp"]))
+        ? walk(familyRoot, new Set([".h", ".hpp", ".cpp"])).filter(file => !excluded.some(prefix => toPosix(file).startsWith(prefix)))
         : [];
 
     const byName = new Map();
     const warnings = [];
     const stalls = [];
     const pendingStructureDefs = [];
+    const rowCounts = [];
 
     if (!fs.existsSync(familyRoot))
     {
@@ -455,6 +499,7 @@ function scanFamily(config, carbonRoot, family, familyRoot, globalEnums)
             if (isBlueFile)
             {
                 const parsedBlue = parseBlueFile(text, rel);
+                rowCounts.push(parsedBlue.rowCount);
                 for (const item of parsedBlue.classes)
                 {
                     const record = getClassRecord(byName, item.name, family.name, config.classSuffix);
@@ -465,6 +510,7 @@ function scanFamily(config, carbonRoot, family, familyRoot, globalEnums)
                     record.blue.properties.push(...item.properties);
                     record.blue.methods.push(...item.methods);
                     record.blue.interfaces.push(...item.interfaces);
+                    record.blue.rows.push(...item.rows);
                     if (item.chainTo) record.blue.chainTo = item.chainTo;
                     record.blue.isExposed = true;
                 }
@@ -550,7 +596,8 @@ function scanFamily(config, carbonRoot, family, familyRoot, globalEnums)
         files: files.map(file => toPosix(path.relative(carbonRoot, file))).sort(),
         classes,
         stalls,
-        warnings
+        warnings,
+        rowCounts
     };
 }
 
@@ -579,6 +626,7 @@ function getClassRecord(byName, name, family, classSuffix)
                 properties: [],
                 methods: [],
                 interfaces: [],
+                rows: [],
                 // Carbon Blue persistence inheritance is declared by
                 // EXPOSURE_CHAINTO, not by C++ bases: null means the exposure
                 // ended with EXPOSURE_END (no persisted Blue parent).
@@ -698,7 +746,9 @@ function finalizeClassRecord(record, carbonRoot)
         blue: {
             isExposed: record.blue.isExposed,
             files: blueFiles,
-            ...blueShape
+            ...blueShape,
+            // Outside blueShape, so blueHash and the schema docs built from it do not move.
+            rows: record.blue.rows
         },
         fields: shape.fields,
         methods: shape.methods,
@@ -1133,7 +1183,11 @@ function expandLocalClassMacros(text)
         // Tr2PostProcessAttributes_Blue.cpp:41-47 declares persisted Enabled/
         // value pairs inside an existing class, rather than a whole class.
         const declaresPostProcessAttributes = /^POSTPROCESSATTRIBUTE_DEFINE(?:_ENUM)?$/.test(match[1]);
-        if (!declaresType && !declaresPostProcessAttributes && !/\bEXPOSURE_BEGIN\b|\bBLUE_DEFINE\w*\s*\(/.test(body)) continue;
+        // A macro whose body is exposure rows (EveSOFData_Blue.cpp:1227,
+        // MAP_SCREENSIZE( sc ) -> MAP_ATTRIBUTE( "decalMinScreenSize" #sc, ... ))
+        // expands at each call too, so its rows are read.
+        const declaresRows = /\bMAP_[A-Z0-9_]+\s*\(/.test(body);
+        if (!declaresType && !declaresPostProcessAttributes && !declaresRows && !/\bEXPOSURE_BEGIN\b|\bBLUE_DEFINE\w*\s*\(/.test(body)) continue;
         macros.push({
             name: match[1],
             params: match[2].split(",").map(param => param.trim()).filter(Boolean),
@@ -1223,22 +1277,38 @@ function substituteMacroBody(macro, args)
         .trim();
 }
 
-function parseBlueFile(text, source)
+function parseBlueFile(rawText, source)
 {
+    // Commented-out calls are not rows (Tr2BoneMatrixCurve_Blue.cpp:15 keeps a
+    // commented MAP_ATTRIBUTE_WITH_CHOOSER), and a leftover #define body is
+    // not a call site. Line numbers are kept.
+    const text = blankDefineLines(stripCommentsOutsideStrings(rawText));
     const calls = extractCalls(text, BLUE_CALLS);
     const choosers = parseVarChoosers(text);
+    const conditions = preprocessorConditions(text);
     const byClass = new Map();
     const exposureStack = [];
+    const dropped = [];
+    let captured = 0;
+    let sequence = 0;
+    const pushRow = (record, call, row) =>
+    {
+        record.rows.push({ ...row, macro: call.name, source, line: call.line, order: sequence++, condition: conditions[call.line] ?? null });
+        captured++;
+    };
 
     for (const call of calls)
     {
         const args = splitTopLevelArgs(call.args);
+        const legacy = LEGACY_BLUE_CALLS.has(call.name);
 
         if (call.name.startsWith("BLUE_DEFINE"))
         {
             const className = cleanIdentifier(args[0]);
-            if (!className) continue;
+            if (!className) { dropped.push({ macro: call.name, line: call.line, reason: "no class name" }); continue; }
             const record = getBlueClass(byClass, className);
+            captured++;
+            if (!legacy) continue;
             record.defines.push({
                 macro: call.name,
                 name: className,
@@ -1249,8 +1319,9 @@ function parseBlueFile(text, source)
         else if (call.name === "EXPOSURE_BEGIN")
         {
             const className = cleanIdentifier(args[0]);
-            if (!className) continue;
+            if (!className) { dropped.push({ macro: call.name, line: call.line, reason: "no class name" }); continue; }
             const record = getBlueClass(byClass, className);
+            captured++;
             record.exposures.push({
                 macro: call.name,
                 name: className,
@@ -1263,28 +1334,58 @@ function parseBlueFile(text, source)
         else
         {
             const currentClass = findCurrentExposure(exposureStack, call.line);
-            if (!currentClass) continue;
+            if (!currentClass)
+            {
+                const moduleFunction = call.name.startsWith("MAP_FUNCTION");
+                dropped.push({
+                    macro: call.name,
+                    line: call.line,
+                    reason: moduleFunction ? "module function outside an exposure block" : "outside an exposure block",
+                    name: moduleFunction ? readCString(args[0]) : null
+                });
+                continue;
+            }
             const record = getBlueClass(byClass, currentClass);
 
             if (call.name.startsWith("MAP_ATTRIBUTE") || call.name === "MAPFLOATARRAYSIZE")
             {
-                record.attributes.push(parseAttributeCall(call, args, source, { choosers }));
+                const attribute = parseAttributeCall(call, args, source, { choosers });
+                if (legacy) record.attributes.push(attribute);
+                pushRow(record, call, { kind: "ATTR", name: attribute.name, member: attribute.member, flags: attribute.flags,
+                    chooser: attribute.chooser, iid: attribute.iid, ...(attribute.length === undefined ? {} : { length: attribute.length }) });
             }
             else if (call.name.startsWith("MAP_PROPERTY"))
             {
-                record.properties.push(parsePropertyCall(call, args, source));
+                const property = parsePropertyCall(call, args, source);
+                if (legacy) record.properties.push(property);
+                pushRow(record, call, { kind: "PROP", name: property.name, getter: property.getter, setter: property.setter });
             }
             else if (call.name.startsWith("MAP_METHOD"))
             {
-                record.methods.push(parseMethodCall(call, args, source));
+                const method = parseMethodCall(call, args, source);
+                if (legacy) record.methods.push(method);
+                pushRow(record, call, { kind: "METHOD", name: method.name, target: method.target });
+            }
+            else if (call.name.startsWith("MAP_FUNCTION"))
+            {
+                // MAP_FUNCTION( _expname, _func, _docstring ) declares a static FunctionRegistrar, which registers a MODULE
+                // function (blueexposure/include/BlueRegistration.h:226-230), not a member of the enclosing class. The row is
+                // kept so the class's rows stay in source order; consumers comparing members skip kind FUNCTION.
+                pushRow(record, call, { kind: "FUNCTION", name: readCString(args[0]), target: cleanArg(args[1]) });
+            }
+            else if (call.name === "MAP_ICACHEABLE_METHODS")
+            {
+                pushRow(record, call, { kind: "ICACHEABLE", name: null, expandsTo: [ "IsMemoryUsageKnown", "GetMemoryUsage" ] });
             }
             else if (call.name === "MAP_INTERFACE")
             {
+                const name = cleanIdentifier(args[0]) || cleanArg(args[0]);
                 record.interfaces.push({
-                    name: cleanIdentifier(args[0]) || cleanArg(args[0]),
+                    name,
                     line: call.line,
                     source
                 });
+                pushRow(record, call, { kind: "INTERFACE", name });
             }
             else if (call.name === "EXPOSURE_CHAINTO")
             {
@@ -1297,13 +1398,114 @@ function parseBlueFile(text, source)
                     line: call.line,
                     source
                 };
+                pushRow(record, call, { kind: "CHAINTO", name: record.chainTo.name });
+            }
+            else
+            {
+                dropped.push({ macro: call.name, line: call.line, reason: "macro not handled" });
             }
         }
     }
 
+    // Fail-loud check: every exposure macro in the file is a define, an
+    // exposure, a row, or a recorded drop. Anything else is a macro the parser
+    // does not know, and the file's rows are incomplete.
+    const raw = [];
+    for (const match of text.matchAll(ANY_EXPOSURE_CALL)) raw.push({ macro: match[1], line: lineOf(text, match.index) });
+    const rowCount = { source, raw: raw.length, captured, dropped };
+    if (raw.length !== captured + dropped.length)
+    {
+        const known = new Set(BLUE_CALLS);
+        rowCount.unknown = raw.filter(call => !known.has(call.macro));
+    }
+
     return {
-        classes: Array.from(byClass.values())
+        classes: Array.from(byClass.values()),
+        rowCount
     };
+}
+
+// Removes // and /* */ comments without touching string or character
+// literals (Carbon descriptions hold URLs), keeping every newline.
+function stripCommentsOutsideStrings(text)
+{
+    let out = "";
+    let index = 0;
+    while (index < text.length)
+    {
+        const char = text[index], next = text[index + 1];
+        if (char === "\"" || char === "'")
+        {
+            let end = index + 1;
+            while (end < text.length && text[end] !== char && text[end] !== "\n") end += text[end] === "\\" ? 2 : 1;
+            out += text.slice(index, end + 1);
+            index = end + 1;
+        }
+        else if (char === "/" && next === "/")
+        {
+            while (index < text.length && text[index] !== "\n") index++;
+        }
+        else if (char === "/" && next === "*")
+        {
+            const end = text.indexOf("*/", index + 2);
+            const comment = text.slice(index, end === -1 ? text.length : end + 2);
+            out += comment.replace(/[^\n]/g, "");
+            index = end === -1 ? text.length : end + 2;
+        }
+        else
+        {
+            out += char;
+            index++;
+        }
+    }
+    return out;
+}
+
+// Blanks #define lines left after local macro expansion (with their
+// continuations), keeping line numbers: a macro body is not a call site.
+function blankDefineLines(text)
+{
+    return text.replace(/^[ \t]*#[ \t]*define\b(?:[^\n]*\\\n)*[^\n]*/gm, define => define.replace(/[^\n]/g, ""));
+}
+
+// The preprocessor condition in force on each line (1-based), as the
+// directives spell it, joined with " && "; #else and #elif negate what came
+// before. null on a line outside any #if.
+function preprocessorConditions(text)
+{
+    const lines = text.split("\n");
+    const stack = [];
+    const result = [ null ];
+    for (const raw of lines)
+    {
+        const line = raw.trim();
+        const directive = line.match(/^#\s*(if|ifdef|ifndef|elif|else|endif)\b\s*(.*)$/);
+        if (directive)
+        {
+            const [ , kind, rest ] = directive;
+            const expression = rest.replace(/\s+/g, " ").trim();
+            // Each entry keeps every branch's own expression, so a later branch negates them one by one.
+            if (kind === "if") stack.push({ branches: [ expression ], shown: expression });
+            else if (kind === "ifdef") stack.push({ branches: [ `defined(${expression})` ], shown: `defined(${expression})` });
+            else if (kind === "ifndef") stack.push({ branches: [ `!defined(${expression})` ], shown: `!defined(${expression})` });
+            else if (kind === "elif" && stack.length)
+            {
+                const top = stack[stack.length - 1];
+                top.shown = [ ...top.branches.map(item => `!(${item})`), expression ].join(" && ");
+                top.branches.push(expression);
+            }
+            else if (kind === "else" && stack.length)
+            {
+                const top = stack[stack.length - 1];
+                top.shown = top.branches.map(item => `!(${item})`).join(" && ");
+            }
+            else if (kind === "endif") stack.pop();
+            result.push(stack.length ? stack.map(entry => entry.shown).join(" && ") : null);
+            continue;
+        }
+        result.push(stack.length ? stack.map(entry => entry.shown).join(" && ") : null);
+    }
+    return result;
 }
 
 function getBlueClass(byClass, className)
@@ -1317,7 +1519,10 @@ function getBlueClass(byClass, className)
             attributes: [],
             properties: [],
             methods: [],
-            interfaces: []
+            interfaces: [],
+            // Every exposure row in Carbon's own order (the order of the macro
+            // calls in the file), whatever its kind.
+            rows: []
         });
     }
 
@@ -1792,9 +1997,20 @@ function parseMethodDeclarations(body, source, baseLine = 1)
         const close = findMatchingParen(signature, open);
         if (open === -1 || close === -1) continue;
 
-        // `operator=`, `operator==`, `operator[]` and the like end in a symbol, which no name pattern matches; they are recorded as "operator",
-        // as `operator()` always was.
-        const beforeParen = signature.slice(0, open).trim().replace(/\boperator\s*(?:\[\s*\]|[^\s\w()]+)$/, "operator");
+        // `operator=`, `operator==`, `operator[]` and `operator()` keep their symbol in the name, so each operator is its own
+        // method (they used to be recorded as plain "operator"). `operator()` puts its own "()" before the parameter list.
+        let operatorName = null;
+        let beforeParen = signature.slice(0, open).trim();
+        const operatorSymbol = beforeParen.match(/\boperator\s*(\[\s*\]|[^\s\w()]+)$/);
+        if (operatorSymbol)
+        {
+            operatorName = `operator${operatorSymbol[1].replace(/\s+/g, "")}`;
+            beforeParen = beforeParen.slice(0, operatorSymbol.index) + "operator";
+        }
+        else if (/\boperator$/.test(beforeParen) && /^\(\s*\)\s*\(/.test(signature.slice(open)))
+        {
+            operatorName = "operator()";
+        }
         if (joined && !/\s/.test(beforeParen) && !beforeParen.startsWith("~")) continue;
 
         // A FIELD WHOSE DEFAULT IS A CALL IS NOT A METHOD.
@@ -1832,7 +2048,7 @@ function parseMethodDeclarations(body, source, baseLine = 1)
         const isStatic = beforeParen.split(/\s+/).includes("static");
 
         methods.push({
-            name: nameMatch[1],
+            name: operatorName ?? nameMatch[1],
             returnType,
             args,
             parameters: parseParameters(args),

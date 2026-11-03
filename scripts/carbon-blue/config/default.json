@@ -165,6 +165,102 @@
       "name": "wod",
       "root": "trinity/trinity/Wod",
       "enabled": true
+    },
+    {
+      "name": "blue",
+      "root": "blue",
+      "enabled": true,
+      "exclude": [
+        "tests",
+        "vendor",
+        "python",
+        "python_package",
+        "cmake"
+      ]
+    },
+    {
+      "name": "blueexposure",
+      "root": "blueexposure",
+      "enabled": true,
+      "exclude": [
+        "tests",
+        "vendor",
+        "python",
+        "python_package",
+        "cmake"
+      ]
+    },
+    {
+      "name": "db",
+      "root": "db",
+      "enabled": true,
+      "exclude": [
+        "tests",
+        "vendor",
+        "python",
+        "python_package",
+        "cmake"
+      ]
+    },
+    {
+      "name": "fsd",
+      "root": "fsd",
+      "enabled": true,
+      "exclude": [
+        "tests",
+        "vendor",
+        "python",
+        "python_package",
+        "cmake"
+      ]
+    },
+    {
+      "name": "ime",
+      "root": "ime",
+      "enabled": true,
+      "exclude": [
+        "tests",
+        "vendor",
+        "python",
+        "python_package",
+        "cmake"
+      ]
+    },
+    {
+      "name": "localization",
+      "root": "localization",
+      "enabled": true,
+      "exclude": [
+        "tests",
+        "vendor",
+        "python",
+        "python_package",
+        "cmake"
+      ]
+    },
+    {
+      "name": "pathfinder",
+      "root": "pathfinder",
+      "enabled": true,
+      "exclude": [
+        "tests",
+        "vendor",
+        "python",
+        "python_package",
+        "cmake"
+      ]
+    },
+    {
+      "name": "destiny",
+      "root": "destiny",
+      "enabled": true,
+      "exclude": [
+        "tests",
+        "vendor",
+        "python",
+        "tools",
+        "cmake"
+      ]
     }
   ]
 }
