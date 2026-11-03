@@ -1004,6 +1004,8 @@ function parseEnumNumericValue(text)
 function normalizeHeaderClassMacros(text)
 {
     return text
+        // An export or layout macro between the keyword and the name (`struct BLUE_NOVTABLE IRoot`, BLUEIMPORT, CARBON_CORE_API).
+        .replace(/\b(class|struct)\s+[A-Z][A-Z0-9_]{3,}\s+(?=[A-Za-z_]\w*\s*(?:[:{]|final\b))/g, "$1 ")
         .replace(/\bBLUE(?:_BLUEIMPORT)?_CLASS(?:_ALLOW_DELAYED_DELETE)?\s*\(\s*([A-Za-z_]\w*)\s*\)/g, "class $1")
         .replace(/\bBLUE_INTERFACE(?:_EXPORT)?\s*\(\s*([A-Za-z_]\w*)\s*\)/g, "interface $1");
 }
