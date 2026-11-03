@@ -54,6 +54,8 @@ export class CjsToolShaderBuilder
 
     #formatPackage;
 
+    #formatExport;
+
     #index;
 
     #overlays;
@@ -69,6 +71,7 @@ export class CjsToolShaderBuilder
     constructor({
         backend,
         formatPackage,
+        formatExport,
         format = null,
         index = null,
         overlays = null,
@@ -93,6 +96,7 @@ export class CjsToolShaderBuilder
 
         this.#backend = String(backend);
         this.#formatPackage = String(formatPackage);
+        this.#formatExport = String(formatExport);
         this.#format = format;
         this.#index = index;
         this.#overlays = overlays;
@@ -890,14 +894,14 @@ export class CjsToolShaderBuilder
             : result;
     }
 
-    /** Lazily imports and caches the backend format adapter. */
+    /** Lazily imports and caches the backend format adapter: the package's `formatExport` named export. */
     async #LoadFormat()
     {
         if (!this.#format)
         {
             const module = await import(this.#formatPackage);
 
-            this.#format = module.default;
+            this.#format = module[this.#formatExport];
         }
 
         if (typeof this.#format?.buildEffect !== "function"

@@ -17,6 +17,7 @@ export class CjsToolShaderBuilderWebgpu extends CjsToolShaderBuilder
             ...options,
             backend: "webgpu",
             formatPackage: "@carbonenginejs/runtime/resource/formats/webgpu",
+            formatExport: "CjsWebgpuFormat",
         });
     }
 
