@@ -35,7 +35,7 @@ const LOCALIZATION_LIMITS = Object.freeze({
  */
 export class CjsToolSdeLocalizationTable
 {
-    #labels;
+    #labels = null;
 
     /**
      * Creates a SDE build sde localization table from caller-supplied

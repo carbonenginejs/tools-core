@@ -9,7 +9,7 @@ import * as utils from "../utils.js";
 export class CjsToolIndexGraph
 {
 
-    #profile;
+    #profile = null;
 
     /**
      * Creates a complete build index without merging its component groups.

@@ -23,9 +23,9 @@ const LOCALIZED_FIELDS = new Set([ "name", "description", "displayName", "quote"
 export class CjsToolSdeDatabase
 {
 
-    #database;
+    #database = null;
 
-    #readOnly;
+    #readOnly = null;
 
     /** Creates a SDE repository sde database from caller-supplied configuration. */
     constructor(database, filePath, readOnly)
@@ -668,7 +668,7 @@ export class CjsToolSdeDatabase
 export class CjsToolSdeTable
 {
 
-    #database;
+    #database = null;
 
     /** Creates a SDE repository sde table from caller-supplied configuration. */
     constructor(database, name)

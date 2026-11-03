@@ -107,31 +107,31 @@ const CORS_HEADERS = ALLOW_ORIGIN === "none" ? Object.freeze({}) : Object.freeze
 export class CjsToolHttpProxy
 {
 
-    #answerCatalogs;
+    #answerCatalogs = null;
 
-    #targetSources;
+    #targetSources = null;
 
-    #sofCatalogs;
+    #sofCatalogs = null;
 
-    #skinLibraries;
+    #skinLibraries = null;
 
-    #weaponLibraries;
+    #weaponLibraries = null;
 
-    #maps;
+    #maps = null;
 
-    #dogmas;
+    #dogmas = null;
 
-    #types;
+    #types = null;
 
-    #icons;
+    #icons = null;
 
-    #industries;
+    #industries = null;
 
-    #localisations;
+    #localisations = null;
 
-    #fittings;
+    #fittings = null;
 
-    #skills;
+    #skills = null;
 
     /** Creates a versioned loopback adapter over optional resource and SOF services. */
     constructor({

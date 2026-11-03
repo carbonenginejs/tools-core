@@ -4,7 +4,7 @@ import { CjsToolSdeBuildProfile } from "./CjsToolSdeBuildProfile.js";
 export class CjsToolSdeTables
 {
 
-    #tables;
+    #tables = null;
 
     /** Creates a SDE build sde tables from caller-supplied configuration. */
     constructor(profile, options = {})

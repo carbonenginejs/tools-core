@@ -14,13 +14,13 @@ import { ProjectRecords } from "./projectRecords.js";
 export class CjsToolSdeBuildProfile
 {
 
-    #derivations;
+    #derivations = null;
 
-    #projectors;
+    #projectors = null;
 
-    #readers;
+    #readers = null;
 
-    #sources;
+    #sources = null;
 
     /** Creates a SDE build sde build profile from caller-supplied configuration. */
     constructor(data = {})

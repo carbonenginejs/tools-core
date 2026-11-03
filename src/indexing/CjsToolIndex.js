@@ -19,27 +19,27 @@ import * as utils from "../utils.js";
 export class CjsToolIndex
 {
 
-    #fetch;
+    #fetch = null;
 
-    #cache;
+    #cache = null;
 
-    #indexes;
+    #indexes = null;
 
-    #generated;
+    #generated = null;
 
-    #maxPayloadBytes;
+    #maxPayloadBytes = 0;
 
-    #overlays;
+    #overlays = null;
 
-    #requestTimeoutMs;
+    #requestTimeoutMs = 0;
 
-    #profiles;
+    #profiles = null;
 
-    #targets;
+    #targets = null;
 
     // Private fields are not affected by Object.freeze, so this can be filled
     // lazily on a frozen instance.
-    #policy;
+    #policy = null;
 
     /** Creates the standalone source service with a local cache by default. */
     constructor({

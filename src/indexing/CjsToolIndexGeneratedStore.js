@@ -23,7 +23,7 @@ const ManifestArtifactVersion = "v1";
 export class CjsToolIndexGeneratedStore
 {
 
-    #cache;
+    #cache = null;
 
     /** Creates an exact-build generated-index store over the shared cache. */
     constructor({ cache } = {})

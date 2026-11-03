@@ -1123,7 +1123,7 @@ export class CjsToolIndexOverlayStore
 export class CjsToolIndexOverlay
 {
 
-    #payloadDirectory;
+    #payloadDirectory = "";
 
     /**
      * Freezes an opened overlay's identity, provenance, index, and

@@ -14,9 +14,9 @@ const ResourceIndexPath = "app:/resfileindex.txt";
 export class CjsToolIndexOverlaySource
 {
 
-    #overlaysByName;
+    #overlaysByName = null;
 
-    #source;
+    #source = null;
 
     /** The composed resource index, built on first request; this view never changes. */
     #composedIndex = null;

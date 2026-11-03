@@ -6,7 +6,7 @@ import { CjsToolIndexEntry, normalizeLogicalPath, parseIndexEntry } from "./CjsT
 export class CjsToolIndexGroup
 {
 
-    #resourcesByPath;
+    #resourcesByPath = null;
 
     /**
      * Creates one independently retained appfileindex or resfileindex group.

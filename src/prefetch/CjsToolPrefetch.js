@@ -26,11 +26,11 @@ const SCHEMA_VERSION = 1;
 export class CjsToolPrefetch
 {
 
-    #indexes;
+    #indexes = null;
 
-    #profiles;
+    #profiles = null;
 
-    #targets;
+    #targets = null;
 
     /**
      * Validates index and target services and installs a unique set of named

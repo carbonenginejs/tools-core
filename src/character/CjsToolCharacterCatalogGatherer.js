@@ -53,15 +53,15 @@ const PART_SOURCE_CANDIDATE_FIELDS = [
 export class CjsToolCharacterCatalogGatherer
 {
 
-    #cache;
+    #cache = null;
 
-    #blackReader;
+    #blackReader = null;
 
-    #pngFormat;
+    #pngFormat = null;
 
-    #source;
+    #source = null;
 
-    #sourcePromise;
+    #sourcePromise = null;
 
     /** Creates a gatherer backed by an optional shared cache and indexed source. */
     constructor({

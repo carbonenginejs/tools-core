@@ -83,15 +83,15 @@ export const FITTING_CATEGORIES = Object.freeze({
 export class CjsToolFitting
 {
 
-    #source;
+    #source = null;
 
-    #names;
+    #names = null;
 
-    #slotEffects;
+    #slotEffects = null;
 
-    #classified;
+    #classified = null;
 
-    #categories;
+    #categories = null;
 
     /** Initializes lazy fitting indexes over an exact-build table source. */
     constructor(source)

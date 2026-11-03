@@ -13,7 +13,7 @@ const GameNames = Object.freeze({
 export class CjsToolIndexTargetProfile
 {
 
-    #clients;
+    #clients = null;
 
     /**
      * Creates a validated immutable target acquisition profile.

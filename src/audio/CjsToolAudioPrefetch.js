@@ -4,7 +4,7 @@
 export class CjsToolAudioPrefetch
 {
 
-    #audio;
+    #audio = null;
 
     /**
      * Binds prefetch operations to a facade capable of opening target audio

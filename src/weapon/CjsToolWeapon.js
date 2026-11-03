@@ -6,7 +6,7 @@ import { CJS_WEAPON_TABLES, CjsToolWeaponBuilder } from "./CjsToolWeaponBuilder.
 export class CjsToolWeapon
 {
 
-    #targets;
+    #targets = null;
 
     /**
      * Binds offline weapon builds to the registry of targets that support the

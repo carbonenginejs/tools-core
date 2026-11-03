@@ -61,7 +61,7 @@ export const SKINR_TARGET = "eve";
 export class CjsToolSkinrStore
 {
 
-    #database;
+    #database = null;
 
     /**
      * Binds a SQLite database path and installs deterministic seeded shuffling

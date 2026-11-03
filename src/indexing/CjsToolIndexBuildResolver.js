@@ -8,15 +8,15 @@ import * as utils from "../utils.js";
 export class CjsToolIndexBuildResolver
 {
 
-    #fetch;
+    #fetch = null;
 
-    #latest;
+    #latest = null;
 
-    #maxMetadataBytes;
+    #maxMetadataBytes = 0;
 
-    #now;
+    #now = null;
 
-    #requestTimeoutMs;
+    #requestTimeoutMs = 0;
 
     /**
      * Creates a resolver with an injectable Fetch-compatible function.

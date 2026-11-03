@@ -12,7 +12,7 @@ const SkinTables = Object.freeze([ ...new Set([
 export class CjsToolSkin
 {
 
-    #targets;
+    #targets = null;
 
     /**
      * Binds offline SKIN and SKINR builds to the registry of supported exact

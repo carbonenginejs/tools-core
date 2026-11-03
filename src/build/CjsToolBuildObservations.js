@@ -62,9 +62,9 @@ export const OBSERVATIONS_FILE = "observations.jsonl";
 export class CjsToolBuildObservations
 {
 
-    #directory;
+    #directory = "";
 
-    #records;
+    #records = null;
 
     /**
      * Creates an immutable view over one observation-log directory and its

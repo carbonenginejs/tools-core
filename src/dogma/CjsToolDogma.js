@@ -160,15 +160,15 @@ export const DEFAULT_SECTIONS = Object.freeze([ "fitting" ]);
 export class CjsToolDogma
 {
 
-    #source;
+    #source = null;
 
-    #attributesByName;
+    #attributesByName = null;
 
-    #attributesByID;
+    #attributesByID = null;
 
-    #effects;
+    #effects = null;
 
-    #localisation;
+    #localisation = null;
 
     /**
      * `localisation` is optional and only does anything for a source with no

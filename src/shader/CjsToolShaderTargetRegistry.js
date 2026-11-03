@@ -6,7 +6,7 @@ import { normalizeTargetId } from "../target/CjsToolTarget.js";
 export class CjsToolShaderTargetRegistry
 {
 
-    #targets;
+    #targets = null;
 
     /**
      * Builds an immutable-by-contract lookup of unique shader target

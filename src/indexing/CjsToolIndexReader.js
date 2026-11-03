@@ -16,19 +16,19 @@ import * as utils from "../utils.js";
 export class CjsToolIndexReader
 {
 
-    #profiles;
+    #profiles = null;
 
-    #fetch;
+    #fetch = null;
 
-    #builds;
+    #builds = null;
 
-    #cache;
+    #cache = null;
 
-    #supplied;
+    #supplied = null;
 
-    #maxIndexBytes;
+    #maxIndexBytes = 0;
 
-    #requestTimeoutMs;
+    #requestTimeoutMs = 0;
 
     /**
      * Creates a complete remote index reader with optional local caching.

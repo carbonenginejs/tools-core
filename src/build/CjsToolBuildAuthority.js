@@ -39,10 +39,10 @@ import { CjsToolBuildPolicy, REASONS } from "./CjsToolBuildPolicy.js";
 export class CjsToolBuildAuthority
 {
 
-    #observations;
-    #policy;
-    #discover;
-    #requireVerified;
+    #observations = null;
+    #policy = null;
+    #discover = null;
+    #requireVerified = false;
 
     /**
      * @param {Object} parts

@@ -7,13 +7,13 @@ const MAX_RES_PATH_INSERT_PATHS = 4096;
 export class CjsToolIndexAnswerCatalog
 {
 
-    #paths;
+    #paths = null;
 
-    #pathSet;
+    #pathSet = null;
 
-    #hullInserts;
+    #hullInserts = null;
 
-    #bluePaths;
+    #bluePaths = null;
 
     /**
      * Snapshots normalized resource paths and derives immutable answer-category

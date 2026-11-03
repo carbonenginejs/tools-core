@@ -20,15 +20,15 @@ import { CjsToolCharacterBuilder } from "./CjsToolCharacterBuilder.js";
 export class CjsToolCharacterRepository
 {
 
-    #cache;
+    #cache = null;
 
-    #memory;
+    #memory = null;
 
-    #autoPrepare;
+    #autoPrepare = false;
 
-    #indexes;
+    #indexes = null;
 
-    #targets;
+    #targets = null;
 
     #libraries = new Map();
 

@@ -6,7 +6,7 @@ import * as utils from "../utils.js";
 export class CjsToolCharacter
 {
 
-    #targets;
+    #targets = null;
 
     /** Creates a character tool with an optional target registry. */
     constructor({ targets = new CjsToolTargetRegistry() } = {})

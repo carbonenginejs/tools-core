@@ -4,25 +4,25 @@
 export class CjsToolSde
 {
 
-    #types;
+    #types = null;
 
-    #graphics;
+    #graphics = null;
 
-    #groups;
+    #groups = null;
 
-    #skins;
+    #skins = null;
 
-    #skinMaterials;
+    #skinMaterials = null;
 
-    #skinLicenses;
+    #skinLicenses = null;
 
-    #materialSets;
+    #materialSets = null;
 
-    #graphicMaterialSets;
+    #graphicMaterialSets = null;
 
-    #typesByName;
+    #typesByName = null;
 
-    #skinsByName;
+    #skinsByName = null;
 
     /** Creates indexes over caller-supplied, already-decoded SDE tables. */
     constructor(data = {})

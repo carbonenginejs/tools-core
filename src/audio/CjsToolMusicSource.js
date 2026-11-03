@@ -23,7 +23,7 @@ const AUDIO_MEDIA_TYPES = Object.freeze({
  */
 export class CjsToolMusicSource
 {
-    #directory;
+    #directory = "";
 
     #selections = new WeakMap();
 

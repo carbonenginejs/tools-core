@@ -55,11 +55,11 @@ export const PRIMARY_ACTIVITY = "manufacturing";
 export class CjsToolIndustry
 {
 
-    #source;
+    #source = null;
 
-    #productIndex;
+    #productIndex = null;
 
-    #localisation;
+    #localisation = null;
 
     /** `localisation` names types on a source that carries no English of its own. */
     constructor(source, { localisation = null } = {})

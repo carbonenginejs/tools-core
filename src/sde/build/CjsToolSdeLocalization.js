@@ -55,9 +55,9 @@ export const CJS_DEFAULT_LANGUAGES = Object.freeze([ "en", "zh" ]);
 export class CjsToolSdeLocalization
 {
 
-    #tables;
+    #tables = null;
 
-    #primary;
+    #primary = null;
 
     /**
      * @param {Array<[string, object]>} tables language key and its table, in

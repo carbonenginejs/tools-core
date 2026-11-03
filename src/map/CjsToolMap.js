@@ -217,18 +217,18 @@ export const MAP_FRAME = Object.freeze({
 export class CjsToolMap
 {
 
-    #source;
+    #source = null;
 
-    #skeleton;
+    #skeleton = null;
 
-    #index;
+    #index = null;
 
-    #graphics;
+    #graphics = null;
 
     // The resolved skeleton, once it exists. Held separately from the promise
     // so the summary builders can stay synchronous: every path that reaches one
     // has already awaited #Skeleton(), so by then this is populated.
-    #loaded;
+    #loaded = null;
 
     /**
      * Initializes lazy navigation, graphic, and derived-index caches over one

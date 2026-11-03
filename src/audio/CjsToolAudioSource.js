@@ -20,19 +20,19 @@ const OPAQUE_MEDIA_TYPE = "application/octet-stream";
 export class CjsToolAudioSource
 {
 
-    #banks;
+    #banks = null;
 
-    #defaultLanguage;
+    #defaultLanguage = "";
 
-    #embeddedMedia;
+    #embeddedMedia = null;
 
-    #media;
+    #media = null;
 
-    #paths;
+    #paths = null;
 
     #selections = new WeakMap();
 
-    #source;
+    #source = null;
 
     /** Validates a prepared v2 audio-library document. */
     static validateLibrary(library)

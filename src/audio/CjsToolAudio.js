@@ -10,7 +10,7 @@ import * as utils from "../utils.js";
 export class CjsToolAudio
 {
 
-    #targets;
+    #targets = null;
 
     /**
      * Binds audio-library operations to the registry that resolves exact target

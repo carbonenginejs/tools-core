@@ -22,9 +22,9 @@ const SCHEMA = "carbon.tools-core.token";
 export class CjsToolTokenFile
 {
 
-    #file;
+    #file = "";
 
-    #mode;
+    #mode = null;
 
     /**
      * @param {Object} options

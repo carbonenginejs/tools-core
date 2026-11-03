@@ -64,13 +64,19 @@ const MASTERY_TIERS = Object.freeze([
 export class CjsToolTypes
 {
 
-    #source;
+    #source = null;
 
-    #localisation;
+    #localisation = null;
 
-    #extras;
+    #extras = null;
 
-    #corporations;
+    /** Whether #extras holds the loaded answer, which may be null for a build without the sidecar. */
+    #extrasLoaded = false;
+
+    #corporations = null;
+
+    /** Whether #corporations holds the loaded answer, which may be null for a build without the table. */
+    #corporationsLoaded = false;
 
     /**
      * Initializes lazy type extras and corporation joins over one exact-build
@@ -80,8 +86,8 @@ export class CjsToolTypes
     {
         this.#source = source;
         this.#localisation = options.localisation ?? null;
-        this.#extras = undefined;
-        this.#corporations = undefined;
+        this.#extrasLoaded = false;
+        this.#corporationsLoaded = false;
     }
 
     /** What this answer is built from, for a caller checking provenance. */
@@ -562,11 +568,12 @@ export class CjsToolTypes
      */
     async #Extras()
     {
-        if (this.#extras !== undefined) return this.#extras;
+        if (this.#extrasLoaded) return this.#extras;
 
         const file = this.#source.DatabaseFile?.();
 
         this.#extras = file ? await ReadDerivation(file, "typeExtras") : null;
+        this.#extrasLoaded = true;
 
         return this.#extras;
     }
@@ -574,7 +581,7 @@ export class CjsToolTypes
     /** This build's corporation names, loaded once, or null when absent. */
     async #Corporations()
     {
-        if (this.#corporations !== undefined) return this.#corporations;
+        if (this.#corporationsLoaded) return this.#corporations;
 
         try
         {
@@ -588,6 +595,8 @@ export class CjsToolTypes
             // is strictly better than failing the whole type lookup over a name.
             this.#corporations = null;
         }
+
+        this.#corporationsLoaded = true;
 
         return this.#corporations;
     }

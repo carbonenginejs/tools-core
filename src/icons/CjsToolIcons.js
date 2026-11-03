@@ -9,9 +9,9 @@
 export class CjsToolIcons
 {
 
-    #source;
+    #source = null;
 
-    #records;
+    #records = null;
 
     /** Creates an icon catalog over one exact-build SDE source. */
     constructor(source)

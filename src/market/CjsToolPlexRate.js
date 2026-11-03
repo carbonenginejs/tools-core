@@ -57,15 +57,15 @@ const DEFAULT_TTL_MS = 60 * 60 * 1000;
 export class CjsToolPlexRate
 {
 
-    #esi;
+    #esi = null;
 
-    #ttlMs;
+    #ttlMs = 0;
 
-    #now;
+    #now = null;
 
-    #rate;
+    #rate = null;
 
-    #refreshing;
+    #refreshing = null;
 
     /**
      * @param {Object} options

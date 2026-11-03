@@ -47,22 +47,22 @@ export class CjsToolShaderBuilder
      */
     static className = "CjsToolShaderBuilder";
 
-    #backend;
+    #backend = "";
 
 
-    #format;
+    #format = null;
 
-    #formatPackage;
+    #formatPackage = "";
 
-    #formatExport;
+    #formatExport = "";
 
-    #index;
+    #index = null;
 
-    #overlays;
+    #overlays = null;
 
-    #shaderTargets;
+    #shaderTargets = null;
 
-    #targets;
+    #targets = null;
 
     /**
      * Configures one backend builder with its format adapter, target registries,

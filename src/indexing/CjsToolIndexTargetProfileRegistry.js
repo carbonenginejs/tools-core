@@ -7,7 +7,7 @@ import { CjsToolIndexTargetProfile, normalizeIndexTargetId } from "./CjsToolInde
 export class CjsToolIndexTargetProfileRegistry
 {
 
-    #profiles;
+    #profiles = null;
 
     /**
      * Creates an immutable registry from target-profile-shaped values.

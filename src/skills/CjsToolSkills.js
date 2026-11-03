@@ -61,11 +61,11 @@ const MAX_DEPTH = 12;
 export class CjsToolSkills
 {
 
-    #source;
+    #source = null;
 
-    #attributes;
+    #attributes = null;
 
-    #unlocks;
+    #unlocks = null;
 
     /**
      * Initializes lazy skill-attribute and unlock indexes over one exact-build

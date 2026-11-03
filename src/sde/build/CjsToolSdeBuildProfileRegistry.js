@@ -5,7 +5,7 @@ import { DefaultSdeBuildProfileData } from "./defaultSdeBuildProfiles.js";
 export class CjsToolSdeBuildProfileRegistry
 {
 
-    #profiles;
+    #profiles = null;
 
     /**
      * Creates a SDE build sde build profile registry from caller-supplied

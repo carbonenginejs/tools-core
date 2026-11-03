@@ -72,13 +72,13 @@ const MAX_PAGES = 40;
 export class CjsToolMarketEsi
 {
 
-    #esi;
+    #esi = null;
 
-    #now;
+    #now = null;
 
-    #entries;
+    #entries = null;
 
-    #names;
+    #names = null;
 
     /**
      * @param {Object} options

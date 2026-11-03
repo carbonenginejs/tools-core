@@ -20,9 +20,9 @@ const TWO_CHANNEL_DXGI = new Set([ 83, 84 ]);
 export class CjsToolSofBundle
 {
 
-    #dds;
+    #dds = null;
 
-    #writeFile;
+    #writeFile = null;
 
     /** Binds SOF bundle output to an injected writer and the runtime DDS decoder. */
     constructor({ dds = new CjsDdsFormat(), writeFile } = {})

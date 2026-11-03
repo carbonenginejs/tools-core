@@ -55,15 +55,15 @@ const MAX_TERM = 100;
 export class CjsToolPublicIdentity
 {
 
-    #esi;
+    #esi = null;
 
-    #ttlMs;
+    #ttlMs = 0;
 
-    #now;
+    #now = null;
 
-    #entries;
+    #entries = null;
 
-    #canPost;
+    #canPost = false;
 
     /**
      * @param {Object} options

@@ -17,7 +17,7 @@ export class CjsToolBuildCache
     #drained = null;
     #maintenance = null;
     #timer = null;
-    #now;
+    #now = null;
     #closed = false;
 
     /** Creates one service policy; standalone repositories need not opt in. */

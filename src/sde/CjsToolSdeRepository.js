@@ -22,17 +22,17 @@ const PLACEHOLDER_BUILD = "0";
 export class CjsToolSdeRepository
 {
 
-    #archive;
+    #archive = null;
 
-    #cache;
+    #cache = null;
 
-    #open;
+    #open = null;
 
-    #memory;
+    #memory = null;
 
-    #preparers;
+    #preparers = null;
 
-    #targets;
+    #targets = null;
 
     /**
      * Creates a SDE repository sde repository from caller-supplied
@@ -488,11 +488,11 @@ export class CjsToolSdeRepository
 export class CjsToolSdeSource
 {
 
-    #database;
+    #database = null;
 
-    #identity;
+    #identity = null;
 
-    #dnaIndex;
+    #dnaIndex = null;
 
     /** Creates a SDE repository sde source from caller-supplied configuration. */
     constructor(database, resolution)

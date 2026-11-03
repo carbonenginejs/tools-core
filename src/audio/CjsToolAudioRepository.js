@@ -27,21 +27,21 @@ import { CjsToolMusicSource } from "./CjsToolMusicSource.js";
 export class CjsToolAudioRepository
 {
 
-    #cache;
+    #cache = null;
 
-    #memory;
+    #memory = null;
 
-    #defaultLanguage;
+    #defaultLanguage = null;
 
-    #indexes;
+    #indexes = null;
 
     #libraries = new Map();
 
     #music = null;
 
-    #materializeMedia;
+    #materializeMedia = false;
 
-    #targets;
+    #targets = null;
 
     /** Creates an exact-build audio repository over shared cache and indexes. */
     constructor({

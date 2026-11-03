@@ -19,7 +19,7 @@ const ESI_ROOT = "https://esi.evetech.net";
 export class CjsToolEsiClient
 {
 
-    #refreshing;
+    #refreshing = null;
 
     /**
      * @param {Object} options

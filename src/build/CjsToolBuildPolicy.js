@@ -89,7 +89,7 @@ export const REASONS = Object.freeze({
 export class CjsToolBuildPolicy
 {
 
-    #targets;
+    #targets = null;
 
     /** Normalizes an operator policy document into an immutable target lookup. */
     constructor(document = {})

@@ -6,7 +6,7 @@ import { normalizeGame, normalizeProviderId } from "../indexing/CjsToolIndexTarg
 export class CjsToolTargetRegistry
 {
 
-    #targets;
+    #targets = null;
 
     /**
      * Creates a target profile target registry from caller-supplied

@@ -13,15 +13,15 @@ export const CJS_INDEX_EXTERNAL_RESOLUTION = Symbol("CjsToolIndexExternalResolut
 export class CjsToolIndexSource
 {
 
-    #fetch;
+    #fetch = null;
 
-    #cache;
+    #cache = null;
 
-    #inflight;
+    #inflight = null;
 
-    #maxPayloadBytes;
+    #maxPayloadBytes = 0;
 
-    #requestTimeoutMs;
+    #requestTimeoutMs = 0;
 
     /**
      * Opens cached payload reads over one immutable target/build index.

@@ -38,17 +38,17 @@ const REQUIRED_TABLES = Object.freeze(PREPARED_TABLES.filter(name => !OPTIONAL_T
 export class CjsToolSdeArchive
 {
 
-    #fetch;
+    #fetch = null;
 
-    #latestUrl;
+    #latestUrl = "";
 
-    #archiveUrlTemplate;
+    #archiveUrlTemplate = "";
 
-    #timeoutMs;
+    #timeoutMs = 0;
 
-    #latest;
+    #latest = null;
 
-    #now;
+    #now = null;
 
     /** Creates an archive reader with injectable network access for offline tests. */
     constructor(options = {})

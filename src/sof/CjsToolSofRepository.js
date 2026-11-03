@@ -17,17 +17,17 @@ const CATALOGS = Object.freeze({
 export class CjsToolSofRepository
 {
 
-    #catalogs;
+    #catalogs = null;
 
-    #memory;
+    #memory = null;
 
-    #createSof;
+    #createSof = null;
 
-    #loadMode;
+    #loadMode = null;
 
-    #maximumCatalogs;
+    #maximumCatalogs = null;
 
-    #prepareDefaults;
+    #prepareDefaults = null;
 
     /**
      * Creates a SOF repository from caller-supplied configuration.
@@ -170,15 +170,15 @@ export class CjsToolSofRepository
 export class CjsToolSofCatalog
 {
 
-    #sof;
+    #sof = null;
 
-    #catalogNames;
+    #catalogNames = null;
 
-    #library;
+    #library = null;
 
-    #prepareDefaults;
+    #prepareDefaults = null;
 
-    #onWarning;
+    #onWarning = null;
 
     #allPatterns = null;
 

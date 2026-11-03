@@ -11,9 +11,9 @@ const MIN_STRING_LENGTH = 2;
  */
 export class CjsToolFsdInspectReader
 {
-    #path;
-    #schemaID;
-    #metadata;
+    #path = "";
+    #schemaID = null;
+    #metadata = null;
 
     /**
      * Creates a FSD inspection fsd inspect reader from caller-supplied

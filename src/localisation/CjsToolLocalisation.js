@@ -73,15 +73,15 @@ export const NAME_EVIDENCE = Object.freeze({
 export class CjsToolLocalisation
 {
 
-    #source;
+    #source = null;
 
-    #reference;
+    #reference = null;
 
-    #manual;
+    #manual = null;
 
-    #guesses;
+    #guesses = null;
 
-    #crosswalk;
+    #crosswalk = null;
 
     /**
      * @param source     the source being served

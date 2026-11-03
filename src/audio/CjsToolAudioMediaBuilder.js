@@ -22,9 +22,9 @@ const GENERATED_MEDIA_VERSION = 1;
 export class CjsToolAudioMediaBuilder
 {
 
-    #cache;
+    #cache = null;
 
-    #indexes;
+    #indexes = null;
 
     /** Creates a media builder over the shared cache and index authority. */
     constructor({ cache, indexes } = {})
