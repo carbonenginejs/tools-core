@@ -939,12 +939,11 @@ test("a base Carbon never exposes takes its flags from the subclasses that do", 
 @meta.define({ className: "FixtureLight" })
 export class FixtureLight
 {
-    @meta.blue.readwrite
-    @meta.blue.persist
+    @be.mapAttribute(be.READWRITE | be.PERSIST)
     @meta.type.float32
     radius = 0;
 
-    @meta.blue.readwrite
+    @be.mapAttribute(be.READWRITE)
     @meta.type.float32
     profile = 0;
 
@@ -965,17 +964,15 @@ test("edit flags are compared as a set, reporting missing and extra flags", () =
         @meta.define({ className: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
-            @meta.blue.readwrite
-            @meta.blue.persist
+            @be.mapAttribute(be.READWRITE | be.PERSIST)
             @meta.type.float32
             persisted = 0;
 
-            @meta.blue.notify
-            @meta.blue.persist
+            @be.mapAttribute(be.NOTIFY | be.PERSIST)
             @meta.type.float32
             edited = 0;
 
-            @meta.blue.persistOnly
+            @be.mapAttribute(be.PERSISTONLY)
             @meta.type.float32
             stored = 0;
         }
@@ -1127,8 +1124,7 @@ test("stored and live ship declarations survive emission, parsing and comparison
         @meta.define({ className: "FixtureShip", family: "eve" })
         export class FixtureShip extends CjsModel
         {
-            @meta.blue.readwrite
-            @meta.blue.persistOnly
+            @be.mapAttribute(be.READWRITE | be.PERSISTONLY)
             @meta.type.rootRef("EveBoosterSet2")
             boosters = null;
         }
