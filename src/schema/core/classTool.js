@@ -4405,7 +4405,7 @@ export function renderClassFile(expected, options = {})
     {
         if (index > 0) lines.push("");
         lines.push(`  ${renderMethodComment(method)}`);
-        if (METHOD_ROW[method.macro]) lines.push(`  @be.${METHOD_ROW[method.macro]}()`);
+        if (METHOD_ROW[method.macro]) lines.push(`  ${renderMethodRow(method)}`);
         if (method.target && method.target !== method.name) lines.push(`  @meta.renamed("${method.name}")`);
         // Python plumbing has no counterpart here (decorator-upgrade.md § 00): the method answers "not handled" instead of throwing.
         if (isPythonOnlyMethod(method))
@@ -4836,6 +4836,24 @@ const METHOD_ROW = {
 };
 const PROPERTY_ROW = { MAP_PROPERTY: "mapProperty", MAP_PROPERTY_READONLY: "mapPropertyReadOnly", MAP_PROPERTY_PERSISTED: "mapPropertyPersisted" };
 
+/**
+ * One method row: `@be.mapMethod*(name?)`, and for MAP_METHOD_AND_WRAP_OPTIONAL_ARGS Carbon's optional-argument count first,
+ * which the runtime requires (BlueExposureMacrosPython.h:140).
+ *
+ * @param {{macro: string, name?: string, blueName?: string, numOptional?: number}} method The method or row.
+ * @param {string} [nameArg] The quoted exposed name, when the row names it.
+ * @returns {string} The decorator.
+ * @throws {Error} When an optional-args row has no count: its schema predates the scanner recording it.
+ */
+function renderMethodRow(method, nameArg = "")
+{
+    const decorator = METHOD_ROW[method.macro];
+    if (method.macro !== "MAP_METHOD_AND_WRAP_OPTIONAL_ARGS") return `@be.${decorator}(${nameArg})`;
+    if (!Number.isSafeInteger(method.numOptional))
+        throw new Error(`${method.blueName || method.name}: MAP_METHOD_AND_WRAP_OPTIONAL_ARGS has no numOptional; rescan with carbon-blue.`);
+    return `@be.${decorator}(${method.numOptional}${nameArg ? `, ${nameArg}` : ""})`;
+}
+
 /** Carbon's flags as written, as the runtime's `be.` constants: `be.READWRITE | be.PERSIST`. */
 function renderFlagExpression(flags)
 {
@@ -4877,7 +4895,7 @@ function renderInheritedRows(rows)
     for (const row of rows || [])
     {
         const name = JSON.stringify(row.name);
-        if (row.kind === "method" && METHOD_ROW[row.macro]) lines.push(`@be.${METHOD_ROW[row.macro]}(${name})`);
+        if (row.kind === "method" && METHOD_ROW[row.macro]) lines.push(renderMethodRow(row, name));
         else if (row.kind === "property" && PROPERTY_ROW[row.macro]) lines.push(`@be.${PROPERTY_ROW[row.macro]}(${name})`);
         else if (row.kind === "attribute")
         {

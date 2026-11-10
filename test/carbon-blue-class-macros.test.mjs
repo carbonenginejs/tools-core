@@ -129,3 +129,31 @@ test("Black definitions resolve unqualified class-scope structs and CcpMath::Sph
     assert.deepEqual(classes.EveChildFogVolume, { intensity: "float" });
     assert.deepEqual(classes.EveSphereVolume, { position: "vector3", radius: "float" });
 });
+
+// Shaped on Tr2Sprite2dScene_Blue.cpp:242-251: MAP_METHOD_AND_WRAP_OPTIONAL_ARGS( name, function, numOptional, doc ).
+test("an optional-args method row records Carbon's count, and its description is the fourth argument", () =>
+{
+    const source = [
+        "BLUE_DEFINE( Probe );",
+        "const Be::ClassInfo* Probe::ExposeToBlue()",
+        "{",
+        "\tEXPOSURE_BEGIN( Probe, \"\" )",
+        "\t\tMAP_METHOD_AND_WRAP_OPTIONAL_ARGS(",
+        "\t\t\t\"PickObject\",",
+        "\t\t\tPickObject,",
+        "\t\t\t3,",
+        "\t\t\t\"Returns the object at the coordinates\" )",
+        "\t\tMAP_METHOD_AND_WRAP( \"Reset\", Reset, \"Resets\" )",
+        "\tEXPOSURE_END()",
+        "}"
+    ].join("\n");
+    const blue = scanner.parseBlueFile(source, "Probe_Blue.cpp");
+    const probe = blue.classes.find(item => item.name === "Probe");
+    const pick = probe.methods.find(method => method.name === "PickObject");
+    assert.equal(pick.numOptional, 3);
+    assert.equal(pick.description, "Returns the object at the coordinates");
+    const reset = probe.methods.find(method => method.name === "Reset");
+    assert.equal(reset.numOptional, undefined);
+    assert.equal(reset.description, "Resets");
+    assert.equal(probe.rows.find(row => row.name === "PickObject").numOptional, 3);
+});

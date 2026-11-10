@@ -1367,7 +1367,8 @@ function parseBlueFile(rawText, source)
             {
                 const method = parseMethodCall(call, args, source);
                 if (legacy) record.methods.push(method);
-                pushRow(record, call, { kind: "METHOD", name: method.name, target: method.target });
+                pushRow(record, call, { kind: "METHOD", name: method.name, target: method.target,
+                    ...(method.numOptional !== undefined ? { numOptional: method.numOptional } : {}) });
             }
             else if (call.name.startsWith("MAP_FUNCTION"))
             {
@@ -1607,11 +1608,16 @@ function parsePropertyCall(call, args, source)
 
 function parseMethodCall(call, args, source)
 {
+    // MAP_METHOD_AND_WRAP_OPTIONAL_ARGS( name, function, numOptional, doc ) puts the optional-argument count
+    // before the description (BlueExposureMacrosPython.h:140).
+    const optional = call.name === "MAP_METHOD_AND_WRAP_OPTIONAL_ARGS";
+    const count = optional ? Number(cleanArg(args[2])) : undefined;
     return {
         macro: call.name,
         name: readCString(args[0]),
         target: cleanArg(args[1]),
-        description: readCString(args[2]),
+        ...(optional && Number.isSafeInteger(count) ? { numOptional: count } : {}),
+        description: readCString(args[optional ? 3 : 2]),
         source,
         line: call.line
     };
@@ -2895,6 +2901,7 @@ function toBlueMethodSchema(method)
         macro: method.macro,
         blueName: method.name || null,
         target: method.target || null,
+        numOptional: method.numOptional,
         description: method.description || null
     });
 }
