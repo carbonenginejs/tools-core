@@ -611,7 +611,8 @@ test("audio repository optionally materializes embedded WEMs as generated resour
         "the original embedded range remains as a fallback representation",
     );
 
-    const staleLibrary = structuredClone(audio.library);
+    // A library document holds only the sections present (CjsAudioLibrary.GetValues); the instance keeps absent ones as null.
+    const staleLibrary = structuredClone(audio.library.GetValues());
 
     staleLibrary.media[String(MEDIA_ID)] = [
         staleLibrary.media[String(MEDIA_ID)],
@@ -683,7 +684,8 @@ test("audio repository auto-prepares SFX when music banks are incomplete", async
         audio.library.sfx.nodes[String(SFX_SOUND_ID)].mediaId,
         String(MEDIA_ID),
     );
-    assert.equal(audio.library.music, undefined);
+    // An absent section is null on the library instance (CjsAudioLibrary.js OPTIONAL_SECTIONS).
+    assert.equal(audio.library.music, null);
 });
 
 test("audio repository reports unprepared builds when auto-preparation is disabled", async context =>
