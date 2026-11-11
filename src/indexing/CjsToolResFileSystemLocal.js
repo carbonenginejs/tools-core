@@ -21,14 +21,19 @@ export class CjsToolResFileSystemLocal extends BlueResFileSystemLocal
     /** The exact-build source (`CjsToolIndex.OpenTarget`). */
     _source = null;
 
+    /** The protocol this instance is read under (`res`, or a build protocol, `CjsToolBlueHost`). */
+    _protocol = "res";
+
     /**
      * @param {{ Match: function(string, object): Array<object>, Fetch: function(string): Promise<{ bytes: ArrayBufferView|ArrayBuffer }> }} source
      *   The exact-build source.
+     * @param {string} [protocol="res"] The protocol it is read under; a subclass declaring that protocol registers it.
      */
-    constructor(source)
+    constructor(source, protocol = "res")
     {
         super();
         this._source = source;
+        this._protocol = protocol;
         this._index = CjsToolIndexAnswerCatalog.createIndexFileSystem(source);
     }
 
@@ -36,19 +41,19 @@ export class CjsToolResFileSystemLocal extends BlueResFileSystemLocal
      * Whether the build holds the file.
      * @adapted from the build's index, not search-path folders
      */
-    FileExists(filename) { return this._index.FileExists(filename); }
+    FileExists(filename) { return this._index.FileExists(this.ToResPath(filename)); }
 
     /**
      * Whether the build holds a directory at the path.
      * @adapted from the build's index, not search-path folders
      */
-    IsDirectory(dir) { return this._index.IsDirectory(dir); }
+    IsDirectory(dir) { return this._index.IsDirectory(this.ToResPath(dir)); }
 
     /**
      * Adds the entries the build holds in the directory.
      * @adapted from the build's index, not search-path folders
      */
-    GetDirectoryContents(dir, results) { return this._index.GetDirectoryContents(dir, results); }
+    GetDirectoryContents(dir, results) { return this._index.GetDirectoryContents(this.ToResPath(dir), results); }
 
     /**
      * The file's bytes, from the build.
@@ -57,7 +62,7 @@ export class CjsToolResFileSystemLocal extends BlueResFileSystemLocal
      */
     async GetStreamFromPath(resPath, _request)
     {
-        const { bytes } = await this._source.Fetch(resPath);
+        const { bytes } = await this._source.Fetch(this.ToResPath(resPath));
         const data = bytes instanceof Uint8Array ? bytes
             : ArrayBuffer.isView(bytes) ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) : new Uint8Array(bytes);
         return { form: BlueResFileSystemForm.BYTES, data };
@@ -68,5 +73,18 @@ export class CjsToolResFileSystemLocal extends BlueResFileSystemLocal
      * @adapted the build has no search-path folder to resolve into; `null` is Carbon's false
      */
     ResolvePathW(_path) { return null; }
+
+    /**
+     * The build's `res:` path for a path read under this instance's protocol; the build's index and `Fetch` know `res:`
+     * only.
+     * @cjs
+     */
+    ToResPath(path)
+    {
+        const value = String(path);
+        if (this._protocol === "res") return value;
+        const prefix = `${this._protocol}:`;
+        return value.toLowerCase().startsWith(prefix) ? `res:${value.slice(prefix.length)}` : value;
+    }
 
 }

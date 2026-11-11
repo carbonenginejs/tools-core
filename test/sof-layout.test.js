@@ -35,7 +35,13 @@ test("DNA route retains available layout parts while the missing hull remains a 
             throw error;
         },
     };
-    const repository = new CjsToolSofRepository();
+    // The records are plain objects, so they are handed over as loaded objects (resMan reads real Black bytes).
+    const repository = new CjsToolSofRepository({
+        async loadObject(from, logicalPath)
+        {
+            return (await from.Fetch(logicalPath)).bytes;
+        },
+    });
     const proxy = new CjsToolHttpProxy({
         indexes: {
             Open() {},

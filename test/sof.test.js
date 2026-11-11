@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { blue } from "@carbonenginejs/runtime/blue";
 import { EveSOF, EveSOFDataParameter } from "@carbonenginejs/runtime/sof";
+import { CjsToolBlueHost } from "../src/indexing/CjsToolBlueHost.js";
 import { CjsToolSofRepository, ExpandSofDefaults } from "../src/sof/index.js";
 
 test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
@@ -32,19 +34,24 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
 
             return matchedPaths.map(logicalPath => ({ logicalPath }));
         },
-        async Fetch(logicalPath)
+        async Fetch()
         {
+            throw new Error("SOF reads objects through loadObject, not bytes");
+        },
+    };
+    const repository = new CjsToolSofRepository({
+        loadMode: "full",
+        async loadObject(from, logicalPath)
+        {
+            assert.equal(from, source);
             assert.equal(
                 logicalPath,
                 "res:/dx9/model/spaceobjectfactory/data.black",
             );
             fetchCount++;
 
-            return { bytes: data };
+            return data;
         },
-    };
-    const repository = new CjsToolSofRepository({
-        loadMode: "full",
         async prepareDefaults()
         {
             prepareDefaultsCount++;
@@ -176,14 +183,18 @@ test("defaults to generic-first SOF loading and fetches indexed records on deman
         },
     };
     const repository = new CjsToolSofRepository({
+        async loadObject(from, logicalPath)
+        {
+            return (await from.Fetch(logicalPath)).bytes;
+        },
         async createSof(options)
         {
-            assert.equal(Object.hasOwn(options, "black"), false);
+            assert.equal(Object.hasOwn(options, "data"), false);
             assert.equal(typeof options.lazyData.source, "function");
             lazySource = options.lazyData.source;
 
             const sof = (await EveSOF.Create({
-                black: {
+                data: {
                     hull: [],
                     faction: [],
                     race: [],
@@ -252,7 +263,12 @@ test("default lazy loading runs through the installed combined runtime", async (
         },
     };
 
-    const catalog = await new CjsToolSofRepository().OpenSource(source);
+    const catalog = await new CjsToolSofRepository({
+        async loadObject(from, logicalPath)
+        {
+            return (await from.Fetch(logicalPath)).bytes;
+        },
+    }).OpenSource(source);
 
     assert.deepEqual(fetched, [genericPath]);
     assert.deepEqual(catalog.ListHulls(), [ "ab1_t1" ]);
@@ -281,7 +297,7 @@ test("lazy loading probes the resfile index for materials, so an unpublished one
         async createSof(options)
         {
             exists = options.lazyData.exists;
-            const sof = (await EveSOF.Create({ black: CreateData() }));
+            const sof = (await EveSOF.Create({ data: CreateData() }));
             sof.InitializeAsync = async () => {};
             sof.GetSofLibraryBuilder = () => ({});
             return sof;
@@ -292,6 +308,55 @@ test("lazy loading probes the resfile index for materials, so an unpublished one
     assert.equal(exists(indexed), true);
     assert.equal(exists(indexed.toUpperCase()), true, "case-insensitive, as the index is");
     assert.equal(exists(`${basePath}/materials/grey_blue_graffiti_colorshift_matt.black`), false);
+});
+
+test("SOF files load through Blue's resMan under the build's own protocol, never as bytes", async () =>
+{
+    const genericPath = "res:/dx9/model/spaceobjectfactory/generic.black";
+    const source = {
+        target: "eve",
+        build: "3435006",
+        Match()
+        {
+            return [ { logicalPath: genericPath } ];
+        },
+        async Fetch()
+        {
+            return { bytes: new Uint8Array(0) };
+        },
+    };
+    const loaded = [];
+    const resManLoadObject = blue.resMan.LoadObject;
+    blue.resMan.LoadObject = async path =>
+    {
+        loaded.push(path);
+        return { materialPrefixes: [], variants: [] };
+    };
+    try
+    {
+        let lazySource = null;
+        await new CjsToolSofRepository({
+            async createSof(options)
+            {
+                lazySource = options.lazyData.source;
+                const sof = await EveSOF.Create({ data: CreateData() });
+                sof.InitializeAsync = async () => {};
+                sof.GetSofLibraryBuilder = () => ({});
+                return sof;
+            },
+        }).OpenSource(source);
+
+        const record = await lazySource(genericPath);
+
+        assert.deepEqual(record, { materialPrefixes: [], variants: [] });
+        assert.deepEqual(loaded, [ "eve3435006:/dx9/model/spaceobjectfactory/generic.black" ]);
+        assert.equal(CjsToolBlueHost.getBuildProtocol(source), "eve3435006");
+        assert.equal(blue.paths.FileExists("eve3435006:/dx9/model/spaceobjectfactory/generic.black"), true);
+    }
+    finally
+    {
+        blue.resMan.LoadObject = resManLoadObject;
+    }
 });
 
 test("default expansion applies registered combined-runtime class defaults", async () =>

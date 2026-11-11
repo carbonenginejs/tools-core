@@ -1,4 +1,5 @@
 import { EveSOF, EveSOFDNA } from "@carbonenginejs/runtime/sof";
+import { CjsToolBlueHost } from "../indexing/CjsToolBlueHost.js";
 import { PrepareSofDefaults } from "./ExpandSofDefaults.js";
 
 const SOF_BASE_PATH = "res:/dx9/model/spaceobjectfactory";
@@ -29,8 +30,13 @@ export class CjsToolSofRepository
 
     #prepareDefaults = null;
 
+    #loadObject = null;
+
     /**
      * Creates a SOF repository from caller-supplied configuration.
+     * `loadObject(source, resPath)` returns the object a SOF file holds; by default Blue's resMan loads it under the
+     * build's own protocol (`CjsToolBlueHost.loadObject`), since SOF takes objects, never bytes
+     * (EveSOFDataMgr::LoadData from BeResMan->LoadObject, EveSOFDataMgr.cpp:592-610).
      */
     constructor({
         memory = null,
@@ -38,11 +44,17 @@ export class CjsToolSofRepository
         loadMode = "lazy",
         maximumCatalogs = 4,
         prepareDefaults = PrepareSofDefaults,
+        loadObject = CjsToolBlueHost.loadObject,
     } = {})
     {
         if (typeof createSof !== "function")
         {
             throw new TypeError("CjsToolSofRepository createSof must be a function");
+        }
+
+        if (typeof loadObject !== "function")
+        {
+            throw new TypeError("CjsToolSofRepository loadObject must be a function");
         }
 
         if (!SOF_LOAD_MODES.has(loadMode))
@@ -71,6 +83,7 @@ export class CjsToolSofRepository
         this.#loadMode = loadMode;
         this.#maximumCatalogs = maximumCatalogs;
         this.#prepareDefaults = prepareDefaults;
+        this.#loadObject = loadObject;
         Object.freeze(this);
     }
 
@@ -123,9 +136,8 @@ export class CjsToolSofRepository
 
         if (this.#loadMode === "full")
         {
-            const file = await source.Fetch(SOF_DATA_PATH);
             sof = await this.#createSof({
-                black: file.bytes,
+                data: await this.#loadObject(source, SOF_DATA_PATH),
                 resFileIndex,
             });
         }
@@ -134,14 +146,7 @@ export class CjsToolSofRepository
             const indexed = new Set(resFileIndex);
             sof = await this.#createSof({
                 lazyData: {
-                    source: async (logicalPath, context = {}) =>
-                    {
-                        const file = await source.Fetch(
-                            logicalPath,
-                            context.signal === null ? {} : { signal: context.signal },
-                        );
-                        return file.bytes;
-                    },
+                    source: logicalPath => this.#loadObject(source, logicalPath),
                     // The index stands in for the monolithic catalog: a material it
                     // lacks resolves to absent, as Carbon's GetMaterialData returns
                     // nullptr for a name the catalog lacks (EveSOFDataMgr.cpp:273-281),

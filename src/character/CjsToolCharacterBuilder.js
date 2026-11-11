@@ -1,9 +1,7 @@
 import { CjsCharacterLibraryBuilder, CjsCharacterLibraryManager } from "@carbonenginejs/runtime/character";
 import { blue } from "@carbonenginejs/runtime/blue";
+import { CjsToolBlueHost } from "../indexing/CjsToolBlueHost.js";
 import { CjsToolResFileSystemLocal } from "../indexing/CjsToolResFileSystemLocal.js";
-
-/** The build in progress: `blue.paths` serves one exact build at a time. */
-let building = Promise.resolve();
 
 /**
  * tools-core's character library build: the runtime's library builder (`CjsCharacterLibraryBuilder`) over one exact
@@ -17,16 +15,15 @@ export class CjsToolCharacterBuilder extends CjsCharacterLibraryBuilder
 
     /**
      * Builds the complete character library of one exact build: every configured source read. Builds run one at a
-     * time, since `blue.paths` serves one build's files at a time.
+     * time and alone (`CjsToolBlueHost.runExclusive`), since the build's files are served as `res:` and resMan is
+     * cleared around it.
      * @param {{ Match: function(string, object): Array<object>, Fetch: function(string): Promise<{ bytes: ArrayBufferView|ArrayBuffer }> }} source
      *   The exact-build source (`CjsToolIndex.OpenTarget`).
      * @returns {Promise<import("@carbonenginejs/runtime/character").CjsCharacterLibrary>} The library.
      */
     static buildFromSource(source)
     {
-        const run = building.then(() => BuildOne(source));
-        building = run.catch(() => {});
-        return run;
+        return CjsToolBlueHost.runExclusive(() => BuildOne(source));
     }
 
 }
@@ -40,9 +37,7 @@ async function BuildOne(source)
     const fileSystem = new CjsToolResFileSystemLocal(source);
     blue.resMan.Clear();
     blue.paths.RegisterFileSystem(fileSystem);
-    // Blue's resMan prepares what it loads in its per-frame Update (BlueResMan::OnTick); a Node host has no frame
-    // loop, so the build drives one while it reads.
-    const frame = setInterval(() => blue.resMan.Update(), 1);
+    // resMan's frame runs for the length of the run (CjsToolBlueHost.runExclusive).
     try
     {
         const builder = new CjsCharacterLibraryBuilder({ paths: blue.paths, resMan: blue.resMan });
@@ -51,7 +46,6 @@ async function BuildOne(source)
     }
     finally
     {
-        clearInterval(frame);
         blue.paths.UnregisterFileSystem(fileSystem);
         blue.resMan.Clear();
     }
