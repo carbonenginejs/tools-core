@@ -34,7 +34,7 @@ restrictions are not inferred from EVE.
 ```powershell
 npm run prepare:sde -- --cache <cache> [--build <exact-build>]
 npm run build:audio -- --index <resfileindex.txt> --cache <cache> --soundbanksinfo <file-or-res-path> --target <eve|frontier> --build <build> [--out <library.json>] [--enrichment <audio-metadata.json>] [--event-media] [--sfx] [--music] [--language <bcp47-tag>]
-npm run build:character -- --documents <documents.json> --catalog-inputs <catalog-inputs.json> --index <resfileindex.txt> --cache <cache> --target eve --build <build> [--out <library.json>] [--schema-version 12]
+npm run build:character -- --cache <cache> --build <build> [--target eve] [--out <library.json>]
 npm run build:skins -- --cache <cache> --build <build|latest> [--auto-prepare]
 npm run build:weapons -- --cache <cache> --build <build|latest> [--auto-prepare]
 npm run catalog:shader -- --index <resfileindex.txt> --shader-target frontier-webgl2 --build <build> --out <catalog.json>
@@ -111,45 +111,16 @@ is why the entry points read `.env`.
 ## Library shapes
 
 When `--out` is omitted, `build:audio` installs `audio_v2.json` and
-`build:character` installs `character_v10.json`, each with its deterministic
+`build:character` installs `character_v1.json`, each with its deterministic
 gzip sibling, in the exact-build custom cache that their repositories and local
 HTTP routes read. Pass `--out` for distribution builds. Each library is
 described in the JSDoc of the classes that build and serve it:
 `CjsAudioLibraryBuilder` (runtime), `CjsToolAudioRepository` and
-`CjsToolAudioSource`; `CjsToolCharacterDefinitionCompiler` and
-`CjsToolCharacterCatalogGatherer`; `CjsToolSkinBuilder`, `CjsToolSkinrBuilder`
+`CjsToolAudioSource`; `CjsCharacterLibraryBuilder` (runtime) and
+`CjsToolCharacterBuilder`; `CjsToolSkinBuilder`, `CjsToolSkinrBuilder`
 and `CjsToolWeaponBuilder`.
 
 ## Reproducibility and safety
-
-### Character schema 12
-
-The default character routes and cache token continue to serve schema 11.
-`--schema-version 12` writes a separate `character_v12.json` artifact, exposed
-only at `/{target}/{build}/character/library-v12.json`. A missing artifact
-returns not prepared; it never triggers FSD preparation or falls back to v11.
-After publication, request that route with `?refresh=1`, or call
-`OpenTarget(target, build, { schemaVersion: 12, refresh: true })`, to replace
-the repository's cached result for that version.
-
-Files-only preparation accepts empty game-record maps. Catalog inputs accept
-`sourceTexts` keyed by indexed logical path, in addition to decoded
-`definitions`. If both describe the same file they must agree. Original text
-is retained in schema 12; the known metadata YAML tag is unwrapped only for
-typed projection. Required projection failures fail gathering.
-
-The optional `preparation` input supplies `textureTargets` by source record,
-`patternTextures` mapping an authored pattern to its exact indexed resource,
-`colorBindings` with exact source/location/name/path identities, and qualified
-`channelOverrides` identifying source, version and rule. No historical
-materialized array is automatically labelled a sparse override. The gatherer
-captures candidate presence before inheritance and verifies indexed paths;
-the runtime builder owns material and semantic-channel projection.
-
-Schema-12 rebuilds replace producer-owned catalogs, retain unrelated supplied
-profiles and reject ownership conflicts. Rebuilding a prepared library needs
-its retained raw input documents; a legacy artifact alone cannot recover
-omitted fields. New source text replaces the earlier decoded projection.
 
 ### Artifact handling
 

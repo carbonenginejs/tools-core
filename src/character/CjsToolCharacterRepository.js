@@ -1,4 +1,3 @@
-import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import fs from "node:fs/promises";
 
 import { CjsCharacterLibraryManager } from "@carbonenginejs/runtime/character";
@@ -8,14 +7,10 @@ import * as utils from "../utils.js";
 import { CjsToolCharacterBuilder } from "./CjsToolCharacterBuilder.js";
 
 /**
- * Opens exact-build, version-separated character libraries from the shared tool cache.
- *
- * The default schema-11 library uses the legacy v10 `character` cache token in the
- * exact-build custom cache, where `build:character` also installs it (with its
- * gzip sibling) when `--out` is omitted. A missing library is auto-prepared
- * through the runtime character builder, which decodes the build's twelve
- * required cFSD documents; that base library carries no catalog inputs.
- * Schema 12 reads only its v12 artifact and never auto-prepares or falls back.
+ * Opens exact-build character libraries from the shared tool cache: `character_v1.json` in the exact build's custom
+ * cache, the library's values (its items by kind; runtime `CjsCharacterLibrary`, version 1). A missing library is built
+ * from the build's files by the runtime's library builder (`CjsToolCharacterBuilder`) and written there, with its gzip
+ * sibling. Earlier formats are not read.
  */
 export class CjsToolCharacterRepository
 {
@@ -32,7 +27,7 @@ export class CjsToolCharacterRepository
 
     #libraries = new Map();
 
-    /** Creates a prepared-library repository with optional cache/build services. */
+    /** Creates a library repository with optional cache/build services. */
     constructor({
         memory = null,
         cache = new CjsToolCache(),
@@ -66,16 +61,21 @@ export class CjsToolCharacterRepository
         Object.freeze(this);
     }
 
-    /** Opens one requested schema; refresh explicitly replaces its cached promise. */
-    async OpenTarget(target, build, { schemaVersion = 11, refresh = false } = {})
+    /**
+     * Opens one exact build's library; refresh rebuilds it from the build's files and rewrites the cache.
+     * @param {string} target The target.
+     * @param {string} build An exact or friendly build.
+     * @param {{ refresh?: boolean }} [options] Options.
+     * @returns {Promise<import("@carbonenginejs/runtime/character").CjsCharacterLibrary>} The installed library.
+     */
+    async OpenTarget(target, build, { refresh = false } = {})
     {
-        if (![11, 12].includes(schemaVersion)) throw new TypeError("Character schema must be 11 or 12");
         const resolvedTarget = this.#targets.RequireLibrary(
             this.#targets.Resolve({ target }),
             "character"
         );
         const exactBuild = await this.#ResolveBuild(resolvedTarget.id, build);
-        const key = `${resolvedTarget.id}\0${exactBuild}\0${schemaVersion}`;
+        const key = `${resolvedTarget.id}\0${exactBuild}`;
         if (refresh) this.#libraries.delete(key);
 
         if (this.#memory && build === "latest")
@@ -84,7 +84,7 @@ export class CjsToolCharacterRepository
         }
         if (!this.#libraries.has(key))
         {
-            const loading = this.#Load(resolvedTarget, exactBuild, schemaVersion).catch(error =>
+            const loading = this.#Load(resolvedTarget, exactBuild, refresh).catch(error =>
             {
                 if (this.#libraries.get(key) === loading) this.#libraries.delete(key);
                 throw error;
@@ -111,113 +111,39 @@ export class CjsToolCharacterRepository
         }
     }
 
-    /**
-     * Loads and installs the newest direct document, with compatible migration fallback.
-     *
-     * The first of v10 to v7 found in the custom cache is reused as-is. The key
-     * is target, build and schema version; a caller publishing a replacement
-     * requests refresh to observe it. Schema 12 never searches these legacy keys.
-     */
-    async #Load(target, build, schemaVersion)
+    /** The cache entry of one exact build's library. */
+    #CacheEntry(target, build)
     {
-        let data;
-        let filePath = null;
+        return { target: target.id, game: target.game, provider: target.provider, build, name: "character", version: "v1" };
+    }
 
-        for (const version of schemaVersion === 12 ? ["v12"] : [ "v10", "v9", "v8", "v7" ])
+    /** Installs the cached library, or builds and caches it (always on refresh). */
+    async #Load(target, build, refresh)
+    {
+        if (!refresh)
         {
-            const candidate = this.#cache.GetCustomPath({
-                target: target.id,
-                game: target.game,
-                provider: target.provider,
-                build,
-                name: "character",
-                version
-            });
-
             try
             {
-                data = JSON.parse(await fs.readFile(candidate, "utf8"));
-                filePath = candidate;
-                break;
+                const values = JSON.parse(await fs.readFile(this.#cache.GetCustomPath(this.#CacheEntry(target, build)), "utf8"));
+                return new CjsCharacterLibraryManager().InstallLibrary(values);
             }
             catch (error)
             {
-                if (error.code === "ENOENT") continue;
-
-                throw error;
+                if (error.code !== "ENOENT") throw error;
             }
         }
 
-        if (filePath === null)
+        if (!this.#autoPrepare || typeof this.#indexes?.OpenTarget !== "function")
         {
-            if (schemaVersion === 11 && this.#autoPrepare && typeof this.#indexes?.OpenTarget === "function")
-            {
-                return this.#AutoPrepare(target, build);
-            }
-
-            const missing = new Error(
-                `Character library is not prepared for ${target.id} build ${build}`
-            );
+            const missing = new Error(`Character library is not prepared for ${target.id} build ${build}`);
             missing.statusCode = 404;
             throw missing;
         }
 
-        const prepared = data;
-        if (schemaVersion === 12 ? prepared?.schemaVersion !== 12 : prepared?.schemaVersion > 11)
-            throw new TypeError("Prepared character schema does not match requested artifact");
-
-        if (!prepared || typeof prepared !== "object" || Array.isArray(prepared))
-        {
-            throw new TypeError("Prepared character library payload must be an object");
-        }
-
-        RequireIdentity("target", prepared.sourceTarget, target.id);
-        RequireIdentity("game", prepared.sourceGame, target.game);
-        RequireIdentity("provider", prepared.sourceProvider, target.provider);
-        RequireIdentity("build", prepared.sourceBuild, build);
-
-        return new CjsCharacterLibraryManager().InstallLibrary(prepared);
-    }
-
-    /** Builds a missing base library through the runtime character resource path. */
-    async #AutoPrepare(target, build)
-    {
-        const source = await this.#indexes.OpenTarget(target.id, build, {
-            client: target.client ?? undefined
-        });
-        const library = await CjsToolCharacterBuilder.buildFromResources({
-            source,
-            sourceTarget: target.id,
-            sourceGame: target.game,
-            sourceProvider: target.provider,
-            sourceBuild: build,
-            generatedAt: new Date().toISOString()
-        }, { targets: this.#targets });
-        const values = CjsSchema.getValues(library, {}, { refs: true });
-
-        await this.#cache.WriteCustomLibrary({
-            target: target.id,
-            game: target.game,
-            provider: target.provider,
-            build,
-            name: "character",
-            version: "v10"
-        }, values);
-
+        const source = await this.#indexes.OpenTarget(target.id, build, { client: target.client ?? undefined });
+        const library = await CjsToolCharacterBuilder.buildFromSource(source);
+        await this.#cache.WriteCustomLibrary(this.#CacheEntry(target, build), library.GetValues());
         return library;
     }
 
-}
-
-function RequireIdentity(label, actual, expected)
-{
-    if (actual === null || actual === undefined || String(actual).trim() === "")
-    {
-        throw new Error(`Character library is missing source ${label} identity`);
-    }
-
-    if (String(actual).toLowerCase() !== String(expected).toLowerCase())
-    {
-        throw new Error(`Character library ${label} mismatch: ${actual} !== ${expected}`);
-    }
 }

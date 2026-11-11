@@ -10,7 +10,7 @@ import readline from "node:readline";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { CjsCharacterLibrary } from "@carbonenginejs/runtime/character";
+import { CjsCharacterLibrary, CjsCharacterType } from "@carbonenginejs/runtime/character";
 import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 import {
     CjsToolIndexOverlayStore,
@@ -20,8 +20,6 @@ import {
     CjsToolTargetRegistry,
     ESI_COMPATIBILITY_DATE,
 } from "../src/index.js";
-import { CjsToolCharacter } from "../src/character/index.js";
-import { CreateCharacterDocuments } from "./character-library-fixture.js";
 
 const FixtureDirectory = path.dirname(fileURLToPath(import.meta.url));
 
@@ -656,13 +654,13 @@ test("answers a DNA resolve that selects nothing as 404 and an ambiguous one as 
     assert.equal((await broken.json()).error, "Internal tool error");
 });
 
-test("serves the combined schema-v11 character document", async context =>
+test("serves the character library's values", async context =>
 {
-    const values = CjsToolCharacter.build(CreateCharacterDocuments(), {
-        sourceTarget: "eve",
-        sourceBuild: "3450001",
-    });
-    const library = CjsCharacterLibrary.from(values);
+    const TYPE = "res:/graphics/character/female/paperdoll/hair/bob/types/bob.type";
+    const library = new CjsCharacterLibrary();
+    const type = new CjsCharacterType();
+    type.partPath = "hair/bob";
+    library.AddKind("types", TYPE, type);
     let openCount = 0;
     const proxy = new CjsToolHttpProxy({
         characters: {
@@ -720,22 +718,12 @@ test("serves the combined schema-v11 character document", async context =>
     assert.equal(response.headers.get("x-carbon-answer"), "character");
     assert.equal(response.headers.get("x-carbon-target"), "eve");
     assert.equal(response.headers.get("x-carbon-build"), "3450001");
-    assert.equal(wholeLibrary.schemaVersion, 11);
-    assert.equal(wholeLibrary.sourceTarget, "eve");
-    assert.equal(wholeLibrary.documents.characterResources[0].typeID, "9001");
+    assert.equal(wholeLibrary.schemaVersion, 1);
+    assert.deepEqual(wholeLibrary.sourceNames.types, [ TYPE ]);
     assert.deepEqual(await alias.json(), wholeLibrary);
     assert.equal(openCount, 2);
     const hydrated = CjsCharacterLibrary.from(wholeLibrary);
-
-    hydrated.Reindex();
-    assert.strictEqual(
-        hydrated.Get("ancestries", 1).bloodline,
-        hydrated.Get("bloodlines", 2)
-    );
-    assert.strictEqual(
-        hydrated.Get("bloodlines", 2).race,
-        hydrated.Get("races", 3)
-    );
+    assert.deepEqual([ hydrated.GetKindRecord("types", TYPE).partPath, hydrated.GetKindRecord("types", TYPE)._pdpID ], [ "hair/bob", TYPE ]);
     assert.equal((await fetch(`${root}/types/9001`)).status, 404);
     assert.equal((await fetch(`${root}/lookup?name=Sample`)).status, 404);
     assert.equal((await fetch(`${root}/lod/0/hair`)).status, 404);

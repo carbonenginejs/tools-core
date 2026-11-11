@@ -5,35 +5,10 @@
 const RESOURCE_PATH_MEMBERS = new Map([
     // Source: audio/src/AudManager.cpp:276
     ["AudSettings", new Set(["baseSoundbankPath"])],
-    // Source: runtime/src/character/model/catalog/CjsCharacterDefinition.js
-    ["CjsCharacterDefinition", new Set(["sourcePath"])],
-    // Source: runtime/src/character/model/catalog/CjsCharacterMaterialProfile.js
-    ["CjsCharacterMaterialProfile", new Set(["sourcePath"])],
-    // Source: runtime/src/character/model/planning/CjsCharacterOrigin.js
-    ["CjsCharacterOrigin", new Set(["resourcePath"])],
     // Source: runtime/src/character/model/catalog/CjsAvatarPartMetaData.js
     ["CjsAvatarPartMetaData", new Set(["sourcePath"])],
-    // Source: runtime/src/character/CjsCharacterAppearanceConstruction.js:125
-    // Source: runtime/src/character/CjsCharacterAppearanceConstruction.js:128
-    ["CjsCharacterPartModelBundle", new Set(["configurationPath","geometryPath"])],
-    // Source: runtime/src/character/model/catalog/CjsCharacterPartSource.js
-    ["CjsCharacterPartSource", new Set(["sourcePath"])],
-    // Source: runtime/src/character/model/catalog/CjsCharacterPartType.js
-    ["CjsCharacterPartType", new Set(["sourcePath"])],
-    // Source: runtime/src/character/model/resources/CjsCharacterPortraitResource.js
-    ["CjsCharacterPortraitResource", new Set(["resPath"])],
     // Source: runtime/src/character/model/catalog/CjsProjectedDecal.js
     ["CjsProjectedDecal", new Set(["sourcePath","texturePath","maskPath"])],
-    // Source: runtime/src/character/model/catalog/CjsCharacterRecipeProfile.js
-    ["CjsCharacterRecipeProfile", new Set(["sourcePath"])],
-    // Source: runtime/src/character/model/planning/CjsCharacterResolvedPart.js
-    ["CjsCharacterResolvedPart", new Set(["configurationPath","geometryPath"])],
-    // Source: runtime/src/character/model/resources/CjsCharacterResource.js
-    ["CjsCharacterResource", new Set(["resPath"])],
-    // Source: runtime/src/character/model/planning/CjsCharacterTextureAsset.js
-    ["CjsCharacterTextureAsset", new Set(["uri"])],
-    // Source: runtime/src/character/model/catalog/CjsCharacterTextureMetadata.js
-    ["CjsCharacterTextureMetadata", new Set(["sourcePath"])],
     // Source: runtime/src/sof/EveSOF.js:2127
     ["CjsExternalRef", new Set(["resPath"])],
     // Source: runtime/src/trinity/eve/lights/Tr2TexturedPointLight.js:95

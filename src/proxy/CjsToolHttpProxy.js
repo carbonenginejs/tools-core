@@ -3046,17 +3046,15 @@ export class CjsToolHttpProxy
         }
 
         const segments = String(route.path ?? "").split("/").filter(Boolean);
-        const v12 = segments.length === 1 && segments[0].toLowerCase() === "library-v12.json";
         const library = await this.characters.OpenTarget(route.target, route.build, {
-            schemaVersion: v12 ? 12 : 11,
             refresh: _url.searchParams.get("refresh") === "1"
         });
-        const headers = CreateCharacterHeaders(library, route);
+        const headers = CreateCharacterHeaders(route);
 
-        if (v12 || !segments.length
-            || (segments.length === 1 && segments[0].toLowerCase() === "library.json"))
+        if (!segments.length || (segments.length === 1 && segments[0].toLowerCase() === "library.json"))
         {
-            WriteJson(response, 200, CjsSchema.getValues(library, {}, { refs: true }), headers);
+            // The library's values: its items by kind (runtime CjsCharacterLibrary, version 1).
+            WriteJson(response, 200, library.GetValues(), headers);
 
             return;
         }
@@ -4413,18 +4411,12 @@ function NormalizeSkinSearchName(value)
         .replace(/\s+/gu, " ");
 }
 
-function CreateCharacterHeaders(library, route)
+function CreateCharacterHeaders(route)
 {
-    const data = typeof library.GetSourceIdentity === "function"
-        ? library.GetSourceIdentity()
-        : library;
-
     return {
         "x-carbon-answer": "character",
-        "x-carbon-target": data.sourceTarget || route.target,
-        "x-carbon-game": data.sourceGame || "",
-        "x-carbon-provider": data.sourceProvider || "",
-        "x-carbon-build": data.sourceBuild || route.build,
+        "x-carbon-target": route.target,
+        "x-carbon-build": route.build,
     };
 }
 

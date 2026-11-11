@@ -39,6 +39,7 @@ export { CjsToolIndexCache } from "./CjsToolIndexCache.js";
 export { CjsToolIndexSuppliedStore } from "./CjsToolIndexSuppliedStore.js";
 export { CjsToolIndexGraph } from "./CjsToolIndexGraph.js";
 export { CjsToolIndexAnswerCatalog } from "./CjsToolIndexAnswerCatalog.js";
+export { CjsToolResFileSystemLocal } from "./CjsToolResFileSystemLocal.js";
 export { CjsToolIndex } from "./CjsToolIndex.js";
 export { DefaultIndexProfileData } from "./defaultIndexProfiles.js";
 export { createPathMatcher, hasPathWildcard } from "./pathMatcher.js";

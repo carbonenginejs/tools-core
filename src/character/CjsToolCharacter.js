@@ -1,6 +1,5 @@
 import { CjsToolCharacterBuilder } from "./CjsToolCharacterBuilder.js";
 import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
-import * as utils from "../utils.js";
 
 /** Front-facing exact-target character-library build tool. */
 export class CjsToolCharacter
@@ -30,31 +29,15 @@ export class CjsToolCharacter
         }), "character");
     }
 
-    /** Builds one target-specific schema-v10 combined character library. */
-    Build(documents = {}, options = {})
+    /**
+     * Builds the character library of one exact build's source, after checking its target is character-capable.
+     * @param {object} source The exact-build source (`CjsToolIndex.OpenTarget`), with its `target`.
+     * @returns {Promise<import("@carbonenginejs/runtime/character").CjsCharacterLibrary>} The library.
+     */
+    async Build(source)
     {
-        const target = this.ResolveTarget({
-            target: options.sourceTarget,
-            game: options.sourceGame,
-            provider: options.sourceProvider,
-        });
-        const sourceBuild = utils.normalizeExactBuild(options.sourceBuild, {
-            message: `CjsToolCharacter requires an exact source build: ${options.sourceBuild}`,
-        });
-
-        return CjsToolCharacterBuilder.build(documents, {
-            ...options,
-            sourceTarget: target.id,
-            sourceGame: target.game,
-            sourceProvider: target.provider,
-            sourceBuild,
-        }, { targets: this.#targets });
-    }
-
-    /** Builds through a temporary target-aware character tool. */
-    static build(documents = {}, options = {})
-    {
-        return new this().Build(documents, options);
+        this.ResolveTarget({ target: source.target ?? undefined });
+        return CjsToolCharacterBuilder.buildFromSource(source);
     }
 
 }

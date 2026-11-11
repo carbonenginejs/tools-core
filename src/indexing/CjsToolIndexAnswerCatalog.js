@@ -49,6 +49,17 @@ export class CjsToolIndexAnswerCatalog
         Object.freeze(this);
     }
 
+    /**
+     * An exact build's index as a res file system, as this catalog composes its own paths (`CreateBluePaths`): what
+     * the build holds, for existence and listings. `CjsToolResFileSystemLocal` answers those through it.
+     * @param {{ Match: function(string, object): Array<object> }} source The exact-build source.
+     * @returns {BlueResFileSystemRemote} The index's file system.
+     */
+    static createIndexFileSystem(source)
+    {
+        return CreateIndexFileSystem(source.Match("res:/**", { root: "res" }));
+    }
+
     /** Checks the composed exact-build view for one logical resource. */
     Has(logicalPath)
     {
@@ -377,6 +388,16 @@ function HasIgnoredEffectFolder(logicalPath)
  */
 function CreateBluePaths(entries)
 {
+    const bluePaths = new BluePaths();
+
+    bluePaths.RegisterFileSystem(CreateIndexFileSystem(entries));
+
+    return bluePaths;
+}
+
+/** The entries as a RemoteFileCache index (Carbon's four columns), as a remote file system. */
+function CreateIndexFileSystem(entries)
+{
     const lines = entries.map(entry => [
         normalizeLogicalPath(entry.logicalPath),
         entry.location ?? "",
@@ -387,9 +408,5 @@ function CreateBluePaths(entries)
 
     remoteFileCache.AddFileIndex(lines.join("\n"));
 
-    const bluePaths = new BluePaths();
-
-    bluePaths.RegisterFileSystem(new BlueResFileSystemRemote(remoteFileCache));
-
-    return bluePaths;
+    return new BlueResFileSystemRemote(remoteFileCache);
 }

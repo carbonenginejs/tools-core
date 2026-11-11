@@ -118,37 +118,17 @@ Front-facing exact-target character-library build tool.
 <!-- class:CjsToolCharacterBuilder -->
 ## `CjsToolCharacterBuilder`
 
-Node target-policy wrapper around the runtime-owned character builder.
+The runtime character library builder over one exact build, reading through `CjsToolResFileSystemLocal` on `blue.paths`.
 
 - Export: `@carbonenginejs/tools-core/character`
 - Source: `src/character/CjsToolCharacterBuilder.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 
-<!-- class:CjsToolCharacterCatalogGatherer -->
-## `CjsToolCharacterCatalogGatherer`
-
-Gathers decoded or declared character JSON and materializes effective part-source versions.
-
-- Export: `@carbonenginejs/tools-core/character`
-- Source: `src/character/CjsToolCharacterCatalogGatherer.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolCharacterDefinitionCompiler -->
-## `CjsToolCharacterDefinitionCompiler`
-
-Retains decoded definitions losslessly and adds typed catalogs from an exact resource index.
-
-- Export: `@carbonenginejs/tools-core/character`
-- Source: `src/character/CjsToolCharacterDefinitionCompiler.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
 <!-- class:CjsToolCharacterRepository -->
 ## `CjsToolCharacterRepository`
 
-Opens exact-build prepared character libraries from the shared tool cache.
+Opens exact-build character libraries (`character_v1.json`) from the shared tool cache, building a missing one.
 
 - Export: `@carbonenginejs/tools-core/character`
 - Source: `src/character/CjsToolCharacterRepository.js`
@@ -182,6 +162,16 @@ Immutable target/build answers derived from one composed resource view.
 
 - Export: `@carbonenginejs/tools-core/index`
 - Source: `src/indexing/CjsToolIndexAnswerCatalog.js`
+- Visibility: Public
+- Kind: CarbonEngineJS
+
+<!-- class:CjsToolResFileSystemLocal -->
+## `CjsToolResFileSystemLocal`
+
+One exact build's files as the runtime's `BlueResFileSystemLocal`, for registration on `blue.paths`.
+
+- Export: `@carbonenginejs/tools-core/index`
+- Source: `src/indexing/CjsToolResFileSystemLocal.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 

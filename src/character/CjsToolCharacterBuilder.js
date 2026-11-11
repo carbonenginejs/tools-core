@@ -1,92 +1,58 @@
-import {
-    CjsCharacterLibraryBuilder,
-} from "@carbonenginejs/runtime/character";
-import { CjsToolTargetRegistry } from "../target/CjsToolTargetRegistry.js";
-import * as utils from "../utils.js";
+import { CjsCharacterLibraryBuilder, CjsCharacterLibraryManager } from "@carbonenginejs/runtime/character";
+import { blue } from "@carbonenginejs/runtime/blue";
+import { CjsToolResFileSystemLocal } from "../indexing/CjsToolResFileSystemLocal.js";
 
-const TargetRegistry = new CjsToolTargetRegistry();
+/** The build in progress: `blue.paths` serves one exact build at a time. */
+let building = Promise.resolve();
 
-/** Node target-policy wrapper around the runtime-owned character builder. */
+/**
+ * tools-core's character library build: the runtime's library builder (`CjsCharacterLibraryBuilder`) over one exact
+ * build, as `CjsToolAudioBuilder` wraps the audio builder. tools-core only provides the files: it registers the build's
+ * local file system (`CjsToolResFileSystemLocal`) on the one `blue.paths`, and the runtime builder reads through Blue's
+ * resMan as anywhere else (resman-in-the-browser.md § *File systems are the providers*). What the library reads and
+ * how it records it is the runtime's, so the two cannot drift (operator, 2026-11-10).
+ */
 export class CjsToolCharacterBuilder extends CjsCharacterLibraryBuilder
 {
 
-    /** Builds one combined model-shaped document from caller-supplied maps. */
-    static build(documents = {}, options = {}, { targets = TargetRegistry } = {})
+    /**
+     * Builds the complete character library of one exact build: every configured source read. Builds run one at a
+     * time, since `blue.paths` serves one build's files at a time.
+     * @param {{ Match: function(string, object): Array<object>, Fetch: function(string): Promise<{ bytes: ArrayBufferView|ArrayBuffer }> }} source
+     *   The exact-build source (`CjsToolIndex.OpenTarget`).
+     * @returns {Promise<import("@carbonenginejs/runtime/character").CjsCharacterLibrary>} The library.
+     */
+    static buildFromSource(source)
     {
-        return CjsCharacterLibraryBuilder.build(
-            documents,
-            ResolveTargetOptions(options, targets)
-        );
-    }
-
-    /** Builds from one acquisition-adapter input object. */
-    static buildFromInputs(input = {}, { targets = TargetRegistry } = {})
-    {
-        if (!input || typeof input !== "object" || Array.isArray(input))
-        {
-            throw new TypeError("Character library builder input must be an object");
-        }
-
-        const { documents, ...options } = input;
-
-        return this.build(documents, options, { targets });
-    }
-
-    /** Builds one hydrated library through the runtime-owned resource path. */
-    static buildFromResources(options = {}, { targets = TargetRegistry } = {})
-    {
-        return CjsCharacterLibraryBuilder.buildFromResources(
-            ResolveTargetOptions(options, targets)
-        );
+        const run = building.then(() => BuildOne(source));
+        building = run.catch(() => {});
+        return run;
     }
 
 }
 
-function ResolveTargetOptions(options, targets)
+/**
+ * One build: the build's file system registered on `blue.paths` for its length; resMan cleared before and after, as it
+ * caches reads by path and another build's file has the same path.
+ */
+async function BuildOne(source)
 {
-    const {
-        sourceTarget,
-        sourceGame,
-        sourceProvider,
-        sourceBuild,
-    } = options;
-
-    if ([ sourceTarget, sourceGame, sourceProvider ].every(value =>
-        value === null || value === undefined))
+    const fileSystem = new CjsToolResFileSystemLocal(source);
+    blue.resMan.Clear();
+    blue.paths.RegisterFileSystem(fileSystem);
+    // Blue's resMan prepares what it loads in its per-frame Update (BlueResMan::OnTick); a Node host has no frame
+    // loop, so the build drives one while it reads.
+    const frame = setInterval(() => blue.resMan.Update(), 1);
+    try
     {
-        return sourceBuild === null || sourceBuild === undefined
-            ? options
-            : {
-                ...options,
-                sourceBuild: NormalizeBuild(sourceBuild),
-            };
+        const builder = new CjsCharacterLibraryBuilder({ paths: blue.paths, resMan: blue.resMan });
+        new CjsCharacterLibraryManager(null, { sourceBuilder: builder }).Initialize({ resMan: blue.resMan });
+        return await builder.Build({ lazy: false });
     }
-
-    if (!(targets instanceof CjsToolTargetRegistry))
+    finally
     {
-        throw new TypeError(
-            "Character library targets must be a CjsToolTargetRegistry"
-        );
+        clearInterval(frame);
+        blue.paths.UnregisterFileSystem(fileSystem);
+        blue.resMan.Clear();
     }
-
-    const target = targets.RequireLibrary(targets.Resolve({
-        target: sourceTarget ?? undefined,
-        game: sourceGame ?? undefined,
-        provider: sourceProvider ?? undefined,
-    }), "character");
-
-    return {
-        ...options,
-        sourceTarget: target.id,
-        sourceGame: target.game,
-        sourceProvider: target.provider,
-        sourceBuild: NormalizeBuild(sourceBuild),
-    };
-}
-
-function NormalizeBuild(value)
-{
-    return utils.normalizeExactBuild(value, {
-        message: `Character library builder requires an exact source build: ${value}`,
-    });
 }

@@ -1,138 +1,21 @@
-import { CjsSchema } from "@carbonenginejs/runtime/schema";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { CjsCharacterLibrary } from "@carbonenginejs/runtime/character";
+import { CjsCharacterLibraryBuilder } from "@carbonenginejs/runtime/character";
 import * as rootApi from "../src/index.js";
-import {
-    CjsToolCharacter,
-    CjsToolCharacterBuilder,
-    CjsToolCharacterCatalogGatherer,
-    CjsToolCharacterDefinitionCompiler,
-    CjsToolCharacterRepository,
-} from "../src/character/index.js";
-import { CreateCharacterDocuments } from "./character-library-fixture.js";
+import * as characterApi from "../src/character/index.js";
 
-test("character subpath exposes the schema-v11 producer surface", () =>
+test("the character subpath is the runtime builder's wrapper, the target policy and the repository", () =>
 {
-    assert.equal(typeof CjsToolCharacter, "function");
-    assert.equal(typeof CjsToolCharacterBuilder, "function");
-    assert.equal(typeof CjsToolCharacterCatalogGatherer, "function");
-    assert.equal(typeof CjsToolCharacterDefinitionCompiler, "function");
-    assert.equal(typeof CjsToolCharacterRepository, "function");
-    assert.equal(rootApi.CjsToolCharacterDefinitionCompiler, undefined);
+    assert.deepEqual(Object.keys(characterApi).sort(), [ "CjsToolCharacter", "CjsToolCharacterBuilder", "CjsToolCharacterRepository" ]);
+    assert.ok(characterApi.CjsToolCharacterBuilder.prototype instanceof CjsCharacterLibraryBuilder, "it wraps the runtime builder, as audio does");
     assert.equal(rootApi.CjsToolCharacter, undefined);
-    assert.equal(rootApi.CjsToolCharacterAssembler, undefined);
-    assert.equal(rootApi.CjsToolCharacterCompiler, undefined);
-    assert.equal(rootApi.CjsToolCharacterLibrary, undefined);
-    assert.equal(rootApi.CjsToolCharacterNormalizer, undefined);
-    assert.equal(rootApi.CjsToolCharacterSerializer, undefined);
+    assert.equal(rootApi.CjsToolCharacterBuilder, undefined);
 });
 
-test("target-aware character builds delegate to the runtime-owned schema", () =>
+test("builds reject a target without a character library", async () =>
 {
-    const documents = CreateCharacterDocuments();
-    const typePath = documents.characterResources[21].resPath;
-
-    documents.characterPartTypes = {
-        [typePath]: {
-            sourcePath: typePath,
-            sex: "female",
-            partPath: "hair/logical-sample",
-            resourceVersion: "v1",
-            colorVariant: "dark",
-            partSource: "female/hair/sample",
-        },
-    };
-    documents.characterPartSources = {
-        "female/hair/sample": {
-            sourcePath: "res:/example/assets/sample",
-            sex: "female",
-            partPath: "hair/sample",
-            versions: [ {
-                resourceVersion: "v1",
-                configurationCandidates: [
-                    "res:/example/assets/sample.configuration",
-                ],
-                geometryCandidates: [],
-                textureCandidates: [],
-            } ],
-            metadata: null,
-        },
-    };
-
-    const values = CjsToolCharacter.build(documents, {
-        sourceTarget: "eve",
-        sourceBuild: "3450001",
-        generatedAt: "2026-08-02T00:00:00.000Z",
-    });
-    const library = CjsCharacterLibrary.from(values);
-
-    library.Reindex();
-    assert.equal(values.schemaVersion, 11);
-    assert.equal(values.sourceTarget, "eve");
-    assert.equal(values.sourceGame, "Eve");
-    assert.equal(values.sourceProvider, "ccp");
-    assert.equal(values.sourceBuild, "3450001");
-    assert.equal(library.ListDocuments().length, 20);
-    assert.strictEqual(
-        library.Get("characterResources", 21).partType,
-        library.Get("characterPartTypes", typePath)
-    );
-    assert.strictEqual(
-        library.Get("characterPartTypes", typePath).partSource,
-        library.Get("characterPartSources", "female/hair/sample")
-    );
-    assert.deepEqual(
-        CjsSchema.getValues(CjsCharacterLibrary.from(JSON.parse(JSON.stringify(
-            CjsSchema.getValues(library, {}, { refs: true })
-        ))), {}, { refs: true }),
-        CjsSchema.getValues(library, {}, { refs: true })
-    );
-});
-
-test("unscoped builder remains usable with caller-owned synthetic documents", () =>
-{
-    const values = CjsToolCharacterBuilder.build(CreateCharacterDocuments());
-    const fromInputs = CjsToolCharacterBuilder.buildFromInputs({
-        documents: CreateCharacterDocuments(),
-        sourceTarget: "eve",
-        sourceBuild: "3450001",
-    });
-
-    assert.equal(values.schemaVersion, 11);
-    assert.equal(Object.hasOwn(values, "sourceTarget"), false);
-    assert.equal(fromInputs.sourceTarget, "eve");
-    assert.equal(fromInputs.sourceBuild, "3450001");
-});
-
-test("target-aware builds reject unaudited character targets and friendly builds", () =>
-{
-    assert.throws(
-        () => CjsToolCharacter.build(CreateCharacterDocuments(), {
-            sourceTarget: "frontier",
-            sourceBuild: "3450001",
-        }),
-        /does not support target frontier/u
-    );
-    assert.throws(
-        () => CjsToolCharacter.build(CreateCharacterDocuments(), {
-            sourceTarget: "eve",
-            sourceBuild: "latest",
-        }),
-        /exact source build/u
-    );
-    assert.throws(
-        () => CjsToolCharacterBuilder.build(CreateCharacterDocuments(), {
-            sourceTarget: "eve",
-        }),
-        /exact source build/u
-    );
-    assert.throws(
-        () => CjsToolCharacterBuilder.build(CreateCharacterDocuments(), {
-            sourceTarget: "eve",
-            sourceBuild: "latest",
-        }),
-        /exact source build/u
-    );
+    const character = new characterApi.CjsToolCharacter();
+    assert.equal(character.ResolveTarget({ target: "eve" }).id, "eve");
+    await assert.rejects(character.Build({ target: "frontier" }), /does not support target frontier/u);
 });

@@ -764,10 +764,8 @@ GET /eve/<build>/character
 GET /eve/<build>/character/library.json
 ```
 
-Both routes return the same complete schema-v10 model-shaped document. The
-`@carbonenginejs/runtime/character` owns hydration, document lookup, and graph
-relationships. The HTTP adapter does not expose the retired inferred
-part/name/category/LOD query surface.
+Both routes return the build's character library values (its items by kind, version 1), built from the build's files
+by `@carbonenginejs/runtime/character` on first request and cached as `character_v1.json`. `?refresh=1` rebuilds it.
 
 ## SKIN and SKINR routes
 
