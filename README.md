@@ -51,13 +51,8 @@ checked against declared size and MD5 before they are returned or cached.
 Each area is independently importable through a documented package subpath.
 The runtime audio and character layers own their raw-resource build algorithms;
 tools-core supplies target-selected exact-build bytes and persists their
-`GetValues()` output. The character subpath also gathers optional prepared
-model-shaped JSON records and
-materializes sparse part-source authoring into complete effective metadata and
-exact resource-candidate inventories, while
-`@carbonenginejs/runtime/character` owns the
-combined schema-v10 model and hydration contract. Decoded character definitions
-are retained losslessly; typed catalogs are additive indexes.
+`GetValues()` output; for character, through a local file system the runtime
+reads on `blue.paths`.
 
 ## Documentation
 
