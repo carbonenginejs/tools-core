@@ -152,7 +152,7 @@ test("the emitter writes extends, inherit, an own interface table and the chain 
 
 const stretchSource = `
 import { meta } from "#schema";
-@meta.define({ className: "StretchAudio", family: "audio" })
+@meta.define({ name: "StretchAudio", family: "audio" })
 @meta.blue.inherit(IInitialize)
 @meta.blue.interface(IInitialize)
 @meta.blue.chainTo(IStretchAudio)
@@ -187,7 +187,7 @@ test("StretchAudio: a chain to an interface Carbon maps instead is reported with
 test("a maintained class with no own table, or a later stateful base, is reported precisely", () =>
 {
     const lineage = deriveCarbonLineage(audEmitterDoc, { resolveDoc: resolverOf(audioDocs) });
-    const noTable = parseClassFile(`@meta.define({ className: "AudEmitter" })\n@meta.blue.inherit(IBlueEventListener, IBluePlacementObserver, ITr2DebugRenderable, ITr2AudEmitter)\nexport class AudEmitter extends ITr2AudEmitter {}\n`);
+    const noTable = parseClassFile(`@meta.define({ name: "AudEmitter" })\n@meta.blue.inherit(IBlueEventListener, IBluePlacementObserver, ITr2DebugRenderable, ITr2AudEmitter)\nexport class AudEmitter extends ITr2AudEmitter {}\n`);
     const kinds = compareLineage(lineage, noTable, { reportOnly: true, resolveDoc: resolverOf(audioDocs) }).map(item => item.kind).sort();
     assert.deepEqual(kinds, [ "chain-missing", "extends-differs", "no-own-table" ]);
     // Imperative exposure (files that stay plain JavaScript) counts as the class's table.
@@ -304,7 +304,7 @@ test("matching follows Carbon's parameter names, type meaning and native-type ru
 test("method coverage credits variants to their Carbon name instead of listing them as unknown", () =>
 {
     const doc = { cppClass: "Tr2Effect", blueClass: "Tr2Effect", family: "shader", attributes: [], nativeMethods: effectDoc.nativeMethods };
-    const source = `@meta.define({ className: "Tr2Effect", family: "shader" })\nexport class Tr2Effect\n{\n` + effectMethods().map(item =>
+    const source = `@meta.define({ name: "Tr2Effect", family: "shader" })\nexport class Tr2Effect\n{\n` + effectMethods().map(item =>
         `  @meta.blue.method\n  @meta.implemented\n  ${item.name}(${item.parameters.join(", ")}) {}\n`).join("") + "}\n";
     const result = compareClass(deriveExpectedFields(doc), parseClassFile(source), { overloadSets: deriveOverloadSets(doc) });
     assert.equal(result.methods.filter(item => item.verdict === "additional-carbon-method").length, 0);

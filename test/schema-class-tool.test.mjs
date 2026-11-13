@@ -644,7 +644,7 @@ test("emitted math fields import the combined runtime math subpath", () =>
 test("renamed Blue methods require Carbon provenance and one implementation status", () =>
 {
     const parsed = parseClassFile(`
-        @meta.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ name: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
             @meta.blue.renamed("SetPlacement")
@@ -665,7 +665,7 @@ test("renamed Blue methods require Carbon provenance and one implementation stat
 test("method checking distinguishes missing, unexposed, and incomplete methods", () =>
 {
     const missing = compareClass(MakeExpectedMethods(), parseClassFile(`
-        @meta.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ name: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
         }
@@ -674,7 +674,7 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
     assert.equal(missing.summary.drift, true);
 
     const unexposed = compareClass(MakeExpectedMethods(), parseClassFile(`
-        @meta.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ name: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
             SetPlacement()
@@ -686,7 +686,7 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
     assert.equal(unexposed.summary.existingUnexposedMethod, 1);
 
     const incomplete = compareClass(MakeExpectedMethods(), parseClassFile(`
-        @meta.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ name: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
             @meta.blue.renamed("SetPlacement")
@@ -701,7 +701,7 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
     assert.match(incomplete.methods[0].notes.join(" "), /requires an explanation in the method JSDoc/);
 
     const missingStatus = compareClass(MakeExpectedMethods(), parseClassFile(`
-        @meta.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ name: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
             @meta.blue.renamed("SetPlacement")
@@ -715,7 +715,7 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
     assert.match(missingStatus.methods[0].notes.join(" "), /exactly one implementation-status/);
 
     const multipleStatuses = compareClass(MakeExpectedMethods(), parseClassFile(`
-        @meta.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ name: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
             @meta.blue.renamed("SetPlacement")
@@ -734,7 +734,7 @@ test("method checking distinguishes missing, unexposed, and incomplete methods",
 test("additional Carbon methods are informative rather than Blue schema drift", () =>
 {
     const parsed = parseClassFile(`
-        @meta.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ name: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
             @meta.blue.renamed("SetPlacement")
@@ -767,7 +767,7 @@ test("the define metadata is read from the decorator and from the call form alik
     // that reads only the decorator sees the whole layer as undeclared.
     const decorated = parseClassFile([
         "import { type } from \"#schema\";",
-        "@meta.define({ className: \"Tr2Thing\" })",
+        "@meta.define({ name: \"Tr2Thing\" })",
         "export class Tr2Thing {}"
     ].join("\n"));
 
@@ -775,7 +775,7 @@ test("the define metadata is read from the decorator and from the call form alik
 
     const called = parseClassFile([
         "export class Tr2TextureALStub {}",
-        "CjsSchema.define(Tr2TextureALStub, { className: \"Tr2TextureALStub\" });"
+        "CjsSchema.define(Tr2TextureALStub, { name: \"Tr2TextureALStub\" });"
     ].join("\n"));
 
     assert.equal(called.define.className, "Tr2TextureALStub");
@@ -789,7 +789,7 @@ test("a declared donor is read, and a qualified one keeps only its class", () =>
     // schema lookup should follow.
     const suffixed = parseClassFile([
         "export class Tr2TextureALStub {}",
-        "CjsSchema.define(Tr2TextureALStub, { className: \"Tr2TextureALStub\", carbon: \"Tr2TextureAL\" });"
+        "CjsSchema.define(Tr2TextureALStub, { name: \"Tr2TextureALStub\", carbon: \"Tr2TextureAL\" });"
     ].join("\n"));
 
     assert.equal(suffixed.define.className, "Tr2TextureALStub");
@@ -797,7 +797,7 @@ test("a declared donor is read, and a qualified one keeps only its class", () =>
     assert.equal(suffixed.define.modelledOn, null);
 
     const qualified = parseClassFile([
-        "@meta.define({ className: \"CjsBitmapDimensions\", carbon: \"ImageIO::BitmapDimensions\" })",
+        "@meta.define({ name: \"CjsBitmapDimensions\", carbon: \"ImageIO::BitmapDimensions\" })",
         "export class CjsBitmapDimensions {}"
     ].join("\n"));
 
@@ -811,7 +811,7 @@ test("modelledOn is read separately, because it is the opposite claim", () =>
     // two surfaces. Collapsing them would make a declined port look like a
     // failed one.
     const parsed = parseClassFile([
-        "@meta.define({ className: \"CjsWebgpuWorkQueue\", modelledOn: \"MetalWorkQueue\" })",
+        "@meta.define({ name: \"CjsWebgpuWorkQueue\", modelledOn: \"MetalWorkQueue\" })",
         "export class CjsWebgpuWorkQueue {}"
     ].join("\n"));
 
@@ -936,7 +936,7 @@ test("a base Carbon never exposes takes its flags from the subclasses that do", 
     assert.deepEqual(byName.profile.editFlagConflict.map(item => item.exposers), [ [ "FixturePointLight" ], [ "FixtureSpotLight" ] ]);
 
     const result = compareClass(expected, parseClassFile(`
-@meta.define({ className: "FixtureLight" })
+@meta.define({ name: "FixtureLight" })
 export class FixtureLight
 {
     @be.mapAttribute(be.READWRITE | be.PERSIST)
@@ -961,7 +961,7 @@ test("edit flags are compared as a set, reporting missing and extra flags", () =
 {
     const expected = deriveExpectedFields(MakeEditFlagDoc());
     const result = compareClass(expected, parseClassFile(`
-        @meta.define({ className: "AudEmitter", family: "audio" })
+        @meta.define({ name: "AudEmitter", family: "audio" })
         export class AudEmitter extends CjsModel
         {
             @be.mapAttribute(be.READWRITE | be.PERSIST)
@@ -1121,7 +1121,7 @@ test("stored and live ship declarations survive emission, parsing and comparison
     // Counterexample: the old emitter passed a field with merged flags and
     // silently omitted the setter. The role-aware checker must reject it.
     const merged = parseClassFile(`
-        @meta.define({ className: "FixtureShip", family: "eve" })
+        @meta.define({ name: "FixtureShip", family: "eve" })
         export class FixtureShip extends CjsModel
         {
             @be.mapAttribute(be.READWRITE | be.PERSISTONLY)
@@ -1169,7 +1169,7 @@ test("blue.property flags are derived from the accessors and persisted", () =>
 test("new namespace aliases retain stored member names, indices and live accessor types", () =>
 {
     const parsed = parseClassFile(`
-        @meta.define({ className: "FixtureShip", family: "eve" })
+        @meta.define({ name: "FixtureShip", family: "eve" })
         export class FixtureShip extends CjsModel
         {
             @blue.attribute("boosters", { index: 3 })
@@ -1325,7 +1325,7 @@ test("generated classes take their base from Carbon, never from an option", () =
 test("compact namespaces preserve legacy parsed records and separate UI hints", () =>
 {
     const legacy = `
-@type.define({ className: "CompactFixture", family: "trinity" })
+@type.define({ name: "CompactFixture", family: "trinity" })
 export class CompactFixture {
   @meta.attribute("exposed") @type.float32 @edit.readwrite @edit.persist @edit.notify
   _value = 1;

@@ -2843,7 +2843,7 @@ function parseDefine(src)
     const arg = (decorator ? decorator[3] : match[2]).trim();
     if (arg.startsWith("{"))
     {
-        const nameMatch = arg.match(/className\s*:\s*["']([^"']+)["']/);
+        const nameMatch = arg.match(/\bname\s*:\s*["']([^"']+)["']/);
         const carbonMatch = arg.match(/\bcarbon\s*:\s*["']([^"']+)["']/);
         const modelledMatch = arg.match(/\bmodelledOn\s*:\s*["']([^"']+)["']/);
         const donorMatch = arg.match(/\bdonors\s*:\s*\[\s*["']([^"']+)["']/);
