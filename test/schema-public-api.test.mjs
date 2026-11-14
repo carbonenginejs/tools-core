@@ -246,14 +246,14 @@ test("reader exposes the standard public profile API", () =>
 {
     assert.deepEqual(Object.getOwnPropertyNames(CjsFormatCarbon.prototype).sort(), [
         "GetClass",
-        "GetValues",
+        "GetConfiguration",
         "HasClass",
         "Inspect",
         "Read",
         "ReadBlackDefinitions",
         "SetClass",
         "SetClasses",
-        "SetValues",
+        "SetConfiguration",
         "ToJSON",
         "Write",
         "WriteBlackDefinitions",
@@ -276,8 +276,8 @@ test("reader manages values and classes", () =>
     assert.equal(reader.HasClass("Schema"), true);
     assert.equal(reader.HasClass("Type"), true);
     assert.equal(reader.GetClass("Schema"), Schema);
-    assert.equal(reader.GetValues().emit, CjsFormatCarbon.OUTPUT_JSON);
-    assert.equal(reader.GetValues().version, CjsFormatCarbon.SCHEMA_VERSION);
+    assert.equal(reader.GetConfiguration().emit, CjsFormatCarbon.OUTPUT_JSON);
+    assert.equal(reader.GetConfiguration().version, CjsFormatCarbon.SCHEMA_VERSION);
     assert.deepEqual(CjsFormatCarbon.CLASS_KEYS.includes("Schema"), true);
 });
 

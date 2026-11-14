@@ -45,7 +45,7 @@ export class CjsFormatCarbon
      */
     constructor(options = {})
     {
-        this.SetValues(options);
+        this.SetConfiguration(options);
     }
 
     /**
@@ -54,9 +54,9 @@ export class CjsFormatCarbon
      * @param {object} [options] Values to merge into the profile.
      * @returns {CjsFormatCarbon} This format profile.
      */
-    SetValues(options = {})
+    SetConfiguration(options = {})
     {
-        const values = normalizeValues(this.GetValues(), options, CLASS_KEYS, FORMAT_NAME);
+        const values = normalizeValues(this.GetConfiguration(), options, CLASS_KEYS, FORMAT_NAME);
         this.#emit = values.emit;
         this.#fieldResolutions = values.fieldResolutions;
         this.#schema = values.schema;
@@ -72,7 +72,7 @@ export class CjsFormatCarbon
      * @param {object} [options] Optional values to merge into a copy.
      * @returns {object} A copy of the effective values.
      */
-    GetValues(options = {})
+    GetConfiguration(options = {})
     {
         return normalizeValues({
             emit: this.#emit,
@@ -92,7 +92,7 @@ export class CjsFormatCarbon
      */
     SetClasses(classes = {})
     {
-        return this.SetValues({ classes });
+        return this.SetConfiguration({ classes });
     }
 
     /**
@@ -149,7 +149,7 @@ export class CjsFormatCarbon
      */
     Read(input, options = {})
     {
-        return CjsFormatCarbon.read(input, this.GetValues(options));
+        return CjsFormatCarbon.read(input, this.GetConfiguration(options));
     }
 
     /**
@@ -162,7 +162,7 @@ export class CjsFormatCarbon
      */
     Inspect(input, options = {})
     {
-        return CjsFormatCarbon.inspect(input, this.GetValues(options));
+        return CjsFormatCarbon.inspect(input, this.GetConfiguration(options));
     }
 
     /**
@@ -176,7 +176,7 @@ export class CjsFormatCarbon
      */
     Write(input, outputRoot, options = {})
     {
-        return CjsFormatCarbon.write(input, outputRoot, this.GetValues(options));
+        return CjsFormatCarbon.write(input, outputRoot, this.GetConfiguration(options));
     }
 
     /**
@@ -189,7 +189,7 @@ export class CjsFormatCarbon
      */
     ReadBlackDefinitions(input, options = {})
     {
-        return CjsFormatCarbon.readBlackDefinitions(input, this.GetValues(options));
+        return CjsFormatCarbon.readBlackDefinitions(input, this.GetConfiguration(options));
     }
 
     /**
@@ -203,7 +203,7 @@ export class CjsFormatCarbon
      */
     WriteBlackDefinitions(input, outputRoot, options = {})
     {
-        return CjsFormatCarbon.writeBlackDefinitions(input, outputRoot, this.GetValues(options));
+        return CjsFormatCarbon.writeBlackDefinitions(input, outputRoot, this.GetConfiguration(options));
     }
 
     /**
