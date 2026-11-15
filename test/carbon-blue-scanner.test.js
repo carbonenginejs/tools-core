@@ -143,7 +143,7 @@ test("a declaration that wraps its parameters over several lines is one method, 
     const classInfo = parsed.classes.find(item => item.name === "IWrapped");
 
     assert.ok(classInfo);
-    assert.deepEqual(classInfo.methods.map(method => method.name), ["SetPivots", "CopyMatrix", "operator", "operator", "Single"]);
+    assert.deepEqual(classInfo.methods.map(method => method.name), ["SetPivots", "CopyMatrix", "operator=", "operator==", "Single"]);
     const wrapped = classInfo.methods.find(method => method.name === "SetPivots");
     assert.equal(wrapped.pureVirtual, true);
     assert.equal(wrapped.parameters.length, 3);
