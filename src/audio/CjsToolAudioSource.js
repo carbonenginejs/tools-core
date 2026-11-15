@@ -42,7 +42,10 @@ export class CjsToolAudioSource
         return true;
     }
 
-    /** Creates a media source over one installed library and indexed source. */
+    /**
+     * Creates a media source over one audio library's data (`CjsAudioLibrary.GetData`) and an indexed source; the
+     * source keeps its own library built from that data.
+     */
     constructor({
         library,
         source,
@@ -50,9 +53,9 @@ export class CjsToolAudioSource
         music = null,
     } = {})
     {
-        const installed = CjsAudioLibrary.from(library);
+        const installed = new CjsAudioLibrary(library);
 
-        this.constructor.validateLibrary(installed.GetValues());
+        this.constructor.validateLibrary(installed.GetData());
 
         if (!source
             || (typeof source.Fetch !== "function"

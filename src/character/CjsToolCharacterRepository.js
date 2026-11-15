@@ -7,8 +7,8 @@ import * as utils from "../utils.js";
 import { CjsToolCharacterBuilder } from "./CjsToolCharacterBuilder.js";
 
 /**
- * Opens exact-build character libraries from the shared tool cache: `character_v1.json` in the exact build's custom
- * cache, the library's values (its items by kind; runtime `CjsCharacterLibrary`, version 1). A missing library is built
+ * Opens exact-build character libraries from the shared tool cache: `character_v2.json` in the exact build's custom
+ * cache, the library's data (its items by kind; runtime `CjsCharacterLibrary`, version 2). A missing library is built
  * from the build's files by the runtime's library builder (`CjsToolCharacterBuilder`) and written there, with its gzip
  * sibling. Earlier formats are not read.
  */
@@ -114,7 +114,7 @@ export class CjsToolCharacterRepository
     /** The cache entry of one exact build's library. */
     #CacheEntry(target, build)
     {
-        return { target: target.id, game: target.game, provider: target.provider, build, name: "character", version: "v1" };
+        return { target: target.id, game: target.game, provider: target.provider, build, name: "character", version: "v2" };
     }
 
     /** Installs the cached library, or builds and caches it (always on refresh). */
@@ -142,7 +142,7 @@ export class CjsToolCharacterRepository
 
         const source = await this.#indexes.OpenTarget(target.id, build, { client: target.client ?? undefined });
         const library = await CjsToolCharacterBuilder.buildFromSource(source);
-        await this.#cache.WriteCustomLibrary(this.#CacheEntry(target, build), library.GetValues());
+        await this.#cache.WriteCustomLibrary(this.#CacheEntry(target, build), library.GetData());
         return library;
     }
 

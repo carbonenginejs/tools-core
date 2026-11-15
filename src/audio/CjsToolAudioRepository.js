@@ -328,13 +328,13 @@ export class CjsToolAudioRepository
                 game: target.game,
                 provider: target.provider,
                 build: sourceIdentity.build,
-                library: library.GetValues(),
+                library: library.GetData(),
                 bankBytes: loadedBanks,
             })).library;
-            library = CjsAudioLibrary.from(library);
+            library = new CjsAudioLibrary(library);
         }
 
-        const values = library.GetValues();
+        const values = library.GetData();
 
         await this.#cache.WriteCustomLibrary({
             target: target.id,
@@ -348,7 +348,7 @@ export class CjsToolAudioRepository
         return values;
     }
 
-    /** Materializes an already prepared library without rebuilding its graph. */
+    /** Materializes an already prepared library without rebuilding its graph; answers the materialized library's data. */
     async #MaterializeLibrary(target, sourceIdentity, library, source)
     {
         const loadedBanks = new Map();
@@ -372,7 +372,7 @@ export class CjsToolAudioRepository
             library,
             bankBytes: loadedBanks,
         });
-        const libraryValue = CjsAudioLibrary.from(materialized.library);
+        const libraryData = new CjsAudioLibrary(materialized.library).GetData();
 
         await this.#cache.WriteCustomLibrary({
             target: target.id,
@@ -381,9 +381,9 @@ export class CjsToolAudioRepository
             build: sourceIdentity.build,
             name: "audio",
             version: "v2",
-        }, libraryValue.GetValues());
+        }, libraryData);
 
-        return libraryValue;
+        return libraryData;
     }
 
 }

@@ -56,7 +56,7 @@ core, format, and domain runtime packages
 
 Runtime and engine packages must not import tools-core. Tools-core calls
 the runtime audio builder with a Node byte source and serializes
-`library.GetValues()`; it coordinates rather than duplicates joins, decoding,
+`library.GetData()`; it coordinates rather than duplicates joins, decoding,
 or conversion. It applies the same boundary to the runtime character
 combined-library builder.
 

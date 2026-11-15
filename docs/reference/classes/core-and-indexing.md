@@ -128,7 +128,7 @@ The runtime character library builder over one exact build, reading through `Cjs
 <!-- class:CjsToolCharacterRepository -->
 ## `CjsToolCharacterRepository`
 
-Opens exact-build character libraries (`character_v1.json`) from the shared tool cache, building a missing one.
+Opens exact-build character libraries (`character_v2.json`) from the shared tool cache, building a missing one.
 
 - Export: `@carbonenginejs/tools-core/character`
 - Source: `src/character/CjsToolCharacterRepository.js`

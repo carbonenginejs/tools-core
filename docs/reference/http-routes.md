@@ -234,7 +234,7 @@ Audio routes answer from the prepared exact-build audio library; a missing
 library is built automatically from the build's own indexed inputs on its
 first request (`--no-audio-auto-prepare` disables this). The repository passes
 its validated index/cache source into the runtime audio raw-resource builder and
-stores `library.GetValues()`; the HTTP layer does not implement a second join.
+stores `library.GetData()`; the HTTP layer does not implement a second join.
 
 The ID route resolves one canonical positive decimal media ID through the
 prepared exact-build audio library. Compatible prepared/converted media wins
@@ -764,8 +764,8 @@ GET /eve/<build>/character
 GET /eve/<build>/character/library.json
 ```
 
-Both routes return the build's character library values (its items by kind, version 1), built from the build's files
-by `@carbonenginejs/runtime/character` on first request and cached as `character_v1.json`. `?refresh=1` rebuilds it.
+Both routes return the build's character library data (its items by kind, version 2), built from the build's files
+by `@carbonenginejs/runtime/character` on first request and cached as `character_v2.json`. `?refresh=1` rebuilds it.
 
 ## SKIN and SKINR routes
 

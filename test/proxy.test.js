@@ -654,7 +654,7 @@ test("answers a DNA resolve that selects nothing as 404 and an ambiguous one as 
     assert.equal((await broken.json()).error, "Internal tool error");
 });
 
-test("serves the character library's values", async context =>
+test("serves the character library's data", async context =>
 {
     const TYPE = "res:/graphics/character/female/paperdoll/hair/bob/types/bob.type";
     const library = new CjsCharacterLibrary();
@@ -718,11 +718,11 @@ test("serves the character library's values", async context =>
     assert.equal(response.headers.get("x-carbon-answer"), "character");
     assert.equal(response.headers.get("x-carbon-target"), "eve");
     assert.equal(response.headers.get("x-carbon-build"), "3450001");
-    assert.equal(wholeLibrary.schemaVersion, 1);
-    assert.deepEqual(wholeLibrary.sourceNames.types, [ TYPE ]);
+    assert.equal(wholeLibrary.schemaVersion, 2);
+    assert.deepEqual(wholeLibrary.types.map(record => record._pdpID), [ TYPE ]);
     assert.deepEqual(await alias.json(), wholeLibrary);
     assert.equal(openCount, 2);
-    const hydrated = CjsCharacterLibrary.from(wholeLibrary);
+    const hydrated = new CjsCharacterLibrary().SetData(wholeLibrary);
     assert.deepEqual([ hydrated.GetKindRecord("types", TYPE).partPath, hydrated.GetKindRecord("types", TYPE)._pdpID ], [ "hair/bob", TYPE ]);
     assert.equal((await fetch(`${root}/types/9001`)).status, 404);
     assert.equal((await fetch(`${root}/lookup?name=Sample`)).status, 404);

@@ -44,7 +44,7 @@ async function Cache(context)
     return { directory, cache: new CjsToolCache(directory), file: version => path.join(directory, "custom", "targets", "eve", "builds", "3450001", `character_${version}.json`) };
 }
 
-test("a missing library is built from the build's files by the runtime builder and cached as version 1", async context =>
+test("a missing library is built from the build's files by the runtime builder and cached as version 2", async context =>
 {
     const { cache, file } = await Cache(context);
     const { counts, indexes } = Build();
@@ -53,9 +53,9 @@ test("a missing library is built from the build's files by the runtime builder a
     assert.ok(library instanceof CjsCharacterLibrary);
     assert.deepEqual([ library.GetKindRecord("types", TYPE).partPath, library.GetKindRecord("types", TYPE).colorVariant ], [ "hair/bob", "dark" ]);
     assert.deepEqual(counts.fetched.sort(), [ COLOR, TYPE ].sort());
-    const values = JSON.parse(await fs.readFile(file("v1"), "utf8"));
-    assert.equal(values.schemaVersion, 1);
-    assert.deepEqual(values.sourceNames.types, [ TYPE ]);
+    const values = JSON.parse(await fs.readFile(file("v2"), "utf8"));
+    assert.equal(values.schemaVersion, 2);
+    assert.deepEqual(values.types.map(record => record._pdpID), [ TYPE ]);
 });
 
 test("a cached library is read without opening the build; refresh rebuilds it", async context =>

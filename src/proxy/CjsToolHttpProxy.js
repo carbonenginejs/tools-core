@@ -1246,7 +1246,7 @@ export class CjsToolHttpProxy
                 return;
             }
 
-            WriteJson(response, 200, library.GetValues(), headers);
+            WriteJson(response, 200, library.GetData(), headers);
 
             return;
         }
@@ -3053,8 +3053,8 @@ export class CjsToolHttpProxy
 
         if (!segments.length || (segments.length === 1 && segments[0].toLowerCase() === "library.json"))
         {
-            // The library's values: its items by kind (runtime CjsCharacterLibrary, version 1).
-            WriteJson(response, 200, library.GetValues(), headers);
+            // The library's data: its items by kind (runtime CjsCharacterLibrary, version 2).
+            WriteJson(response, 200, library.GetData(), headers);
 
             return;
         }

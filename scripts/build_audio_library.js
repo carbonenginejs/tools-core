@@ -199,7 +199,7 @@ async function Main(argv)
         },
     });
 
-    const values = library.GetValues();
+    const values = library.GetData();
 
     const outPath = options.out
         ? path.resolve(options.out)

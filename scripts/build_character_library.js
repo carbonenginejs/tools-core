@@ -1,4 +1,5 @@
 import path from "node:path";
+import { CjsCharacterLibraryConfiguration } from "@carbonenginejs/runtime/character";
 import { CjsToolCache } from "../src/cache/index.js";
 import { CjsToolIndexCache, CjsToolIndex } from "../src/indexing/index.js";
 import { CjsToolCharacter, CjsToolCharacterRepository } from "../src/character/index.js";
@@ -9,7 +10,7 @@ const HELP = `Usage:
   node scripts/build_character_library.js --cache <cache-dir> --build <id> [--target <name>] [--out <library.json>]
 
 Builds one exact build's character library from its files, through the runtime's character library builder, and
-writes it to the shared custom cache (character_v1.json, with its .json.gz sibling), where the service reads it.
+writes it to the shared custom cache (character_v2.json, with its .json.gz sibling), where the service reads it.
 
 Options:
   --cache <dir>     Tool cache root holding the build's index and files.
@@ -48,10 +49,10 @@ async function Main(argv)
 
     if (options.out)
     {
-        const artifact = await CjsToolLibraryArtifact.write(path.resolve(options.out), library.GetValues(), { compact: options.compact });
+        const artifact = await CjsToolLibraryArtifact.write(path.resolve(options.out), library.GetData(), { compact: options.compact });
         process.stdout.write(`${artifact.jsonPath}\n`);
     }
-    const counts = Object.entries(library.GetValues().sourceNames).map(([ kind, names ]) => `${kind} ${names.length}`);
+    const counts = Object.keys(CjsCharacterLibraryConfiguration.kinds).map(kind => [ kind, library.ListKindNames(kind).length ]).filter(([ , n ]) => n > 0).map(([ kind, n ]) => `${kind} ${n}`);
     process.stdout.write(`character library ${target.id} ${options.build}: ${counts.join(", ")}\n`);
 }
 

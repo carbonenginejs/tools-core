@@ -611,8 +611,8 @@ test("audio repository optionally materializes embedded WEMs as generated resour
         "the original embedded range remains as a fallback representation",
     );
 
-    // A library document holds only the sections present (CjsAudioLibrary.GetValues); the instance keeps absent ones as null.
-    const staleLibrary = structuredClone(audio.library.GetValues());
+    // A library document holds only the sections present (CjsAudioLibrary.GetData); the instance keeps absent ones as null.
+    const staleLibrary = structuredClone(audio.library.GetData());
 
     staleLibrary.media[String(MEDIA_ID)] = [
         staleLibrary.media[String(MEDIA_ID)],
