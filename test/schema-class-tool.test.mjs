@@ -178,6 +178,24 @@ test("a custom binary block generates @meta.type.binary beside its value type", 
     }
 });
 
+test("an object type's array and the unowned reference read as typed fields", () =>
+{
+    // `@type.object.embed.array("X")` runs four segments deep; the class is its first argument.
+    const source = [
+        "export class Fixture",
+        "{",
+        "    @type.object.embed.array(\"Item\", 2)",
+        "    items = [];",
+        "    @type.object.ref.weak.array(\"Other\")",
+        "    counted = [];",
+        "    @type.object.ref.weak(\"Other\")",
+        "    other = null;",
+        "}"
+    ].join("\n");
+    const fields = parseClassFile(source).fields.map(field => [ field.name, field.kind, field.typeArg ]);
+    assert.deepEqual(fields, [ [ "items", "array", "Item" ], [ "counted", "array", "Other" ], [ "other", "rootRef", "Other" ] ]);
+});
+
 test("ordinary reference collections retain one argument without an inferred native layout", () =>
 {
     const expected = deriveExpectedFields({ blueClass: "Fixture", cppClass: "Fixture",

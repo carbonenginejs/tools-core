@@ -2674,6 +2674,10 @@ function statementComplete(stmt)
 // Decorators may be namespaced through a schema object (e.g. @CjsSchema.type.float32);
 // the last two segments are the namespace (`type`/`io`/`schema`) and the kind.
 const DECOR_LEAD_RE = /^@(?:[A-Za-z_$][\w$]*\.)*([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\s*(\([\s\S]*?\))?/;
+// An object type's array (`@type.object.embed.array("X")`, also `ref`, `ref.weak`, `weak`) and the unowned reference
+// (`@type.object.ref.weak("X")`) run three or four segments deep; the last two alone would read as namespace `embed`.
+const OBJECT_ARRAY_LEAD_RE = /^@(?:[A-Za-z_$][\w$]*\.)*object\.(?:embed|ref|weak)(?:\.weak)?\.array\s*\(/;
+const OBJECT_REF_WEAK_LEAD_RE = /^@(?:[A-Za-z_$][\w$]*\.)*object\.ref\.weak\s*\(/;
 const FIELD_RE = /^(?:(?:public|private|protected|readonly|declare|override|accessor)\s+)*(#?[A-Za-z_$][\w$]*|\[[^\]]+\])\s*(?::\s*([^=]+?))?\s*=\s*([\s\S]*?);\s*$/;
 const METHOD_RE = /^(?:(?:public|private|protected|override|async)\s+)*(#?[A-Za-z_$][\w$]*|\[[^\]]+\])\s*\(/;
 
@@ -2749,6 +2753,17 @@ export function parseClassFile(rawText, options = {})
                 {
                     namespace = "type";
                     name = { ref: "rootRef", weak: "rootWeak", embed: "root" }[name];
+                }
+                else if (OBJECT_ARRAY_LEAD_RE.test(line))
+                {
+                    // The class is the first argument, as `type.array("X")` takes it.
+                    namespace = "type";
+                    name = "array";
+                }
+                else if (OBJECT_REF_WEAK_LEAD_RE.test(line))
+                {
+                    namespace = "type";
+                    name = "rootRef";
                 }
                 if (namespace === "be")
                 {
