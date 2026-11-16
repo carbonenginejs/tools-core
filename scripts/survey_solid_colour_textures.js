@@ -4,9 +4,8 @@
 // WHY. Thousands of EVE decal textures (res:/dx9/model/decal/**) are one flat
 // colour stored as a whole DDS, often with a full mip chain. Carbon already
 // resolves `dynamic:/color/r,g,b,a` at runtime (SolidColorTexture.cpp), which
-// needs no file, no download and no decode - but CCP's editor does not let an
-// artist type a dynamic path into a texture slot, so the files keep shipping.
-// This script finds them by reading the pixels, so the list can go to CCP.
+// needs no file, no download and no decode, yet the files keep shipping.
+// This script finds them by reading the pixels.
 //
 // HOW. It walks a build's resfileindex for every texture under a prefix,
 // fetches each through the local tools-core service, decodes it with the
@@ -397,8 +396,7 @@ function toMarkdown(list, failed)
       + `${solid.reduce((sum, row) => sum + row.bytes, 0)} bytes in total.`,
     "",
     "Each could be `dynamic:/color/r,g,b,a` - Carbon resolves that at runtime "
-      + "(SolidColorTexture.cpp) with no file, download or decode. CCP's editor does "
-      + "not currently accept a dynamic path in a texture slot.",
+      + "(SolidColorTexture.cpp) with no file, download or decode.",
     "",
     ...alphaSummary(list),
     ...replacementPlan(solid),
