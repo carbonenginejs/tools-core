@@ -1,0 +1,2 @@
+#!/bin/sh
+exec node scripts/lint-private-references.js --commit-msg "$1"
