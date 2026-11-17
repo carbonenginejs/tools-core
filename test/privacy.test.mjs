@@ -11,11 +11,12 @@ const source = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../sc
 test("privacy checks inspect staged bytes and messages while allowing resource identifiers", () =>
 {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "privacy-test-"));
-    const run = (cmd, args) => spawnSync(cmd, args, { cwd: root, encoding: "utf8" });
+    const run = (cmd, args, input) => spawnSync(cmd, args, { cwd: root, encoding: "utf8", input });
     const git = (...args) =>
     {
         const result = run("git", args);
         assert.equal(result.status, 0, result.stderr);
+        return result.stdout.trim();
     };
     const lint = (...args) => run(process.execPath, ["scripts/lint-private-references.js", ...args]);
     try
@@ -57,6 +58,16 @@ test("privacy checks inspect staged bytes and messages while allowing resource i
         fs.writeFileSync(file, "clean");
         git("add", "example.txt");
         git("commit", "-qm", "Initial fixture");
+        // Stage only link-mode metadata and target bytes; never create or follow a link.
+        const originalBlob = git("rev-parse", "HEAD:example.txt");
+        const targetBlob = run("git", ["hash-object", "-w", "--stdin"], ".agents" + "/synthetic-note");
+        assert.equal(targetBlob.status, 0, targetBlob.stderr);
+        git("update-index", "--cacheinfo", "120000", targetBlob.stdout.trim(), "example.txt");
+        assert.equal(git("diff", "--cached", "--name-status"), "T\texample.txt");
+        const typeChange = lint("--staged");
+        assert.equal(typeChange.status, 1, "type-changed index blobs must be inspected");
+        assert.match(typeChange.stderr, /agent workspace/u);
+        git("update-index", "--cacheinfo", "100644", originalBlob, "example.txt");
         git("rm", "example.txt");
         assert.equal(lint("--staged").status, 0);
         const scripts = path.dirname(source);

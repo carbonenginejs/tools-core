@@ -57,7 +57,7 @@ function main()
         }
         const staged = args[0] === "--staged";
         const names = git(staged
-            ? ["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"]
+            ? ["diff", "--cached", "--name-only", "--diff-filter=ACMRT", "-z"]
             : ["ls-files", "-z"]).toString("utf8").split("\0").filter(Boolean);
         for (const name of names)
         {
