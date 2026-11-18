@@ -6,9 +6,9 @@ const RESOURCE_PATH_MEMBERS = new Map([
     // Source: audio/src/AudManager.cpp:276
     ["AudSettings", new Set(["baseSoundbankPath"])],
     // Source: runtime/src/character/model/catalog/CjsAvatarPartMetaData.js
-    ["CjsAvatarPartMetaData", new Set(["sourcePath"])],
+    ["paperDoll.AvatarPartMetaData", new Set(["sourcePath"])],
     // Source: runtime/src/character/model/catalog/CjsProjectedDecal.js
-    ["CjsProjectedDecal", new Set(["sourcePath","texturePath","maskPath"])],
+    ["paperDoll.ProjectedDecal", new Set(["sourcePath","texturePath","maskPath"])],
     // Source: runtime/src/sof/EveSOF.js:2127
     ["CjsExternalRef", new Set(["resPath"])],
     // Source: runtime/src/trinity/eve/lights/Tr2TexturedPointLight.js:95
