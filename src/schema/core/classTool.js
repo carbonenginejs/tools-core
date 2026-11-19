@@ -4735,7 +4735,7 @@ export function refreshEnumRegistrations(source, enums, registrations, options =
     if (typeof source !== "string" || !Array.isArray(enums)
         || !Array.isArray(registrations) || !registrations.length)
         fail("enum registration refresh requires generated source, exact records and registrations");
-    const registryImport = options.registryImport ?? "#blue/enums/CjsBlueEnumRegistry";
+    const registryImport = options.registryImport ?? "#enums/CjsBlueEnumRegistry";
     if (typeof registryImport !== "string" || !registryImport || /[\x00-\x1f\u2028\u2029]/.test(registryImport))
         fail("enum registration requires a nonempty registry import");
     const normalized = source.replace(/\r\n/g, "\n");
