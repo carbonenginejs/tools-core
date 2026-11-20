@@ -781,8 +781,8 @@ test("the define metadata is read from the decorator and from the call form alik
 {
     // Both spellings exist in the runtime. The abstraction layer is imported
     // straight from source by its own tests, and raw Node cannot parse decorator
-    // syntax, so those files declare through CjsSchema.define instead. A parser
-    // that reads only the decorator sees the whole layer as undeclared.
+    // syntax, so those files declare through meta.define(Class, { ... }) instead.
+    // A parser that reads only the decorator sees the whole layer as undeclared.
     const decorated = parseClassFile([
         "import { type } from \"#schema\";",
         "@meta.define({ name: \"Tr2Thing\" })",
@@ -793,10 +793,36 @@ test("the define metadata is read from the decorator and from the call form alik
 
     const called = parseClassFile([
         "export class Tr2TextureALStub {}",
-        "CjsSchema.define(Tr2TextureALStub, { name: \"Tr2TextureALStub\" });"
+        "meta.define(Tr2TextureALStub, { name: \"Tr2TextureALStub\" });"
     ].join("\n"));
 
     assert.equal(called.define.className, "Tr2TextureALStub");
+    assert.equal(called.define.blue, false);
+
+    // Carbon's exposure through be, and the CjsSchema spelling the runtime keeps for callers outside it.
+    const carbon = parseClassFile([
+        "export class Tr2Exposed {}",
+        "be.define(Tr2Exposed, { name: \"Tr2Exposed\" });"
+    ].join("\n"));
+
+    assert.equal(carbon.define.className, "Tr2Exposed");
+    assert.equal(carbon.define.blue, true);
+
+    const legacy = parseClassFile([
+        "export class Tr2Legacy {}",
+        "CjsSchema.define(Tr2Legacy, { name: \"Tr2Legacy\" });"
+    ].join("\n"));
+
+    assert.equal(legacy.define.className, "Tr2Legacy");
+
+    // A bare define( is any helper of that name, never a class define.
+    const bare = parseClassFile([
+        "export class Tr2Helper {}",
+        "define(Tr2Helper, { name: \"Tr2Helper\" });",
+        "registry.meta.define(Tr2Helper, { name: \"Tr2Helper\" });"
+    ].join("\n"));
+
+    assert.equal(bare.define.className, null);
 });
 
 test("a declared donor is read, and a qualified one keeps only its class", () =>
@@ -807,7 +833,7 @@ test("a declared donor is read, and a qualified one keeps only its class", () =>
     // schema lookup should follow.
     const suffixed = parseClassFile([
         "export class Tr2TextureALStub {}",
-        "CjsSchema.define(Tr2TextureALStub, { name: \"Tr2TextureALStub\", carbon: \"Tr2TextureAL\" });"
+        "meta.define(Tr2TextureALStub, { name: \"Tr2TextureALStub\", carbon: \"Tr2TextureAL\" });"
     ].join("\n"));
 
     assert.equal(suffixed.define.className, "Tr2TextureALStub");

@@ -224,10 +224,16 @@ export function parseClassLineage(src, jsClassName, classIndex)
     if (/@(?:[A-Za-z_$][\w$]*\.)*be\.(?:define|interface)\s*\(/.test(decorators)) result.interfaces ??= [];
     for (const match of decorators.matchAll(/@(?:[A-Za-z_$][\w$]*\.)*be\.(mapInterface|exposureChainTo)\s*\(([^)]*)\)/g))
         take(match[1] === "mapInterface" ? "interface" : "chainTo", match[2]);
-    const beCall = new RegExp(`\\b(?:CjsSchema\\.exposure\\.|be\\.)(define|interface|mapInterface|exposureChainTo|inherit)\\s*\\(([^)]*)\\)\\s*\\(\\s*${name}\\s*\\)`, "g");
+    // The post-class bag, `be.define({ ..., chainTo: P })(Class)`, names its chain as the bag's `chainTo` field.
+    const beCall = new RegExp(`\\b(?:CjsSchema\\.exposure\\.|be\\.)(define|interface|mapInterface|exposureChainTo|chainTo|inherit)\\s*\\(([^)]*)\\)\\s*\\(\\s*${name}\\s*\\)`, "g");
     for (const match of src.slice(classIndex).matchAll(beCall))
     {
-        if (match[1] === "define" || match[1] === "interface") result.interfaces ??= [];
+        if (match[1] === "define" || match[1] === "interface")
+        {
+            result.interfaces ??= [];
+            const bagChain = match[2].match(/\bchainTo\s*:\s*([A-Za-z_$][\w$]*)/);
+            if (bagChain) take("chainTo", bagChain[1]);
+        }
         else if (match[1] === "inherit") take("inherit", match[2]);
         else take(match[1] === "mapInterface" ? "interface" : "chainTo", match[2]);
     }

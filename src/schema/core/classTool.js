@@ -2828,7 +2828,7 @@ export function parseClassFile(rawText, options = {})
 }
 
 // Two spellings, because the runtime has two. `@meta.define({ ... })` is the
-// decorator; `CjsSchema.define(Class, { ... })` is the same metadata as a call,
+// decorator; `meta.define(Class, { ... })` is the same metadata as a call,
 // used where a file must stay parseable by raw Node - the abstraction layer is
 // imported straight from source by its tests, and decorator syntax would break
 // every one of them. A tool that reads only the decorator sees the whole AL as
@@ -2849,13 +2849,16 @@ function parseDefine(src)
     // `blue.define` and `meta.define` stay readable.
     const decorator = src.match(/@(?:[A-Za-z_$][\w$]*\.)*(type|types|meta|blue|be)\.(define|carbon|interface)\(\s*(\{[\s\S]*?\}|"[^"]*"|'[^']*'|[A-Za-z_$][\w$]*)\s*\)/)
         ?? src.match(/^(?:CjsSchema\.)?(meta|be|exposure)\.(define|carbon|interface)\(\s*("[^"]*"|'[^']*')\s*\)\(\s*[A-Za-z_$][\w$]*\s*\)/m);
-    const call = src.match(/\bCjsSchema\.(?:(blue|meta)\.)?define\(\s*[A-Za-z_$][\w$]*\s*,\s*(\{[\s\S]*?\})\s*\)/);
+    // The call: `meta.define(Class, { ... })` (`be.` for Carbon's), or the `CjsSchema.` spelling the schema keeps for
+    // callers outside the runtime. Always an owner prefix: a bare `define(` is any helper of that name.
+    const call = src.match(/(?<![\w$.])(?:CjsSchema\.(?:(blue|meta)\.)?|(meta|be)\.)define\(\s*[A-Za-z_$][\w$]*\s*,\s*(\{[\s\S]*?\})\s*\)/);
     const match = decorator ?? call;
     const empty = { className: null, carbon: null, modelledOn: null, blue: false };
     if (!match) return empty;
     const verb = decorator ? decorator[2] : "define";
-    const blue = match[1] === "blue" || match[1] === "be" || match[1] === "exposure";
-    const arg = (decorator ? decorator[3] : match[2]).trim();
+    const owner = decorator ? decorator[1] : call[1] ?? call[2];
+    const blue = owner === "blue" || owner === "be" || owner === "exposure";
+    const arg = (decorator ? decorator[3] : call[3]).trim();
     if (arg.startsWith("{"))
     {
         const nameMatch = arg.match(/\bname\s*:\s*["']([^"']+)["']/);
