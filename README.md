@@ -42,17 +42,15 @@ checked against declared size and MD5 before they are returned or cached.
 - app/resource index acquisition and the shared exact-build cache;
 - profile-driven exact-build cache preparation before tools or services start;
 - prepared SDE databases, composed icon resource paths, and Node-side
-  orchestration/publication of deterministic audio, character, SKIN, SKINR,
-  weapon, and shader outputs;
+  orchestration/publication of deterministic audio, SKIN, SKINR, weapon, and
+  shader outputs;
 - self-contained SOF bundles for consumers without Carbon or a DDS decoder;
 - schema scanning and class-emission tooling;
 - optional loopback HTTP and filesystem-watch services.
 
 Each area is independently importable through a documented package subpath.
-The runtime audio and character layers own their raw-resource build algorithms;
-tools-core supplies target-selected exact-build bytes and persists their
-`GetData()` output; for character, through a local file system the runtime
-reads on `blue.paths`.
+The runtime audio layer owns its raw-resource build algorithm; tools-core
+supplies target-selected exact-build bytes and persists its `GetData()` output.
 
 ## Documentation
 

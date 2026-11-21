@@ -31,9 +31,6 @@ Tools-core does not own:
   server live in `@carbonenginejs/demos`;
 - runtime-owned audio-library construction and raw-resource decoding, which
   tools-core calls with an injected exact-build index/cache source;
-- runtime-owned character-library schema, hydration, and deterministic
-  raw cFSD combination, which tools-core calls with an injected exact-build
-  index/cache source plus optional gathered catalogs;
 - runtime graph classes and domain behavior, which belong in
   `@carbonenginejs/runtime` subpaths;
 - format decoding or shader compilation algorithms, which remain in their
@@ -57,8 +54,7 @@ core, format, and domain runtime packages
 Runtime and engine packages must not import tools-core. Tools-core calls
 the runtime audio builder with a Node byte source and serializes
 `library.GetData()`; it coordinates rather than duplicates joins, decoding,
-or conversion. It applies the same boundary to the runtime character
-combined-library builder.
+or conversion.
 
 ## Schema staging
 

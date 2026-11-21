@@ -1,7 +1,7 @@
 # Core and indexing class catalog
 
 Status: Evolving
-Scope: `@carbonenginejs/tools-core` core, audio, cache, character, indexing, library, prefetch, and proxy classes
+Scope: `@carbonenginejs/tools-core` core, audio, cache, indexing, library, prefetch, and proxy classes
 Audience: Users, maintainers, and automated readers
 Summary: Provides source-backed purpose descriptors for tools-core foundations and indexed resource tooling.
 
@@ -102,36 +102,6 @@ Validates resource bytes, and stored payloads, against their published identity.
 
 - Export: `@carbonenginejs/tools-core/cache`
 - Source: `src/cache/CjsToolPayloadCheck.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolCharacter -->
-## `CjsToolCharacter`
-
-Front-facing exact-target character-library build tool.
-
-- Export: `@carbonenginejs/tools-core/character`
-- Source: `src/character/CjsToolCharacter.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolCharacterBuilder -->
-## `CjsToolCharacterBuilder`
-
-The runtime character library builder over one exact build, reading through `CjsToolResFileSystemLocal` on `blue.paths`.
-
-- Export: `@carbonenginejs/tools-core/character`
-- Source: `src/character/CjsToolCharacterBuilder.js`
-- Visibility: Public
-- Kind: CarbonEngineJS
-
-<!-- class:CjsToolCharacterRepository -->
-## `CjsToolCharacterRepository`
-
-Opens exact-build character libraries (`character_v2.json`) from the shared tool cache, building a missing one.
-
-- Export: `@carbonenginejs/tools-core/character`
-- Source: `src/character/CjsToolCharacterRepository.js`
 - Visibility: Public
 - Kind: CarbonEngineJS
 

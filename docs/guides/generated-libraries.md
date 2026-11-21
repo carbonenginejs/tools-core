@@ -16,10 +16,12 @@ Current support is:
 | Library | EVE | Frontier | Serenity / Infinity |
 | --- | --- | --- | --- |
 | Audio | Supported | Supported | Not audited |
-| Character | Supported | Not audited | Not audited |
 | SKIN/SKINR | Supported | Not audited | Not audited |
 | Weapons | Supported | Visual turret catalog | Supported |
 | Official JSONL SDE | Supported | Not applicable | Not audited |
+
+The character library builder is retired until the runtime character library
+is remade.
 
 ## Commands
 
@@ -34,7 +36,6 @@ restrictions are not inferred from EVE.
 ```powershell
 npm run prepare:sde -- --cache <cache> [--build <exact-build>]
 npm run build:audio -- --index <resfileindex.txt> --cache <cache> --soundbanksinfo <file-or-res-path> --target <eve|frontier> --build <build> [--out <library.json>] [--enrichment <audio-metadata.json>] [--event-media] [--sfx] [--music] [--language <bcp47-tag>]
-npm run build:character -- --cache <cache> --build <build> [--target eve] [--out <library.json>]
 npm run build:skins -- --cache <cache> --build <build|latest> [--auto-prepare]
 npm run build:weapons -- --cache <cache> --build <build|latest> [--auto-prepare]
 npm run catalog:shader -- --index <resfileindex.txt> --shader-target frontier-webgl2 --build <build> --out <catalog.json>
@@ -78,9 +79,8 @@ target means *the newest SDE prepared on disk for this target*, not the newest
 client build.
 
 Audited for the generated-SDE targets as of 2026-08-16: **skin, skinr and
-weapons**. `audio`, `character` and `shader` are not — none is SDE-backed, and
-the character readers pin one build's contents. `defaultTargets.js` enforces
-that, so an unaudited builder refuses rather than producing something plausible.
+weapons**. `audio` and `shader` are not — neither is SDE-backed.
+`defaultTargets.js` enforces that, so an unaudited builder refuses rather than producing something plausible.
 
 ### When to run them
 
@@ -110,14 +110,12 @@ is why the entry points read `.env`.
 
 ## Library shapes
 
-When `--out` is omitted, `build:audio` installs `audio_v2.json` and
-`build:character` installs `character_v2.json`, each with its deterministic
-gzip sibling, in the exact-build custom cache that their repositories and local
-HTTP routes read. Pass `--out` for distribution builds. Each library is
+When `--out` is omitted, `build:audio` installs `audio_v2.json`, with its
+deterministic gzip sibling, in the exact-build custom cache that its repository
+and local HTTP routes read. Pass `--out` for distribution builds. Each library is
 described in the JSDoc of the classes that build and serve it:
 `CjsAudioLibraryBuilder` (runtime), `CjsToolAudioRepository` and
-`CjsToolAudioSource`; `CjsCharacterLibraryBuilder` (runtime) and
-`CjsToolCharacterBuilder`; `CjsToolSkinBuilder`, `CjsToolSkinrBuilder`
+`CjsToolAudioSource`; `CjsToolSkinBuilder`, `CjsToolSkinrBuilder`
 and `CjsToolWeaponBuilder`.
 
 ## Reproducibility and safety

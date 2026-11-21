@@ -1,8 +1,8 @@
 // Builds the deterministic audio library JSON from local inputs. Performs no
 // remote reads - use @carbonenginejs/tools-core/index for target/build
-// index/download work first, then supply local inputs here (mirrors
-// build_character_library.js). The runtime builder decodes the indexed
-// AudioMetadata cFSD for every build; graph flags additionally open banks.
+// index/download work first, then supply local inputs here. The runtime
+// builder decodes the indexed AudioMetadata cFSD for every build; graph flags
+// additionally open banks.
 //
 // Usage:
 //   npm run build:audio -- --index <resfileindex.txt> --cache <dir>

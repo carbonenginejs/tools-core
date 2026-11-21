@@ -20,7 +20,7 @@ const buildProtocols = new Map();
  *
  * Each build's files are registered once under a protocol of its own (`eve3435006:`), so many builds sit on the one
  * `blue.paths` together and resMan caches them apart; only tools-core's internal reads use those protocols, and
- * everything it publishes keeps `res:`. A run that clears resMan or swaps the `res:` file system (the character build)
+ * everything it publishes keeps `res:`. A run that clears resMan or swaps the `res:` file system
  * is exclusive; a read through a build protocol is shared. Blue's resMan prepares what it loads in its per-frame
  * `Update` (BlueResMan::OnTick), and a Node host has no frame loop, so a frame runs while any run is active.
  */

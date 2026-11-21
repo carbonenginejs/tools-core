@@ -16,7 +16,7 @@ test("maps short public targets to internal source identities", () =>
         game: "Eve",
         provider: "ccp",
         client: "tranquility",
-        libraries: [ "audio", "character", "shader", "skin", "skinr", "weapons" ],
+        libraries: [ "audio", "shader", "skin", "skinr", "weapons" ],
         topics: [ "app", "icons", "map", "res", "sde", "skin", "skinr", "types", "weapons" ],
     });
     assert.equal(frontier.game, "Frontier");
@@ -59,7 +59,6 @@ test("keeps unaudited library targets disabled", () =>
     assert.equal(targets.RequireLibrary("frontier", "audio").id, "frontier");
     assert.equal(targets.RequireLibrary("frontier", "shader").id, "frontier");
     assert.equal(targets.RequireLibrary("eve", "shader").id, "eve");
-    assert.equal(targets.RequireLibrary("eve", "character").id, "eve");
     assert.equal(targets.RequireLibrary("eve", "skin").id, "eve");
     assert.equal(targets.RequireLibrary("eve", "skinr").id, "eve");
     assert.equal(targets.RequireLibrary("eve", "weapons").id, "eve");
@@ -69,7 +68,7 @@ test("keeps unaudited library targets disabled", () =>
     assert.equal(targets.RequireTopic("eve", "skinr").id, "eve");
     assert.equal(targets.RequireTopic("eve", "weapons").id, "eve");
     assert.throws(
-        () => targets.RequireLibrary("frontier", "character"),
+        () => targets.RequireLibrary("frontier", "skin"),
         /does not support target frontier/,
     );
     // Frontier serves `sde`, `types` and, since its universe is built from its
