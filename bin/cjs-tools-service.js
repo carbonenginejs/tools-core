@@ -20,7 +20,6 @@ import {
     TOOLS_SERVICE_PROTOCOL,
     TOOLS_SERVICE_PROTOCOL_VERSION,
 } from "../src/index.js";
-import { CjsToolCharacterRepository } from "../src/character/index.js";
 import { CjsToolSkinrStore } from "../src/skin/index.js";
 import { CjsToolMarketEsi, CjsToolPlexRate } from "../src/market/index.js";
 import { CjsToolPublicEsi, CjsToolPublicIdentity } from "../src/identity/index.js";
@@ -109,7 +108,6 @@ async function main()
         cache: toolCache,
         autoPrepare: args.noSdeAutoPrepare !== true,
     });
-    const characters = new CjsToolCharacterRepository({ cache: toolCache, indexes, memory });
     const musicLibraryPath = args.musicLibrary
         ? path.resolve(String(args.musicLibrary))
         : null;
@@ -165,7 +163,6 @@ async function main()
         addressedRedirects: args.addressedRedirects === true,
         sof,
         sde,
-        characters,
         audio,
         auth,
         skinrStore: OpenSkinrStore(dataDirectory),

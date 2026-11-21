@@ -10,7 +10,6 @@ import readline from "node:readline";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { CjsCharacterLibrary, CjsCharacterType } from "@carbonenginejs/runtime/character";
 import { resFileAddress } from "@carbonenginejs/runtime/utils/resfile";
 import {
     CjsToolIndexOverlayStore,
@@ -54,7 +53,6 @@ test("serves health without the removed legacy SOF routes", async context =>
         capabilities: {
             resources: true,
             audio: false,
-            character: false,
             sde: false,
             dna: false,
             skin: false,
@@ -526,7 +524,6 @@ test("serves exact EVE SDE catalogs, generic tables, and records", async context
     assert.deepEqual((await health.json()).capabilities, {
         resources: false,
         audio: false,
-        character: false,
         sde: true,
         dna: true,
         skin: true,
@@ -652,81 +649,6 @@ test("answers a DNA resolve that selects nothing as 404 and an ambiguous one as 
 
     assert.equal(broken.status, 500);
     assert.equal((await broken.json()).error, "Internal tool error");
-});
-
-test("serves the character library's data", async context =>
-{
-    const TYPE = "res:/graphics/character/female/paperdoll/hair/bob/types/bob.type";
-    const library = new CjsCharacterLibrary();
-    const type = new CjsCharacterType();
-    type.partPath = "hair/bob";
-    library.AddKind("types", TYPE, type);
-    let openCount = 0;
-    const proxy = new CjsToolHttpProxy({
-        characters: {
-            async OpenTarget(target, build)
-            {
-                assert.equal(target, "eve");
-                assert.equal(build, "3450001");
-                openCount++;
-
-                return library;
-            },
-        },
-    });
-    const server = proxy.CreateServer();
-
-    await new Promise((resolve, reject) =>
-    {
-        server.once("error", reject);
-        server.listen(0, "127.0.0.1", resolve);
-    });
-    context.after(() => new Promise(resolve => server.close(resolve)));
-
-    const address = server.address();
-    const root = `http://127.0.0.1:${address.port}/eve/3450001/character`;
-    const health = await fetch(`http://127.0.0.1:${address.port}/v1/health`);
-
-    assert.deepEqual((await health.json()).capabilities, {
-        resources: false,
-        audio: false,
-        character: true,
-        sde: false,
-        dna: false,
-        skin: false,
-        skinr: false,
-        skinrStore: false,
-        plexRate: false,
-        market: false,
-        identity: false,
-        weapons: false,
-        icons: false,
-        map: false,
-        dogma: false,
-        industry: false,
-        fitting: false,
-        skills: false,
-        sofCatalog: false,
-        auth: false,
-    });
-
-    const response = await fetch(root);
-    const alias = await fetch(`${root}/library.json`);
-    const wholeLibrary = await response.json();
-
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get("x-carbon-answer"), "character");
-    assert.equal(response.headers.get("x-carbon-target"), "eve");
-    assert.equal(response.headers.get("x-carbon-build"), "3450001");
-    assert.equal(wholeLibrary.schemaVersion, 2);
-    assert.deepEqual(wholeLibrary.types.map(record => record._pdpID), [ TYPE ]);
-    assert.deepEqual(await alias.json(), wholeLibrary);
-    assert.equal(openCount, 2);
-    const hydrated = new CjsCharacterLibrary().SetData(wholeLibrary);
-    assert.deepEqual([ hydrated.GetKindRecord("types", TYPE).partPath, hydrated.GetKindRecord("types", TYPE)._pdpID ], [ "hair/bob", TYPE ]);
-    assert.equal((await fetch(`${root}/types/9001`)).status, 404);
-    assert.equal((await fetch(`${root}/lookup?name=Sample`)).status, 404);
-    assert.equal((await fetch(`${root}/lod/0/hair`)).status, 404);
 });
 
 test("serves resource resolution and validated fetch-to-cache requests", async context =>
@@ -871,7 +793,6 @@ test("serves resource resolution and validated fetch-to-cache requests", async c
     assert.deepEqual(healthBody.capabilities, {
         resources: true,
         audio: false,
-        character: false,
         sde: false,
         dna: false,
         skin: false,
@@ -1409,7 +1330,6 @@ test("service launcher emits an unauthenticated loopback bootstrap record", asyn
     assert.deepEqual(bootstrap.capabilities, {
         resources: true,
         audio: true,
-        character: true,
         sde: true,
         dna: true,
         skin: true,

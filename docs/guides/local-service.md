@@ -55,8 +55,7 @@ The canonical shape is `/{target}/{build}/{topic}[/{path}]`. Use the
   and [SOF catalogs/model values](../reference/http-routes.md#gpu-free-sof-routes).
 - [SDE inspection](../reference/http-routes.md#sde-routes), not a consumer surface;
   [DNA resolution/search](../reference/http-routes.md#dna-routes).
-- [Character](../reference/http-routes.md#character-routes),
-  [SKIN/SKINR](../reference/http-routes.md#skin-and-skinr-routes) and
+- [SKIN/SKINR](../reference/http-routes.md#skin-and-skinr-routes) and
   [weapon](../reference/http-routes.md#weapon-routes) libraries.
 
 Response headers expose the exact resolved build, including for `latest`.
@@ -106,9 +105,8 @@ re-hashing it; size and checksum are checked when tools-core downloads one.
 Generated artifacts are prepared on their first request by default: a missing
 EVE SDE downloads and prepares itself, and a missing audio library builds from
 the exact build's own indexed inputs through the runtime audio resource builder.
-A missing character library follows the same runtime character builder path
-when its required indexed cFSD inputs are available. Pass `--no-sde-auto-prepare` or
-`--no-audio-auto-prepare` to require deliberate preparation instead.
+Pass `--no-sde-auto-prepare` or `--no-audio-auto-prepare` to require
+deliberate preparation instead.
 
 An SDE `latest` reference resolves independently from the app/resource build,
 and the SDE is never guaranteed to match the current remote game build; when a
@@ -125,7 +123,7 @@ is not presented as English. The SQLite SDE stays complete, and direct table
 queries still supply the original languages for localisation matching.
 
 The launcher uses one shared expiry timer for resource sources, SOF and derived
-answer catalogs, SDE handles, topic composers, and audio/character libraries.
+answer catalogs, SDE handles, topic composers, and audio libraries.
 Disk cache files remain available for transparent reopening. Independent
 repository instances retain their existing lifetime policy.
 

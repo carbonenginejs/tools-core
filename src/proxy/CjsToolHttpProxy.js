@@ -143,7 +143,6 @@ export class CjsToolHttpProxy
         plexRate = null,
         market = null,
         identity = null,
-        characters = null,
         audio = null,
         auth = null,
         maxRequestBytes = 1024 * 1024,
@@ -173,11 +172,6 @@ export class CjsToolHttpProxy
         if (sde !== null && typeof sde.OpenTarget !== "function")
         {
             throw new TypeError("CjsToolHttpProxy SDE service must provide OpenTarget(target, build)");
-        }
-
-        if (characters !== null && typeof characters.OpenTarget !== "function")
-        {
-            throw new TypeError("CjsToolHttpProxy character service must provide OpenTarget(target, build)");
         }
 
         if (audio !== null && typeof audio.OpenTarget !== "function")
@@ -215,11 +209,10 @@ export class CjsToolHttpProxy
             );
         }
 
-        if (indexes === null && sof === null && sde === null
-            && characters === null && audio === null)
+        if (indexes === null && sof === null && sde === null && audio === null)
         {
             throw new TypeError(
-                "CjsToolHttpProxy requires an index, SOF, SDE, character, or audio service"
+                "CjsToolHttpProxy requires an index, SOF, SDE, or audio service"
             );
         }
 
@@ -241,7 +234,6 @@ export class CjsToolHttpProxy
         this.market = market;
         // Public character identity: names and affiliation, no scope needed.
         this.identity = identity;
-        this.characters = characters;
         this.audio = audio;
         this.auth = auth;
 
@@ -319,7 +311,6 @@ export class CjsToolHttpProxy
         this.capabilities = Object.freeze({
             resources: indexes !== null,
             audio: audio !== null,
-            character: characters !== null,
             sde: sde !== null,
             dna: sde !== null,
             skin: sde !== null,
@@ -815,13 +806,6 @@ export class CjsToolHttpProxy
             if (targetRoute.topic === "skills")
             {
                 await this.#HandleSkillsRoute(targetRoute, url, response);
-
-                return;
-            }
-
-            if (targetRoute.topic === "character")
-            {
-                await this.#HandleCharacterRoute(targetRoute, url, response);
 
                 return;
             }
@@ -3035,33 +3019,6 @@ export class CjsToolHttpProxy
         WriteJson(response, 404, { error: "Weapons route not found" }, headers);
     }
 
-    /** Serves one character-library or document route. */
-    async #HandleCharacterRoute(route, _url, response)
-    {
-        if (!this.characters)
-        {
-            WriteJson(response, 501, { error: "Character service is not configured" });
-
-            return;
-        }
-
-        const segments = String(route.path ?? "").split("/").filter(Boolean);
-        const library = await this.characters.OpenTarget(route.target, route.build, {
-            refresh: _url.searchParams.get("refresh") === "1"
-        });
-        const headers = CreateCharacterHeaders(route);
-
-        if (!segments.length || (segments.length === 1 && segments[0].toLowerCase() === "library.json"))
-        {
-            // The library's data: its items by kind (runtime CjsCharacterLibrary, version 2).
-            WriteJson(response, 200, library.GetData(), headers);
-
-            return;
-        }
-
-        WriteJson(response, 404, { error: "Character route not found" }, headers);
-    }
-
     /** Opens or reuses exact-build SKIN and SKINR libraries. */
     async #GetSkinLibraries(target, build)
     {
@@ -4409,15 +4366,6 @@ function NormalizeSkinSearchName(value)
         .replace(/[^\p{L}\p{N}]+/gu, " ")
         .trim()
         .replace(/\s+/gu, " ");
-}
-
-function CreateCharacterHeaders(route)
-{
-    return {
-        "x-carbon-answer": "character",
-        "x-carbon-target": route.target,
-        "x-carbon-build": route.build,
-    };
 }
 
 function ReadFormatJson(path, bytes)

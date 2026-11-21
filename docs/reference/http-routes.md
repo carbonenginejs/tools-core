@@ -11,7 +11,7 @@ Summary: Lists the implemented exact-build query, resource, and generated-librar
 
 | Facet | What it is | Serves |
 | --- | --- | --- |
-| `resources` | the client build the target reports; the file index is keyed by it | `res`, `app`, `resources`, `sof`, `audio`, `character`, `resfiles`, `billboards`, `cubes`, `nebulas` |
+| `resources` | the client build the target reports; the file index is keyed by it | `res`, `app`, `resources`, `sof`, `audio`, `resfiles`, `billboards`, `cubes`, `nebulas` |
 | `sde` | the newest SDE, published on its own schedule | `sde`, `icons`, `map`, `skin`, `skinr`, `weapons`, `dogma`, `industry`, `fitting`, `skills` |
 
 The SDE normally trails the client build after patches. `/<target>/<ref>/build`
@@ -756,16 +756,6 @@ retries forever instead of authorizing again.
 
 No response carries an access or refresh token, and there is a test asserting
 the bytes.
-
-## Character routes
-
-```text
-GET /eve/<build>/character
-GET /eve/<build>/character/library.json
-```
-
-Both routes return the build's character library data (its items by kind, version 2), built from the build's files
-by `@carbonenginejs/runtime/character` on first request and cached as `character_v2.json`. `?refresh=1` rebuilds it.
 
 ## SKIN and SKINR routes
 
