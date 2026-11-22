@@ -564,7 +564,7 @@ export function ProjectRecords(records, spec, options = {})
         }
 
         // The export orders a row's fields alphabetically; this builds it in
-        // operator order, which put every resolved label last. Values compared
+        // spec order, which put every resolved label last. Values compared
         // equal and the documents did not, on every table with a label - which
         // is most of them - and two exports are compared as JSON. `_key` leads
         // because underscore sorts after the letters and the export puts it

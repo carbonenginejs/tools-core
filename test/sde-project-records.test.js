@@ -222,7 +222,7 @@ test("a row's fields are ordered the way the export publishes them", () =>
         { localization: LOCALIZATION, language: "en" },
     );
 
-    // _key leads and the rest are alphabetical. Building in operator order put
+    // _key leads and the rest are alphabetical. Building in spec order put
     // every resolved label last, so values compared equal and the documents did
     // not - and two exports are compared as JSON.
     assert.deepEqual(Object.keys(rows["25"]), [ "_key", "categoryID", "name", "published" ]);

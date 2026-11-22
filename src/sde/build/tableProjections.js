@@ -546,7 +546,7 @@ export const CORPORATION_ACTIVITIES_PROJECTION = Object.freeze({
  *
  * The export also publishes `roleGroupIDs`, which the client does not store: it
  * is derived from `corporationRoleGroups.roleMask`, so the build adds it after
- * projection rather than a spec operator inventing it here. See
+ * projection rather than a spec author inventing it here. See
  * `CjsCorporationRolesReader` for the derivation and for role 61, which belongs
  * to no group and is published without the field.
  */
