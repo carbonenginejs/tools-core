@@ -33,7 +33,7 @@ import { fileURLToPath } from "node:url";
 
 import { LoadToolEnv } from "../env.js";
 
-/** The environment variable cppctamber sets to move the durable store. */
+/** The environment variable a user sets to move the durable store. */
 export const DATA_ROOT_VARIABLE = "CJS_TOOL_DATA";
 
 const PACKAGE_DIRECTORY = fileURLToPath(new URL("../..", import.meta.url));

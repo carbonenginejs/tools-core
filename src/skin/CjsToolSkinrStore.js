@@ -104,7 +104,7 @@ export class CjsToolSkinrStore
      * harvested yet.
      *
      * @param {Object} [options]
-     * @param {String} [options.dataRoot] - durable root, for tests and cppctamber
+     * @param {String} [options.dataRoot] - durable root, for tests and users
      * @param {String} [options.file] - an exact path, which wins
      * @param {String} [options.target] - refused unless it is eve
      */
@@ -138,7 +138,7 @@ export class CjsToolSkinrStore
         catch (error)
         {
             // Refusing the file must not also hold it open. A rejected store
-            // that keeps its handle locks the database against cppctamber who
+            // that keeps its handle locks the database against the user who
             // is about to go and look at what it actually is.
             store.Close();
             throw error;

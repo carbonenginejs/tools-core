@@ -93,7 +93,7 @@ export class CjsToolEsiClient
             // answer with. Without it a 403 - the grant exists but does not
             // cover this endpoint - is indistinguishable from an outage, and a
             // caller told "upstream failed" will retry forever instead of
-            // asking cppctamber to authorize again.
+            // asking the user to authorize again.
             error.upstreamStatus = response.status;
             throw error;
         }

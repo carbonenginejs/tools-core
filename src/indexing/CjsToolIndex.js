@@ -308,11 +308,11 @@ export class CjsToolIndex
     }
 
     /**
-     * cppctamber's pins and holds, read once per process.
+     * The user's pins and holds, read once per process.
      *
      * Cached because a policy file is edited by a person between runs, not
      * during one, and re-reading it per resolution would put a file read in
-     * front of every request to save cppctamber a restart.
+     * front of every request to save a user a restart.
      */
     async #GetPolicy()
     {
@@ -406,7 +406,7 @@ export class CjsToolIndex
      *
      * ## The durable store is not migrated
      *
-     * Overlay payloads are mirrored cppctamber's data, not a cache this service is
+     * Overlay payloads are mirrored user data, not a cache this service is
      * free to rewrite, so they are compressed for transfer and left as they are
      * on disk. `.cache/tool-core` is deletable by design; the overlay root is
      * not.

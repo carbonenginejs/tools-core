@@ -107,7 +107,7 @@ export class CjsToolEveSso
      * The token is a JWT and its `sub` claim is `CHARACTER:EVE:<id>`. The
      * signature is deliberately NOT verified, and that is safe here for a
      * specific reason rather than by convenience: nothing downstream makes a
-     * trust decision on this value. It labels cppctamber's own session and
+     * trust decision on this value. It labels the user's own session and
      * fills the `character_id` path parameter of a call that ESI authorises
      * against the bearer token itself - a wrong id gets a 403, never somebody
      * else's data. The token also arrives over TLS from the token endpoint, so
@@ -150,7 +150,7 @@ export class CjsToolEveSso
             // for a single scope and an array for several. Capturing it is what
             // lets a route answer "this token has no fittings access" without
             // calling ESI and reading a 403 back - the difference between
-            // telling cppctamber to authorize again and telling them the
+            // telling the user to authorize again and telling them the
             // service is broken.
             scopes: ReadScopes(claims.scp),
         };
@@ -242,7 +242,7 @@ export class CjsToolEveSso
      * Bounded, like every other outbound call in this package: a token endpoint
      * that hangs must not hang the service, and a response that grows must not
      * be buffered. An unbounded read here is worse than most - the caller is
-     * usually a login cppctamber is waiting on.
+     * usually a login the user is waiting on.
      */
     async #TokenRequest(params)
     {

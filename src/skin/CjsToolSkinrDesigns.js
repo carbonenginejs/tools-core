@@ -3,7 +3,7 @@
  * the listings that advertise them.
  *
  * Public here means **no scope** — the routes want a valid token and nothing
- * else, so this service's own cppctamber token answers them and no visitor ever
+ * else, so this service's own user token answers them and no visitor ever
  * needs to authenticate to read the result. That is the whole reason to harvest:
  * once stored, serving the data requires no token at all. Anything scope-gated
  * (what a *character* owns) is deliberately not in this file.

@@ -8,7 +8,7 @@ import { resolveDataRoot } from "../cache/resolveDataRoot.js";
 import * as utils from "../utils.js";
 
 /**
- * Resource indexes cppctamber hands us, for a client whose binaries are not
+ * Resource indexes a user hands us, for a client whose binaries are not
  * public.
  *
  * The app file index exists to DISCOVER two things: which resource indexes a
