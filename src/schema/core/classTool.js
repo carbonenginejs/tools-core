@@ -22,7 +22,7 @@ export { compareLineage, compareOverloads, createSchemaDocResolver, deriveCarbon
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_SCHEMA_ROOT = path.resolve(HERE, "..", "schema");
 
-// Full @type.* kind list from runtime/src/blue/schema/CjsSchema.js (excluding class-level `define`).
+// Full @type.* kind list from runtime/src/global/blueexposure/type.js (excluding class-level `define`).
 export const KNOWN_TYPE_KINDS = new Set([
     "array", "boolean", "color", "expression", "float32", "float64",
     "int8", "int16", "int32", "int64", "list", "mat3", "mat4", "map",
@@ -1755,7 +1755,7 @@ export function schemaBaseClassForDoc(doc, options = {})
 const EDIT_FLAG_ORDER = [ "READ", "WRITE", "NOTIFY", "HIDDEN", "PERSIST", "RPERSIST" ];
 const EDIT_FLAG_ALIASES = { READWRITE: [ "READ", "WRITE" ], PERSISTONLY: [ "HIDDEN", "PERSIST" ] };
 
-// The flags each runtime `@blue.<name>` decorator sets (CjsSchema.edit).
+// The flags each runtime `@blue.<name>` decorator sets.
 const EDIT_DECORATOR_FLAGS = {
     none: [],
     read: [ "READ" ],
@@ -2671,7 +2671,7 @@ function statementComplete(stmt)
     return /;\s*$/.test(stmt) || /\}\s*$/.test(stmt);
 }
 
-// Decorators may be namespaced through a schema object (e.g. @CjsSchema.type.float32);
+// Decorators may be namespaced through a schema object (e.g. @schema.type.float32);
 // the last two segments are the namespace (`type`/`io`/`schema`) and the kind.
 const DECOR_LEAD_RE = /^@(?:[A-Za-z_$][\w$]*\.)*([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\s*(\([\s\S]*?\))?/;
 // An object type's array (`@type.object.embed.array("X")`, also `ref`, `ref.weak`, `weak`) and the unowned reference
@@ -3040,7 +3040,7 @@ function buildParsedField(key, annotation, initializer, pending, line, defaultRo
 
 /**
  * A declared property's flags are derived, never written (runtime
- * CjsSchema propertyDecorator; BlueExposureMacrosPython.h:182-230):
+ * VarEntry.create__Member's property rows; BlueExposureMacrosPython.h:182-230):
  * READ, WRITE when it has a setter, PERSIST when persisted.
  */
 function derivePropertyFlags(field)

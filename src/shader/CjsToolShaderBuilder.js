@@ -36,7 +36,7 @@ export class CjsToolShaderBuilder
      * would have failed - the reports would simply have recorded a builder
      * nobody can identify.
      *
-     * This is the same problem `CjsSchema` solves for models, by the same
+     * This is the same problem the runtime's class define solves for models, by the same
      * means: a name stamped on the constructor rather than inferred from it,
      * so the identity survives a boundary that does not preserve function
      * names. A model registered there gets it for free and serializes as

@@ -446,12 +446,12 @@ export class CjsToolSofCatalog
 
     /**
      * Builds the recommended SOF boundary: one plain model-values graph that is
-     * directly valid `CjsSchema.from` input.
+     * directly valid `CjsGraph.from` input.
      *
      * No class registry is supplied or needed. The runtime SOF layer emits JSON, so this
      * route resolves no class names and imports no graph library; a consumer
      * that wants objects builds them from the answer with
-     * `CjsSchema.from(values._type, values)` against its own classes.
+     * `CjsGraph.from(values._type, values)` against its own classes.
      */
     async BuildValuesAsync(dna, options = {})
     {
