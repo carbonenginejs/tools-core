@@ -902,7 +902,7 @@ test("migrates a mirrored overlay into the shared store under its human name", a
     );
 
     // The mirrored tree is retained rather than removed: a migration does not
-    // delete from the durable root on the operator's behalf.
+    // delete from the durable root on the user's behalf.
     assert.equal(
         await fs.readFile(
             path.join(applied.retiredPayloadDirectory, "graphics", "effect.webgl2", "quad.fx"),

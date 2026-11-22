@@ -257,7 +257,7 @@ Cached, read-only remote payload source opened from one complete index graph.
 <!-- class:CjsToolIndexSuppliedStore -->
 ## `CjsToolIndexSuppliedStore`
 
-Resource indexes an operator hands us, for a client whose binaries are not public.
+Resource indexes a user hands us, for a client whose binaries are not public.
 
 - Export: `@carbonenginejs/tools-core/index`
 - Source: `src/indexing/CjsToolIndexSuppliedStore.js`

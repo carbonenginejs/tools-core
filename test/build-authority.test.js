@@ -130,7 +130,7 @@ test("a pin outranks the gate", async () =>
 
     const answer = await authority.Resolve({ target: "eve" });
 
-    assert.equal(answer.build, "3466054", "the operator already decided");
+    assert.equal(answer.build, "3466054", "the user already decided");
     assert.equal(answer.reason, REASONS.pinned);
 });
 

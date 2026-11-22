@@ -186,7 +186,7 @@ function matchShared(list)
   {
     if (!row.solid || /\/shared\//i.test(row.path)) continue;
 
-    // Operator rule: a solid normal map (_n) maps to the shared flat normal.
+    // cppctamber rule: a solid normal map (_n) maps to the shared flat normal.
     if (/_n(_lowdetail)?\.[a-z]+$/i.test(row.path))
     {
       row.sharedMatch = /_lowdetail\./i.test(row.path) ? (flatNormalLow ?? flatNormal) : flatNormal;

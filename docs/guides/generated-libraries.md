@@ -2,7 +2,7 @@
 
 Status: Stable  
 Scope: `@carbonenginejs/tools-core` library builders  
-Audience: Build operators and Node.js integrators  
+Audience: Build users and Node.js integrators  
 Summary: Explains exact-build library preparation, supported targets, outputs, and safety rules.
 
 ## Contract

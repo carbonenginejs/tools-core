@@ -15,7 +15,7 @@ import { FITTINGS_SCOPE } from "../src/proxy/CjsToolHttpProxy.js";
  * over calling ESI directly is that it distinguishes them: signed out, a
  * session with no character, a grant that does not cover fittings, an upstream
  * failure, and success. A route that answered 502 to all of them would send the
- * operator looking for an outage when they need to sign in again.
+ * user looking for an outage when they need to sign in again.
  *
  * No token ever appears in a response, and that is asserted rather than assumed.
  */

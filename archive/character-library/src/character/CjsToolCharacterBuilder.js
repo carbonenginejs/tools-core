@@ -8,7 +8,7 @@ import { CjsToolResFileSystemLocal } from "../indexing/CjsToolResFileSystemLocal
  * build, as `CjsToolAudioBuilder` wraps the audio builder. tools-core only provides the files: it registers the build's
  * local file system (`CjsToolResFileSystemLocal`) on the one `blue.paths`, and the runtime builder reads through Blue's
  * resMan as anywhere else (resman-in-the-browser.md § *File systems are the providers*). What the library reads and
- * how it records it is the runtime's, so the two cannot drift (operator, 2026-11-10).
+ * how it records it is the runtime's, so the two cannot drift (cppctamber, 2026-11-10).
  */
 export class CjsToolCharacterBuilder extends CjsCharacterLibraryBuilder
 {

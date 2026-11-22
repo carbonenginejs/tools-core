@@ -2,7 +2,7 @@
 
 Status: Stable  
 Scope: `@carbonenginejs/tools-core/cache` and `@carbonenginejs/tools-core/index`  
-Audience: Integrators and build operators  
+Audience: Integrators and build users  
 Summary: Defines exact-build cache identity, generated artifact locations, and overlay precedence.
 
 ## Where the cache lives

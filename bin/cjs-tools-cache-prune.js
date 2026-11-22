@@ -69,7 +69,7 @@ async function main()
     const apply = args.apply === true;
 
     // `--build` is gone. Which build a target is served is a policy decision,
-    // and this was the caller making it: an operator naming a build here was
+    // and this was the caller making it: a user naming a build here was
     // being asked a question they had no way to answer correctly, because the
     // right answer depends on pins, holds and what has been verified — none of
     // which are visible from a command line. CjsToolBuildAuthority owns it now, and

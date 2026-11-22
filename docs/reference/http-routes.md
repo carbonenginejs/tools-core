@@ -732,7 +732,7 @@ GET /v1/auth/esi/fittings
 ```
 
 These are **not** `/<target>/<build>/` routes: they belong to the single stored
-operator grant, not to a build. The service is loopback-only and holds one
+user grant, not to a build. The service is loopback-only and holds one
 token; it is not a multi-user authorization server, and a deployed multi-user
 product needs its own per-user token custody rather than this.
 
@@ -751,7 +751,7 @@ the token, which is what stops the route becoming an authorization bypass.
 
 The `403` is worth its own status: adding a scope to `CJS_ESI_SCOPES` does not
 upgrade an existing refresh token, so a grant issued earlier keeps working for
-everything except the new endpoint. Told only "upstream failed", an operator
+everything except the new endpoint. Told only "upstream failed", a user
 retries forever instead of authorizing again.
 
 No response carries an access or refresh token, and there is a test asserting

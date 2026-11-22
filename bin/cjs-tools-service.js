@@ -269,7 +269,7 @@ function OpenSkinrStore(dataDirectory)
 {
     // The RESOLVED data root, not the default. `--data` moves the durable store,
     // and resolving again here would ignore it — which is how a test with its own
-    // temp root ends up reading the operator's real harvest.
+    // temp root ends up reading the user's real harvest.
     const file = CjsToolSkinrStore.file(dataDirectory);
 
     try

@@ -2,7 +2,7 @@
 
 Status: Stable  
 Scope: `@carbonenginejs/tools-core/prefetch` and the `cjs-tools-prefetch` command  
-Audience: Tool authors, local-service operators, and generated-library maintainers  
+Audience: Tool authors, local-service users, and generated-library maintainers  
 Summary: Acquires an explicit resource set before a tool or local service starts.
 
 ## Purpose

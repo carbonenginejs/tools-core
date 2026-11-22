@@ -58,7 +58,7 @@ Persists an append-only log of exact builds observed from each target and facet.
 <!-- class:CjsToolBuildPolicy -->
 ## `CjsToolBuildPolicy`
 
-Applies operator pins and holds to observed builds without performing discovery.
+Applies the user's pins and holds to observed builds without performing discovery.
 
 - Export: `@carbonenginejs/tools-core`
 - Source: `src/build/CjsToolBuildPolicy.js`
