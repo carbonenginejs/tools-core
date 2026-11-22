@@ -40,13 +40,13 @@
   "86485": {
     "en": "Stellian",
     "zh": "斯特利亚级",
-    "note": "Sisters of EVE hull soefaux1_t1. The target's own English table, agreeing with the operator."
+    "note": "Sisters of EVE hull soefaux1_t1. The target's own English table, agreeing with cppctamber."
   },
 
   "89107": {
     "en": "Crescent",
     "zh": "血月级",
-    "note": "Colossus-group hull acol1_t1. The target's own English table. The Chinese reads blood moon and the operator gave that name in good faith, but that table says Crescent, which outranks any reading of the Chinese."
+    "note": "Colossus-group hull acol1_t1. The target's own English table. The Chinese reads blood moon and cppctamber gave that name in good faith, but that table says Crescent, which outranks any reading of the Chinese."
   },
 
   "91901": {

@@ -132,7 +132,7 @@ export class CjsToolBuildAuthority
 
         // What we already know of, newest first. This is what the policy falls
         // back to when upstream said nothing, and it is read from the log rather
-        // than the cache: the cache is the store an operator is invited to
+        // than the cache: the cache is the store cppctamber is invited to
         // delete, and a decision a cache clean can erase is not one.
         const known = this.#observations.Builds(name, facet);
         const answer = this.#policy.Decide({

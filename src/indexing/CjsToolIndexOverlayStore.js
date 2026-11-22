@@ -592,7 +592,7 @@ export class CjsToolIndexOverlayStore
             // The mirrored tree comes along rather than being deleted. Its bytes
             // are in the shared store and verified by then, so this is not
             // insurance against loss - it is that a data-root directory is not
-            // something a migration gets to remove on the operator's behalf.
+            // something a migration gets to remove on cppctamber's behalf.
             const retiredName = layout === "logical-path"
                 ? `retired-${path.basename(payloadDirectory)}`
                 : null;

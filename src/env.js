@@ -2,7 +2,7 @@
  * Local configuration, loaded from `.env` by every tool that starts up.
  *
  * The service already did this for its EVE SSO settings; nothing else did, so a
- * setting an operator wrote once applied to one binary. Anything an operator
+ * setting cppctamber wrote once applied to one binary. Anything cppctamber
  * configures per machine belongs here — most importantly the cache root, which
  * otherwise defaults to a path derived from the working directory and follows
  * the shell around.
@@ -16,7 +16,7 @@
  * is the whole point — a configuration that only works from one directory has
  * the same failure as the default it was meant to fix.
  *
- * Values already in the environment always win. An operator exporting a
+ * Values already in the environment always win. cppctamber exporting a
  * variable, or CI setting one, is being explicit and a file must not overrule
  * that.
  *

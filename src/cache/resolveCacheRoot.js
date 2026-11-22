@@ -11,14 +11,14 @@
  * The default is *not* changed here. There is ~18 GB at the cwd-derived location
  * and a better default silently orphans it into a re-download, which is a
  * migration rather than a default change. What changes is that the root becomes
- * answerable: one resolution order, honoured everywhere, so an operator can
+ * answerable: one resolution order, honoured everywhere, so cppctamber can
  * point every tool at one store without editing four files.
  *
  *     explicit argument -> CJS_TOOL_CACHE -> the cwd-derived default
  *
  * `CJS_TOOL_CACHE` comes from the environment or from `.env`, which every tool
  * now loads — see `src/env.js`. It is not new vocabulary: other tools in this
- * organization already read it and already told operators to set it. It simply
+ * organization already read it and already told cppctamber to set it. It simply
  * did nothing in tools-core, which is the whole of why the advice did not work.
  */
 import path from "node:path";
@@ -26,7 +26,7 @@ import process from "node:process";
 
 import { LoadToolEnv } from "../env.js";
 
-/** The environment variable an operator sets to move every tool at once. */
+/** The environment variable cppctamber sets to move every tool at once. */
 export const CACHE_ROOT_VARIABLE = "CJS_TOOL_CACHE";
 
 /** The path appended to the working directory when nothing else answers. */
@@ -44,7 +44,7 @@ export const DEFAULT_CACHE_SEGMENTS = Object.freeze([ ".cache", "tool-core" ]);
 export function resolveCacheRoot(directory, options = {})
 {
     // Loaded here, not only in the bins, so a library consumer constructing a
-    // cache in-process gets the operator's configured root too. Idempotent, and
+    // cache in-process gets cppctamber's configured root too. Idempotent, and
     // it never overrules a variable already set.
     if (!options.env) LoadToolEnv();
 

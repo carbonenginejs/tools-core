@@ -560,7 +560,7 @@ export class CjsToolHttpProxy
             // order book, where it is minutes, and was wrong on history, where
             // it is most of a day - measured at `max-age=34708`, which is nine
             // and a half hours of a reader being unable to refresh a page and
-            // get anything different (operator, 2026-08-22).
+            // get anything different (cppctamber, 2026-08-22).
             //
             // The cap costs nothing upstream. A client re-asking every minute
             // is answered from the copy this service is already holding, so

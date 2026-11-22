@@ -55,7 +55,7 @@ export class CjsToolTokenFile
      *
      * A missing file is an ordinary state - nobody has logged in yet - so it is
      * not an error. Unreadable CONTENT is a different thing and does throw:
-     * silently treating a corrupt store as "no token" would send the operator
+     * silently treating a corrupt store as "no token" would send cppctamber
      * through a fresh login every run with no clue why.
      *
      * @returns {Promise<Object|null>}

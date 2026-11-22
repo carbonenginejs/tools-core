@@ -6,7 +6,7 @@
  * the two stores is the mistake the design exists to avoid — once they are one
  * document, "is that build missing, or refused?" stops having an answer.
  *
- * So this reads a small operator-owned file of pins and holds, and answers
+ * So this reads a small cppctamber-owned file of pins and holds, and answers
  * questions of the form "upstream says N, what do I serve?". It never fetches
  * anything, never writes, and has no opinion about what upstream said.
  *
@@ -39,7 +39,7 @@
  * A pin and a hold are different intents. **Pinned** names a build and serves
  * it whatever upstream does. **Held** refuses to move past what is already
  * cached — the caller keeps whatever it has rather than following a new build —
- * which is what an operator wants during an incident, when the newest build is
+ * which is what cppctamber wants during an incident, when the newest build is
  * suspected rather than known bad.
  *
  * `since` and `note` are not optional in spirit. A pin outliving its reason is
@@ -49,7 +49,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-/** The file an operator edits, at the durable data root. */
+/** The file cppctamber edits, at the durable data root. */
 export const POLICY_FILE = "build-policy.json";
 
 const SCHEMA = "carbon.buildPolicy";
@@ -74,16 +74,16 @@ export const REASONS = Object.freeze({
      * build it concerns; this reason is the policy consuming it.
      */
     newestVerified: "newest-verified",
-    /** An operator named this exact build. */
+    /** cppctamber named this exact build. */
     pinned: "pinned",
-    /** An operator refused to advance; this is what was already held. */
+    /** cppctamber refused to advance; this is what was already held. */
     held: "held",
     /** Upstream could not be reached, and this is the last thing we knew. */
     lastObserved: "last-observed",
 });
 
 /**
- * Applies operator pins and holds to observed builds without performing
+ * Applies cppctamber's pins and holds to observed builds without performing
  * discovery.
  */
 export class CjsToolBuildPolicy
@@ -91,7 +91,7 @@ export class CjsToolBuildPolicy
 
     #targets = null;
 
-    /** Normalizes an operator policy document into an immutable target lookup. */
+    /** Normalizes a cppctamber policy document into an immutable target lookup. */
     constructor(document = {})
     {
         this.#targets = NormalizeTargets(document?.targets);
@@ -102,7 +102,7 @@ export class CjsToolBuildPolicy
 
     /**
      * Reads the policy from the durable data root — never the cache, which is
-     * the store an operator is invited to delete. A pin is a decision, and a
+     * the store cppctamber is invited to delete. A pin is a decision, and a
      * decision that a cache clean can erase is not one.
      *
      * An absent file is the normal case and means "no pins, no holds" — never

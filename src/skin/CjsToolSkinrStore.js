@@ -104,7 +104,7 @@ export class CjsToolSkinrStore
      * harvested yet.
      *
      * @param {Object} [options]
-     * @param {String} [options.dataRoot] - durable root, for tests and operators
+     * @param {String} [options.dataRoot] - durable root, for tests and cppctamber
      * @param {String} [options.file] - an exact path, which wins
      * @param {String} [options.target] - refused unless it is eve
      */
@@ -138,7 +138,7 @@ export class CjsToolSkinrStore
         catch (error)
         {
             // Refusing the file must not also hold it open. A rejected store
-            // that keeps its handle locks the database against the operator who
+            // that keeps its handle locks the database against cppctamber who
             // is about to go and look at what it actually is.
             store.Close();
             throw error;
@@ -508,7 +508,7 @@ export class CjsToolSkinrStore
      *
      * It answered a HISTORY - every sighting, oldest first - back when the
      * store kept one row per sighting. It keeps one row per listing now
-     * (operator, 2026-08-31), so the honest answer is the current record and
+     * (cppctamber, 2026-08-31), so the honest answer is the current record and
      * the method says so rather than returning a history of length one.
      */
     GetListing(listingId)
@@ -650,7 +650,7 @@ export class CjsToolSkinrStore
             + "  ON skinr_designs (ship_type_id);"
             + "CREATE INDEX IF NOT EXISTS skinr_designs_creator "
             + "  ON skinr_designs (creator_id);"
-            // ONE ROW PER LISTING, kept up to date (operator, 2026-08-31: "we
+            // ONE ROW PER LISTING, kept up to date (cppctamber, 2026-08-31: "we
             // do not need to keep historic data on skinr skins").
             //
             // It was a log - the same listing seen at two moments was two rows -
@@ -721,7 +721,7 @@ export class CjsToolSkinrStore
      * The store used to append a row per listing per harvest, and a fortnight
      * of two-hourly runs made 612,207 rows for 4,264 listings - 420MB, of which
      * 99.1% was a copy of a row already there. The listings are what matters
-     * and the history is not kept any more (operator, 2026-08-31), so an
+     * and the history is not kept any more (cppctamber, 2026-08-31), so an
      * existing log is collapsed to its newest row per listing and dropped.
      *
      * ONCE, and only where the old table exists: it runs inside the same

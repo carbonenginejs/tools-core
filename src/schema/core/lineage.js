@@ -3,7 +3,7 @@
 // overload sets map onto `Name__Discriminator` methods.
 //
 // Sources of the rules:
-// - extends / inherit: operator ruling 2026-10-11 - `extends` is the base that
+// - extends / inherit: cppctamber ruling 2026-10-11 - `extends` is the base that
 //   CARRIES STATE (Carbon's concrete base, even when Carbon lists interfaces
 //   first, `AudEmitter : IBlueEventListener, ..., AudGameObjResource`,
 //   AudEmitter.h:23), every other base comes through `@blue.inherit`, and
