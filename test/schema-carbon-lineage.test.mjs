@@ -79,8 +79,8 @@ test("declaration lines survive block comments, and overloads stay separate decl
 test("real headers: AudEmitter keeps Carbon's base order; Tr2Effect keeps all ten SetParameter overloads", { skip: !hasCarbon }, () =>
 {
     const audEmitter = scannedDoc("AudEmitter", "audio/src/AudEmitter.h");
-    assert.deepEqual(audEmitter.bases, [ "IBlueEventListener", "IBluePlacementObserver", "AudGameObjResource", "ITr2DebugRenderable", "ITr2AudEmitter" ]);
-    assert.equal(audEmitter.declarations[0].line, 23);
+    assert.deepEqual(audEmitter.bases, [ "IBlueEventListener", "IBluePlacementObserver", "AudGameObjResource", "ITr2DebugRenderable", "ITr2AudEmitter", "ITr2AudParentBall" ]);
+    assert.equal(audEmitter.declarations[0].line, 24);
     const effect = scannedDoc("Tr2Effect", "trinity/trinity/Shader/Tr2Effect.h");
     assert.equal(deriveOverloadSets(effect).get("SetParameter").length, 10);
 });
