@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const rules = [
     [ "private document reference", /(?:^|[^\w.-])\/?docs[\\/](?:internal|research|projects|architecture|specifications|standards|decisions)[\\/]/iu ],
-    [ "private documentation repository", /carbonenginejs[\\/]private-docs\b/iu ],
+    [ "private repository reference", /carbonenginejs[\\/]private-docs\b/iu ],
     [ "agent workspace", /(?:^|[^\w.-])\.(?:agents|claude|codex)[\\/]/iu ],
     [ "machine path", /\b[A-Za-z]:[\\/](?:carbon|Users|ccpwgl|skindr|[\w-]*carbonenginejs)/iu ],
     // Lowercase forward-slash resource identifiers are valid; backslashes are filesystem paths.
