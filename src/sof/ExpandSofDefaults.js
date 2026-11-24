@@ -8,16 +8,16 @@ let runtimeDefaults;
 export async function PrepareSofDefaults()
 {
     runtimeDefaults ??= Promise.all([
-        import("@carbonenginejs/runtime/schema"),
+        import("@carbonenginejs/runtime/graph"),
         import("@carbonenginejs/runtime/trinity"),
         import("@carbonenginejs/runtime/audio/trinity"),
-    ]).then(([schema]) => schema.CjsSchema);
+    ]).then(([graph]) => graph.CjsGraph);
     return runtimeDefaults;
 }
 
-/** Applies runtime-owned class defaults to one sparse SOF values graph. */
+/** Constructs without Initialize and writes all exposed values, including runtime class defaults. */
 export async function ExpandSofDefaults(values)
 {
-    const CjsSchema = await PrepareSofDefaults();
-    return CjsSchema.applyDefaults(values);
+    const CjsGraph = await PrepareSofDefaults();
+    return CjsGraph.get(CjsGraph.from(null, values, { initialize: false }), { full: true, persistOnly: false, forceTypeTags: true });
 }

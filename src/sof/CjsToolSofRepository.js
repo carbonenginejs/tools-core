@@ -276,7 +276,10 @@ export class CjsToolSofCatalog
             await this.#LoadAllPatterns();
         }
 
-        return this.#sof.dataMgr.ListPatternDataNamesForHull(hull);
+        const requested = NormalizeCatalogName(hull);
+        const canonical = this.#sof.dataMgr.ListHullDataNames()
+            .find(name => NormalizeCatalogName(name) === requested) ?? null;
+        return canonical === null ? null : this.#sof.dataMgr.ListPatternDataNamesForHull(canonical);
     }
 
     /**
@@ -475,7 +478,7 @@ export class CjsToolSofCatalog
 
     /**
      * Builds sparse SOF values and overlays the registered Trinity/audio class
-     * defaults without constructing or initializing the authored graph.
+     * defaults by constructing without Initialize and writing all exposed values.
      */
     async BuildExpandedValuesAsync(dna, options = {})
     {

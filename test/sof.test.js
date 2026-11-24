@@ -4,7 +4,7 @@ import test from "node:test";
 import { blue } from "@carbonenginejs/runtime/blue";
 import { EveSOF, EveSOFDataParameter } from "@carbonenginejs/runtime/sof";
 import { CjsToolBlueHost } from "../src/indexing/CjsToolBlueHost.js";
-import { CjsToolSofRepository, ExpandSofDefaults } from "../src/sof/index.js";
+import { CjsToolSofCatalog, CjsToolSofRepository, ExpandSofDefaults } from "../src/sof/index.js";
 
 test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
 {
@@ -141,6 +141,21 @@ test("opens and reuses one GPU-free exact-build SOF catalog", async () =>
     assert.equal((await first.GetDnaVisibilityGroups("missing:amarrbase:amarr")), null);
 });
 
+test("hull pattern lookup resolves mixed-case authored keys without changing the catalog", async () =>
+{
+    const data = CreateData();
+    data.hull[1].name = "Ab1_T1";
+    const sof = await EveSOF.Create({ data });
+    const catalog = new CjsToolSofCatalog({
+        source: { target: "eve", build: "3435006", Match() {}, Fetch() {} },
+        sof,
+    });
+
+    assert.deepEqual(await catalog.ListHullPatterns(" AB1_t1 "), [ "alpha", "stripes" ]);
+    assert.deepEqual(await catalog.ListHullPatternsAsync("ab1_t1"), [ "alpha", "stripes" ]);
+    assert.ok(sof.dataMgr.ListHullDataNames().includes("Ab1_T1"));
+    assert.equal(sof.dataMgr.ListPatternDataNamesForHull("ab1_t1"), null);
+});
 test("defaults to generic-first SOF loading and fetches indexed records on demand", async () =>
 {
     const basePath = "res:/dx9/model/spaceobjectfactory";
@@ -359,15 +374,24 @@ test("SOF files load through Blue's resMan under the build's own protocol, never
     }
 });
 
-test("default expansion applies registered combined-runtime class defaults", async () =>
+test("default expansion applies registered combined-runtime class defaults", async t =>
 {
-    const sparse = { _type: "EveShip2" };
+    const { EveShip2 } = await import("@carbonenginejs/runtime/trinity");
+    t.mock.method(EveShip2.prototype, "Initialize", () =>
+    {
+        throw new Error("Default expansion must not initialize the ship");
+    });
+    const sparse = { _type: "EveShip2", name: "authored", mesh: { _type: "Tr2Mesh", display: false } };
     const expanded = await ExpandSofDefaults(sparse);
 
     assert.notEqual(expanded, sparse);
     assert.equal(expanded._type, "EveShip2");
     assert.equal(expanded.display, true);
-    assert.equal(Object.hasOwn(sparse, "display"), false);
+    assert.equal(expanded.name, "authored");
+    assert.equal(expanded.mesh._type, "Tr2Mesh");
+    assert.equal(expanded.mesh.display, false);
+    assert.notEqual(expanded.mesh, sparse.mesh);
+    assert.deepEqual(sparse, { _type: "EveShip2", name: "authored", mesh: { _type: "Tr2Mesh", display: false } });
 });
 
 const SOF_DATA_PATH_FOR_TEST = "res:/dx9/model/spaceobjectfactory/data.black";
